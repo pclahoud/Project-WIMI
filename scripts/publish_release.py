@@ -103,7 +103,27 @@ def scan(patterns):
     print(f"PII scan passed ({len(patterns)} patterns, no matches).")
 
 
-def publish(message, dry_run):
+def public_env():
+    """Environment overriding author, committer, and tagger identity.
+
+    Everything that reaches GitHub must carry the public identity: commits
+    read GIT_AUTHOR_*/GIT_COMMITTER_*, and annotated tags embed the
+    GIT_COMMITTER_* values as the tagger. The repo-local git config holds
+    the private identity, so never create public commits or tags without
+    this override.
+    """
+    import os
+    env = os.environ.copy()
+    env.update(
+        GIT_AUTHOR_NAME=PUBLIC_NAME,
+        GIT_AUTHOR_EMAIL=PUBLIC_EMAIL,
+        GIT_COMMITTER_NAME=PUBLIC_NAME,
+        GIT_COMMITTER_EMAIL=PUBLIC_EMAIL,
+    )
+    return env
+
+
+def publish(message, dry_run, tag=None):
     source_tree = git("rev-parse", f"{SOURCE_BRANCH}^{{tree}}").stdout.strip()
     public_head = git("rev-parse", PUBLIC_BRANCH).stdout.strip()
     public_tree = git("rev-parse", f"{PUBLIC_BRANCH}^{{tree}}").stdout.strip()
@@ -118,17 +138,9 @@ def publish(message, dry_run):
             print(f"Would publish these changes:\n{diff.stdout}")
             print("Dry run -- no commit created, nothing pushed.")
             return
-        import os
-        env = os.environ.copy()
-        env.update(
-            GIT_AUTHOR_NAME=PUBLIC_NAME,
-            GIT_AUTHOR_EMAIL=PUBLIC_EMAIL,
-            GIT_COMMITTER_NAME=PUBLIC_NAME,
-            GIT_COMMITTER_EMAIL=PUBLIC_EMAIL,
-        )
         new_head = git(
             "commit-tree", source_tree, "-p", public_head, "-m", message,
-            env=env,
+            env=public_env(),
         ).stdout.strip()
         git("update-ref", f"refs/heads/{PUBLIC_BRANCH}", new_head, public_head)
         print(f"Created {PUBLIC_BRANCH} commit {new_head[:9]}: {message}")
@@ -138,6 +150,11 @@ def publish(message, dry_run):
         return
     git("push", REMOTE, f"{PUBLIC_BRANCH}:{REMOTE_BRANCH}")
     print(f"Pushed {new_head[:9]} to {REMOTE}/{REMOTE_BRANCH}.")
+
+    if tag:
+        git("tag", "-a", tag, new_head, "-m", message, env=public_env())
+        git("push", REMOTE, tag)
+        print(f"Tagged {new_head[:9]} as {tag} (public identity) and pushed.")
 
 
 def main():
@@ -153,11 +170,16 @@ def main():
         "--dry-run", action="store_true",
         help="scan and report only; do not commit or push",
     )
+    parser.add_argument(
+        "--tag", metavar="NAME",
+        help="also create an annotated tag on the published snapshot "
+             "(under the public identity) and push it",
+    )
     args = parser.parse_args()
 
     preflight()
     scan(load_denylist())
-    publish(args.message, args.dry_run)
+    publish(args.message, args.dry_run, args.tag)
 
 
 if __name__ == "__main__":
