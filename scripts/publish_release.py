@@ -94,7 +94,7 @@ def scan(patterns):
         check=False,
     )
     if result.returncode == 0:
-        print("PII scan FAILED — denylisted patterns found in the "
+        print("PII scan FAILED -- denylisted patterns found in the "
               f"committed tree of {SOURCE_BRANCH}:\n", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         sys.exit("Aborting. Scrub the matches (and commit) before publishing.")
@@ -116,7 +116,7 @@ def publish(message, dry_run):
         if dry_run:
             diff = git("diff", "--stat", PUBLIC_BRANCH, SOURCE_BRANCH)
             print(f"Would publish these changes:\n{diff.stdout}")
-            print("Dry run — no commit created, nothing pushed.")
+            print("Dry run -- no commit created, nothing pushed.")
             return
         import os
         env = os.environ.copy()
@@ -134,7 +134,7 @@ def publish(message, dry_run):
         print(f"Created {PUBLIC_BRANCH} commit {new_head[:9]}: {message}")
 
     if dry_run:
-        print("Dry run — nothing pushed.")
+        print("Dry run -- nothing pushed.")
         return
     git("push", REMOTE, f"{PUBLIC_BRANCH}:{REMOTE_BRANCH}")
     print(f"Pushed {new_head[:9]} to {REMOTE}/{REMOTE_BRANCH}.")
