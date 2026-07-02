@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Logger Development Viewer</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/error-viewer.css">
+</head>
+<body>
+    <!-- Error Viewer Component (Development Mode) -->
+    <div id="error-viewer" class="minimized">
+        <div class="viewer-header">
+            <div class="viewer-title">
+                <span class="error-indicator" id="status-indicator"></span>
+                <span>Error Console</span>
+                <span class="error-badge" id="error-count">0</span>
+            </div>
+            <div class="viewer-controls">
+                <button onclick="errorViewer.toggleStats()" title="Statistics" aria-label="Toggle statistics" data-testid="error-viewer-stats-button">📊</button>
+                <button onclick="errorViewer.clearErrors()" title="Clear" aria-label="Clear errors" data-testid="error-viewer-clear-button">🗑️</button>
+                <button onclick="errorViewer.exportErrors()" title="Export" aria-label="Export errors" data-testid="error-viewer-export-button">💾</button>
+                <button onclick="errorViewer.toggleViewer()" title="Minimize" aria-label="Minimize error viewer" data-testid="error-viewer-minimize-button">_</button>
+            </div>
+        </div>
+        
+        <div class="viewer-filters">
+            <select class="filter-select" id="level-filter" onchange="errorViewer.filterErrors()">
+                <option value="">All Levels</option>
+                <option value="TRACE">Trace</option>
+                <option value="DEBUG">Debug</option>
+                <option value="INFO">Info</option>
+                <option value="WARNING">Warning</option>
+                <option value="ERROR">Error</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="FATAL">Fatal</option>
+            </select>
+            
+            <select class="filter-select" id="category-filter" onchange="errorViewer.filterErrors()">
+                <option value="">All Categories</option>
+                <option value="javascript">JavaScript</option>
+                <option value="network">Network</option>
+                <option value="database">Database</option>
+                <option value="migration">Migration</option>
+                <option value="console">Console</option>
+                <option value="promise">Promise</option>
+                <option value="custom">Custom</option>
+            </select>
+            
+            <input type="text" class="search-input" id="search-filter" 
+                   placeholder="Search errors..." onkeyup="errorViewer.filterErrors()">
+        </div>
+        
+        <div class="error-list" id="error-list">
+            <div class="error-list-empty" data-testid="error-viewer-list-empty">
+                <div class="error-list-empty-icon">✓</div>
+                <div class="error-list-empty-text">No errors to display</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Statistics Panel -->
+    <div class="stats-panel" id="stats-panel" data-testid="error-viewer-stats-panel">
+        <div class="stats-title">Error Statistics</div>
+        <div id="stats-content"></div>
+    </div>
+    
+    <!-- Theme Support -->
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+
+    <!-- Error Viewer JavaScript -->
+    <script src="../js/error-logger.js"></script>
+    <script>
+        class ErrorViewer {
+            constructor() {
+                this.viewerMinimized = true;
+                this.statsVisible = false;
+                this.initialize();
+            }
+            
+            initialize() {
+                // Listen for new errors
+                window.addEventListener('errorlogger:error', (event) => {
+                    this.updateErrorList();
+                    this.updateErrorCount();
+                    this.updateStatusIndicator();
+                });
+                
+                window.addEventListener('errorlogger:clear', (event) => {
+                    this.updateErrorList();
+                    this.updateErrorCount();
+                    this.updateStatusIndicator();
+                });
+                
+                // Initialize error logger if not already present
+                if (!window.errorLogger) {
+                    window.errorLogger = new ErrorLogger({
+                        enableConsoleCapture: true,
+                        enableWindowErrorCapture: true,
+                        enableUnhandledRejectionCapture: true,
+                        enableBreadcrumbs: true,
+                        pythonBridge: window.pyqt_bridge || null
+                    });
+                }
+                
+                // Initial update
+                this.updateErrorList();
+                this.updateErrorCount();
+            }
+            
+            toggleViewer() {
+                this.viewerMinimized = !this.viewerMinimized;
+                document.getElementById('error-viewer').classList.toggle('minimized', this.viewerMinimized);
+            }
+            
+            toggleStats() {
+                this.statsVisible = !this.statsVisible;
+                document.getElementById('stats-panel').classList.toggle('visible', this.statsVisible);
+                if (this.statsVisible) {
+                    this.updateStats();
+                }
+            }
+            
+            clearErrors() {
+                if (confirm('Clear all errors?')) {
+                    window.errorLogger.clearErrors();
+                }
+            }
+            
+            exportErrors() {
+                const data = window.errorLogger.exportErrors('json');
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `errors_${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+            
+            filterErrors() {
+                this.updateErrorList();
+            }
+            
+            updateErrorList() {
+                const levelFilter = document.getElementById('level-filter').value;
+                const categoryFilter = document.getElementById('category-filter').value;
+                const searchFilter = document.getElementById('search-filter').value;
+                
+                const errors = window.errorLogger.getErrors({
+                    level: levelFilter,
+                    category: categoryFilter,
+                    search: searchFilter
+                });
+                
+                const listEl = document.getElementById('error-list');
+                
+                if (errors.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="error-list-empty" data-testid="error-viewer-list-empty">
+                            <div class="error-list-empty-icon">✓</div>
+                            <div class="error-list-empty-text">No errors to display</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                listEl.innerHTML = errors.slice(0, 100).map(error => `
+                    <div class="error-item level-${error.level}" data-testid="error-viewer-error-item-${error.id}" onclick="errorViewer.toggleErrorDetails(this)">
+                        <div class="error-header">
+                            <span class="error-level level-${error.level}">${error.level}</span>
+                            <span class="error-time">${new Date(error.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="error-message">${this.escapeHtml(error.message)}</div>
+                        <div class="error-details" data-testid="error-viewer-error-details-${error.id}">
+                            ${error.stack ? `<div class="error-stack">${this.escapeHtml(error.stack)}</div>` : ''}
+                            <div class="error-context">
+                                <div class="context-item">
+                                    <span class="context-label">Category:</span>
+                                    <span class="context-value">${error.category}</span>
+                                </div>
+                                <div class="context-item">
+                                    <span class="context-label">Session ID:</span>
+                                    <span class="context-value">${error.context.sessionId}</span>
+                                </div>
+                                ${error.context.url ? `
+                                    <div class="context-item">
+                                        <span class="context-label">URL:</span>
+                                        <span class="context-value">${this.escapeHtml(error.context.url)}</span>
+                                    </div>
+                                ` : ''}
+                                ${error.context.userId ? `
+                                    <div class="context-item">
+                                        <span class="context-label">User:</span>
+                                        <span class="context-value">${error.context.username || error.context.userId}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            toggleErrorDetails(element) {
+                element.classList.toggle('expanded');
+            }
+            
+            updateErrorCount() {
+                const count = window.errorLogger.errors.length;
+                document.getElementById('error-count').textContent = count;
+            }
+            
+            updateStatusIndicator() {
+                const errors = window.errorLogger.errors;
+                const indicator = document.getElementById('status-indicator');
+                
+                const hasErrors = errors.some(e => ['ERROR', 'CRITICAL', 'FATAL'].includes(e.level));
+                const hasWarnings = errors.some(e => e.level === 'WARNING');
+                
+                indicator.classList.toggle('has-errors', hasErrors);
+                indicator.classList.toggle('has-warnings', !hasErrors && hasWarnings);
+            }
+            
+            updateStats() {
+                const stats = window.errorLogger.getStatistics();
+                const content = document.getElementById('stats-content');
+                
+                content.innerHTML = `
+                    <div class="stat-row">
+                        <span class="stat-label">Total Errors:</span>
+                        <span class="stat-value">${stats.total}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Current Buffer:</span>
+                        <span class="stat-value">${stats.errors}/${stats.maxErrors}</span>
+                    </div>
+                    ${Object.entries(stats.byLevel).map(([level, count]) => `
+                        <div class="stat-row">
+                            <span class="stat-label">${level}:</span>
+                            <span class="stat-value">${count}</span>
+                        </div>
+                    `).join('')}
+                    <div class="stat-row">
+                        <span class="stat-label">Session ID:</span>
+                        <span class="stat-value" style="font-size: 10px;">${stats.sessionId}</span>
+                    </div>
+                `;
+            }
+            
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+        
+        // Initialize error viewer
+        const errorViewer = new ErrorViewer();
+    </script>
+</body>
+</html>

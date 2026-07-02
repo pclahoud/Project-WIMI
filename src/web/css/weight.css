@@ -1,0 +1,1525 @@
+/**
+ * WIMI Weight Editor Styles
+ * Phase 3 Stage 3 - Enhanced Weight Editing Interface
+ */
+
+/* =========================================================================
+   Weight Editor Container
+   ========================================================================= */
+
+.weight-editor-enhanced {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+/* =========================================================================
+   Current Weight Display
+   ========================================================================= */
+
+.weight-current-display {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+}
+
+.weight-current-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+}
+
+.weight-current-header label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.weight-precision-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.weight-main-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.weight-value-large {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+    min-width: 5rem;
+}
+
+.weight-value-large.changed {
+    color: var(--color-warning);
+}
+
+.weight-delta {
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+}
+
+.weight-delta.positive {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.weight-delta.negative {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.weight-delta.neutral {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+/* Enhanced Slider */
+.weight-slider-container {
+    position: relative;
+    padding: var(--space-sm) 0;
+}
+
+.weight-slider-enhanced {
+    width: 100%;
+    height: 0.5rem;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    outline: none;
+    position: relative;
+}
+
+.weight-slider-enhanced::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--color-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    border: 3px solid white;
+}
+
+.weight-slider-enhanced::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.weight-slider-enhanced:active::-webkit-slider-thumb {
+    transform: scale(1.1);
+}
+
+.weight-slider-enhanced.preview-mode::-webkit-slider-thumb {
+    background: var(--color-warning);
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+/* Slider track fill */
+.weight-slider-track {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 0.5rem;
+    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) var(--fill-percent, 0%), var(--bg-tertiary) var(--fill-percent, 0%));
+    border-radius: var(--radius-full);
+    transform: translateY(-50%);
+    pointer-events: none;
+    width: 100%;
+}
+
+/* Slider markers */
+.weight-slider-markers {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-xs);
+    padding: 0 0.125rem;
+}
+
+.weight-slider-marker {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* Direct input */
+.weight-direct-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.weight-direct-input label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.weight-input-field {
+    width: 5rem;
+    padding: var(--space-xs) var(--space-sm);
+    text-align: center;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast);
+}
+
+.weight-input-field:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+.weight-input-field.invalid {
+    border-color: var(--color-error);
+}
+
+/* =========================================================================
+   Algorithm Info
+   ========================================================================= */
+
+.weight-algorithm-info {
+    /* Two-row layout: icon + label + algorithm name on row 1, description
+       on row 2 (full width, smaller, muted). Previously the description
+       used ``margin-left: auto`` to right-align on a single flex row,
+       which read as a yawning gap in the narrow inspector column and
+       overflowed for any non-trivial description. flex-wrap + flex-basis
+       100% on the description forces it onto its own row regardless of
+       column width. */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--space-sm);
+    row-gap: 0.25rem;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-primary-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.weight-algorithm-info .icon {
+    font-size: 1rem;
+}
+
+.weight-algorithm-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-primary);
+}
+
+.weight-algorithm-desc {
+    flex-basis: 100%;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+    margin-left: 0;
+}
+
+/* =========================================================================
+   Siblings Preview
+   ========================================================================= */
+
+.weight-siblings-section {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    /* Section can be the widest of the panel's contents — its grid rows
+       contain percentages and bars. min-width: 0 lets the section shrink
+       below its intrinsic content width when the inspector is narrow,
+       which in turn lets the inner grid fr columns shrink properly. */
+    min-width: 0;
+}
+
+.weight-siblings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-md);
+}
+
+.weight-siblings-header label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.weight-preview-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Enhanced sibling bars */
+.siblings-chart-enhanced {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.sibling-row {
+    display: grid;
+    /* Responsive sibling-row layout. Was hard-coded
+       6.25rem 1fr 3.75rem 3.75rem, which in the 23.75rem inspector
+       (~330px usable inner width) left only ~88px for the bar after
+       fixed columns and gaps, and pinned the name column at 100px so
+       most subject names ellipsised. New layout:
+         - name:  minmax(0, 1.2fr) — flexible, can shrink to 0 with
+           ellipsis, but typically larger than the bar.
+         - bar:   minmax(2.5rem, 1.6fr) — guaranteed minimum 40px even
+           when extremely narrow; takes the larger fr share so it
+           remains the visual anchor.
+         - values: auto each — only as wide as their content (e.g.
+           "0.0%" or "—"), no wasted 60px columns.
+       Total fr ratio is 1.2 + 1.6 = 2.8, so name gets ~43% of fr space,
+       bar gets ~57% — bar still bigger than name as intended, but name
+       is no longer locked to a single fixed width. */
+    grid-template-columns:
+        minmax(0, 1.2fr)
+        minmax(2.5rem, 1.6fr)
+        auto
+        auto;
+    gap: var(--space-sm);
+    align-items: center;
+    padding: var(--space-xs) 0;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+    min-width: 0;
+}
+
+.sibling-row:hover {
+    background: var(--bg-tertiary);
+}
+
+.sibling-row.current {
+    background: var(--color-primary-bg);
+}
+
+.sibling-row.will-change {
+    background: var(--color-warning-bg);
+}
+
+.sibling-row-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sibling-row.current .sibling-row-name {
+    color: var(--color-primary);
+}
+
+.sibling-bar-wrapper {
+    position: relative;
+    height: 1.25rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.sibling-bar-current {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+    transition: width var(--transition-normal);
+}
+
+.sibling-bar-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--color-warning);
+    border-radius: var(--radius-sm);
+    opacity: 0.7;
+    transition: width var(--transition-normal);
+}
+
+.sibling-row.current .sibling-bar-current {
+    background: var(--color-success);
+}
+
+.sibling-current-value {
+    font-size: var(--font-size-sm);
+    text-align: right;
+    color: var(--text-secondary);
+    min-width: 2.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.sibling-preview-value {
+    font-size: var(--font-size-sm);
+    text-align: right;
+    font-weight: var(--font-weight-medium);
+    min-width: 2.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.sibling-preview-value.increase {
+    color: var(--color-success);
+}
+
+.sibling-preview-value.decrease {
+    color: var(--color-error);
+}
+
+.sibling-preview-value.unchanged {
+    color: var(--text-muted);
+}
+
+/* Total validation. Allows wrapping when the warning message ("⚠️ Total
+   is 100.0% below 100%") would otherwise blow out the inspector width.
+   space-between is preserved when there's room; on narrow widths the
+   values block wraps to its own line below the label. */
+.siblings-total-enhanced {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-light);
+}
+
+.siblings-total-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.siblings-total-values {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.total-current {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+.total-arrow {
+    color: var(--text-muted);
+}
+
+.total-preview {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+}
+
+.total-preview.valid {
+    color: var(--color-success);
+}
+
+.total-preview.invalid {
+    color: var(--color-error);
+}
+
+.total-preview.warning {
+    color: var(--color-warning);
+}
+
+.validation-message {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+}
+
+.validation-message.success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.validation-message.error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.validation-message.warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+/* =========================================================================
+   Weight Actions
+   ========================================================================= */
+
+.weight-actions-enhanced {
+    display: flex;
+    gap: var(--space-md);
+    padding-top: var(--space-md);
+}
+
+.weight-actions-enhanced .btn {
+    flex: 1;
+}
+
+.btn.btn-apply {
+    background: var(--color-success);
+    color: var(--text-inverse, white);
+}
+
+.btn.btn-apply:hover {
+    background: var(--color-success-hover, #059669);
+}
+
+.btn.btn-apply:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* -------------------------------------------------------------------------
+   Rebalance Siblings Button (Stage 2 of WEIGHT_ALLOCATION_IMPLEMENTATION_PLAN.md)
+   -------------------------------------------------------------------------
+   Stage 2 makes auto-rebalance opt-in: typing a weight no longer mutates
+   siblings, the user clicks this button to explicitly redistribute. The
+   button is a secondary action — visually subordinate to "Apply Weight"
+   so the user is not nudged into it by default.
+   ------------------------------------------------------------------------- */
+
+.btn.btn-rebalance-siblings {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color, var(--border-secondary, #d1d5db));
+}
+
+.btn.btn-rebalance-siblings:hover:not(:disabled) {
+    background: var(--bg-hover, var(--bg-secondary));
+    border-color: var(--color-primary);
+}
+
+.btn.btn-rebalance-siblings:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* =========================================================================
+   Weight History
+   ========================================================================= */
+
+.weight-history-section {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+}
+
+.weight-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+}
+
+.weight-history-header label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.weight-history-toggle {
+    font-size: var(--font-size-xs);
+    color: var(--color-primary);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.weight-history-toggle:hover {
+    text-decoration: underline;
+}
+
+.weight-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 12.5rem;
+    overflow-y: auto;
+}
+
+.weight-history-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.history-date {
+    color: var(--text-muted);
+    min-width: 5rem;
+}
+
+.history-change {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex: 1;
+}
+
+.history-old-value {
+    color: var(--text-secondary);
+    text-decoration: line-through;
+}
+
+.history-arrow {
+    color: var(--text-muted);
+}
+
+.history-new-value {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.history-reason {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    margin-left: auto;
+    max-width: 9.375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-full);
+}
+
+.history-badge.user {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.history-badge.auto {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.weight-history-empty {
+    text-align: center;
+    padding: var(--space-lg);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Collapse/expand history */
+.weight-history-list.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 600px) {
+    .weight-main-display {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .sibling-row {
+        grid-template-columns: 5rem 1fr 2.8125rem 2.8125rem;
+    }
+    
+    .weight-actions-enhanced {
+        flex-direction: column;
+    }
+}
+
+/* =========================================================================
+   Hybrid Weight System - Status Header
+   ========================================================================= */
+
+.weight-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+}
+
+.weight-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.weight-type-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-weight: var(--font-weight-medium);
+}
+
+.weight-type-badge.absolute {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.weight-type-badge.relative {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.weight-type-badge.effective {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.weight-confidence-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.weight-confidence-badge.high {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.weight-confidence-badge.medium {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.weight-confidence-badge.low {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.weight-lock-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.weight-source-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Weight Range Display (for official weights)
+   ========================================================================= */
+
+.weight-range-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-primary-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--color-primary);
+}
+
+.range-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.range-values {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+}
+
+.range-source {
+    margin-left: auto;
+    font-size: 1rem;
+    cursor: help;
+}
+
+/* =========================================================================
+   Effective Weight Display
+   ========================================================================= */
+
+.effective-weight-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-success-bg);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-md);
+    border: 1px solid var(--color-success);
+}
+
+.effective-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.effective-value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-success);
+}
+
+.effective-calc {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+/* =========================================================================
+   Weight Mode Info
+   ========================================================================= */
+
+.weight-mode-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-md);
+}
+
+.weight-mode-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.weight-mode-source {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    max-width: 12.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* =========================================================================
+   Locked Weight State
+   ========================================================================= */
+
+.weight-editor-enhanced.locked {
+    /* Subtle visual indication that editing is restricted */
+}
+
+.weight-editor-enhanced.locked .weight-current-display {
+    background: var(--bg-tertiary);
+}
+
+.weight-locked-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.weight-locked-message .icon {
+    font-size: 2rem;
+}
+
+.weight-locked-message .locked-reason {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.weight-lock-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-warning-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-warning);
+    margin-bottom: var(--space-sm);
+}
+
+/* =========================================================================
+   Locked Siblings
+   ========================================================================= */
+
+.sibling-row.locked {
+    opacity: 0.7;
+}
+
+.sibling-row.locked .sibling-bar-current {
+    background: var(--text-muted);
+}
+
+.locked-siblings-note {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-sm);
+}
+
+/* =========================================================================
+   Weight Range Inputs (Side-by-Side Low/High)
+   ========================================================================= */
+
+.weight-range-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-warning-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--color-warning);
+}
+
+.weight-range-indicator .range-icon {
+    font-size: 1.25rem;
+}
+
+.weight-range-indicator .range-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-warning);
+}
+
+.weight-range-indicator .range-source {
+    margin-left: auto;
+    cursor: help;
+}
+
+/* Main range display */
+.weight-range-main-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-md);
+}
+
+.weight-range-values {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+    text-align: center;
+}
+
+.weight-range-values.changed {
+    color: var(--color-warning);
+}
+
+/* Side-by-side input fields */
+.weight-range-inputs {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-md);
+    justify-content: center;
+    margin-top: var(--space-md);
+}
+
+.weight-range-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.weight-range-input-group label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+}
+
+.weight-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.weight-range-input-group .weight-input-field {
+    width: 5.625rem;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.weight-range-input-group .weight-input-field:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    outline: none;
+}
+
+.weight-range-input-group .weight-input-field.weight-low-field:focus {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 3px var(--color-warning-bg);
+}
+
+.weight-range-input-group .weight-input-field.weight-high-field:focus {
+    border-color: var(--color-success);
+    box-shadow: 0 0 0 3px var(--color-success-bg);
+}
+
+.weight-input-suffix {
+    font-size: var(--font-size-md);
+    color: var(--text-muted);
+    font-weight: var(--font-weight-medium);
+}
+
+.weight-range-separator {
+    font-size: var(--font-size-xl);
+    color: var(--text-muted);
+    font-weight: var(--font-weight-bold);
+    padding: 0 var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+
+.weight-range-help {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: var(--space-md);
+}
+
+/* =========================================================================
+   Dimension Stats - Range Indicator
+   ========================================================================= */
+
+.dimension-stat-range {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    color: var(--text-muted);
+}
+
+.dimension-stat-range .range-icon {
+    font-size: 1rem;
+}
+
+/* =========================================================================
+   Responsive - Weight Range Inputs
+   ========================================================================= */
+
+@media (max-width: 480px) {
+    .weight-range-inputs {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+
+    .weight-range-separator {
+        transform: rotate(90deg);
+        margin: var(--space-xs) 0;
+    }
+
+    .weight-range-input-group .weight-input-field {
+        width: 6.25rem;
+    }
+}
+
+/* =========================================================================
+   Stage 6 (Hierarchical Weight Allocation) — Dual-unit input,
+   parent-context disclosure, per-edge anchor UX, switch-parent link.
+   All styles use CSS variables so the theme system controls color.
+   ========================================================================= */
+
+/* --- Parent-context header (shows "Weight for X under Y") -------------- */
+
+.weight-modal-context-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    font-size: var(--font-size-sm);
+}
+
+.weight-modal-context-header strong {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.weight-modal-context-label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* --- Switch-parent link list ------------------------------------------ */
+
+.weight-switch-parent {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    margin-bottom: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.weight-switch-parent-link {
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+}
+
+.weight-switch-parent-link:hover {
+    color: var(--color-primary-hover, var(--color-primary));
+    text-decoration: none;
+}
+
+/* --- Segmented unit toggle (% | Q) ------------------------------------ */
+
+.weight-unit-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border-color, var(--bg-tertiary));
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    margin-left: var(--space-sm);
+}
+
+.weight-unit-toggle[hidden] { display: none; }
+
+.weight-unit-btn {
+    padding: var(--space-xs) var(--space-md);
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.weight-unit-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.weight-unit-btn.active {
+    background: var(--color-primary);
+    color: var(--text-on-primary, white);
+}
+
+.weight-unit-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+}
+
+/* --- Anchor checkbox -------------------------------------------------- */
+
+.weight-anchor-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    user-select: none;
+}
+
+.weight-anchor-toggle input[type="checkbox"] {
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.weight-anchor-toggle:hover {
+    color: var(--text-primary);
+}
+
+/* --- Anchor pin (filled icon next to anchored values) ----------------- */
+
+.weight-anchor-pin {
+    display: inline-block;
+    color: var(--color-primary);
+    margin-right: 2px;
+    font-size: 0.85em;
+    line-height: 1;
+}
+
+.weight-anchor-pin.filled {
+    color: var(--color-primary);
+    opacity: 1;
+}
+
+.weight-anchor-pin.outline {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+/* --- Sibling preview chart: anchored vs auto bars --------------------- */
+
+.sibling-bar-current.sibling-bar-anchored {
+    background: var(--color-primary);
+    opacity: 0.85;
+}
+
+.sibling-bar-current.sibling-bar-auto {
+    background: repeating-linear-gradient(
+        45deg,
+        var(--color-primary),
+        var(--color-primary) 4px,
+        var(--bg-tertiary) 4px,
+        var(--bg-tertiary) 8px
+    );
+    opacity: 0.7;
+}
+
+.sibling-row.anchored .sibling-row-name {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+}
+
+.sibling-row.auto .sibling-row-name {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* --- Feasibility badge slot (Stage 7 fills the copy) ------------------ */
+
+.weight-feasibility-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-bg, rgba(255, 196, 0, 0.15));
+    color: var(--color-warning, #b8860b);
+    border: 1px solid var(--color-warning, rgba(255, 196, 0, 0.4));
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-sm);
+}
+
+.weight-feasibility-badge[hidden] { display: none; }
+
+.weight-feasibility-badge.status-ok {
+    background: var(--color-success-bg, rgba(34, 197, 94, 0.15));
+    color: var(--color-success, #15803d);
+    border-color: var(--color-success, rgba(34, 197, 94, 0.4));
+}
+
+/* --- Stage 7 status variants ----------------------------------------- */
+/* Per the implementation plan ("yellow for all warnings; red is reserved
+ * for save failures and we are explicitly never failing the save here")
+ * all three non-ok states use the warning palette. Subtle background
+ * intensity differences distinguish them. */
+
+.weight-feasibility-badge.status-under,
+.weight-feasibility-badge.status-over {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: var(--color-warning);
+}
+
+.weight-feasibility-badge.status-infeasible {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: var(--color-warning);
+    /* Slightly heavier weight to differentiate from the soft over/under
+     * states. */
+    font-weight: var(--font-weight-semibold, 600);
+}
+
+/* --- Stage 7 tree-row warning dot ------------------------------------- */
+/* Small inline marker on tree rows whose parent feasibility status is
+ * non-ok. Click navigates to that parent's weight editor (handled by the
+ * onclick in renderNode). */
+
+.tree-row-warning-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: var(--space-sm, 8px);
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-full, 999px);
+    /* Filled-yellow with darker icon for high contrast against the
+     * dark tree-row background. Previously used --color-warning-bg
+     * (a translucent tint) which was invisible against most themes. */
+    background: var(--color-warning, #f59e0b);
+    color: var(--bg-primary, #1a1a1a);
+    border: 1px solid var(--color-warning-strong, var(--color-warning, #d97706));
+    box-shadow: 0 0 0 2px var(--color-warning-bg, rgba(245, 158, 11, 0.25));
+    font-size: 12px;
+    font-weight: var(--font-weight-bold, 700);
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    transition: transform 0.1s ease-in-out;
+}
+
+.tree-row-warning-dot:hover {
+    transform: scale(1.15);
+    /* Title attribute on the element renders the native tooltip on
+     * hover — no extra ::after needed. */
+}
+
+.tree-row-warning-dot[data-feasibility-status="infeasible"] {
+    /* Slightly stronger emphasis for the rounding-class violation. */
+    font-weight: var(--font-weight-semibold, 600);
+}
+
+/* --- Multi-parent chip (live next to a node name) --------------------- */
+
+.tree-node-multi-parent-chip,
+.multi-parent-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px;
+    margin-left: var(--space-xs);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    border: 1px solid var(--border-color, var(--bg-tertiary));
+}
+
+.tree-node-multi-parent-chip:hover,
+.multi-parent-chip:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* --- Anchored chip on tree row (subtle highlight) --------------------- */
+
+.tree-node-weight.anchored {
+    box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+/* =========================================================================
+   Stage 9 — Weight-source markers + breakdown card
+   (docs/planning/WEIGHT_ALLOCATION_IMPLEMENTATION_PLAN.md §"Stage 9")
+   ========================================================================= */
+
+/* Per-subject inline marker rendered next to weight values in
+ * weight_analysis.js. The marker is a small theme-aware glyph that
+ * communicates the underlying weight_source at a glance. Colors are
+ * pulled from existing semantic CSS variables so the markers respect
+ * light/dark themes without per-marker overrides. */
+.weight-source-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1em;
+    height: 1.1em;
+    margin-left: var(--space-xs, 4px);
+    font-size: 0.85em;
+    line-height: 1;
+    color: var(--text-secondary);
+    vertical-align: middle;
+    cursor: help;
+}
+
+.weight-source-marker[data-source="official"] {
+    color: var(--color-success, var(--text-primary));
+    font-weight: var(--font-weight-bold, 700);
+}
+.weight-source-marker[data-source="user_explicit"] {
+    color: var(--color-primary, var(--text-primary));
+    font-weight: var(--font-weight-semibold, 600);
+}
+.weight-source-marker[data-source="user_defined"] {
+    color: var(--text-primary);
+}
+.weight-source-marker[data-source="derived"] {
+    color: var(--text-muted);
+}
+.weight-source-marker[data-source="user_estimate"] {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Confidence breakdown card on the analytics dashboard. Mirrors the
+ * visual language of the existing .stat-card / .weight-analysis-card
+ * (bg-primary, border-color, radius-lg, soft shadow) so it slots in
+ * with the rest of the dashboard cards rather than reading as a
+ * standalone afterthought. */
+.weight-source-breakdown-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg, 8px);
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.weight-source-breakdown-card .breakdown-title {
+    font-size: var(--font-size-sm, 0.875rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 1rem 0;
+}
+
+.weight-source-breakdown-card .breakdown-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-md, 12px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.weight-source-breakdown-card .breakdown-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    padding: var(--space-sm, 8px) var(--space-md, 12px);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--border-color);
+    font-size: var(--font-size-base, 0.9375rem);
+    color: var(--text-primary);
+}
+
+.weight-source-breakdown-card .breakdown-row .weight-source-marker {
+    font-size: 1.1em;
+    flex-shrink: 0;
+}
+
+.weight-source-breakdown-card .breakdown-count {
+    font-weight: var(--font-weight-bold, 700);
+    font-size: var(--font-size-lg, 1.125rem);
+    color: var(--text-primary);
+    min-width: 1.5em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.weight-source-breakdown-card .breakdown-label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm, 0.875rem);
+    flex: 1;
+    text-transform: capitalize;
+}
+
+.weight-source-breakdown-card .breakdown-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: var(--font-size-sm, 0.875rem);
+    padding: var(--space-sm, 8px) 0;
+}
+
+/* Multi-parent context selector (Stage 9, deferred from Stage 5)
+ * lives at the top of the subject deep-dive page when a subject has
+ * more than one parent edge. */
+.multi-parent-selector {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm, 6px);
+    margin: var(--space-md, 8px) 0;
+    padding: var(--space-sm, 6px) var(--space-md, 8px);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--border-color, transparent);
+}
+
+.multi-parent-selector label {
+    font-size: var(--font-size-sm, 12px);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium, 500);
+}
+
+.multi-parent-selector select {
+    padding: 2px 6px;
+    border-radius: var(--radius-sm, 4px);
+    border: 1px solid var(--border-color, var(--bg-tertiary));
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm, 12px);
+}
+
+.multi-parent-selector .also-list {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm, 12px);
+}
+
+/* Explanatory banner under the selector (Stage 9 polish). Breaks to
+ * its own row via flex-basis so it doesn't squash the dropdown. */
+.multi-parent-banner {
+    flex-basis: 100%;
+    margin: 0;
+    padding: 4px 0 0 0;
+    font-size: var(--font-size-sm, 12px);
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.multi-parent-banner strong {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-semibold, 600);
+}
+

@@ -1,0 +1,1727 @@
+/**
+ * WIMI Tree Editor Styles
+ * Phase 3 - Subject Hierarchy Management
+ */
+
+/* =========================================================================
+   Page Layout
+   =========================================================================
+   Pin the page to the viewport so internal panels (the tree on the left,
+   the details panel on the right) own their own scrolling rather than
+   pushing the entire window to scroll. Without these height: 100% rules
+   on html/body, ``min-height: 100vh`` on .tree-page lets the page grow
+   tall when the tree is fully expanded, the body grows with it, and the
+   panels' ``overflow: auto`` never kicks in because they have no fixed
+   height to scroll within. Scoped via ``:has(.tree-page)`` so the rules
+   only apply when this page is loaded — other WIMI pages keep their
+   normal page-scroll behavior. */
+body:has(> .tree-page) {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.tree-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+/* =========================================================================
+   Header
+   ========================================================================= */
+
+.tree-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-xl);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.tree-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.back-button:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.back-arrow {
+    font-size: 1.25rem;
+}
+
+.tree-header-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.tree-header-title h1 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+}
+
+.tree-header-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+/* =========================================================================
+   Toolbar
+   ========================================================================= */
+
+.tree-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-xl);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.tree-toolbar-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.tree-toolbar-info .separator {
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Search / Filter Bar
+   ========================================================================= */
+
+.tree-search-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-primary);
+    max-width: 20rem;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tree-search-bar:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.tree-search-icon {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.tree-search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    padding: var(--space-xs) 0;
+    min-width: 0;
+    width: 100%;
+}
+
+.tree-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.tree-search-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 0.0625rem 0.5rem;
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tree-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: none;
+    background: var(--bg-tertiary);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition-fast), color var(--transition-fast);
+    padding: 0;
+}
+
+.tree-search-clear:hover {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+mark.tree-search-highlight {
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 15%, transparent);
+    color: var(--color-primary, #2563eb);
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+.tree-search-no-results {
+    text-align: center;
+    padding: var(--space-xl) var(--space-lg);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* =========================================================================
+   Main Content Layout
+   ========================================================================= */
+
+.tree-content {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 23.75rem;
+    min-height: 0;
+}
+
+/* =========================================================================
+   Tree Panel
+   ========================================================================= */
+
+.tree-panel {
+    overflow: auto;
+    padding: var(--space-lg);
+    position: relative;
+}
+
+.tree-container {
+    min-height: 12.5rem;
+}
+
+/* Empty State */
+.tree-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3xl);
+    text-align: center;
+}
+
+.tree-empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-lg);
+    opacity: 0.4;
+}
+
+.tree-empty-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--space-sm) 0;
+}
+
+.tree-empty-text {
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xl) 0;
+    max-width: 25rem;
+}
+
+/* Loading State */
+.tree-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3xl);
+    gap: var(--space-md);
+    color: var(--text-secondary);
+}
+
+/* =========================================================================
+   Tree Node Styles
+   ========================================================================= */
+
+.tree-node {
+    margin-bottom: 0.125rem;
+}
+
+.tree-node-content {
+    display: flex;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    gap: var(--space-sm);
+    user-select: none;
+    position: relative;
+}
+
+.tree-node-content:hover {
+    background: transparent;
+}
+
+.tree-node.selected > .tree-node-content {
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 6%, transparent);
+    /* Right-edge accent that visually rhymes with the .details-panel-header
+       left-edge accent — clicking a row "points" at the inspector. The
+       inset shadow approach (vs border-right) keeps the row's box-sizing
+       intact so column widths don't jiggle on selection. */
+    box-shadow: inset -3px 0 0 0 var(--color-primary, #2563eb);
+}
+
+/* Expand/Collapse Toggle */
+.tree-toggle {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.tree-toggle:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.tree-toggle.empty {
+    visibility: hidden;
+}
+
+.tree-toggle-icon {
+    transition: transform var(--transition-fast);
+}
+
+.tree-node.expanded > .tree-node-content .tree-toggle-icon {
+    transform: rotate(90deg);
+}
+
+/* Node Icon */
+.tree-node-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+/* Node Name */
+.tree-node-name {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-node-name-input {
+    flex: 1;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-md);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+/* Node Level Tag */
+.tree-node-level {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* Node Weight Badge */
+.tree-node-weight {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+/* Polyhierarchy alias chip — rendered next to the node name when this
+   appearance is a non-primary edge (the same canonical row appears
+   somewhere else in the tree as the primary). See
+   docs/planning/POLYHIERARCHY_MIGRATION.md §7.1 ("alias chip on
+   non-primary appearances"). */
+.tree-node-alias-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 12%, transparent);
+    color: var(--color-primary, #2563eb);
+    border: 1px solid color-mix(in srgb, var(--color-primary, #2563eb) 30%, transparent);
+    font-style: italic;
+    flex-shrink: 0;
+    cursor: help;
+}
+
+/* Flash highlight on a tree row that was just inserted by an
+   add-parent or switch-primary action. The animation runs once and
+   the class is removed after ~2.4s by tree_editor.js. Background
+   uses a tinted success color, falling back to a green tint built
+   from --color-success when the bg variable isn't defined. */
+.tree-node-just-added > .tree-node-content {
+    animation: tree-node-flash 2.4s ease-out;
+}
+@keyframes tree-node-flash {
+    0% {
+        background: var(
+            --color-success-bg,
+            color-mix(in srgb, var(--color-success, #10b981) 28%, transparent)
+        );
+        box-shadow: inset 3px 0 0 0 var(--color-success, #10b981);
+    }
+    70% {
+        background: var(
+            --color-success-bg,
+            color-mix(in srgb, var(--color-success, #10b981) 14%, transparent)
+        );
+        box-shadow: inset 3px 0 0 0 color-mix(in srgb, var(--color-success, #10b981) 50%, transparent);
+    }
+    100% {
+        background: transparent;
+        box-shadow: none;
+    }
+}
+
+/* Polyhierarchy multi-parent indicator — rendered next to the node name
+   on the PRIMARY appearance of a node that has 2+ parents. The number is
+   the total parent count. Subtler than the alias chip because the
+   primary appearance is the canonical home; this is just a hint that
+   the subject is shared. Click to open the parents-management panel. */
+.tree-node-multi-parent-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.0625rem 0.375rem;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 8%, transparent);
+    color: var(--color-primary, #2563eb);
+    border: none;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color var(--transition-fast, 0.15s);
+}
+
+.tree-node-multi-parent-chip:hover {
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 18%, transparent);
+}
+
+.tree-node-multi-parent-chip-arrow {
+    font-size: 0.75em;
+    line-height: 1;
+}
+
+/* ==========================================================================
+   Parents section in the details panel (polyhierarchy management)
+   ========================================================================== */
+
+.parents-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    padding: 0.0625rem 0.4375rem;
+    margin-left: 0.5rem;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    vertical-align: middle;
+}
+
+.parents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.parent-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast, 0.15s),
+                background-color var(--transition-fast, 0.15s);
+}
+
+.parent-row.is-primary {
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 4%, var(--bg-secondary));
+    border-color: color-mix(in srgb, var(--color-primary, #2563eb) 20%, var(--color-border));
+}
+
+.parent-row-marker {
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.875rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1.5px solid var(--text-muted);
+    transition: all var(--transition-fast, 0.15s);
+    margin-top: 0.0625rem;
+}
+
+.parent-row-marker:hover {
+    color: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+    background: color-mix(in srgb, var(--color-primary, #2563eb) 10%, transparent);
+}
+
+.parent-row.is-primary .parent-row-marker {
+    color: var(--color-white, white);
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+    cursor: default;
+}
+
+.parent-row.is-primary .parent-row-marker:hover {
+    background: var(--color-primary, #2563eb);
+}
+
+.parent-row-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.parent-row-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    word-wrap: break-word;
+}
+
+.parent-row-path {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    word-wrap: break-word;
+}
+
+.parent-row-meta {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.125rem;
+}
+
+.parent-row.is-primary .parent-row-meta {
+    color: var(--color-primary, #2563eb);
+    font-weight: var(--font-weight-medium);
+}
+
+.parent-row-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.parent-row-action {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    transition: background-color var(--transition-fast, 0.15s),
+                color var(--transition-fast, 0.15s);
+}
+
+.parent-row-action:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.parent-row-action.danger:hover {
+    background: color-mix(in srgb, var(--color-danger, #dc2626) 12%, transparent);
+    color: var(--color-danger, #dc2626);
+}
+
+.parent-row-action[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Inline confirm overlay on a parent row when user clicks remove. */
+.parent-row.confirming {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 8%, var(--bg-secondary));
+    border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 30%, var(--color-border));
+    align-items: center;
+}
+
+.parent-row-confirm-text {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+/* Add-parent picker (inline, expands below the list) */
+.parents-add-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.parents-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.parents-picker-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.parents-picker-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #2563eb);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #2563eb) 18%, transparent);
+}
+
+.parents-picker-results {
+    max-height: 16rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.parents-picker-empty {
+    padding: 0.5rem 0.25rem;
+    margin: 0;
+}
+
+.parents-picker-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0.0625rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast, 0.15s);
+}
+
+.parents-picker-result:hover:not(.disabled) {
+    background: var(--bg-secondary);
+}
+
+.parents-picker-result.disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.parents-picker-result-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.parents-picker-result-path {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    word-wrap: break-word;
+}
+
+.parents-picker-result-reason {
+    font-size: 0.6875rem;
+    color: var(--color-warning, #f59e0b);
+    font-style: italic;
+    margin-top: 0.125rem;
+}
+
+.parents-picker-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.tree-node-weight.high {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.tree-node-weight.medium {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.tree-node-weight.low {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, var(--bg-tertiary, #f3f4f6));
+    color: var(--color-warning);
+}
+
+/* Quick Action Buttons */
+.tree-node-actions {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.tree-node-content:hover .tree-node-actions {
+    opacity: 1;
+}
+
+.tree-action-btn {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    transition: all var(--transition-fast);
+}
+
+.tree-action-btn:hover {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.tree-action-btn.danger:hover {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+/* Children Container */
+.tree-node-children {
+    margin-left: 1.5rem;
+    padding-left: var(--space-md);
+    border-left: 1px dashed var(--border-light);
+    display: none;
+}
+
+.tree-node.expanded > .tree-node-children {
+    display: block;
+}
+
+/* Level-based Colors */
+.tree-node[data-level="1"] > .tree-node-content .tree-node-icon { color: var(--color-primary, #2563eb); }
+.tree-node[data-level="2"] > .tree-node-content .tree-node-icon { color: #8b5cf6; }
+.tree-node[data-level="3"] > .tree-node-content .tree-node-icon { color: var(--color-success, #059669); }
+.tree-node[data-level="4"] > .tree-node-content .tree-node-icon { color: var(--color-warning, #d97706); }
+.tree-node[data-level="5"] > .tree-node-content .tree-node-icon { color: var(--color-error, #dc2626); }
+
+/* Drag State */
+.tree-node.dragging {
+    opacity: 0.5;
+}
+
+.tree-node.drag-over > .tree-node-content {
+    background: var(--color-primary-bg);
+    outline: 2px dashed var(--color-primary);
+    outline-offset: -2px;
+}
+
+/* =========================================================================
+   Details Panel
+   =========================================================================
+   The right-side inspector. Sticky header carries the panel identity so
+   users see "what is this thing" + "what node am I editing" at all times,
+   even when scrolled deep into the body sections. The selected tree row
+   gets a matching right-edge accent (see ``.tree-node.selected`` below)
+   that visually rhymes with the panel's left-edge accent — clicking a row
+   on the left "points at" the panel on the right. */
+
+.details-panel {
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-light);
+    overflow: auto;
+    position: relative;
+}
+
+/* Sticky header. Sits above the body-scroll context. The 3px primary-color
+   left-edge accent matches the right-edge accent on the selected tree row
+   for visual continuity between selection and inspector. */
+.details-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: var(--space-lg) var(--space-lg) var(--space-md);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: inset 3px 0 0 0 var(--color-primary, #2563eb);
+}
+
+.details-panel-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary, #2563eb);
+    margin-bottom: 0.375rem;
+}
+
+.details-title {
+    margin: 0 0 0.375rem;
+    font-size: 1.25rem;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.25;
+    color: var(--text-primary);
+    word-wrap: break-word;
+}
+
+.details-subtitle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.details-subtitle > * + *::before {
+    content: "·";
+    margin-right: 0.375rem;
+    color: var(--color-border, currentColor);
+}
+
+.details-subtitle-level {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+
+.details-subtitle-parents {
+    color: var(--text-muted);
+}
+
+.details-subtitle-dimension {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Body sits inside the same overflow-auto panel; no extra scroll context.
+   Sticky header floats above the sections as the body scrolls under it. */
+.details-panel-body {
+    padding: var(--space-lg);
+    padding-top: var(--space-md);
+}
+
+/* Placeholder shown when nothing is selected. Designed to look like a
+   real empty state, not a debug message — three nested rectangles
+   suggest a subject hierarchy at rest, plus a clear title and prompt. */
+.details-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: var(--space-xl);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.details-placeholder-graphic {
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: var(--space-lg);
+    color: var(--text-muted);
+}
+
+.details-placeholder-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xs);
+}
+
+.details-placeholder-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    margin: 0;
+    max-width: 16rem;
+    line-height: 1.5;
+}
+
+.details-placeholder-text {
+    margin: 0;
+    max-width: 12.5rem;
+}
+
+/* Details Content */
+.details-content {
+    padding: var(--space-lg);
+}
+
+.details-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-lg);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.details-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.details-level {
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+/* Sections */
+.details-section {
+    margin-bottom: var(--space-xl);
+}
+
+.details-section-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 var(--space-md) 0;
+}
+
+.details-actions {
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border-light);
+}
+
+/* =========================================================================
+   Weight Editor
+   ========================================================================= */
+
+.weight-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.weight-current label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-sm);
+}
+
+.weight-input-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.weight-input-group input[type="range"] {
+    flex: 1;
+    height: 0.5rem;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    outline: none;
+}
+
+.weight-input-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: var(--color-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-fast);
+}
+
+.weight-input-group input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.weight-value-container {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.weight-value-container input[type="number"] {
+    width: 4.375rem;
+    padding: var(--space-xs) var(--space-sm);
+    text-align: right;
+}
+
+.weight-percent {
+    color: var(--text-muted);
+}
+
+/* Siblings Visualization */
+.weight-siblings label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-sm);
+}
+
+.siblings-chart {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.sibling-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.sibling-name {
+    width: 6.25rem;
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sibling-bar-container {
+    flex: 1;
+    height: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.sibling-bar-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+    transition: width var(--transition-normal);
+}
+
+.sibling-bar.current .sibling-bar-fill {
+    background: var(--color-success);
+}
+
+.sibling-bar.preview .sibling-bar-fill {
+    background: var(--color-warning);
+}
+
+.sibling-value {
+    width: 2.8125rem;
+    font-size: var(--font-size-xs);
+    text-align: right;
+    color: var(--text-secondary);
+}
+
+.siblings-total {
+    margin-top: var(--space-sm);
+    font-size: var(--font-size-sm);
+    text-align: right;
+    color: var(--text-secondary);
+}
+
+.siblings-total.invalid {
+    color: var(--color-error);
+    font-weight: var(--font-weight-medium);
+}
+
+.weight-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* =========================================================================
+   Children List
+   ========================================================================= */
+
+.children-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.child-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.child-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.child-icon {
+    font-size: var(--font-size-sm);
+}
+
+.child-name {
+    flex: 1;
+    font-size: var(--font-size-sm);
+}
+
+.child-weight {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Modals (extend base modal styles)
+   ========================================================================= */
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all var(--transition-normal);
+}
+
+.modal-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.modal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    max-width: 26.25rem;
+    width: 90%;
+    box-shadow: var(--shadow-xl);
+    transform: scale(0.9) translateY(-1.25rem);
+    transition: transform var(--transition-normal);
+}
+
+.modal-backdrop.active .modal {
+    transform: scale(1) translateY(0);
+}
+
+.modal-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: var(--radius-full);
+    background: var(--color-warning-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-lg);
+    font-size: 1.75rem;
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--space-lg) 0;
+}
+
+.modal-message {
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xl) 0;
+    text-align: center;
+}
+
+.modal-exam-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.modal-actions .btn {
+    flex: 1;
+}
+
+/* =========================================================================
+   Exam Overview (shown when no node selected)
+   ========================================================================= */
+
+.exam-overview {
+    padding: var(--space-lg);
+}
+
+.overview-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-lg);
+}
+
+.overview-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+}
+
+.overview-stat {
+    text-align: center;
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+}
+
+.overview-stat-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1.2;
+}
+
+.overview-stat-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+
+.overview-section {
+    margin-bottom: var(--space-xl);
+}
+
+.overview-section-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.level-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.level-count-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+}
+
+.level-count-name {
+    color: var(--text-secondary);
+}
+
+.level-count-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+}
+
+/* Pie Chart */
+.pie-chart-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-lg);
+}
+
+.pie-chart {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.pie-slice {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform-origin: center;
+}
+
+.pie-slice:hover {
+    opacity: 0.85;
+    transform: scale(1.02);
+}
+
+.pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.pie-legend-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.pie-legend-color {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+}
+
+.pie-legend-name {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pie-legend-value {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.overview-empty {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 900px) {
+    .tree-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .details-panel {
+        border-left: none;
+        border-top: 1px solid var(--border-light);
+        max-height: 50vh;
+    }
+    
+    .tree-header {
+        padding: var(--space-md);
+    }
+    
+    .tree-toolbar {
+        padding: var(--space-md);
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+    }
+
+    .tree-search-bar {
+        max-width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .back-text {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .tree-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .tree-header-title h1 {
+        font-size: var(--font-size-lg);
+    }
+}
+
+/* =========================================================================
+   Hybrid Weight System - Tree Node Enhancements
+   ========================================================================= */
+
+/* Locked node styling */
+.tree-node.locked > .tree-node-content {
+    background: var(--bg-tertiary);
+}
+
+.tree-node.locked > .tree-node-content:hover {
+    background: var(--bg-secondary);
+}
+
+/* Weight confidence indicators */
+.tree-node-weight.confidence-high {
+    border-left: 3px solid var(--color-success);
+    padding-left: 0.375rem;
+}
+
+.tree-node-weight.confidence-medium {
+    border-left: 3px solid var(--color-warning);
+    padding-left: 0.375rem;
+}
+
+.tree-node-weight.confidence-low {
+    border-left: 3px solid var(--text-muted);
+    padding-left: 0.375rem;
+}
+
+/* Weight range display */
+.tree-node-weight {
+    min-width: 4.375rem;
+    text-align: right;
+}
+
+/* Weight config badge in toolbar */
+.weight-config-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.weight-config-badge.has-official {
+    background: var(--color-primary-bg);
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
+}
+
+.weight-config-badge .badge-icon {
+    font-size: var(--font-size-xs);
+}
+
+/* =========================================================================
+   Dimension Selector (Multi-Dimensional Exams)
+   ========================================================================= */
+
+.dimension-selector {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    padding: var(--space-sm) var(--space-xl);
+}
+
+.dimension-selector.hidden {
+    display: none;
+}
+
+.dimension-selector-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.dimension-selector-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.dimension-selector-help {
+    color: var(--text-tertiary);
+    cursor: help;
+    font-size: var(--font-size-sm);
+}
+
+.dimension-tabs {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+}
+
+.dimension-tab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.dimension-tab:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+}
+
+.dimension-tab.active {
+    background: var(--color-primary);
+    color: var(--text-inverse, white);
+    border-color: var(--color-primary);
+}
+
+.dimension-tab-name {
+    font-weight: 500;
+}
+
+.dimension-tab-badge {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-tertiary, rgba(0, 0, 0, 0.1));
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+}
+
+.dimension-tab.active .dimension-tab-badge {
+    background: var(--color-primary-bg, rgba(255, 255, 255, 0.25));
+}
+
+/* =========================================================================
+   Dimension Info Panel
+   ========================================================================= */
+
+.dimension-info {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--border-light);
+}
+
+.dimension-info.hidden {
+    display: none;
+}
+
+.dimension-info-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-xs);
+}
+
+.dimension-info-icon {
+    font-size: 1.25rem;
+}
+
+.dimension-info-name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.dimension-info-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.dimension-info-badge.optional {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.dimension-info-description {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-sm) 0;
+}
+
+.dimension-info-stats {
+    display: flex;
+    gap: var(--space-lg);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+.dimension-stat strong {
+    color: var(--text-primary);
+}
+
+/* =========================================================================
+   Empty State - Dimension Hint
+   ========================================================================= */
+
+.tree-empty-dimension-hint {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+}
+
+.tree-empty-dimension-hint.hidden {
+    display: none;
+}
+
+.tree-empty-dimension-hint strong {
+    color: var(--color-primary);
+}
+
+/* =========================================================================
+   Modal Dimension Context
+   ========================================================================= */
+
+.modal-dimension-context {
+    background: var(--bg-secondary);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-md);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.modal-dimension-context.hidden {
+    display: none;
+}
+
+.modal-dimension-label {
+    color: var(--text-secondary);
+}
+
+.modal-dimension-name {
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+/* =========================================================================
+   Alias Preview in Details Panel
+   ========================================================================= */
+
+.aliases-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+
+.alias-chip {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.alias-chip.alias-type-eponym {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.alias-chip.alias-type-acronym {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+}
+
+.alias-chip.alias-type-alternate_name {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.alias-chip.alias-type-colloquial {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.alias-more {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    padding: 0.125rem 0.5rem;
+}

@@ -1,0 +1,667 @@
+/**
+ * WIMI Import/Export Styles
+ * Phase 3 Stage 4 - Import/Export Modal Styling
+ */
+
+/* =========================================================================
+   Modal Enhancements
+   ========================================================================= */
+
+.modal-lg {
+    max-width: 37.5rem;
+    width: 95%;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: var(--space-md);
+    margin-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.modal-header .modal-title {
+    margin: 0;
+    font-size: var(--font-size-xl);
+}
+
+.modal-close {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: none;
+    border-radius: var(--radius-full);
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: var(--space-sm);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    padding-top: var(--space-lg);
+    margin-top: var(--space-lg);
+    border-top: 1px solid var(--border-light);
+}
+
+/* =========================================================================
+   Import File Info
+   ========================================================================= */
+
+.import-file-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.file-info-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.file-icon {
+    font-size: 1.5rem;
+}
+
+.file-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.import-stats {
+    display: flex;
+    gap: var(--space-lg);
+}
+
+.import-stats .stat {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-stats .stat strong {
+    color: var(--color-primary);
+    font-size: var(--font-size-lg);
+}
+
+/* =========================================================================
+   Import Metadata
+   ========================================================================= */
+
+.import-metadata {
+    padding: var(--space-md);
+    background: var(--color-primary-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+}
+
+.import-metadata-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) 0;
+}
+
+.import-metadata-item .label {
+    color: var(--text-secondary);
+    min-width: 6.25rem;
+}
+
+.import-metadata-item .value {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+}
+
+/* =========================================================================
+   Import Warnings
+   ========================================================================= */
+
+.import-warnings {
+    padding: var(--space-md);
+    background: var(--color-warning-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+}
+
+.import-warning-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: #b45309;
+}
+
+.import-warning-header .warning-icon {
+    font-size: 1rem;
+}
+
+.import-warning-header .toggle-details {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.import-warning-list {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid rgba(180, 83, 9, 0.2);
+    max-height: 9.375rem;
+    overflow-y: auto;
+}
+
+.import-warning-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: var(--space-xs) 0;
+    font-size: var(--font-size-xs);
+}
+
+.import-warning-item .warning-path {
+    color: #92400e;
+    font-family: monospace;
+}
+
+.import-warning-item .warning-message {
+    color: #78350f;
+}
+
+/* =========================================================================
+   Import Preview Tree
+   ========================================================================= */
+
+.import-preview-section {
+    margin-bottom: var(--space-lg);
+}
+
+.section-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 var(--space-md) 0;
+}
+
+.import-preview-tree {
+    max-height: 12.5rem;
+    overflow-y: auto;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.import-preview-node {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) 0;
+}
+
+.preview-icon {
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.preview-name {
+    flex: 1;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-weight {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+}
+
+.preview-children-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.import-preview-more {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--space-xs) 0;
+}
+
+/* =========================================================================
+   Import Mode Selection
+   ========================================================================= */
+
+.import-mode-section {
+    margin-bottom: var(--space-lg);
+}
+
+.import-mode-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.import-mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.import-mode-option:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+}
+
+.import-mode-option input[type="radio"] {
+    margin-top: 0.125rem;
+    accent-color: var(--color-primary);
+}
+
+.import-mode-option input[type="radio"]:checked + .mode-content {
+    color: var(--color-primary);
+}
+
+.import-mode-option:has(input:checked) {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+}
+
+.mode-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.mode-title {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-md);
+}
+
+.mode-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-mode-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-primary-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-mode-info .info-icon {
+    font-size: 1rem;
+}
+
+.import-mode-info.warning {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.import-mode-info strong {
+    color: inherit;
+}
+
+/* =========================================================================
+   Import Error Modal
+   ========================================================================= */
+
+.modal-icon.error {
+    background: var(--color-error-bg);
+}
+
+.import-error-list {
+    max-height: 12.5rem;
+    overflow-y: auto;
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.import-error-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.import-error-item:last-child {
+    border-bottom: none;
+}
+
+.import-error-item .error-icon {
+    flex-shrink: 0;
+}
+
+.import-error-item .error-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.import-error-item .error-path {
+    font-size: var(--font-size-xs);
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+.import-error-item .error-message {
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+}
+
+/* =========================================================================
+   Export Button States
+   ========================================================================= */
+
+.btn-export-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* =========================================================================
+   Import Help Modal
+   ========================================================================= */
+
+.modal-xl {
+    max-width: 50rem;
+    width: 95%;
+    max-height: 90vh;
+}
+
+.modal-xl .modal-body {
+    max-height: calc(90vh - 8.75rem);
+    overflow-y: auto;
+}
+
+.btn-icon {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-icon:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.btn-icon span {
+    font-size: 0.875rem;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl);
+    color: var(--text-secondary);
+}
+
+.loading-spinner .spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid var(--border-light);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* =========================================================================
+   Markdown Content Styling
+   ========================================================================= */
+
+.markdown-content {
+    font-size: var(--font-size-md);
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.markdown-content h1 {
+    font-size: 1.75rem;
+    font-weight: var(--font-weight-bold);
+    margin: 0 0 var(--space-lg) 0;
+    padding-bottom: var(--space-md);
+    border-bottom: 2px solid var(--color-primary);
+    color: var(--text-primary);
+}
+
+.markdown-content h2 {
+    font-size: 1.35rem;
+    font-weight: var(--font-weight-semibold);
+    margin: var(--space-xl) 0 var(--space-md) 0;
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-primary);
+}
+
+.markdown-content h3 {
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    margin: var(--space-lg) 0 var(--space-sm) 0;
+    color: var(--text-primary);
+}
+
+.markdown-content h4 {
+    font-size: 1rem;
+    font-weight: var(--font-weight-semibold);
+    margin: var(--space-md) 0 var(--space-sm) 0;
+    color: var(--text-secondary);
+}
+
+.markdown-content p {
+    margin: 0 0 var(--space-md) 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin: 0 0 var(--space-md) 0;
+    padding-left: var(--space-xl);
+}
+
+.markdown-content li {
+    margin-bottom: var(--space-xs);
+}
+
+.markdown-content code {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.875em;
+    background: var(--bg-tertiary);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+}
+
+.markdown-content pre {
+    margin: 0 0 var(--space-md) 0;
+    padding: var(--space-md);
+    background: var(--color-gray-800, #1e1e2e);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+    color: var(--color-gray-200, #cdd6f4);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.markdown-content table {
+    width: 100%;
+    margin: 0 0 var(--space-md) 0;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.markdown-content th,
+.markdown-content td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border: 1px solid var(--border-light);
+}
+
+.markdown-content th {
+    background: var(--bg-secondary);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.markdown-content td {
+    background: var(--bg-primary);
+}
+
+.markdown-content tr:hover td {
+    background: var(--bg-secondary);
+}
+
+.markdown-content blockquote {
+    margin: 0 0 var(--space-md) 0;
+    padding: var(--space-md) var(--space-lg);
+    background: var(--color-primary-bg);
+    border-left: 4px solid var(--color-primary);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    color: var(--text-secondary);
+}
+
+.markdown-content hr {
+    margin: var(--space-xl) 0;
+    border: none;
+    border-top: 1px solid var(--border-light);
+}
+
+.markdown-content strong {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.markdown-content a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 600px) {
+    .modal-lg {
+        max-width: 100%;
+        margin: var(--space-md);
+        max-height: calc(100vh - 2.5rem);
+    }
+    
+    .modal-xl {
+        max-width: 100%;
+        margin: var(--space-sm);
+        max-height: calc(100vh - 1.25rem);
+    }
+    
+    .modal-xl .modal-body {
+        max-height: calc(100vh - 10rem);
+    }
+    
+    .modal-body {
+        max-height: 50vh;
+    }
+    
+    .import-file-info {
+        flex-direction: column;
+        gap: var(--space-md);
+        align-items: flex-start;
+    }
+    
+    .import-mode-options {
+        grid-template-columns: 1fr;
+    }
+    
+    .import-preview-tree {
+        max-height: 9.375rem;
+    }
+    
+    .markdown-content h1 {
+        font-size: 1.5rem;
+    }
+    
+    .markdown-content h2 {
+        font-size: 1.2rem;
+    }
+    
+    .markdown-content pre {
+        font-size: 0.75rem;
+    }
+    
+    .markdown-content table {
+        font-size: var(--font-size-xs);
+    }
+    
+    .markdown-content th,
+    .markdown-content td {
+        padding: var(--space-xs) var(--space-sm);
+    }
+}

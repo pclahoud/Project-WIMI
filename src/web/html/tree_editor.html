@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subject Hierarchy - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/tree.css">
+    <link rel="stylesheet" href="../css/weight.css">
+    <link rel="stylesheet" href="../css/import_export.css">
+    <link rel="stylesheet" href="../css/aliases.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<body>
+    <div class="tree-page">
+        <!-- Header -->
+        <header class="tree-header">
+            <div class="tree-header-left">
+                <a href="index.html" class="back-button" id="back-button" data-testid="tree-back-button" title="Back to Exams">
+                    <span class="back-arrow">←</span>
+                    <span class="back-text">Back</span>
+                </a>
+                <div class="tree-header-title">
+                    <h1 id="exam-name" data-testid="tree-exam-name">Loading...</h1>
+                    <span id="exam-badge" class="badge badge-primary">Loading</span>
+                </div>
+            </div>
+            <div class="tree-header-actions">
+                <button class="btn btn-secondary btn-sm" id="btn-collapse-all" data-testid="tree-collapse-all" title="Collapse All">
+                    <span>⊟</span> Collapse
+                </button>
+                <button class="btn btn-secondary btn-sm" id="btn-expand-all" data-testid="tree-expand-all" title="Expand All">
+                    <span>⊞</span> Expand
+                </button>
+                <button class="btn btn-secondary btn-sm" id="btn-import" data-testid="tree-import" title="Import Hierarchy">
+                    <span>📥</span> Import
+                </button>
+                <button class="btn btn-icon btn-sm" id="btn-import-help" data-testid="tree-import-help" title="Import Format Help">
+                    <span>❓</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" id="btn-export" data-testid="tree-export" title="Export Hierarchy">
+                    <span>📤</span> Export
+                </button>
+            </div>
+        </header>
+
+        <!-- Dimension Selector (Multi-Dimensional Exams Only) -->
+        <div class="dimension-selector hidden" id="dimension-selector" data-testid="tree-dimension-selector">
+            <div class="dimension-selector-header">
+                <span class="dimension-selector-label">Editing Dimension:</span>
+                <span class="dimension-selector-help" title="Each dimension has its own hierarchy. Switch tabs to edit different dimensions.">&#9432;</span>
+            </div>
+            <div class="dimension-tabs" id="dimension-tabs" data-testid="tree-dimension-tabs">
+                <!-- Tabs will be rendered dynamically -->
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="tree-toolbar">
+            <button class="btn btn-primary" id="btn-add-root" data-testid="tree-add-root">
+                <span>+</span> Add Root Subject
+            </button>
+            <div class="tree-search-bar" id="tree-search-bar">
+                <span class="tree-search-icon">&#128269;</span>
+                <input type="text" id="tree-search-input" class="tree-search-input" data-testid="tree-search-input"
+                       placeholder="Filter subjects..." autocomplete="off" spellcheck="false">
+                <span class="tree-search-count hidden" id="tree-search-count" data-testid="tree-search-count"></span>
+                <button class="tree-search-clear hidden" id="tree-search-clear" data-testid="tree-search-clear" title="Clear filter">&times;</button>
+            </div>
+            <div class="tree-toolbar-info">
+                <span id="node-count" data-testid="tree-node-count">0 subjects</span>
+                <span class="separator">•</span>
+                <span id="total-weight" data-testid="tree-total-weight">Total: 0%</span>
+                <span class="separator">•</span>
+                <span id="weight-config-badge" class="weight-config-badge" data-testid="tree-weight-badge">
+                    <span class="badge-icon">⚙️</span>
+                    <span class="badge-text">User Defined</span>
+                </span>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <main class="tree-content">
+            <!-- Tree Panel -->
+            <div class="tree-panel" id="tree-panel">
+                <!-- Dimension Info (shown when dimension selected) -->
+                <div class="dimension-info hidden" id="dimension-info" data-testid="tree-dimension-info">
+                    <div class="dimension-info-header">
+                        <span class="dimension-info-icon">&#128194;</span>
+                        <span class="dimension-info-name" id="dimension-info-name" data-testid="tree-dimension-info-name">Dimension Name</span>
+                        <span class="dimension-info-badge" id="dimension-info-badge" data-testid="tree-dimension-info-badge">Required</span>
+                    </div>
+                    <p class="dimension-info-description" id="dimension-info-description" data-testid="tree-dimension-info-description">
+                        Dimension description will appear here
+                    </p>
+                    <div class="dimension-info-stats" id="dimension-info-stats" data-testid="tree-dimension-info-stats">
+                        <span class="dimension-stat"><strong>0</strong> subjects</span>
+                        <span class="dimension-stat"><strong>0%</strong> total weight</span>
+                    </div>
+                </div>
+
+                <div class="tree-container" id="tree-container" data-testid="tree-container">
+                    <!-- Tree nodes will be rendered here -->
+                </div>
+
+                <!-- Empty State -->
+                <div class="tree-empty" id="tree-empty" data-testid="tree-empty-state">
+                    <div class="tree-empty-icon">🌳</div>
+                    <h3 class="tree-empty-title">No Subjects Yet</h3>
+                    <p class="tree-empty-text" id="tree-empty-text">
+                        Build your exam's subject hierarchy to organize topics and assign weights.
+                    </p>
+                    <!-- Dimension-specific hint (shown for multi-dimensional exams) -->
+                    <p class="tree-empty-dimension-hint hidden" id="tree-empty-dimension-hint" data-testid="tree-empty-dimension-hint">
+                        You're editing the <strong id="empty-dimension-name">Dimension</strong> dimension.
+                        Add subjects that represent options within this category.
+                    </p>
+                    <button class="btn btn-primary btn-lg" id="btn-add-first" data-testid="tree-add-first">
+                        Add Your First Subject
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div class="tree-loading hidden" id="tree-loading" data-testid="tree-loading-state">
+                    <div class="spinner spinner-lg"></div>
+                    <p>Loading hierarchy...</p>
+                </div>
+            </div>
+            
+            <!-- Details Panel -->
+            <div class="details-panel" id="details-panel">
+                <!-- Placeholder when nothing selected -->
+                <div class="details-placeholder" id="details-placeholder" data-testid="tree-details-placeholder">
+                    <svg class="details-placeholder-graphic"
+                         viewBox="0 0 64 64"
+                         xmlns="http://www.w3.org/2000/svg"
+                         aria-hidden="true">
+                        <!-- Three nested rectangles suggesting a subject hierarchy / outline. -->
+                        <rect x="6"  y="14" width="34" height="6" rx="2" fill="currentColor" opacity="0.22"/>
+                        <rect x="14" y="28" width="34" height="6" rx="2" fill="currentColor" opacity="0.42"/>
+                        <rect x="22" y="42" width="34" height="6" rx="2" fill="currentColor" opacity="0.7"/>
+                    </svg>
+                    <h3 class="details-placeholder-title">No subject selected</h3>
+                    <p class="details-placeholder-text">
+                        Pick a subject from the tree to inspect and edit it.
+                    </p>
+                </div>
+
+                <!-- Node Details (hidden initially) -->
+                <div class="details-content hidden" id="details-content" data-testid="tree-details-content">
+                    <!-- Sticky panel header: stays visible while the body scrolls.
+                         Carries the panel identity (eyebrow), the node name (title),
+                         and a meta subtitle (level · parents · dimension when multi-dim). -->
+                    <header class="details-panel-header" data-testid="tree-details-panel-header">
+                        <div class="details-panel-eyebrow">Subject Details</div>
+                        <h2 class="details-title" id="detail-name" data-testid="tree-detail-name">Subject Name</h2>
+                        <div class="details-subtitle" id="detail-subtitle" data-testid="tree-detail-subtitle">
+                            <span class="details-subtitle-level" id="detail-level" data-testid="tree-detail-level">Level 1</span>
+                        </div>
+                    </header>
+
+                    <div class="details-panel-body">
+
+                    <!-- Basic Info Section -->
+                    <section class="details-section">
+                        <h3 class="details-section-title">Basic Information</h3>
+                        <div class="form-group">
+                            <label for="edit-name">Name</label>
+                            <input type="text" id="edit-name" data-testid="tree-edit-name" placeholder="Subject name">
+                        </div>
+                    </section>
+
+                    <!-- Parents Section (polyhierarchy) -->
+                    <section class="details-section" id="parents-section" data-testid="tree-parents-section">
+                        <h3 class="details-section-title">
+                            Parents
+                            <span class="parents-count-badge" id="parents-count-badge" data-testid="tree-parents-count">—</span>
+                        </h3>
+                        <div class="parents-list" id="parents-list" data-testid="tree-parents-list">
+                            <p class="text-muted text-sm">Loading…</p>
+                        </div>
+                        <div class="parents-add-area" id="parents-add-area" data-testid="tree-parents-add-area">
+                            <button class="btn btn-secondary btn-sm" id="btn-add-parent" data-testid="tree-add-parent">
+                                <span>+</span> Add parent…
+                            </button>
+                            <div class="parents-picker hidden" id="parents-picker" data-testid="tree-parents-picker">
+                                <input type="text"
+                                       id="parents-picker-input"
+                                       data-testid="tree-parents-picker-input"
+                                       class="parents-picker-input"
+                                       placeholder="🔍 Search subjects to add as parent…"
+                                       autocomplete="off"
+                                       spellcheck="false">
+                                <div class="parents-picker-results" id="parents-picker-results" data-testid="tree-parents-picker-results">
+                                    <p class="text-muted text-sm parents-picker-empty">Start typing to search…</p>
+                                </div>
+                                <div class="parents-picker-actions">
+                                    <button class="btn btn-secondary btn-sm" id="parents-picker-cancel" data-testid="tree-parents-picker-cancel">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- Enhanced Weight Section -->
+                    <section class="details-section">
+                        <h3 class="details-section-title">Weight Settings</h3>
+                        
+                        <!-- Enhanced Weight Editor Container -->
+                        <div id="weight-editor-container" data-testid="tree-weight-editor-container">
+                            <!-- Weight editor will be dynamically rendered here by weight_editor.js -->
+
+                            <!-- Fallback basic weight editor (shown before JS loads) -->
+                            <div class="weight-editor">
+                                <div class="weight-current">
+                                    <label>Current Weight</label>
+                                    <div class="weight-input-group">
+                                        <input type="range" id="weight-slider" data-testid="tree-weight-slider" min="0" max="100" step="0.1" value="0">
+                                        <div class="weight-value-container">
+                                            <input type="number" id="weight-value" data-testid="tree-weight-value" min="0" max="100" step="0.1" value="0">
+                                            <span class="weight-percent">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="weight-siblings" id="weight-siblings">
+                                    <label>Sibling Weights</label>
+                                    <div class="siblings-chart" id="siblings-chart" data-testid="tree-siblings-chart">
+                                        <!-- Sibling weight bars will be rendered here -->
+                                    </div>
+                                    <div class="siblings-total" id="siblings-total" data-testid="tree-siblings-total">
+                                        Total: <span>0%</span>
+                                    </div>
+                                </div>
+
+                                <div class="weight-actions">
+                                    <button class="btn btn-primary btn-sm" id="btn-apply-weight" data-testid="tree-apply-weight">
+                                        Apply Weight
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" id="btn-rebalance-siblings" data-testid="weight-panel-rebalance-siblings" title="Redistribute remaining weight across non-anchored, non-locked siblings">
+                                        Rebalance siblings
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" id="btn-reset-weight" data-testid="tree-reset-weight">
+                                        Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- Aliases Section -->
+                    <section class="details-section">
+                        <h3 class="details-section-title">Aliases</h3>
+                        <p class="text-muted text-sm mb-sm">
+                            Add alternative names (eponyms, acronyms, etc.) to improve searchability.
+                        </p>
+                        <div class="aliases-preview" id="aliases-preview" data-testid="tree-aliases-preview">
+                            <span class="text-muted text-sm">No aliases</span>
+                        </div>
+                        <button class="btn btn-secondary btn-sm mt-md" id="btn-manage-aliases" data-testid="tree-manage-aliases">
+                            <span>🏷️</span> Manage Aliases
+                        </button>
+                    </section>
+
+                    <!-- Children Section -->
+                    <section class="details-section">
+                        <h3 class="details-section-title">Children</h3>
+                        <div class="children-list" id="children-list" data-testid="tree-children-list">
+                            <p class="text-muted text-sm">No children</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm mt-md" id="btn-add-child" data-testid="tree-add-child">
+                            <span>+</span> Add Child
+                        </button>
+                    </section>
+
+                    <!-- Actions Section -->
+                    <section class="details-section details-actions">
+                        <button class="btn btn-danger btn-sm" id="btn-delete-node" data-testid="tree-delete-node">
+                            <span>🗑️</span> Delete Subject
+                        </button>
+                    </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Add/Edit Node Modal -->
+    <div class="modal-backdrop" id="node-modal" data-testid="tree-node-modal">
+        <div class="modal modal-lg" data-testid="tree-node-modal-container">
+            <h3 class="modal-title" id="node-modal-title" data-testid="tree-node-modal-title">Add Subject</h3>
+
+            <!-- Dimension Context (shown for multi-dimensional exams) -->
+            <div class="modal-dimension-context hidden" id="modal-dimension-context" data-testid="tree-node-modal-dimension-context">
+                <span class="modal-dimension-label">Adding to dimension:</span>
+                <span class="modal-dimension-name" id="modal-dimension-name" data-testid="tree-node-modal-dimension-name">Dimension Name</span>
+            </div>
+
+            <!-- Basic Info -->
+            <div class="form-group">
+                <label for="modal-node-name">Subject Name *</label>
+                <input type="text" id="modal-node-name" data-testid="tree-node-modal-name-input" placeholder="e.g., Cardiovascular System">
+            </div>
+            <div class="form-group" id="modal-level-group">
+                <label for="modal-node-level">Level Type</label>
+                <select id="modal-node-level" data-testid="tree-node-modal-level-select">
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <!-- Weight Section -->
+            <div class="form-section" id="modal-weight-section">
+                <div class="form-section-header">
+                    <label id="modal-weight-mode-label">Weight</label>
+                    <div class="form-toggle">
+                        <input type="checkbox" id="modal-weight-range-toggle" data-testid="tree-node-modal-weight-range-toggle" onchange="toggleWeightRangeFields(this.checked)">
+                        <label for="modal-weight-range-toggle">Use weight range</label>
+                    </div>
+                </div>
+
+                <!-- Simple Weight Input (default) -->
+                <div id="modal-simple-weight-group" data-testid="tree-node-modal-simple-weight-group">
+                    <div class="form-group">
+                        <input type="number" id="modal-node-weight" data-testid="tree-node-modal-weight-input" min="0" max="100" step="0.1" placeholder="0-100">
+                        <span class="input-suffix">%</span>
+                    </div>
+                    <p class="form-help">Leave empty to auto-distribute among siblings</p>
+                </div>
+
+                <!-- Weight Range Input (toggle) -->
+                <div id="modal-range-weight-group" class="hidden" data-testid="tree-node-modal-range-weight-group">
+                    <div class="form-row">
+                        <div class="form-group form-group-half">
+                            <label for="modal-weight-low">Low</label>
+                            <div class="input-with-suffix">
+                                <input type="number" id="modal-weight-low" data-testid="tree-node-modal-weight-low" min="0" max="100" step="0.1" placeholder="e.g., 20">
+                                <span class="input-suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-group form-group-half">
+                            <label for="modal-weight-high">High</label>
+                            <div class="input-with-suffix">
+                                <input type="number" id="modal-weight-high" data-testid="tree-node-modal-weight-high" min="0" max="100" step="0.1" placeholder="e.g., 25">
+                                <span class="input-suffix">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="form-help">Define a weight range (e.g., 20% – 25%)</p>
+                </div>
+
+                <!-- Weight Source -->
+                <div class="form-group">
+                    <label for="modal-weight-source">Weight Source</label>
+                    <select id="modal-weight-source" data-testid="tree-node-modal-weight-source">
+                        <option value="user_defined">User Defined</option>
+                        <option value="user_estimate">User Estimate</option>
+                        <option value="official">Official (Locked)</option>
+                    </select>
+                    <p class="form-help form-help-inline" id="weight-source-help">
+                        <span class="source-hint user_defined">You set this weight value</span>
+                        <span class="source-hint user_estimate hidden">Your best guess based on study</span>
+                        <span class="source-hint official hidden">From official exam blueprint (will be locked)</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="node-modal-cancel" data-testid="tree-node-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="node-modal-save" data-testid="tree-node-modal-save">Add Subject</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-backdrop" id="delete-node-modal" data-testid="tree-delete-modal">
+        <div class="modal" data-testid="tree-delete-modal-container">
+            <div class="modal-icon">⚠️</div>
+            <h3 class="modal-title" data-testid="tree-delete-modal-title">Delete Subject?</h3>
+            <p class="modal-message">
+                Are you sure you want to delete
+                <span class="modal-exam-name" id="delete-node-name" data-testid="tree-delete-modal-subject-name">this subject</span>?
+                <br><br>
+                <span id="delete-children-warning" class="text-warning hidden" data-testid="tree-delete-modal-children-warning">
+                    This will also delete all child subjects!
+                </span>
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="delete-node-cancel" data-testid="tree-delete-modal-cancel">Cancel</button>
+                <button class="btn btn-danger" id="delete-node-confirm" data-testid="tree-delete-modal-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="import-file" data-testid="tree-import-file-input" accept=".json" style="display: none;">
+
+    <!-- Import Help Modal -->
+    <div class="modal-backdrop" id="import-help-modal" data-testid="tree-import-help-modal">
+        <div class="modal modal-xl" data-testid="tree-import-help-modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" data-testid="tree-import-help-modal-title">📖 Import Format Guide</h3>
+                <button class="modal-close" data-testid="tree-import-help-modal-close" onclick="hideImportHelpModal()">×</button>
+            </div>
+            <div class="modal-body markdown-content" id="import-help-content" data-testid="tree-import-help-modal-content">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <p>Loading documentation...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-testid="tree-import-help-modal-close-footer" onclick="hideImportHelpModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../js/tree_editor.js"></script>
+    <script src="../js/weight_editor.js"></script>
+    <script src="../js/import_export.js"></script>
+    <script src="../js/alias_manager.js"></script>
+</body>
+</html>

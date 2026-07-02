@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/analytics.css">
+    <link rel="stylesheet" href="../css/weight_analysis.css">
+    <!-- Stage 9 — Weight Sources card + per-row markers styles live in
+         weight.css. Without this link the card renders with browser
+         defaults (plain ul/li). -->
+    <link rel="stylesheet" href="../css/weight.css">
+    <link rel="stylesheet" href="../css/toast.css">
+</head>
+<body>
+    <div class="page-container">
+        <!-- Header -->
+        <header class="analytics-header">
+            <div class="header-left">
+                <a href="index.html" class="back-link" data-testid="analytics-back-link">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M12.5 5L7.5 10L12.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Back to Dashboard
+                </a>
+            </div>
+            <div class="header-center">
+                <svg class="chart-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="12" width="4" height="9" fill="currentColor"/>
+                    <rect x="10" y="7" width="4" height="14" fill="currentColor"/>
+                    <rect x="17" y="3" width="4" height="18" fill="currentColor"/>
+                </svg>
+                <h1>Analytics Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <select id="examFilter" class="exam-filter" data-testid="analytics-exam-filter" aria-label="Exam filter">
+                    <!-- Exam options will be populated dynamically -->
+                </select>
+                <a href="settings.html#dashboard_analytics" class="analytics-settings-link" title="Configure Analytics" data-testid="analytics-settings-btn">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M8.325 2.317a1.5 1.5 0 013.35 0l.124.775a1.5 1.5 0 002.01.87l.688-.373a1.5 1.5 0 011.675 2.437l-.564.594a1.5 1.5 0 000 2.16l.564.594a1.5 1.5 0 01-1.675 2.437l-.688-.373a1.5 1.5 0 00-2.01.87l-.124.775a1.5 1.5 0 01-3.35 0l-.124-.775a1.5 1.5 0 00-2.01-.87l-.688.373a1.5 1.5 0 01-1.675-2.437l.564-.594a1.5 1.5 0 000-2.16l-.564-.594A1.5 1.5 0 015.503 3.59l.688.373a1.5 1.5 0 002.01-.87l.124-.775z" stroke="currentColor" stroke-width="1.5"/>
+                        <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                </a>
+            </div>
+        </header>
+
+        <!-- Overview Section -->
+        <section class="overview-section">
+            <h2 class="section-title">Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card" data-testid="analytics-stat-total-entries">
+                    <div class="stat-label">Total Entries</div>
+                    <div class="stat-value" id="totalEntries" aria-live="polite">-</div>
+                </div>
+                <div class="stat-card stat-highlight" data-testid="analytics-stat-this-week">
+                    <div class="stat-label">This Week</div>
+                    <div class="stat-value" id="thisWeek" aria-live="polite">
+                        <span class="value">-</span>
+                        <span class="change" id="weekChange"></span>
+                    </div>
+                </div>
+                <div class="stat-card" data-testid="analytics-stat-sessions">
+                    <div class="stat-label">Sessions</div>
+                    <div class="stat-value" id="sessions" aria-live="polite">-</div>
+                    <div class="stat-meta" id="sessionsCompleted" aria-live="polite">-</div>
+                </div>
+                <div class="stat-card" data-testid="analytics-stat-avg-difficulty">
+                    <div class="stat-label">Avg Difficulty</div>
+                    <div class="stat-value" id="avgDifficulty" aria-live="polite">
+                        <span class="value">-</span>
+                        <span class="difficulty-label">out of 5</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mistake Type Breakdown -->
+        <section class="breakdown-section">
+            <h2 class="section-title">Mistake Type Breakdown</h2>
+            <div class="breakdown-grid">
+                <!-- Subject Breakdown -->
+                <div class="breakdown-card" id="subjectBreakdownCard" data-testid="analytics-subject-breakdown-card">
+                    <div class="card-header">
+                        <h3 class="card-title">By Subject</h3>
+                        <div class="size-preset-group" data-chart="subject_sunburst">
+                            <button class="size-preset-btn" data-size="S" data-testid="analytics-subject-sunburst-size-S">S</button>
+                            <button class="size-preset-btn active" data-size="M" data-testid="analytics-subject-sunburst-size-M">M</button>
+                            <button class="size-preset-btn" data-size="L" data-testid="analytics-subject-sunburst-size-L">L</button>
+                        </div>
+                    </div>
+                    <div class="sunburst-container" id="subjectSunburstContainer" data-testid="analytics-sunburst-container">
+                        <div id="subjectSunburst" data-testid="analytics-sunburst"></div>
+                        <div class="sunburst-center-label">
+                            <div class="center-number" id="totalEntriesCenter" aria-live="polite">-</div>
+                            <div class="center-text" id="centerSubjectName">Total</div>
+                        </div>
+                    </div>
+                    <div class="sunburst-breadcrumb" id="sunburstBreadcrumb" data-testid="analytics-sunburst-breadcrumb"></div>
+                    <div class="chart-legend" id="subjectLegend" data-testid="analytics-subject-legend"></div>
+                    <a href="#" class="deep-dive-link" id="subjectDeepDiveLink" data-testid="analytics-subject-deepdive-link">Subject Deep Dive →</a>
+                </div>
+
+                <!-- Tag Breakdown -->
+                <div class="breakdown-card" id="tagBreakdownCard" data-testid="analytics-tag-breakdown-card">
+                    <div class="card-header">
+                        <h3 class="card-title">By Mistake Type</h3>
+                        <div class="size-preset-group" data-chart="tag_chart">
+                            <button class="size-preset-btn" data-size="S" data-testid="analytics-tag-chart-size-S">S</button>
+                            <button class="size-preset-btn active" data-size="M" data-testid="analytics-tag-chart-size-M">M</button>
+                            <button class="size-preset-btn" data-size="L" data-testid="analytics-tag-chart-size-L">L</button>
+                        </div>
+                    </div>
+                    <div class="chart-container" data-testid="analytics-tag-chart-container">
+                        <canvas id="tagChart" width="400" height="400" data-testid="analytics-tag-chart"></canvas>
+                        <div class="chart-center-label">
+                            <div class="center-number" id="totalTaggedCenter" aria-live="polite">-</div>
+                            <div class="center-text">Total</div>
+                        </div>
+                    </div>
+                    <div class="chart-legend" id="tagLegend" data-testid="analytics-tag-legend"></div>
+                    <a href="#" class="deep-dive-link" data-testid="analytics-mistaketype-deepdive-link">Mistake Types Deep Dive →</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cross-Dimension Analysis (Multi-dimensional exams only) -->
+        <section class="cross-dimension-section" id="crossDimensionSection" style="display:none;" data-testid="analytics-cross-dimension-section">
+            <h2 class="section-title">Cross-Dimension Analysis</h2>
+            <div class="cross-dimension-card">
+                <div class="card-header">
+                    <span></span>
+                    <div class="size-preset-group" data-chart="cross_dimension_heatmap">
+                        <button class="size-preset-btn" data-size="S" data-testid="analytics-cross-dim-size-S">S</button>
+                        <button class="size-preset-btn active" data-size="M" data-testid="analytics-cross-dim-size-M">M</button>
+                        <button class="size-preset-btn" data-size="L" data-testid="analytics-cross-dim-size-L">L</button>
+                    </div>
+                </div>
+                <div class="dimension-picker-row">
+                    <label class="dimension-picker-label">
+                        Dimension A:
+                        <select id="heatmapDimA" class="dimension-picker" data-testid="analytics-heatmap-dim-a-select" aria-label="Dimension A"></select>
+                    </label>
+                    <label class="level-picker-label">
+                        Level:
+                        <select id="heatmapLevelA" class="level-picker" data-testid="analytics-heatmap-level-a-select" aria-label="Dimension A level"></select>
+                    </label>
+                    <div id="scopeContainerA" class="scope-container" data-testid="analytics-heatmap-scope-a"></div>
+                    <label class="dimension-picker-label">
+                        Dimension B:
+                        <select id="heatmapDimB" class="dimension-picker" data-testid="analytics-heatmap-dim-b-select" aria-label="Dimension B"></select>
+                    </label>
+                    <label class="level-picker-label">
+                        Level:
+                        <select id="heatmapLevelB" class="level-picker" data-testid="analytics-heatmap-level-b-select" aria-label="Dimension B level"></select>
+                    </label>
+                    <div id="scopeContainerB" class="scope-container" data-testid="analytics-heatmap-scope-b"></div>
+                    <button class="btn btn-secondary" id="swapDimensionsBtn" title="Swap dimensions" aria-label="Swap dimensions" data-testid="analytics-dimensions-swap-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M4 6L2 8L4 10M12 6L14 8L12 10M2 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <!-- Drill-down breadcrumb navigation -->
+                <div id="heatmapBreadcrumb" class="heatmap-breadcrumb" style="display:none;" data-testid="analytics-heatmap-breadcrumb">
+                    <span class="breadcrumb-label">Drill-down:</span>
+                    <span id="breadcrumbPathA" class="breadcrumb-path" data-testid="analytics-heatmap-breadcrumb-path-a"></span>
+                    <span class="breadcrumb-separator">×</span>
+                    <span id="breadcrumbPathB" class="breadcrumb-path" data-testid="analytics-heatmap-breadcrumb-path-b"></span>
+                    <button class="btn btn-small btn-secondary" id="resetDrilldownBtn" data-testid="analytics-heatmap-reset-btn">Reset</button>
+                </div>
+                <div id="dimensionHeatmap" class="heatmap-container" data-testid="analytics-cross-dim-heatmap"></div>
+                <div id="heatmapLegend" class="heatmap-legend-container" data-testid="analytics-cross-dim-heatmap-legend"></div>
+                <div class="heatmap-actions">
+                    <button class="btn btn-secondary" id="exportHeatmapCSV" data-testid="analytics-heatmap-export-csv-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M14 10V14H2V10M8 2V11M8 11L4 7M8 11L12 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Export CSV
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Study Recommendations (Multi-dimensional exams only) -->
+        <section class="recommendations-section" id="recommendationsSection" style="display:none;" data-testid="analytics-recommendations-section">
+            <h2 class="section-title">Study Recommendations</h2>
+            <div class="recommendations-card">
+                <div id="dimensionInsights-recommendations" data-testid="analytics-dimension-insights-recommendations">
+                    <!-- Recommendations will be generated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Activity Over Time -->
+        <section class="activity-section" data-testid="analytics-activity-section">
+            <h2 class="section-title">Activity Over Time</h2>
+            <div class="activity-card">
+                <div class="card-header">
+                    <span></span>
+                    <div class="size-preset-group" data-chart="activity_chart">
+                        <button class="size-preset-btn" data-size="S" data-testid="analytics-activity-chart-size-S">S</button>
+                        <button class="size-preset-btn active" data-size="M" data-testid="analytics-activity-chart-size-M">M</button>
+                        <button class="size-preset-btn" data-size="L" data-testid="analytics-activity-chart-size-L">L</button>
+                    </div>
+                </div>
+                <div class="period-selector" data-testid="analytics-activity-period-selector">
+                    <button class="period-btn active" data-period="7d" data-testid="analytics-activity-period-7d">7 Days</button>
+                    <button class="period-btn" data-period="30d" data-testid="analytics-activity-period-30d">30 Days</button>
+                    <button class="period-btn" data-period="90d" data-testid="analytics-activity-period-90d">90 Days</button>
+                    <button class="period-btn" data-period="all" data-testid="analytics-activity-period-all">All Time</button>
+                </div>
+                <div class="chart-container" data-testid="analytics-activity-chart-container">
+                    <canvas id="activityChart" width="1000" height="400" data-testid="analytics-activity-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Study Activity (Heatmap & Streaks) -->
+        <section class="heatmap-section" data-testid="analytics-heatmap-section">
+            <h2 class="section-title">Study Activity</h2>
+            <div class="heatmap-card">
+                <div class="card-header">
+                    <span></span>
+                    <div class="size-preset-group" data-chart="activity_heatmap">
+                        <button class="size-preset-btn" data-size="S" data-testid="analytics-activity-heatmap-size-S">S</button>
+                        <button class="size-preset-btn active" data-size="M" data-testid="analytics-activity-heatmap-size-M">M</button>
+                        <button class="size-preset-btn" data-size="L" data-testid="analytics-activity-heatmap-size-L">L</button>
+                    </div>
+                </div>
+                <div class="heatmap-wrapper" id="activityHeatmap" data-testid="analytics-activity-heatmap">
+                    <!-- Heatmap will be generated here -->
+                </div>
+                <div class="streak-stats" id="streakStats" data-testid="analytics-streak-stats">
+                    <!-- Streak cards will be generated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Weekly Goal -->
+        <section class="goal-section" data-testid="analytics-goal-section">
+            <h2 class="section-title">Weekly Goal</h2>
+            <div id="goalWidget" data-testid="analytics-goal-widget">
+                <!-- Goal widget will be generated here -->
+            </div>
+        </section>
+
+        <!-- Difficulty Distribution -->
+        <section class="difficulty-section" data-testid="analytics-difficulty-section">
+            <h2 class="section-title">Difficulty Distribution</h2>
+            <div class="difficulty-card">
+                <div class="difficulty-bars" id="difficultyBars" data-testid="analytics-difficulty-bars">
+                    <!-- Difficulty bars will be generated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Patterns & Insights -->
+        <section class="insights-section" data-testid="analytics-insights-section">
+            <h2 class="section-title">Patterns & Insights</h2>
+            <div class="insights-container" id="insightsContainer" data-testid="analytics-insights-container">
+                <!-- Insights will be generated here -->
+            </div>
+            <!-- Interaction Effects (Multi-dimensional exams only) -->
+            <div class="interaction-effects-container" id="interactionEffectsContainer" style="display:none;" data-testid="analytics-interaction-effects-container">
+                <h3 class="subsection-title">Interaction Effects</h3>
+                <p class="subsection-description">
+                    These combinations show unexpected patterns - performance differs from what would be expected based on individual dimensions.
+                </p>
+                <div id="dimensionInsights-interactions" data-testid="analytics-dimension-insights-interactions">
+                    <!-- Interaction effects will be generated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Subject vs Exam Weight Analysis Section -->
+        <section class="weight-analysis-section" data-testid="analytics-weight-analysis-section">
+            <h2 class="section-title">Subject vs Exam Weight Analysis</h2>
+            <div class="weight-analysis-card">
+                <div id="weightAnalysis" data-testid="analytics-weight-analysis">
+                    <!-- Weight analysis component will render here -->
+                </div>
+            </div>
+            <!--
+                Stage 9 (WEIGHT_ALLOCATION_IMPLEMENTATION_PLAN.md):
+                Per-source confidence breakdown. Populated by
+                analytics_dashboard.js::loadWeightSourceBreakdown
+                via api.getWeightSourceBreakdown.
+            -->
+            <div
+                id="weightSourceBreakdownCard"
+                class="weight-source-breakdown-card"
+                data-testid="weight-source-breakdown-card"
+                style="display:none; margin-top: var(--space-md, 12px);"
+            ></div>
+        </section>
+
+        <div data-plugin-slot="analytics-extra-charts"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/lib/d3.v7.min.js"></script>
+    <script src="../js/toast.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+    <script src="../js/sunburst_chart.js"></script>
+    <script src="../js/heatmap_chart.js"></script>
+    <script src="../js/streak_display.js"></script>
+    <script src="../js/goal_widget.js"></script>
+    <script src="../js/dimension_analytics.js"></script>
+    <script src="../js/dimension_heatmap.js"></script>
+    <script src="../js/dimension_insights.js"></script>
+    <script src="../js/analytics_dashboard.js"></script>
+    <script src="../js/weight_analysis.js"></script>
+</body>
+</html>

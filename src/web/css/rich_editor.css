@@ -1,0 +1,718 @@
+/**
+ * WIMI Rich Text Editor Styles
+ * Custom styling for TinyMCE editor integration
+ */
+
+/* =========================================================================
+   Editor Container / Wrapper
+   ========================================================================= */
+
+.rich-editor-container {
+    position: relative;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.rich-editor-container:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.rich-editor-container.has-error {
+    border-color: var(--color-error);
+}
+
+.rich-editor-container.has-error:focus-within {
+    box-shadow: 0 0 0 3px var(--color-error-bg);
+}
+
+.rich-editor-wrapper {
+    position: relative;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.rich-editor-wrapper:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.rich-editor-wrapper.rich-editor-disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.rich-editor-content {
+    min-height: 12.5rem;
+}
+
+/* Hidden textarea used by TinyMCE */
+.rich-editor-textarea {
+    display: none;
+}
+
+/* =========================================================================
+   TinyMCE Outer Container & Header
+   ========================================================================= */
+
+/* Remove default oxide border — we style via .rich-editor-wrapper */
+.tox-tinymce {
+    border: none !important;
+    background: var(--bg-primary) !important;
+}
+
+/* Editor header (wraps toolbar area) */
+.tox .tox-editor-header {
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+/* Editor container and sidebar wrap */
+.tox .tox-editor-container {
+    background: var(--bg-primary) !important;
+}
+
+.tox .tox-sidebar-wrap {
+    background: var(--bg-primary) !important;
+}
+
+/* =========================================================================
+   TinyMCE Toolbar Styling
+   ========================================================================= */
+
+/* Main toolbar container */
+.tox .tox-toolbar-overlord {
+    background: var(--bg-secondary) !important;
+}
+
+.tox .tox-toolbar__primary {
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.tox .tox-toolbar__group {
+    border-color: var(--border-light) !important;
+    padding: 0 var(--space-xs) !important;
+}
+
+/* Toolbar buttons — override oxide skin's hardcoded #fff background */
+.tox .tox-tbtn {
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    border-radius: var(--radius-sm) !important;
+    transition: background-color var(--transition-fast), color var(--transition-fast) !important;
+}
+
+.tox .tox-tbtn:hover {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+}
+
+.tox .tox-tbtn:active {
+    background-color: var(--color-primary-bg) !important;
+}
+
+.tox .tox-tbtn--enabled,
+.tox .tox-tbtn--enabled:hover,
+.tox .tox-tbtn:focus {
+    background-color: var(--color-primary-bg) !important;
+    color: var(--color-primary) !important;
+}
+
+.tox .tox-tbtn--disabled,
+.tox .tox-tbtn--disabled:hover,
+.tox .tox-tbtn:disabled,
+.tox .tox-tbtn:disabled:hover {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+}
+
+.tox .tox-tbtn--enabled svg,
+.tox .tox-tbtn--enabled:hover svg,
+.tox .tox-tbtn:focus svg {
+    fill: var(--color-primary) !important;
+}
+
+.tox .tox-tbtn svg {
+    fill: var(--text-secondary) !important;
+}
+
+.tox .tox-tbtn:hover svg {
+    fill: var(--text-primary) !important;
+}
+
+.tox .tox-tbtn--disabled svg,
+.tox .tox-tbtn--disabled:hover svg,
+.tox .tox-tbtn:disabled svg,
+.tox .tox-tbtn:disabled:hover svg {
+    fill: var(--text-muted) !important;
+}
+
+/* Toolbar dropdowns (Format, etc.) */
+.tox .tox-tbtn--select {
+    border: 1px solid transparent !important;
+    background: var(--bg-primary) !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.tox .tox-tbtn--select:hover {
+    border-color: var(--border-color) !important;
+    background: var(--bg-tertiary) !important;
+}
+
+.tox .tox-tbtn--bespoke .tox-tbtn__select-label {
+    color: var(--text-primary) !important;
+}
+
+/* Split buttons (color pickers) */
+.tox .tox-split-button {
+    background: transparent !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.tox .tox-split-button:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.tox .tox-split-button__chevron svg {
+    fill: var(--text-secondary) !important;
+}
+
+.tox .tox-split-button:hover .tox-split-button__chevron svg {
+    fill: var(--text-primary) !important;
+}
+
+/* =========================================================================
+   TinyMCE Editor Content Area
+   ========================================================================= */
+
+.tox .tox-edit-area {
+    border: none !important;
+}
+
+.tox .tox-edit-area__iframe {
+    background: var(--bg-primary) !important;
+}
+
+/* Editor content styling is done via content_style in JS */
+
+/* =========================================================================
+   TinyMCE Menus and Dropdowns
+   ========================================================================= */
+
+.tox .tox-menu {
+    background: var(--bg-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.tox .tox-collection__item {
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+}
+
+.tox .tox-collection__item:hover,
+.tox .tox-collection__item--active {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.tox .tox-collection__item--enabled {
+    background-color: var(--color-primary-bg) !important;
+}
+
+.tox .tox-collection__item-label {
+    color: var(--text-primary) !important;
+}
+
+.tox .tox-collection__item-checkmark svg {
+    fill: var(--color-primary) !important;
+}
+
+/* Color swatches */
+.tox .tox-swatches__picker-btn svg {
+    fill: var(--text-secondary) !important;
+}
+
+/* =========================================================================
+   TinyMCE Dialogs
+   ========================================================================= */
+
+.tox .tox-dialog {
+    background: var(--bg-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-xl) !important;
+}
+
+.tox .tox-dialog__header {
+    background: var(--bg-primary) !important;
+    border-bottom: 1px solid var(--border-light) !important;
+    padding: var(--space-md) var(--space-lg) !important;
+}
+
+.tox .tox-dialog__title {
+    color: var(--text-primary) !important;
+    font-weight: var(--font-weight-semibold) !important;
+}
+
+.tox .tox-dialog__body {
+    background: var(--bg-primary) !important;
+}
+
+.tox .tox-dialog__body-content {
+    padding: var(--space-lg) !important;
+}
+
+.tox .tox-dialog__footer {
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-light) !important;
+    padding: var(--space-md) var(--space-lg) !important;
+}
+
+.tox .tox-dialog__footer-end {
+    gap: var(--space-sm) !important;
+}
+
+/* Dialog buttons */
+.tox .tox-button {
+    border-radius: var(--radius-md) !important;
+    font-weight: var(--font-weight-medium) !important;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast) !important;
+}
+
+.tox .tox-button--secondary {
+    background: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.tox .tox-button--secondary:hover {
+    background: var(--bg-secondary) !important;
+    border-color: var(--color-primary) !important;
+}
+
+.tox .tox-button:not(.tox-button--secondary) {
+    background: var(--color-primary) !important;
+    border-color: var(--color-primary) !important;
+}
+
+.tox .tox-button:not(.tox-button--secondary):hover {
+    background: var(--color-primary-hover) !important;
+    border-color: var(--color-primary-hover) !important;
+}
+
+/* Dialog backdrop */
+.tox .tox-dialog-wrap__backdrop {
+    background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Dialog form fields */
+.tox .tox-textfield,
+.tox .tox-textarea {
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast) !important;
+}
+
+.tox .tox-textfield:focus,
+.tox .tox-textarea:focus {
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 3px var(--color-primary-bg) !important;
+}
+
+.tox .tox-label {
+    color: var(--text-secondary) !important;
+    font-weight: var(--font-weight-medium) !important;
+}
+
+/* =========================================================================
+   TinyMCE Table Tools
+   ========================================================================= */
+
+/* Table picker grid */
+.tox .tox-insert-table-picker {
+    background: var(--bg-primary) !important;
+}
+
+.tox .tox-insert-table-picker > div {
+    border-color: var(--border-light) !important;
+}
+
+.tox .tox-insert-table-picker__selected {
+    background-color: var(--color-primary-bg) !important;
+    border-color: var(--color-primary) !important;
+}
+
+.tox .tox-insert-table-picker__label {
+    color: var(--text-secondary) !important;
+}
+
+/* =========================================================================
+   TinyMCE Statusbar (disabled but style just in case)
+   ========================================================================= */
+
+.tox .tox-statusbar {
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-light) !important;
+    color: var(--text-muted) !important;
+}
+
+.tox .tox-statusbar__wordcount {
+    color: var(--text-muted) !important;
+}
+
+/* =========================================================================
+   Editor Sizing Variants
+   ========================================================================= */
+
+/* Small editor - for inline notes */
+.rich-editor-container.editor-sm .tox-edit-area__iframe {
+    min-height: 6.25rem !important;
+    max-height: 12.5rem !important;
+}
+
+/* Large editor - for detailed reflections */
+.rich-editor-container.editor-lg .tox-edit-area__iframe {
+    min-height: 18.75rem !important;
+    max-height: 37.5rem !important;
+}
+
+/* Full height editor */
+.rich-editor-container.editor-full .tox-edit-area__iframe {
+    min-height: 25rem !important;
+    max-height: none !important;
+}
+
+/* =========================================================================
+   Readonly/Disabled State
+   ========================================================================= */
+
+.rich-editor-container.readonly {
+    background: var(--bg-secondary);
+}
+
+.rich-editor-container.readonly .tox-toolbar-overlord {
+    display: none !important;
+}
+
+.rich-editor-container.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* =========================================================================
+   Error State
+   ========================================================================= */
+
+.rich-editor-error {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border-radius: var(--radius-md);
+}
+
+.rich-editor-error-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--color-error);
+    color: var(--text-inverse, white);
+    border-radius: 50%;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+}
+
+.rich-editor-error-message {
+    font-size: var(--font-size-sm);
+}
+
+/* =========================================================================
+   Math Equation Modal
+   ========================================================================= */
+
+.rich-editor-math-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+}
+
+.rich-editor-math-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.rich-editor-math-dialog {
+    position: relative;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    width: 100%;
+    max-width: 31.25rem;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.rich-editor-math-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.rich-editor-math-header h4 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.rich-editor-math-close {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.rich-editor-math-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.rich-editor-math-body {
+    padding: var(--space-lg);
+    overflow-y: auto;
+}
+
+.rich-editor-math-body label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+}
+
+.rich-editor-math-input {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.rich-editor-math-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.rich-editor-math-preview-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-xs);
+}
+
+.rich-editor-math-preview {
+    min-height: 3.75rem;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.rich-editor-math-preview .placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: var(--font-size-sm);
+}
+
+.rich-editor-math-preview .error {
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+}
+
+.rich-editor-math-preview .katex {
+    font-size: 1.4em;
+}
+
+.rich-editor-math-examples {
+    margin-top: var(--space-md);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.rich-editor-math-examples-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-right: var(--space-xs);
+}
+
+.rich-editor-math-examples button {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.rich-editor-math-examples button:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.rich-editor-math-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+}
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+@media (max-width: 768px) {
+    .tox .tox-toolbar__primary {
+        flex-wrap: wrap !important;
+    }
+
+    .tox .tox-tbtn {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .tox .tox-tbtn {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+    }
+
+    .rich-editor-math-modal {
+        padding: var(--space-md);
+    }
+
+    .rich-editor-math-dialog {
+        max-width: none;
+    }
+
+    .rich-editor-math-header,
+    .rich-editor-math-body,
+    .rich-editor-math-footer {
+        padding: var(--space-md);
+    }
+
+    .rich-editor-math-examples {
+        justify-content: center;
+    }
+
+    .rich-editor-math-footer {
+        flex-direction: column;
+    }
+
+    .rich-editor-math-footer .btn {
+        width: 100%;
+    }
+}
+
+/* =========================================================================
+   Print Styles
+   ========================================================================= */
+
+@media print {
+    .rich-editor-container,
+    .rich-editor-wrapper {
+        border: none;
+        box-shadow: none;
+    }
+
+    .tox .tox-toolbar-overlord {
+        display: none !important;
+    }
+}
+
+/* =========================================================================
+   Accessibility Enhancements
+   ========================================================================= */
+
+/* Keyboard focus styles */
+.tox .tox-tbtn:focus-visible {
+    outline: 3px solid var(--color-primary) !important;
+    outline-offset: 2px !important;
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+    .rich-editor-container,
+    .rich-editor-wrapper {
+        border-width: 2px;
+    }
+
+    .tox .tox-tbtn--enabled {
+        outline: 2px solid var(--color-primary) !important;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .rich-editor-container,
+    .rich-editor-wrapper,
+    .tox .tox-tbtn {
+        transition: none !important;
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile:*)",
+      "Bash(node --check:*)",
+      "Bash(sqlite3:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python:*)",
+      "WebSearch",
+      "Bash(findstr:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(grep:*)"
+    ]
+  }
+}

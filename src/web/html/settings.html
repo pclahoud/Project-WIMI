@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WIMI - Settings</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/settings.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="settings-header">
+            <div class="header-left">
+                <a href="index.html" class="back-link" id="backLink">
+                    <span class="back-arrow">&larr;</span>
+                    <span>Back to Dashboard</span>
+                </a>
+            </div>
+            <div class="header-center">
+                <h1 class="page-title">Settings</h1>
+            </div>
+            <div class="header-right"></div>
+        </header>
+
+        <!-- Settings Layout: Sidebar + Main -->
+        <div class="settings-container">
+            <!-- Left Sidebar Navigation -->
+            <nav class="settings-sidebar">
+                <button class="settings-nav-item active" data-panel="appearance">
+                    <span class="nav-icon">&#127912;</span>
+                    <span class="nav-label">Appearance</span>
+                </button>
+                <button class="settings-nav-item" data-panel="study_sessions">
+                    <span class="nav-icon">&#9201;&#65039;</span>
+                    <span class="nav-label">Study Sessions</span>
+                </button>
+                <button class="settings-nav-item" data-panel="dashboard_analytics">
+                    <span class="nav-icon">&#128202;</span>
+                    <span class="nav-label">Dashboard & Analytics</span>
+                </button>
+                <button class="settings-nav-item" data-panel="entry_browser">
+                    <span class="nav-icon">&#128203;</span>
+                    <span class="nav-label">Entry Browser</span>
+                </button>
+                <button class="settings-nav-item" data-panel="calendar">
+                    <span class="nav-icon">&#128197;</span>
+                    <span class="nav-label">Calendar</span>
+                </button>
+                <button class="settings-nav-item" data-panel="anki_integration">
+                    <span class="nav-icon">&#128279;</span>
+                    <span class="nav-label">Anki Integration</span>
+                </button>
+                <button class="settings-nav-item" data-panel="data_backup">
+                    <span class="nav-icon">&#128190;</span>
+                    <span class="nav-label">Data & Backup</span>
+                </button>
+                <button class="settings-nav-item" data-panel="performance">
+                    <span class="nav-icon">&#9889;</span>
+                    <span class="nav-label">Performance</span>
+                </button>
+                <button class="settings-nav-item" data-panel="mcp_server">
+                    <span class="nav-icon">&#128268;</span>
+                    <span class="nav-label">MCP Server</span>
+                </button>
+                <hr class="settings-nav-divider">
+                <button class="settings-nav-item" data-panel="addons">
+                    <span class="nav-icon">&#129513;</span>
+                    <span class="nav-label">Addons</span>
+                </button>
+                <div id="pluginSubNav"></div>
+            </nav>
+
+            <!-- Right Main Area -->
+            <div class="settings-main">
+                <!-- Preview Warning Banner -->
+                <div id="previewWarning" class="preview-warning" style="display: none;">
+                    Preview mode &mdash; these changes only apply to this page until saved.
+                </div>
+
+                <!-- Sticky Actions Bar -->
+                <div id="actionsBar" class="actions-bar">
+                    <div class="actions-left">
+                        <button class="btn-reset" id="resetDefaultsBtn">Reset to Defaults</button>
+                    </div>
+                    <div class="actions-right">
+                        <button class="btn-cancel" id="cancelBtn">Cancel</button>
+                        <button class="btn-save" id="saveBtn">Save</button>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 1: Appearance
+                     ============================================================ -->
+                <div class="settings-panel active" data-panel="appearance">
+                    <h2 class="panel-title">Appearance</h2>
+
+                    <div class="form-group">
+                        <label for="theme_name">Theme</label>
+                        <p class="field-description">Choose the visual theme for the application.</p>
+                        <select id="theme_name" data-field="theme_name">
+                            <option value="default">Default (Light)</option>
+                            <option value="midnight">Midnight (Dark)</option>
+                            <option value="warm_study">Warm Study (Sepia)</option>
+                            <option value="forest">Forest (Earthy Green)</option>
+                            <option value="nord">Nord (Arctic)</option>
+                            <option value="high_contrast">High Contrast</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="primary_color_hex">Primary Color</label>
+                        <p class="field-description">The main accent color used for buttons, links, and highlights.</p>
+                        <div class="color-input-group">
+                            <input type="color" id="primary_color_hex_picker" data-testid="settings-appearance-primary-color-picker" data-field="primary_color_hex" value="#2563eb">
+                            <input type="text" id="primary_color_hex" data-testid="settings-appearance-primary-color-hex" data-field="primary_color_hex" placeholder="#2563eb" maxlength="7">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="secondary_color_hex">Secondary Color</label>
+                        <p class="field-description">Used for secondary buttons, borders, and muted UI elements.</p>
+                        <div class="color-input-group">
+                            <input type="color" id="secondary_color_hex_picker" data-testid="settings-appearance-secondary-color-picker" data-field="secondary_color_hex" value="#64748b">
+                            <input type="text" id="secondary_color_hex" data-testid="settings-appearance-secondary-color-hex" data-field="secondary_color_hex" placeholder="#64748b" maxlength="7">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="font_family">Font Family</label>
+                        <p class="field-description">The typeface used throughout the application.</p>
+                        <select id="font_family" data-field="font_family">
+                            <option value="system_default">System Default</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="font_size_base_px">Font Size</label>
+                        <p class="field-description">The base font size used throughout the application.</p>
+                        <select id="font_size_base_px" data-field="font_size_base_px">
+                            <option value="12">12 px — Small</option>
+                            <option value="13">13 px</option>
+                            <option value="14">14 px</option>
+                            <option value="15">15 px</option>
+                            <option value="16" selected>16 px — Default</option>
+                            <option value="17">17 px</option>
+                            <option value="18">18 px</option>
+                            <option value="20">20 px</option>
+                            <option value="22">22 px — Large</option>
+                            <option value="24">24 px — Extra Large</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ui_density">UI Density</label>
+                        <p class="field-description">Controls spacing and padding throughout the interface.</p>
+                        <select id="ui_density" data-field="ui_density">
+                            <option value="compact">Compact</option>
+                            <option value="comfortable" selected>Comfortable</option>
+                            <option value="spacious">Spacious</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_animations" data-field="show_animations" checked>
+                            <span>Show Animations</span>
+                        </label>
+                        <p class="field-description">Enable or disable UI transition animations.</p>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 2: Study Sessions
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="study_sessions">
+                    <h2 class="panel-title">Study Sessions</h2>
+
+                    <div class="form-group">
+                        <label for="default_session_duration_minutes">Default Work Round Duration (minutes)</label>
+                        <p class="field-description">The default length of a work round in minutes.</p>
+                        <input type="number" id="default_session_duration_minutes" data-field="default_session_duration_minutes" min="15" max="480" value="60">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="default_break_interval_minutes">Short Break Duration (minutes)</label>
+                        <p class="field-description">The length of a short break between work rounds.</p>
+                        <input type="number" id="default_break_interval_minutes" data-field="default_break_interval_minutes" min="5" max="60" value="25">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="default_long_break_minutes">Long Break Duration (minutes)</label>
+                        <p class="field-description">The length of a longer break after several work rounds.</p>
+                        <input type="number" id="default_long_break_minutes" data-field="default_long_break_minutes" min="10" max="60" value="15">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="long_break_interval_rounds">Long Break Every N Rounds</label>
+                        <p class="field-description">After this many work rounds, suggest a long break.</p>
+                        <input type="number" id="long_break_interval_rounds" data-field="long_break_interval_rounds" min="2" max="10" value="4">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="timer_display_size">Timer Display Size</label>
+                        <p class="field-description">Size of the countdown timer on the entry page.</p>
+                        <select id="timer_display_size" data-field="timer_display_size">
+                            <option value="normal">Normal</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="manual_break_control" data-field="manual_break_control">
+                            <span>Manual Break Control</span>
+                        </label>
+                        <p class="field-description">When enabled, breaks are manually triggered instead of automatically prompted.</p>
+                    </div>
+
+                    <hr class="settings-divider">
+                    <h3 class="subsection-title">Timer Keyboard Shortcuts</h3>
+                    <p class="field-description" style="margin-bottom: 16px;">Click a field and press a key combination to set a shortcut. Press Escape to clear.</p>
+
+                    <div class="form-group">
+                        <label>Pause / Resume Timer</label>
+                        <div class="hotkey-input-group">
+                            <input type="text" class="hotkey-capture" id="hotkey_timer_pause_resume" data-testid="settings-study-sessions-hotkey-pause-resume" data-field="hotkey_timer_pause_resume" readonly placeholder="Click to set...">
+                            <button type="button" class="hotkey-clear-btn" data-testid="settings-study-sessions-hotkey-pause-resume-clear" data-hotkey-field="hotkey_timer_pause_resume" title="Clear shortcut">&times;</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>New Round</label>
+                        <div class="hotkey-input-group">
+                            <input type="text" class="hotkey-capture" id="hotkey_timer_new_round" data-testid="settings-study-sessions-hotkey-new-round" data-field="hotkey_timer_new_round" readonly placeholder="Click to set...">
+                            <button type="button" class="hotkey-clear-btn" data-testid="settings-study-sessions-hotkey-new-round-clear" data-hotkey-field="hotkey_timer_new_round" title="Clear shortcut">&times;</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>End Round</label>
+                        <div class="hotkey-input-group">
+                            <input type="text" class="hotkey-capture" id="hotkey_timer_end_round" data-testid="settings-study-sessions-hotkey-end-round" data-field="hotkey_timer_end_round" readonly placeholder="Click to set...">
+                            <button type="button" class="hotkey-clear-btn" data-testid="settings-study-sessions-hotkey-end-round-clear" data-hotkey-field="hotkey_timer_end_round" title="Clear shortcut">&times;</button>
+                        </div>
+                    </div>
+
+                    <div id="hotkeyConflictWarning" data-testid="settings-study-sessions-hotkey-conflict-warning" class="hotkey-conflict-warning" style="display:none;"></div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 3: Dashboard & Analytics
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="dashboard_analytics">
+                    <h2 class="panel-title">Dashboard & Analytics</h2>
+
+                    <div class="form-group">
+                        <label for="analytics_detail_level">Analytics Detail Level</label>
+                        <p class="field-description">Controls the depth of analytics data shown on dashboards.</p>
+                        <select id="analytics_detail_level" data-field="analytics_detail_level">
+                            <option value="summary">Summary</option>
+                            <option value="detailed" selected>Detailed</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dashboard_auto_refresh_seconds">Auto-Refresh Interval (seconds)</label>
+                        <p class="field-description">How often the dashboard data automatically refreshes.</p>
+                        <input type="number" id="dashboard_auto_refresh_seconds" data-field="dashboard_auto_refresh_seconds" min="30" max="3600" value="300">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_performance_trends" data-field="show_performance_trends" checked>
+                            <span>Show Performance Trends</span>
+                        </label>
+                        <p class="field-description">Display performance trend charts on the dashboard.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_mistake_patterns" data-field="show_mistake_patterns" checked>
+                            <span>Show Mistake Patterns</span>
+                        </label>
+                        <p class="field-description">Display common mistake pattern analysis on the dashboard.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_subject_breakdown" data-field="show_subject_breakdown" checked>
+                            <span>Show Subject Breakdown</span>
+                        </label>
+                        <p class="field-description">Display per-subject performance breakdown on the dashboard.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_time_analytics" data-field="show_time_analytics" checked>
+                            <span>Show Time Analytics</span>
+                        </label>
+                        <p class="field-description">Display time-based analytics and study duration insights.</p>
+                    </div>
+
+                    <hr class="settings-divider">
+                    <h3 class="subsection-title">Per-Exam Analytics Configuration</h3>
+                    <p class="field-description" style="margin-bottom: 16px;">Configure which charts are visible and set default dimension filtering for each exam.</p>
+
+                    <div class="form-group">
+                        <label for="analytics_exam_selector">Select Exam</label>
+                        <select id="analytics_exam_selector" data-testid="settings-analytics-exam-selector">
+                            <option value="">-- Choose an exam --</option>
+                        </select>
+                    </div>
+
+                    <div id="examAnalyticsConfig" style="display:none;">
+                        <div class="form-group" id="defaultDimensionGroup" style="display:none;">
+                            <label for="default_dimension_id">Default Dimension Filter</label>
+                            <p class="field-description">Applied to Subject Sunburst and Mistake Type charts. "All Dimensions" shows unfiltered data.</p>
+                            <select id="default_dimension_id" data-testid="settings-analytics-dimension-selector">
+                                <option value="">All Dimensions</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Chart Visibility</label>
+                            <p class="field-description">Toggle which charts appear on the analytics dashboard for this exam.</p>
+                            <div class="chart-toggle-list" id="chartToggleList">
+                                <!-- Generated dynamically -->
+                            </div>
+                        </div>
+
+                        <button class="btn-save" id="saveExamAnalyticsBtn" data-testid="settings-analytics-save-exam-config">Save Exam Analytics</button>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 4: Entry Browser
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="entry_browser">
+                    <h2 class="panel-title">Entry Browser</h2>
+
+                    <div class="form-group">
+                        <label for="entry_review_items_per_page">Items Per Page</label>
+                        <p class="field-description">Number of entries shown per page in the entry browser.</p>
+                        <input type="number" id="entry_review_items_per_page" data-field="entry_review_items_per_page" min="10" max="100" value="25">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="entry_review_default_sort_field">Default Sort Field</label>
+                        <p class="field-description">The field used to sort entries by default.</p>
+                        <select id="entry_review_default_sort_field" data-field="entry_review_default_sort_field">
+                            <option value="date_desc">Date (Newest First)</option>
+                            <option value="date_asc">Date (Oldest First)</option>
+                            <option value="difficulty_desc">Difficulty (Hardest First)</option>
+                            <option value="difficulty_asc">Difficulty (Easiest First)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="entry_review_default_sort_direction">Default Sort Direction</label>
+                        <p class="field-description">The default ordering direction for entry lists.</p>
+                        <select id="entry_review_default_sort_direction" data-field="entry_review_default_sort_direction">
+                            <option value="asc">Ascending</option>
+                            <option value="desc" selected>Descending</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 5: Calendar (COMING SOON)
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="calendar">
+                    <h2 class="panel-title">Calendar</h2>
+                    <div class="coming-soon-badge">Coming Soon</div>
+
+                    <div class="coming-soon-panel">
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label for="calendar_default_view">Default Calendar View</label>
+                            <p class="field-description">The default time range displayed when opening the calendar.</p>
+                            <select id="calendar_default_view" data-field="calendar_default_view" disabled>
+                                <option value="week">Week</option>
+                                <option value="month" selected>Month</option>
+                                <option value="day">Day</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label for="calendar_time_slot_minutes">Time Slot Duration (minutes)</label>
+                            <p class="field-description">The granularity of time slots in the calendar view.</p>
+                            <select id="calendar_time_slot_minutes" data-field="calendar_time_slot_minutes" disabled>
+                                <option value="15">15 minutes</option>
+                                <option value="30" selected>30 minutes</option>
+                                <option value="60">60 minutes</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="show_weekend_in_calendar" data-field="show_weekend_in_calendar" checked disabled>
+                                <span>Show Weekends in Calendar</span>
+                            </label>
+                            <p class="field-description">Whether to display Saturday and Sunday in the calendar view.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 6: Anki Integration (COMING SOON)
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="anki_integration">
+                    <h2 class="panel-title">Anki Integration</h2>
+                    <div class="coming-soon-badge">Coming Soon</div>
+
+                    <div class="coming-soon-panel">
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="anki_integration_enabled" data-field="anki_integration_enabled" disabled>
+                                <span>Enable Anki Integration</span>
+                            </label>
+                            <p class="field-description">Connect WIMI to Anki via AnkiConnect for flashcard synchronization.</p>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label for="ankiconnect_port">AnkiConnect Port</label>
+                            <p class="field-description">The port number AnkiConnect is listening on (default: 8765).</p>
+                            <input type="number" id="ankiconnect_port" data-field="ankiconnect_port" value="8765" disabled>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 7: Data & Backup (COMING SOON)
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="data_backup">
+                    <h2 class="panel-title">Data & Backup</h2>
+                    <div class="coming-soon-badge">Coming Soon</div>
+
+                    <div class="coming-soon-panel">
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="auto_backup_enabled" data-field="auto_backup_enabled" disabled>
+                                <span>Enable Automatic Backups</span>
+                            </label>
+                            <p class="field-description">Automatically back up your data at regular intervals.</p>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label for="backup_frequency_hours">Backup Frequency (hours)</label>
+                            <p class="field-description">How often automatic backups are created.</p>
+                            <input type="number" id="backup_frequency_hours" data-field="backup_frequency_hours" value="24" disabled>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label for="backup_retention_days">Backup Retention (days)</label>
+                            <p class="field-description">How long backup files are kept before being automatically deleted.</p>
+                            <input type="number" id="backup_retention_days" data-field="backup_retention_days" value="30" disabled>
+                        </div>
+
+                        <div class="form-group coming-soon-control" title="Coming soon">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="cloud_sync_enabled" data-field="cloud_sync_enabled" disabled>
+                                <span>Enable Cloud Sync</span>
+                            </label>
+                            <p class="field-description">Synchronize your data across devices using cloud storage.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 8: Performance
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="performance">
+                    <h2 class="panel-title">Performance</h2>
+
+                    <div class="form-group">
+                        <label for="realtime_update_delay_ms">Real-time Update Delay (ms)</label>
+                        <p class="field-description">The delay in milliseconds before the UI refreshes after data changes. Lower values feel more responsive but use more resources.</p>
+                        <input type="number" id="realtime_update_delay_ms" data-field="realtime_update_delay_ms" min="100" max="5000" value="500">
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 9: MCP Server
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="mcp_server">
+                    <h2 class="panel-title">MCP Server</h2>
+                    <p class="field-description">
+                        Run a local MCP (Model Context Protocol) server so AI assistants
+                        like Claude can read your WIMI data. The server is read-only.
+                    </p>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" data-field="mcp_server_enabled" id="mcp_server_enabled" data-testid="settings-mcp-server-enabled">
+                            <span>Enable MCP Server</span>
+                        </label>
+                        <p class="field-description">Start an SSE server on localhost when enabled.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mcp_server_port">Port</label>
+                        <input type="number" id="mcp_server_port" data-testid="settings-mcp-server-port" data-field="mcp_server_port"
+                               min="1024" max="65535" value="8000">
+                        <p class="field-description">Local port for the MCP server (default: 8000).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div id="mcpStatusIndicator" class="mcp-status">
+                            <span class="mcp-status-dot stopped" id="mcpStatusDot"></span>
+                            <span class="mcp-status-text" id="mcpStatusText">Stopped</span>
+                        </div>
+                        <p class="field-description mcp-connection-url" id="mcpConnectionUrl" style="display:none;">
+                            Connection URL: <code id="mcpUrlValue"></code>
+                        </p>
+                    </div>
+
+                    <div class="mcp-connect-instructions" id="mcpConnectInstructions" style="display:none;">
+                        <label>Connect Claude Code</label>
+                        <p class="field-description">
+                            Add this to your project's <code>.mcp.json</code> file, or run the CLI commands below.
+                        </p>
+                        <div class="mcp-config-block">
+                            <div class="mcp-config-header">
+                                <span class="mcp-config-label">.mcp.json</span>
+                                <button class="mcp-copy-btn" id="mcpCopyJsonBtn" data-testid="settings-mcp-server-copy-json" title="Copy to clipboard">Copy</button>
+                            </div>
+                            <pre class="mcp-config-code" id="mcpConfigJson"></pre>
+                        </div>
+                        <div class="mcp-config-block">
+                            <div class="mcp-config-header">
+                                <span class="mcp-config-label">CLI</span>
+                                <button class="mcp-copy-btn" id="mcpCopyCliBtn" data-testid="settings-mcp-server-copy-cli" title="Copy to clipboard">Copy</button>
+                            </div>
+                            <pre class="mcp-config-code" id="mcpConfigCli"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 10: Addons
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="addons">
+                    <div class="addon-panel-header">
+                        <div>
+                            <h2 class="panel-title">Addons</h2>
+                            <p class="field-description">Manage installed plugins. Install from a <code>.zip</code> file or place plugin folders in <code>app_data/plugins/</code>.</p>
+                        </div>
+                        <button class="btn-save" id="installPluginBtn">Install from .zip</button>
+                    </div>
+                    <div id="addonList" class="addon-list"></div>
+                </div>
+
+                <div id="pluginSettingsPanels"></div>
+
+                <div data-plugin-slot="settings-addon-panels"></div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/settings.js"></script>
+</body>
+</html>

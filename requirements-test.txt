@@ -1,0 +1,24 @@
+# Testing dependencies for WIMI Project
+#
+# Versions pinned to match the active development venv. Bump deliberately.
+
+# Core testing framework
+pytest==8.4.2
+pytest-cov==7.0.0
+
+# Test utilities
+# pytest-mock is not currently installed in the active dev venv; left at
+# its prior pin until a maintainer installs and verifies a specific version.
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+
+# Coverage
+coverage==7.11.0
+
+# wimi_test (CDP-driven UI test stack) dependencies.
+#
+# pychrome is the CDP client used by wimi_test/_internal/cdp_client.py to
+# drive the QtWebEngine via remote debugging. Originally this slot was
+# filled by ``playwright`` (Python sync API over CDP); the migration to
+# pychrome is documented in docs/planning/PYCHROME_MIGRATION.md.
+pychrome==0.2.4

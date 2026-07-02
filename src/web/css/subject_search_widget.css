@@ -1,0 +1,178 @@
+/**
+ * SubjectSearchSelect Widget Styles
+ * Shared styles for the reusable subject search + select component.
+ */
+
+/* ============================================
+   Container
+   ============================================ */
+
+.ssw-container {
+    margin-top: 0.75rem;
+    position: relative;
+}
+
+/* ============================================
+   Search Input
+   ============================================ */
+
+.ssw-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.ssw-search-icon {
+    position: absolute;
+    left: 0.625rem;
+    font-size: 0.85rem;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.ssw-search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #111827);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ssw-search-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px var(--color-primary-bg, rgba(59, 130, 246, 0.1));
+}
+
+.ssw-search-input::placeholder {
+    color: var(--text-secondary, #9ca3af);
+}
+
+/* ============================================
+   Dropdown
+   ============================================ */
+
+.ssw-dropdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    max-height: 15rem;
+    overflow-y: auto;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ssw-dropdown-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.ssw-dropdown-item:hover,
+.ssw-dropdown-item.highlighted {
+    background: var(--bg-secondary, #f3f4f6);
+}
+
+.ssw-dropdown-item + .ssw-dropdown-item {
+    border-top: 1px solid var(--border-color, #f3f4f6);
+}
+
+.ssw-result-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary, #111827);
+}
+
+.ssw-result-name mark {
+    background: var(--color-primary-bg, rgba(59, 130, 246, 0.2));
+    color: var(--color-primary, inherit);
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.ssw-result-path {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    margin-top: 0.125rem;
+}
+
+.ssw-result-alias {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #9ca3af);
+    font-style: italic;
+    margin-top: 0.0625rem;
+    display: block;
+}
+
+.ssw-result-alias mark {
+    background: var(--color-primary-bg, rgba(59, 130, 246, 0.15));
+    color: var(--color-primary, inherit);
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.ssw-dropdown-empty {
+    padding: 0.75rem;
+    text-align: center;
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.875rem;
+}
+
+/* ============================================
+   Chips (Selected Subjects)
+   ============================================ */
+
+.ssw-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+}
+
+.ssw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--color-primary-bg, #dbeafe);
+    color: var(--color-primary, #1e40af);
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    max-width: 100%;
+}
+
+.ssw-chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ssw-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    border: none;
+    background: transparent;
+    color: var(--color-primary, #1e40af);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+}
+
+.ssw-chip-remove:hover {
+    background: var(--color-primary-bg, rgba(30, 64, 175, 0.15));
+}

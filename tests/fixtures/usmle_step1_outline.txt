@@ -1,0 +1,1844 @@
+ USMLE® Content Outline
+
+      A Joint Program of the Federation of State Medical Boards of the United
+      States and NBME®
+
+Public
+USMLE Content Outline
+
+The USMLE Content outline provides a common organization of content across all USMLE
+examinations. Each Step exam will emphasize certain parts of the outline, and no single examination
+will include questions on all topics in the outline. The examples listed within the outline are just
+examples. Questions may include diseases, symptoms, etc., that are not included in the outline. The
+USMLE program continually reviews its examinations to ensure their content is relevant to the practice
+of medicine. As practice guidelines evolve or are introduced, the content on USMLE is reviewed and
+modified as needed. At times, there is a change in emphasis on new content development that arises
+from our ongoing peer-review processes. For example, there has been an emphasis on new content
+developed assessing competencies related to geriatric medicine, nutrition, and prescription drug use.
+USMLE has also focused recent efforts on the often unrecognized health care needs of:
+
+    · recently returning military personnel and veterans and the families of deployed military
+         personnel
+
+    · populations requiring health and gender-affirming care (eg, nonbinary and transgender patients)
+    · patients with disabilities
+
+Although many of the medical issues related to the health care of these special populations are not
+unique, certain medical illnesses or conditions are either more prevalent, have a different presentation,
+or are managed differently. Knowledge of foundational science and clinical science in these content
+areas will be assessed on the USMLE Step 1, Step 2 CK, and Step 3 examinations.
+
+USMLE Physician Tasks/Competencies provides an outline of the tasks and competencies assessed
+throughout the sequence of USMLE examinations. Please refer to both outlines when preparing for the
+examinations.
+
+Examinees should refer to the test specifications for each examination for more information about
+which parts of the outline will be emphasized in the examination for which they are preparing. See the
+USMLE website (www.usmle.org) for more detail.
+
+For Public Release: USMLE Content Outline (2025)  1
+
+Public
+Table of Contents
+
+Human Development                                                                          3
+
+Immune System                                                                              4
+
+Blood & Lymphoreticular System                                                             5
+
+Behavioral Health                                                                          7
+
+Nervous System & Special Senses                                                            9
+
+Skin & Subcutaneous Tissue                                                                 13
+
+Musculoskeletal System                                                                     15
+
+Cardiovascular System                                                                      17
+
+Respiratory System                                                                         19
+
+Gastrointestinal System                                                                    21
+
+Renal & Urinary System                                                                     24
+
+Pregnancy, Childbirth, & the Puerperium                                                    26
+
+Female and Transgender Reproductive System & Breast                                        28
+
+Male and Transgender Reproductive System                                                   30
+
+Endocrine System                                                                           31
+
+Multisystem Processes & Disorders                                                          33
+
+Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature  36
+
+Social Sciences                                                                            39
+
+Copyright © 2025 by the Federation of State Medical Boards of the United States, Inc. (FSMB), and NBME.
+All rights reserved. The United States Medical Licensing Examination® (USMLE®) is a joint program of the FSMB and NBME.
+
+For Public Release: USMLE Content Outline (2025)                                                                         2
+
+Public
+Human Development
+
+Normal age-related findings and care of the well patient
+
+     · Infancy and childhood (0-12 years)
+                o Normal physical changes: linear growth, variations in linear growth, including constitutional delay;
+                     weight; head circumference; micturition, defecation, primary incontinence/bedwetting; normal
+                     physical examination; screening; sleep; teething syndrome
+                o Developmental stages: motor; speech; cognitive; psychosocial; anticipatory guidance
+                o Lifestyle and routine preventive health care: nutrition; exercise (eg, benefits of exercise);
+                     preventive/travel medicine; risk factors and prevention (eg, guns, swimming, motor vehicles, car
+                     seats); routine vaccinations; adaptive behavioral responses to stress and illness (eg, coping
+                     mechanisms); patient adherence
+
+     · Adolescence (13-17 years)
+                o Normal physical changes: linear growth, variations in linear growth including constitutional delay;
+                     weight; puberty; normal physical examination; gynecomastia; autonomy/self-identity; sleep
+                o Developmental stages: cognitive (eg, abstract thought); psychosocial (eg, autonomy, role
+                     confusion, sexual identity); anticipatory guidance
+                o Lifestyle and routine preventive health care: nutrition; exercise (eg, benefits of exercise);
+                     preventive/travel medicine; risk factors and prevention (eg, risk-taking behavior, helmets, motor
+                     vehicles, seat belts, distractions; safe sex, consent and screening for reproductive and sexual
+                     coercion); routine vaccinations; adaptive behavioral responses to stress and illness (eg, coping
+                     mechanisms); patient adherence
+
+     · Adulthood (18-64 years)
+                o Normal physical changes: weight; normal physical examination; screening; sleep
+                o Developmental stages: cognitive; intimacy vs isolation; anticipatory guidance
+                o Lifestyle and routine preventive health care: nutrition; exercise (eg, benefits of exercise);
+                     preventive/travel medicine; risk factors and prevention; routine vaccinations; adaptive behavioral
+                     responses to stress and illness (eg, coping mechanisms); patient adherence
+
+     · Older Adulthood (65 years and older)
+                o Normal physical changes, including normal physical exam for age: weight, height (spinal
+                     compression), skin, bruising; normal physical examination; response to temperature; micturition,
+                     defecation; sleep
+                o Developmental stages: motor; cognitive (eg, changes associated with normal aging);
+                     psychosocial; integrity vs despair; retrospection; anticipatory guidance
+                o Lifestyle and routine preventive health care: nutrition; exercise (eg, benefits of exercise);
+                     preventive/travel medicine; risk factors and prevention (eg, falls, general medical condition;
+                     polypharmacy, driving, caregiver stress); routine vaccinations
+
+For Public Release: USMLE Content Outline (2025)  3
+
+Public
+Immune System
+
+Disorders associated with immunodeficiency
+
+     · deficiency primarily of humoral immunity
+                o common variable immunodeficiency; hyper IgM syndrome;
+                     hypogammaglobulinemia/agammaglobulinemia, X-linked (Bruton); selective immunodeficiency
+                     (eg, IgA, IgM, IgE)
+
+     · deficiency/dysfunction primarily of cell-mediated immunity
+                o adenosine deaminase deficiency; DiGeorge (22q11.2 deletion) syndrome; severe combined
+                     immunodeficiency disease (SCID); Wiskott-Aldrich syndrome; granulomatosis; allergic
+                     reactions/skin
+
+     · complement deficiency
+                o alternative pathway component deficiency (C2, C3b, C3bB, C36B6); classical pathway
+                     component deficiency (C1q, C1r, C1-C5); terminal component deficiency (C5b-C9; terminal
+                     complement complex); C1 esterase inhibitor deficiency, hereditary angioedema; mannose-
+                     binding lectin (MBL) deficiency; membrane attack complex deficiency
+
+     · deficiency of phagocytic cells and natural killer cells
+                o Chediak-Higashi disease; chronic granulomatous disease and other disorders of phagocytosis;
+                     leukocyte adhesion deficiency
+
+HIV/AIDS
+
+     · HIV1 and HIV2; AIDS; AIDS complications (eg, neuropathy, dementia, renal insufficiency); immunology of
+          AIDS; immune reconstitution syndrome (IRS); secondary infections; noninfectious complications (eg,
+          Kaposi sarcoma)
+
+Immunologically mediated disorders
+
+     · hypersensitivity reactions
+                o type 1, 2, 3, including anaphylaxis; type 4; drug reactions; serum sickness
+
+     · transplantation
+                o rejection; graft-versus-host disease
+
+Adverse effects of drugs on the immune system
+
+     · Jarisch-Herxheimer reaction; drugs affecting the immune system (eg, prednisone, azathioprine,
+          cyclosporine, methotrexate, monoclonal antibody drugs [eg, abciximab, adalimumab; bevacizumab,
+          infliximab, omalizumab, rituximab]); vaccine adverse effects
+
+For Public Release: USMLE Content Outline (2025)  4
+
+Public
+Blood & Lymphoreticular System
+
+Infectious and immunologic, including microbiologic and host response to insult
+
+     · infectious disorders
+                o bacterial
+                o viral: hemorrhagic fever (Ebola virus, Marburg virus); chikungunya; dengue fever; Zika virus
+                     disease
+                o parasitic: malaria (Plasmodium species); babesiosis (Babesia species)
+
+     · primary infections of lymphoid tissue
+                o lymphadenitis (viral, bacterial, fungal, parasitic); lymphangitis; buboes, bubonic plague (Yersinia
+                     pestis); cat-scratch disease (Bartonella henselae)
+
+     · immunologic and inflammatory disorders
+                o cryoglobulinemia, essential mixed cryoglobulinemia; autoimmune hemolytic anemia; paroxysmal
+                     nocturnal hemoglobinuria; thrombotic thrombocytopenic purpura; hemolytic uremic syndrome
+
+Neoplasms
+
+     · leukemia, acute (ALL, AML); leukemia, chronic (CLL, CML); lymphomas, Hodgkin disease, non-Hodgkin
+          lymphoma, Burkitt lymphoma, T-cell lymphoma; multiple myeloma, dysproteinemias, monoclonal
+          gammopathy of unknown significance (MGUS); myelofibrosis; myelodysplastic syndrome,
+          myelodysplasias; other immunoproliferative neoplasms (eg, Waldenstrom macroglobulinemia)
+
+Anemia, cytopenias, and polycythemia anemias
+
+     · decreased production
+                o anemia of chronic disease
+
+     · hemolysis
+                o glucose 6-phosphate dehydrogenase deficiency; pyruvate kinase deficiency
+
+     · disorders of hemoglobin, heme, or membrane
+                o disorders of red cell membranes; hereditary spherocytosis, elliptocytosis; methemoglobinemia,
+                     congenital; sickle cell disease; sideroblastic anemia; thalassemias
+
+     · other causes of anemia
+                o blood loss, acute and chronic as a cause of anemia
+
+     · cytopenias
+                o aplastic anemia; leukopenia; neutropenia, cyclic neutropenia, agranulocytosis; pancytopenia;
+                     thrombocytopenia, quantitative; immune thrombocytopenic purpura (ITP)
+
+     · cythemias
+                o leukocytosis; polycythemia vera; secondary polycythemia
+
+Coagulation disorders (hypocoagulable and hypercoagulable conditions)
+
+     · hypocoagulable
+                o disseminated intravascular coagulation; hemophilia, congenital; factors VIII [hemophilia A] and IX
+                     [hemophilia B]; hypofibrinogenemia; von Willebrand disease; platelet dysfunction, qualitative
+
+     · hypercoagulable
+                o heparin-induced thrombocytopenia; other coagulopathies (eg, homocysteinemia,
+                     hypoplasminogenemia, antithrombin III, protein C/protein S deficiency, Factor V Leiden,
+                     anticardiolipin antibodies, lupus anticoagulant, prothrombin G20210A mutation)
+
+     · reactions to blood components
+
+For Public Release: USMLE Content Outline (2025)  5
+
+Public
+                o ABO incompatibility/anaphylaxis; Rh incompatibility/anaphylaxis; hemolysis, delayed; transfusion
+                     reaction; transfusion contaminated with bacteria; transfusion-related acute lung injury (TRALI);
+                     anaphylactoid reaction (IgA deficiency)
+
+Traumatic, mechanical, and vascular disorders
+
+     · mechanical injury to erythrocytes (eg, cardiac valve hemolysis)
+     · disorders of the spleen
+
+                o splenic rupture/laceration; splenic infarct; splenic abscess; effects/complications of splenectomy
+                     (eg, sepsis due to encapsulated bacteria); hypersplenism
+
+Adverse effects of drugs on the hematologic and lymphoreticular systems
+
+     · antiplatelet drugs; antithrombin drugs (eg, dabigatran); chemotherapeutic agents; inhibitors of coagulation
+          factors; methemoglobinemia, acquired; propylthiouracil; tumor lysis syndrome; warfarin
+
+For Public Release: USMLE Content Outline (2025)  6
+
+Public
+Behavioral Health
+
+Psychotic disorders
+
+     · brief psychotic disorder; delusional disorder; psychotic disorder due to another medical condition;
+          schizophrenia; schizoaffective disorder; substance-induced psychotic disorder
+
+Anxiety disorders
+
+     · acute stress disorder; anxiety disorders (generalized anxiety disorder, anxiety due to another medical
+          condition, social phobia); hyperventilation syndrome; obsessive-compulsive disorder; panic disorder with
+          and without agoraphobia; phobic disorders; post-traumatic stress disorder; selective mutism; separation
+          anxiety disorder; substance-induced anxiety disorder, trichotillomania
+
+Mood disorders
+
+     · major depressive disorder with and without psychotic features, with and without seasonal pattern; major
+          depressive disorder, postpartum, with and without psychotic features, including screening; cyclothymic
+          disorder; persistent depressive disorder; bipolar disorder, manic/depressed/mixed; premenstrual
+          dysphoric disorder; bipolar and related disorder or depressive disorder due to another medical condition;
+          substance/medication-induced bipolar and related disorder or depressive disorder (illegal or prescribed);
+          suicidal ideation/attempt
+
+Somatic symptoms and related disorders
+
+     · body dysmorphic disorder; functional neurologic symptom disorder (conversion disorder), including
+          psychogenic seizures; dissociative disorders; illness anxiety disorder (hypochondriasis); malingering; pain
+          disorder; somatic symptom disorder
+
+Factitious disorders
+
+     · factitious disorder imposed on self
+
+Eating disorders and impulse-control disorders
+
+     · anorexia nervosa; binge-eating disorder; bulimia nervosa; eating disorder; disruptive, impulse-control, and
+          conduct disorders (eg, gambling, kleptomania, pyromania)
+
+Disorders originating in infancy/childhood
+
+     · reactive attachment disorder; attention-deficit/hyperactivity disorder; speech sound disorder or language
+          disorder; learning disorder/dyslexia; intellectual developmental disorder and developmental delay,
+          undefined, including school problems, fetal alcohol syndrome; oppositional defiant disorder, conduct
+          disorder; autism spectrum disorder, Rett syndrome; psychoses with origin specific to childhood;
+          elimination disorders (incontinence, encopresis); tic disorders/Tourette disorder
+
+For Public Release: USMLE Content Outline (2025)  7
+
+Public
+Personality disorders
+
+     · antisocial personality disorder; avoidant personality disorder; borderline personality disorder; dependent
+          personality disorder; histrionic personality disorder; narcissistic personality disorder; obsessive-
+          compulsive personality disorder; paranoid personality disorder; schizoid personality disorder
+
+Psychosocial disorders/behaviors
+
+     · adjustment disorder; grief response/bereavement, normal and persistent complex; parent-child relational
+          problems other than physical or emotional abuse; other psychosocial stress; psychodynamic and
+          behavioral factors, related past experience (eg, transference, personality traits)
+
+Sexual disorders and gender dysphoria
+
+     · gender dysphoria; psychosexual dysfunction
+
+Substance use disorders
+
+     · alcohol use disorder/intoxication/dependence/withdrawal; tobacco/nicotine use
+          disorder/dependence/withdrawal; varenicline use; cannabis use disorder/intoxication/dependence;
+          hallucinogen use disorder/intoxication/dependence/withdrawal; inhalant use
+          disorder/intoxication/dependence/withdrawal; opioid, heroin, including prescription drug, use
+          disorder/intoxication/dependence/withdrawal; sedative, hypnotic, including benzodiazepine and
+          barbiturate use disorder/intoxication/dependence/withdrawal; stimulant, cocaine, methamphetamine use
+          disorder/intoxication/dependence/withdrawal; other drugs of use disorders (eg, ecstasy, PCP, bath
+          salts)/intoxication/dependence/withdrawal; polysubstance use
+          disorder/intoxication/dependence/withdrawal
+
+For Public Release: USMLE Content Outline (2025)                                                                   8
+
+Public
+Nervous System & Special Senses
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+        · infectious disorders
+                  o meningitis: bacterial (Actinomyces israelii; Haemophilus influenzae; Listeria monocytogenes;
+                        Mycobacterium tuberculosis; Neisseria meningitidis; Staphylococcus aureus, epidermidis;
+                        Streptococcus agalactiae; Streptococcus pneumoniae); viral (adenovirus, arboviruses, echovirus
+                        and coxsackievirus A & B, polioviruses, herpes simplex virus, varicella zoster, human
+                        immunodeficiency virus, lymphocytic choriomeningitis virus, measles virus, mumps virus, St.
+                        Louis encephalitis virus, California encephalitis virus, Western equine encephalitis virus); fungal
+                        (Blastomycosis dermatitidis, Cryptococcus neoformans/gattii); spirochetal (Borrelia burgdorferi;
+                        Leptospira; Treponema pallidum, including neurosyphilis); protozoal/helminths (Acanthamoeba,
+                        Naegleria fowleri, Strongyloides stercoralis, Angiostrongylus cantonensis, Baylisascaris
+                        procyonis); encephalitis (herpesvirus [HSV- I], varicella-zoster virus, Epstein-Barr virus,
+                        cytomegalovirus, mumps virus, enterovirus, West Nile virus, St. Louis encephalitis virus, rabies
+                        virus, Eastern and Western equine encephalitis virus, poliovirus, Taenia, Toxoplasma gondii);
+                        prion disease (eg, Creutzfeldt-Jakob disease); botulism (Clostridium botulinum), tetanus
+                        (Clostridium tetani); CNS disorders associated with AIDS (eg, progressive multifocal
+                        leukoencephalopathy)
+
+        · immunologic and inflammatory disorders
+                  o myasthenia gravis, including thymoma; multiple sclerosis; transverse myelitis
+
+Neoplasms (cerebral, spinal, and peripheral)
+
+        · benign (meningioma, neurofibromatosis)
+        · malignant (glioblastoma, astrocytoma, medulloblastoma, primary CNS lymphoma)
+        · metastatic (eg, breast, lung, pancreatic, testicular, melanoma)
+
+Cerebrovascular disease
+
+        · arteriovenous malformations, ectatic cerebral vessels; transient ischemic attack; stroke, thrombotic:
+             cerebral artery occlusion/cerebral infarction; stroke, embolic: cerebral embolism; stroke: intracerebral
+             hemorrhage, including subarachnoid hemorrhage, traumatic intracranial hemorrhage; cerebral artery
+             aneurysm; carotid artery stenosis/atherosclerosis/occlusion/dissection; vertebral artery
+             deficiency/dissection; subclavian steal syndrome; vascular dementia; hypertensive encephalopathy;
+             posterior reversible encephalopathy syndrome; venous sinus thrombosis
+
+Disorders relating to the spine, spinal cord, and spinal nerve roots
+
+        · cauda equina syndrome; spinal artery thrombosis/embolus/infarct; spinal cord compression; spinal cord
+             transection, paraplegia and quadriplegia, acute and chronic effects (eg, autonomic dysreflexia); spinal
+             stenosis (cervical, lumbar); syringomyelia
+
+Cranial and peripheral nerve disorders
+
+        · cranial nerve injury/disorders
+                  o cranial nerve injury; Bell palsy; anisocoria, miosis, mydriasis; internuclear ophthalmoplegia;
+                        nystagmus and other irregular eye movements; vestibular neuritis, labyrinthitis; ptosis of the
+                        eyelid; Horner syndrome
+
+For Public Release: USMLE Content Outline (2025)                                                                             9
+
+Public
+     · peripheral nerve/plexus injury/disorders
+                o peripheral nerve injury, including brachial plexus; carpal/cubital/tarsal/peroneal tunnel syndrome;
+                     mononeuritis, Guillain-Barré syndrome; Miller Fisher syndrome; neuropathy (eg, Charcot-Marie-
+                     Tooth disease); herpes zoster
+
+Neurologic pain syndromes
+
+     · complex regional pain syndrome (reflex sympathetic dystrophy, causalgia); fibromyalgia; postherpetic
+          neuralgia; phantom limb pain/syndrome; thalamic pain syndrome; trigeminal neuralgia
+
+Degenerative disorders/amnestic syndromes
+
+     · Alzheimer disease; frontotemporal dementia, including progressive supranuclear palsy, Lewy body
+          disease; mild neurocognitive disorder, mild cognitive impairment
+
+Global cerebral dysfunction
+
+     · altered states of consciousness; delirium; coma/brain death
+
+Neuromuscular disorders
+
+     · amyotrophic lateral sclerosis/spinal muscular atrophy; muscular dystrophy (eg, Duchenne, myotonic);
+          muscle channelopathies (eg, hypokalemic period paralysis)
+
+Movement disorders
+
+     · acute dystonia; adult tic disease; essential tremor; Huntington disease; Parkinson disease, including
+          Parkinson dementia
+
+Metabolic disorders
+
+     · adrenoleukodystrophy; metabolic encephalopathy
+
+Paroxysmal disorders
+
+     · headache, including migraine, mixed, tension, ice-pick, cluster, medication withdrawal, caffeine
+          withdrawal; seizure disorders, including generalized tonic-clonic, partial, absence, febrile
+
+Sleep disorders
+
+     · cataplexy and narcolepsy; circadian rhythm sleep-wake disorder; insomnia, primary; sleep terror disorder
+          and sleepwalking; REM sleep behavior disorder; restless legs syndrome
+
+For Public Release: USMLE Content Outline (2025)  10
+
+Public
+Traumatic and mechanical disorders and disorders of increased intracranial
+pressure
+
+        · anoxic brain damage, cerebral hypoxia; epidural, subdural hematoma (cerebral and spinal);
+             intraparenchymal hemorrhage, traumatic subarachnoid hemorrhage; cerebral edema; idiopathic
+             intracranial hypertension; torticollis/cervical dystonia; hydrocephalus, including normal-pressure; traumatic
+             brain injury (concussion)/postconcussion syndrome (dementia pugilistica); traumatic brain syndrome
+
+Congenital disorders
+
+        · Friedreich ataxia; neural tube defects (eg, spina bifida, holoprosencephaly, anencephaly); microcephaly;
+             Sturge-Weber syndrome; tuberous sclerosis, von Hippel-Lindau disease; hydrocephalus, obstructive
+             (Arnold-Chiari)
+
+Adverse effects of drugs on the nervous system
+
+        · acute dystonic reaction; drug-induced meningitis (eg, NSAIDs, sulfa drugs); drug-induced neuropathy (eg,
+             vincristine, isoniazid, metronidazole); extrapyramidal adverse effects (eg, akathisia, dystonia, drug-
+             induced parkinsonism); neuroleptic malignant syndrome; poisoning by psychotropic agents, including
+             antidepressants; serotonin syndrome; tardive dyskinesia
+
+Disorders of the eye and eyelid
+
+        · infectious and inflammatory disorders of the eye, including microbiologic and host response to insult
+                  o blepharitis/eyelid inflammation; chalazion; chorioretinitis; conjunctivitis
+                        (adenovirus)/keratoconjunctivitis; dacryocystitis; endophthalmitis; hordeolum; iridocyclitis; optic
+                        neuritis; periorbital cellulitis; uveitis
+
+        · neoplasms of the eye
+                  o melanoma; retinoblastoma
+
+        · disorders of the eye and eyelid, structural
+                  o cataract; glaucoma; lacrimal system disorders; pterygium; refractive disorders (presbyopia,
+                        myopia, hyperopia, astigmatism)
+
+        · disorders of the pupil, iris, muscles (extraocular)
+                  o amblyopia; strabismus
+
+        · disorders of the retina
+                  o hypertensive retinopathy; macular degeneration; papilledema; retinal detachment; retinitis
+                        pigmentosa; vascular disorders affecting the retina, including central retinal artery embolus,
+                        retinal hemorrhage, amaurosis fugax, embolus, carotid artery stenosis, central retinal vein
+                        occlusion; visual impairment/blindness, night blindness
+
+        · traumatic and mechanical disorders
+                  o black eye; burn of the eye and adnexa; corneal abrasion, ulcer; dislocated lens; foreign body in
+                        eye; hyphema; injury to optic nerve and pathways; laceration of the eye and eyelid; ocular open
+                        wounds; orbital fracture; subconjunctival hemorrhage
+
+        · adverse effects of drugs on the eyes
+                  o ethambutol; hydroxychloroquine; prednisone
+
+Disorders of the ear
+
+        · infectious and inflammatory disorders of the ear, including microbiologic and host response to insult
+                  o chondritis; mastoiditis; otitis, externa, media, interna, serous, suppurative, malignant otitis externa
+
+        · neoplasms
+                  o acoustic neuroma, neurofibromatosis type 2; cholesteatoma
+
+        · hearing loss/deafness
+                  o hearing loss, including noise-induced; otosclerosis; tinnitus
+
+For Public Release: USMLE Content Outline (2025)                                                                             11
+
+Public
+        · disorders of balance and spatial orientation
+                  o Ménière disease; motion sickness; vertigo, including benign positional vertigo
+
+        · traumatic and mechanical disorders
+                  o barotrauma; foreign body in ear; impacted cerumen; laceration, avulsion; perforation of tympanic
+                        membrane; eustachian tube disorders
+
+        · adverse effects of drugs on the ear
+                  o antineoplastic agents, including cisplatin; aminoglycosides; furosemide; salicylates
+
+For Public Release: USMLE Content Outline (2025)  12
+
+Public
+Skin & Subcutaneous Tissue
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders and infestations
+                o bacterial
+                            cellulitis, erysipelas, impetigo, staphylococcal scalded skin syndrome; abscess,
+                                cutaneous, including septic abscess; anthrax (Bacillus anthracis); carbuncle; folliculitis;
+                                pilonidal cyst, infected; MSSA and MRSA skin infections; mycobacterial infections (eg,
+                                leprosy, draining sinus); scarlet fever (group A Streptococcus)
+                o viral
+                            herpes simplex type 1 & type 2, herpes zoster, Ramsay-Hunt syndrome; molluscum
+                                contagiosum; hand-foot-and-mouth disease; herpangina; parvovirus; chickenpox,
+                                erythema infectiosum (fifth disease), rubella, measles, roseola (exanthema subitum);
+                                verrucae vulgaris
+                o fungal (deep and superficial)
+                            candidiasis, skin; dermatophytosis, tinea corporis; dermatomycoses; diaper rash;
+                                onychomycosis
+                o parasitic
+                            cutaneous larva migrans; cutaneous leishmaniasis
+                o infestations, nonvenomous bites, stings
+                            scabies; lice; insect bites, including bed bugs
+
+     · immunologic and inflammatory disorders
+                o papulosquamous and eczematous dermatoses
+                            psoriasis; lichen planus and lichenoid dermatoses; allergic/irritant contact dermatitis (eg,
+                                nickel); dermatoses caused by plants (poison ivy, poison oak)
+                o vesiculobullous disorders
+                            epidermolysis bullosa; dermatitis herpetiformis; pemphigus; pemphigoid; pyoderma
+                                gangrenosum
+                o urticaria, erythema, exanthema, and purpura
+                            erythema nodosum; atopic dermatitis; pityriasis rosea; urticaria; Stevens-Johnson
+                                syndrome, erythema multiforme, toxic epidermal necrolysis
+                o autoimmune disorders
+                            vitiligo
+
+Neoplasms
+
+     · benign neoplasms, cysts and other skin lesions
+                o actinic keratoses; cysts, including epidermal; hemangiomas; lipoma; pigmented nevi; seborrheic
+                     keratosis; xanthomas
+
+     · malignant neoplasms
+                o basal cell carcinoma; squamous cell carcinoma; melanoma, including genital; cutaneous T-cell
+                     lymphoma, mycosis fungoides
+
+For Public Release: USMLE Content Outline (2025)  13
+
+Public
+Integumentary disorders (hair and hair follicles, nails, sweat glands, sebaceous
+glands, oral mucous membranes)
+
+     · disorders of the hair and hair follicles
+                o alopecia; seborrhea capitis/seborrheic dermatitis; tinea barbae and capitis
+
+     · disorders of the nails (including ingrowing nail)
+     · disorders of sweat and sebaceous glands
+
+                o acne vulgaris; hidradenitis suppurativa; hyperhidrosis; ichthyosis; rosacea
+
+Oral disease
+
+     · aphthous ulcers (stomatitis, canker sores); leukoplakia
+
+Disorders of pigmentation
+
+     · albinism; lentigo
+
+Traumatic and mechanical disorders
+
+     · animal bites (dogs, cats, etc); burns or wounds affecting the skin or subcutaneous tissue (eg, sunburn,
+          other, including blast injuries and burns); cauliflower ear; effects of ultraviolet light; keloids; tattoo; thermal
+          injury; perniosis; frostbite; ulcers, decubitus
+
+Congenital disorders
+
+     · xeroderma pigmentosum; benign lesions in neonates, infants, children (eg, congenital nevi)
+
+Adverse effects of drugs on skin and subcutaneous tissue
+
+     · drug reactions, eruptions, including local reaction to vaccine
+
+For Public Release: USMLE Content Outline (2025)  14
+
+Public
+Musculoskeletal System
+
+Infectious, inflammatory, and immunologic disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders
+                o gangrene, dry and wet, clostridial myonecrosis (Clostridium perfringens); discitis; myositis,
+                     infective; necrotizing fasciitis; osteomyelitis; septic arthritis; spondylitis, tuberculous
+
+     · immunologic disorders
+                o ankylosing spondylitis; dermatomyositis/polymyositis; juvenile idiopathic arthritis; rheumatoid
+                     arthritis, Felty syndrome; psoriatic arthropathy
+
+     · inflammatory disorders
+                o adhesive capsulitis of shoulder (frozen shoulder syndrome); ankylosis/spondylopathy
+                     (inflammatory); bursitis; fasciitis; ganglion cyst; osteochondritis, osteochondritis dissecans;
+                     tendinitis, supraspinatus syndrome, enthesopathy of spine, elbow, ankle; temporomandibular joint
+                     disorders; fibrositis, myofascial pain syndrome; synovitis; tenosynovitis; myositis
+
+Neoplasms
+
+     · benign neoplasms (eg, osteoid osteoma, enchondroma, tenosynovial giant cell tumor)
+     · malignant neoplasms of bone (eg, osteosarcoma, sarcoma, leiomyosarcoma, rhabdomyosarcoma);
+
+          metastases to bone, secondary malignant neoplasm of bone
+
+Degenerative and metabolic disorders
+
+     · degenerative/metabolic disorders of bone, tendon, and cartilage
+                o chondromalacia; disc degeneration, herniated disc; Legg-Calvé-Perthes disease; Osgood-
+                     Schlatter disease; osteodystrophy; osteomalacia; osteonecrosis (avascular), bone infarct;
+                     osteoporosis; osteopenia; osteitis deformans (Paget disease of bone); pathologic fracture;
+                     radiculopathies; spondylolisthesis/spondylosis (degenerative)
+
+     · degenerative/metabolic disorders of joints
+                o gout, gouty arthritis, pseudogout; joint effusion; osteoarthritis
+
+     · degenerative/metabolic disorders of muscles, ligaments, fascia
+                o Dupuytren contracture; muscle calcification and ossification; muscle wasting and diffuse atrophy;
+                     rhabdomyolysis
+
+Traumatic and mechanical disorders
+
+     · amputation and care of amputees; backache, including low back pain; blast injuries; compartment
+          syndrome; contractures, hospital-acquired; contusions; dislocations; fractures; sprains, strains;
+          kyphoscoliosis, scoliosis; rotator cuff syndrome; slipped capital femoral epiphysis; dislocation of hip
+
+Congenital disorders
+
+     · achondroplasia/dwarfism; disorders of limb development (HOX gene mutation, phocomelia);
+          developmental dysplasia of the hip; dislocation of hip in infantile spinal muscular atrophy; genu valgum or
+          varum; foot deformities (flat foot, valgus/varus deformities); osteogenesis imperfecta; McArdle disease;
+          mitochondrial myopathies
+
+For Public Release: USMLE Content Outline (2025)  15
+
+Public
+Adverse effects of drugs on the musculoskeletal system
+
+     · drug-induced myopathy (eg, steroids, statins, cocaine, AZT)
+     · malignant hyperthermia
+
+For Public Release: USMLE Content Outline (2025)                    16
+
+Public
+Cardiovascular System
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders
+                o bacterial endocarditis, myocarditis
+
+     · immunologic and inflammatory disorders
+                o atherosclerosis (eg, atherosclerosis of the aorta)
+
+Neoplasms
+
+     · myxoma, metastases
+
+Dysrhythmias
+
+     · premature beats (PACs, PVCs); atrial flutter/fibrillation; multifocal atrial tachycardia; paroxysmal
+          tachycardias; ventricular tachycardia/fibrillation; wide complex tachycardia; torsades de pointes;
+          bradycardias; atrioventricular block (first-, second-, third-degree); conduction disorder (LBBB, RBBB);
+          cardiac arrest; sick sinus syndrome; prolonged QT syndrome; Wolff-Parkinson-White syndrome; carotid
+          sinus hypersensitivity; pacemaker dysfunction, including failure to sense, capture
+
+Heart failure
+
+     · chordae tendineae rupture; congestive heart failure; cor pulmonale; diastolic dysfunction; systolic
+          dysfunction; mitral valve dysfunction; heart failure secondary to myocardial infarction; high-output heart
+          failure, including thyrotoxicosis-induced, anemia-induced; tachycardia-induced; cardiogenic pulmonary
+          edema
+
+Ischemic heart disease
+
+     · acute coronary syndrome, acute myocardial infarction; angina pectoris, stable and unstable/coronary
+          artery disease/coronary insufficiency; coronary artery spasm
+
+Diseases of the myocardium
+
+     · cardiomyopathy, dilated, including alcoholic, viral, takotsubo; cardiomyopathy, obstructive hypertrophic;
+          cardiomyopathy, familial dilated; cardiomyopathy, restrictive; hypertensive heart disease, left ventricular
+          hypertrophy, right ventricular hypertrophy; complications of myocardial infarction; nontraumatic
+          tamponade post-myocardial infarction; papillary muscle rupture/dysfunction; ventricular free wall rupture;
+          myocarditis
+
+Diseases of the pericardium
+
+     · chronic constrictive pericarditis; pericardial effusion; pericardial tamponade; acute pericarditis; pericarditis,
+          following myocardial infarction, surgery, trauma
+
+For Public Release: USMLE Content Outline (2025)  17
+
+Public
+Valvular heart disease
+
+     · valve disorders, mitral/aortic/tricuspid, pulmonic (eg, regurgitation, stenosis, prolapse, insufficiency,
+          vegetation); functional murmurs; rheumatic heart disease; complications of artificial valves
+
+Hypotension
+
+     · orthostatic hypotension
+
+Hypertension
+
+     · elevated blood pressure reading without diagnosis of hypertension; essential hypertension; hypertensive
+          emergency; secondary hypertension
+
+Dyslipidemia
+
+     · hypercholesterolemia; hyperlipidemia; hypertriglyceridemia; lipoproteins/lipoprotein lipase deficiency
+
+Vascular disorders
+
+     · disorders of the great vessels
+                o aneurysm, aortic (abdominal/thoracic), dissection, ruptured; aneurysm, iliac, other peripheral
+                     vascular, ruptured; aortoiliac disease
+
+     · peripheral arterial vascular disease
+                o arterial embolus/thrombosis; arteriovenous fistula; atheroembolic disease; claudication;
+                     cholesterol emboli; hypertensive vascular disease; peripheral arterial disease; thromboangiitis
+                     obliterans
+
+     · diseases of the veins
+                o deep venous thrombosis, venous thromboembolism; phlebitis/thrombophlebitis; varicose veins;
+                     venous insufficiency; stasis ulcers, stasis dermatitis
+
+Traumatic and mechanical disorders
+
+     · ventricular puncture; myocardial contusion; myocardial rupture; traumatic aortic dissection; traumatic
+          tamponade
+
+Congenital disorders, including disease in adults
+
+     · anomalous left coronary artery; atrial septal defect; coarctation of the aorta; endocardial cushion defect;
+          patent foramen ovale; patent ductus arteriosus; tetralogy of Fallot; transposition of the great vessels;
+          ventricular septal defect
+
+Adverse effects of drugs on the cardiovascular system
+
+     · adriamycin; cocaine, amphetamine, PCP; ACE inhibitors, calcium channel blockers, alpha blockers,
+          minoxidil
+
+For Public Release: USMLE Content Outline (2025)  18
+
+Public
+Respiratory System
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious, immunologic, and inflammatory disorders of the upper airways
+                o acute upper respiratory infection; viral infections (adenovirus, coronaviruses, coxsackievirus,
+                     influenza virus, parainfluenza virus, rhinoviruses); sinusitis; nasopharyngitis; epiglottitis;
+                     Bordetella pertussis pneumonia; croup; acute laryngitis; acute laryngotracheitis; tracheitis;
+                     pharyngitis; streptococcal throat infections; tonsillitis; peritonsillar abscess; rhinitis, allergic,
+                     chronic; ulcers of nasal cavity/sinuses
+
+     · infectious, immunologic, and inflammatory disorders of the lower airways
+                o hospital-acquired pneumonia; ventilator-associated pneumonia, community-acquired pneumonia,
+                     acute bronchiolitis; bronchiolitis obliterans with organizing pneumonia (BOOP); anthrax,
+                     pulmonary (Bacillus anthracis); aspiration pneumonia, pneumonitis; bronchitis, acute;
+                     bronchopneumonia; pneumonia (Burkholderia pseudomallei, Chlamydophila pneumoniae,
+                     Coxiella burnetii, Francisella tularensis, Haemophilus influenzae, Klebsiella pneumoniae,
+                     Legionella, Moraxella catarrhalis, Mycoplasma pneumoniae, Pseudomonas aeruginosa,
+                     Streptococcus, MSSA, MRSA, other gram-negative bacteria); viral infection (eg, influenza A, B,
+                     adenovirus, H1N1, respiratory syncytial virus, parainfluenza virus); fungal infection (aspergillosis,
+                     including allergic bronchopulmonary aspergillosis and aspergilloma, histoplasmosis,
+                     coccidioidomycosis, Pneumocystis jirovecii); pulmonary tuberculosis; lung abscess; viral infection
+                     (eg, influenza A, B, adenovirus, respiratory syncytial virus, parainfluenza virus, avian influenza
+                     virus); fungal infection (aspergillosis, including allergic bronchopulmonary aspergillosis and
+                     aspergilloma, histoplasmosis, coccidioidomycosis, Pneumocystis jirovecii)
+
+Neoplasms
+
+     · benign neoplasms: upper airways (eg, vocal cord polyps, nasal polyps, juvenile papillomatosis); lungs
+          and pleura (eg, solitary pulmonary nodule)
+
+     · malignant neoplasms
+                o upper airways: lip, oral cavity, and pharynx; head and neck cancer; larynx; trachea
+                o lower airways and pleura: malignant neoplasms of bronchus and/or lung (squamous cell,
+                     adenocarcinoma, large cell, small cell, bronchial carcinoid tumors); malignant neoplasms of
+                     pleura (mesothelioma); secondary malignant neoplasms of lung; secondary malignant neoplasms
+                     of pleura
+
+     · metastatic neoplasms including pleural
+
+Obstructive airway disease
+
+     · asthma, reactive airway disease; bronchiectasis; chronic airway obstruction; chronic obstructive
+          pulmonary disease (COPD), chronic bronchitis, emphysema
+
+Pneumoconiosis/fibrosing/restrictive pulmonary disorders/interstitial lung disease
+
+     · pneumoconiosis; asbestosis; silicosis; silo-filler's lung, byssinosis, bagassosis, berylliosis; hypersensitivity
+          pneumonitis; hypereosinophilic syndromes, Loeffler syndrome; interstitial pneumonia, usual (UIP),
+          desquamative (DIP), nonspecific
+
+For Public Release: USMLE Content Outline (2025)  19
+
+Public
+Respiratory failure/respiratory arrest and pulmonary vascular disorders
+
+     · acute respiratory distress syndrome (ARDS); pulmonary hypertension; pulmonary vascular disorders,
+          arteriovenous fistula; pulmonary edema, pulmonary cause and unspecified; pulmonary embolism; air and
+          fat embolism; respiratory failure due to enteral feeding
+
+Metabolic, regulatory, and structural disorders
+
+     · disorders of gas exchange; hypoventilation; hypoxia; ventilation-perfusion imbalance
+
+Disorders of the pleura, mediastinum, and chest wall
+
+     · chylothorax; costochondritis; empyema; hemothorax; mediastinitis; pleural effusion; pleuritis;
+          pneumomediastinum; pneumothorax
+
+Traumatic and mechanical disorders
+
+     · upper airways
+                o epistaxis; barotrauma, sinus; laryngeal/pharyngeal obstruction; tracheoesophageal fistula;
+                     tracheal stenosis; tracheomalacia; trauma (eg, tracheal injury); foreign body (nose, pharynx,
+                     larynx, trachea); traumatic/mechanical disorders of the nasal cavity/sinuses (eg, septal
+                     perforation)
+
+     · lower airways and pleura
+                o atelectasis; diaphragm/chest wall injury; drowning and near drowning; foreign body, upper and
+                     lower respiratory tract; penetrating chest wounds; pulmonary contusion; sleep apnea, obstructive
+                     and central; hypoventilation syndrome, obesity-hypoventilation syndrome
+
+Congenital disorders
+
+     · bronchogenic cysts; congenital cysts; congenital diaphragmatic hernia; pulmonary sequestration; immotile
+          cilia syndrome
+
+Adverse effects of drugs on the respiratory system
+
+     · bleomycin, amiodarone; adverse effects of 100% oxygen; acute effects of tobacco/nicotine, inhalants,
+          cocaine
+
+For Public Release: USMLE Content Outline (2025)  20
+
+Public
+Gastrointestinal System
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders
+                o bacterial
+                            pseudomembranous colitis (Clostridium difficile); enteritis/enteric infections (includes
+                                gastroenteritis) (eg, Staphylococcus aureus, Escherichia coli, Listeria monocytogenes,
+                                Yersinia enterocolitica, Campylobacter species, Vibrio cholerae, Salmonella species,
+                                Shigella species, traveler's/infectious diarrhea); hepatic abscess, subhepatic abscess,
+                                subphrenic abscess; peritonitis, primary and secondary
+                o viral
+                            infectious esophagitis (eg, CMV, herpes); hepatitis A, B, C, D, E; coxsackievirus
+                                enteritis/colitis; Echovirus enteritis/colitis; rotavirus enteritis; mumps; gingivostomatitis,
+                                herpetic
+                o fungal
+                            thrush
+                o parasitic
+                            Cryptosporidium, Cyclospora, Entamoeba histolytica, Giardia, Isospora belli,
+                                Strongyloides stercoralis
+
+     · immunologic and inflammatory disorders
+                o autoimmune hepatitis; celiac disease; eosinophilic esophagitis; granulomatous enteritis;
+                     inflammatory bowel disease, including Crohn disease, regional enteritis, microscopic colitis
+                     (collagenous and lymphocytic colitis), ulcerative colitis, toxic megacolon
+
+Neoplasms
+
+     · benign neoplasms, including polyps, cysts
+                o stomach; small intestine; colon, rectum, and anus, including polyps
+
+     · malignant neoplasms and pre-malignant conditions
+                o oral cancer (eg, lips, mouth, tongue, salivary glands); esophageal, squamous and
+                     adenocarcinoma; Barrett esophagus; gastrinoma, Zollinger-Ellison syndrome; gastrointestinal
+                     carcinoid tumors; gastrointestinal stromal tumors; small intestine; stomach, adenocarcinoma,
+                     lymphoma, MALT; colon, rectum, anus; hereditary colon cancer syndromes, familial
+                     adenomatous polyposis (eg, Peutz-Jeghers syndrome, Gardner syndrome, Turcot syndrome);
+                     MUTYH-associated polyposis; gallbladder, cholangiocarcinoma, adenocarcinoma of the ampulla
+                     of Vater; liver, including hepatoma; peritoneal cancer, including metastatic studding with cancer;
+                     pancreas
+
+     · metastatic neoplasms
+
+Signs, symptoms, and ill-defined disorders
+
+     · upper gastrointestinal bleeding; lower gastrointestinal bleeding; constipation; diarrhea; hematochezia;
+          bright red rectal bleeding; melena; nausea, vomiting, rumination
+
+Disorders of the oral cavity, salivary glands, and esophagus
+
+     · oral cavity and salivary glands
+                o abscessed tooth; dental caries; malocclusion; disorders of the salivary glands (eg, stones,
+                     sialadenitis, parotitis)
+
+     · esophagus
+
+For Public Release: USMLE Content Outline (2025)  21
+
+Public
+                o achalasia and cardiospasm; dysphagia; diverticulum (eg, Zenker); esophageal periapical abscess
+                     without sinus; esophagitis/esophageal reflux (GERD); esophagitis, pill; Mallory-Weiss syndrome;
+                     paraesophageal (hiatal) hernia; stricture and stenosis of esophagus
+
+Disorders of the stomach, small intestine, colon, rectum, anus
+
+     · stomach
+                o dyspepsia/hyperacidity; gastric ulcer; gastritis; peptic ulcer; peptic ulcer perforation; gastroparesis
+
+     · small intestine, colon
+                o appendicitis; angiodysplasia; diverticula, diverticulitis, diverticulosis; duodenitis, duodenal ulcer,
+                     peptic ulcer; gastroenteritis and colitis (noninfectious); granulomatous enterocolitis; Hirschsprung
+                     disease; impaction of intestine; intestinal obstruction/stricture; intussusception; irritable
+                     colon/irritable bowel syndrome; mesenteric ischemia/ischemic bowel/ischemic colitis; necrotizing
+                     enterocolitis; paralytic ileus; volvulus; malnutrition and malabsorption, including lactose
+                     intolerance, short bowel syndrome
+
+     · rectum and anus
+                o abscess of anal and rectal regions; anal fissure; anal fistula; ulcer; fecal incontinence;
+                     hemorrhage (rectum, anus); proctitis; hemorrhoids; rectal prolapse
+
+Disorders of the liver and biliary system, noninfectious
+
+     · liver
+                o cirrhosis; Dubin-Johnson, Rotor syndromes; end-stage liver disease, including indications for
+                     transplantation; Gilbert syndrome, Crigler-Najjar syndrome; hepatic coma/hepatic
+                     encephalopathy; hepatitis, noninfectious; hepatitis, fatty liver, alcoholic; hepatorenal syndrome;
+                     hepatopulmonary syndrome; jaundice; non- alcoholic fatty liver disease; portal
+                     hypertension/esophageal varices
+
+     · biliary system
+                o bile duct obstruction/cholestasis; cholangitis, including ascending; choledocholithiasis;
+                     cholelithiasis/cholecystitis; cholestasis due to parenteral nutrition; gallstone ileus; Mirizzi
+                     syndrome; primary biliary cirrhosis; primary sclerosing cholangitis
+
+Disorders of the pancreas
+
+     · pancreatitis, acute; pancreatitis, chronic; pancreatitis, hereditary; pancreatic cyst/pseudocyst; pancreatic
+          duct obstruction; pancreatic insufficiency
+
+Disorders of the peritoneal cavity
+
+     · ascites
+
+Traumatic and mechanical disorders
+
+     · abdominal wall defects; adhesions, postsurgical; digestive system complications of surgery; post-gastric
+          surgery syndromes (eg, blind loop syndrome, adhesions); duodenal tear; foreign body in digestive
+          system; inguinal, femoral, and abdominal wall hernias; open wound, abdominal; perforation of hollow
+          viscus and blunt trauma; perforation/rupture of esophagus (Boerhaave syndrome); umbilical hernia
+
+Congenital disorders
+
+     · annular pancreas, biliary atresia, cleft lip and palate, esophageal atresia, malrotation without volvulus,
+          Meckel diverticulum, pyloric stenosis, tracheoesophageal fistula
+
+For Public Release: USMLE Content Outline (2025)  22
+
+Public
+Adverse effects of drugs on the gastrointestinal system
+
+     · drug-induced changes in motility (chronic laxative use, opioids); drug-induced gastritis, duodenitis, peptic
+          ulcer disease (NSAIDs); drug-induced hepatitis (eg, acetaminophen, isoniazid); drug-induced pancreatitis
+          (eg, thiazide diuretics)
+
+For Public Release: USMLE Content Outline (2025)  23
+
+Public
+Renal & Urinary System
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+        · infectious disorders
+                  o upper urinary tract
+                              granulomatous pyelonephritis; perinephric abscess; pyelonephritis; pyonephrosis; renal
+                                   abscess; renal tuberculosis
+                  o lower urinary tract and urinary tract infections of unspecified location
+                              cystitis; chlamydial and nonchlamydial
+
+        · immunologic and inflammatory disorders
+                  o upper urinary tract
+                              glomerular disorders: Alport syndrome; glomerular disease due to hepatitis B, C;
+                                   glomerulonephritis, including poststreptococcal; IgA nephropathy; lupus nephritis;
+                                   minimal change disease; nephrotic syndrome; thin basement membrane disease
+                              tubular interstitial disease: acute tubular necrosis (ATN); acute interstitial nephritis;
+                                   papillary necrosis; HIV nephropathy
+                  o lower urinary tract
+                              interstitial cystitis
+
+Neoplasms
+
+        · benign neoplasms and cysts
+                  o polycystic kidney disease
+
+        · malignant neoplasms
+                  o renal (eg, Wilms tumor/nephroblastoma, renal cell carcinoma, renal tumors associated with
+                        congenital/hereditary conditions); urinary bladder and collecting system
+
+Signs, symptoms, and ill-defined disorders
+
+        · dysuria; hematuria; oliguria, anuria; proteinuria
+
+Metabolic and regulatory disorders
+
+        · acute kidney injury; renal insufficiency; azotemia, uremic syndrome; chronic kidney disease, including
+             end-stage renal disease; cystinuria; Fanconi syndrome; hypertensive renal disease (renal complications
+             of hypertension); renal calculi, ureteral calculi, nephrolithiasis; renal tubular acidosis
+
+Vascular disorders
+
+        · renal artery stenosis (atherosclerosis, fibromuscular dysplasia, nephrosclerosis); renal vein thrombosis;
+             renal infarction
+
+Traumatic and mechanical disorders
+
+        · bladder rupture; neurogenic bladder; obstructive uropathy; posterior urethral valves; renal laceration;
+             renal vascular injury; ureteral laceration/avulsion/disruption; urethral diverticulum;
+             obstruction/stricture/prolapse, urethral/ureteral, vaginal walls, uterine, uterovaginal; urinary incontinence,
+             including secondary enuresis; vesicoureteral reflux
+
+For Public Release: USMLE Content Outline (2025)                                                                         24
+
+Public
+Congenital disorders
+
+     · double ureters/ureteral duplication/double collecting system; horseshoe kidney; hydronephrosis/reflux;
+          renal agenesis, renal hypoplasia, renal dysplasia; single kidney
+
+Adverse effects of drugs on the renal and urinary system
+
+     · ACE inhibitors; aminoglycosides; amphotericin B; cisplatin; furosemide; gadolinium (nephrogenic
+          systemic fibrosis); heroin; iodinated contrast dye; lithium; NSAIDs; penicillins; sulfa drugs; tenofovir; drug-
+          induced urinary retention
+
+For Public Release: USMLE Content Outline (2025)  25
+
+Public
+Pregnancy, Childbirth, & the Puerperium
+
+Prenatal care
+
+     · preconception counseling and care
+                o folate deficiency prevention; immunizations; nutritional assessment, including vitamins; Rh
+                     screening
+
+     · prenatal risk assessment/prevention
+                o adolescent pregnancy; antepartum fetal evaluation, including biophysical profile; genetic
+                     screening; -fetoprotein; diabetes mellitus; neural tube defects; Rh isoimmunization
+
+     · supervision of normal pregnancy
+                o assessment of gestational age; iron deficiency prevention; nutrition, including weight
+                     management; surveillance, including ultrasonography and assessment of fetal growth; vitamin
+                     deficiency prevention; infections, maternal, fetal, newborn (focus on prevention and screening):
+                     cytomegalovirus, coxsackievirus, hepatitis B virus, herpes simplex viruses, HIV, influenza virus,
+                     parvovirus B19 virus, rubella virus, varicella-zoster virus, Chlamydia trachomatis, Treponema
+                     pallidum, Streptococcus agalactiae, Toxoplasma gondii, amnionitis; asymptomatic urinary tract
+                     infection
+
+Obstetric complications
+
+     · abortion, induced, septic, missed, spontaneous, threatened; acute fatty liver of pregnancy; anemia of
+          pregnancy, sickle cell disease, thalassemia in pregnancy; antepartum hemorrhage, including third-
+          trimester bleeding; cardiomyopathy of pregnancy; cervical insufficiency, cervical shortening; cholestasis of
+          pregnancy, intrahepatic; congenital abnormalities, maternal (eg, bicornuate uterus); ectopic pregnancy;
+          fetal abnormality affecting management of mother (eg, hydrocephalus, spina bifida); fetal growth
+          restriction; gestational diabetes; maternal mortality; multiple gestation; placental abnormalities (abruptio
+          placentae, placenta previa, premature separation of placenta); polyhydramnios, oligohydramnios;
+          preeclampsia, eclampsia, HELLP syndrome, gestational hypertension; prolonged pregnancy; Rh
+          isoimmunization affecting management of mother; vomiting in pregnancy (morning sickness, hyperemesis
+          gravidarum); trauma in pregnancy; infections complicating pregnancy
+
+Labor and delivery
+
+     · labor and delivery, uncomplicated; labor and delivery, complicated, including shoulder dystocia; cesarean
+          delivery, including complications; cord compression, cord prolapse; fetal malpresentations (eg,
+          breech/external cephalic); intrapartum fetal evaluation, including fetal heart tones; intrapartum prophylaxis
+          (eg, HIV, Chlamydia, gonococcal prophylaxis); premature rupture of membranes; preterm (before 37
+          weeks' gestation) and postdates labor and delivery; threatened preterm labor
+
+Puerperium, including complications
+
+     · lactation problems; breast-feeding problems; lochia; postpartum cardiomyopathy; postpartum blues;
+          postpartum hemorrhage; postpartum sepsis; retained placenta, products of conception (eg, placenta
+          accreta); uterine atony
+
+For Public Release: USMLE Content Outline (2025)  26
+
+Public
+Newborn (birth to 4 weeks of age)
+
+     · normal newborn
+                o examination of liveborn at admission to hospital; screening, newborn
+
+     · disorders of the newborn
+                o screening, newborn; ABO incompatibility in newborn; hemolytic disease due to Rh incompatibility;
+                     birth asphyxia syndrome (liveborn neonate); birth trauma (eg, cord compression, brachial palsy,
+                     lacerations); drug withdrawal syndrome in newborn; feeding problems in newborn; fetal growth
+                     and development abnormalities, including fetal growth restriction; gastrointestinal obstruction;
+                     hypocalcemia of newborn; infections, congenital or peripartum (cytomegalovirus, herpes simplex
+                     viruses, HIV, hepatitis B, rubella virus, parvovirus B19 virus, varicella zoster virus, Chlamydia
+                     trachomatis, Streptococcus agalactiae, Treponema pallidum, Toxoplasma gondii); intrapartum
+                     fetal distress/death including stillborn; jaundice, fetal/neonatal/perinatal; laryngomalacia;
+                     macrosomia (large for gestational age); meconium aspiration syndrome; neonatal acne; neonatal
+                     Candida infection (thrush); neonatal hypoglycemia; neonatal conjunctivitis and dacryocystitis;
+                     ophthalmic gonorrhea; phenylketonuria; premature infant; post-term infant; pseudomembranous
+                     colitis of infancy; respiratory distress syndrome (hyaline membrane disease); respiratory
+                     problems after birth (eg, bronchopulmonary dysplasia, tracheomalacia; tracheoesophageal fistula
+                     in neonates); retinitis of prematurity; seizures in newborn; sudden infant death syndrome (SIDS),
+                     apparent life-threatening event (ALTE); tetanus neonatorum
+
+Adverse effects of drugs on pregnancy, childbirth, and the puerperium
+
+     · alcohol, tobacco, and other drugs (ATOD); prenatal radiation exposure; teratology (eg, ACE inhibitors,
+          SSRIs, warfarin, infections, toxins)
+
+Systemic disorders affecting pregnancy, labor and delivery, and puerperium
+
+     · appendicitis; asthma; carpal tunnel syndrome in pregnancy; cirrhosis; deep venous thrombosis (DVT);
+          diabetes mellitus; heart failure, valvular heart disease; hypertension; myasthenia gravis; obesity;
+          pancreatitis; psychiatric disorders; renal calculus/calculi; renal failure/renal disease, including SLE;
+          seizure disorders; thyroid disorders, hypothyroidism, hyperthyroidism
+
+For Public Release: USMLE Content Outline (2025)  27
+
+Public
+Female and Transgender Reproductive
+System & Breast
+
+Breast
+
+        · infectious, immunologic, and inflammatory disorders, including microbiologic and host response to insult
+                  o breast abscess; inflammatory disease of breast, fat necrosis; mastitis; nipple discharge
+
+        · neoplasms
+                  o benign and undefined neoplasms
+                              breast cyst, solitary; fibrocystic changes; fibroadenoma; hypertrophy of breast; intraductal
+                                   papilloma
+                  o malignant neoplasms (including screening)
+                              breast cancer; intraductal carcinoma; Paget disease of breast; phyllodes tumors
+
+Female reproductive system
+
+        · infectious, immunologic, and inflammatory disorders, including microbiologic and host response to insult
+                  o bacterial vaginosis; Bartholin gland abscess; cellulitis, pelvic; candidiasis of the vulva or vagina;
+                        lichen sclerosus; sexually transmitted infections and exposure; cervicitis and endocervicitis;
+                        chancroid (Haemophilus ducreyi); genital herpes; gonorrhea (Neisseria gonorrhoeae); human
+                        papillomavirus infection, genital/venereal/anal warts, condylomata acuminata; lymphogranuloma
+                        venereum (Chlamydia trachomatis), non-lymphogranuloma venereum; pelvic inflammatory
+                        disease; Fitz-Hugh-Curtis syndrome; salpingitis and oophoritis; syphilis (Treponema pallidum);
+                        trichomoniasis (Trichomonas vaginalis); urethritis; vaginitis; vulvovaginitis
+
+        · Neoplasms of the vulva, vagina, cervix, uterus, or ovaries
+                  o benign neoplasms and cysts: abnormal cervical cytology; benign neoplasm of ovary; endocervical
+                        and endometrial polyps; leiomyomata uteri; ovarian cyst
+                  o malignant and precancerous neoplasms: cervical cancer; HPV causing cancer; cervical
+                        dysplasia, HPV causing dysplasia; endometrial hyperplasia; endometrial/uterine cancer;
+                        gestational trophoblastic disease (hydatidiform mole); ovarian cancer; vulvar dysplasia and
+                        cancer
+
+        · Fertility and infertility
+                  o assisted reproductive techniques (ART); contraception (eg, oral contraceptives, IUD, vaginal cap,
+                        cervical sponge, diaphragm, implant, morning-after pill, male and female condoms); female
+                        infertility; Turner syndrome; sterilization; tubal factors; infertility
+
+        · Menopause
+                  o ovarian failure, premature menopause; perimenopause; premenopausal menorrhagia;
+                        postmenopausal atrophic vaginitis (vaginal atrophy); postmenopausal bleeding; vasomotor
+                        symptoms
+
+        · Menstrual and endocrine disorders
+                  o abnormal uterine bleeding, including perimenopausal; absence of menstruation (primary
+                        amenorrhea, secondary amenorrhea including undiagnosed pregnancy); anovulation;
+                        dysmenorrhea; endometriosis; hirsutism, virilization; mittelschmerz; pelvic pain; polycystic ovary
+                        syndrome; postcoital bleeding; premenstrual syndrome
+
+        · Sexual dysfunction
+                  o dyspareunia; orgasmic dysfunction; sexual desire/arousal syndrome; vaginismus
+
+        · Traumatic and mechanical disorders
+                  o Asherman syndrome; chronic inversion of uterus; chronic pelvic pain syndrome; cystocele;
+                        imperforate hymen; injuries, wounds, and burns affecting the female reproductive system and
+                        injuries, wounds, burns, and blast injuries; ovarian torsion; pelvic relaxation; rectocele;
+                        urethrocele
+
+        · Congenital disorders
+                  o müllerian agenesis; uterus didelphys, bicornuate uterus; short cervix
+
+For Public Release: USMLE Content Outline (2025)  28
+
+Public
+        · Adverse effects of drugs on the female reproductive system and breast
+                  o antihistamines, H2-receptor blockers; benzodiazepines; beta-adrenergic blockers; hormone
+                        replacement; opioids; spironolactone; selective serotonin reuptake inhibitors; tricyclic
+                        antidepressants
+
+For Public Release: USMLE Content Outline (2025)                                                                  29
+
+Public
+Male and Transgender Reproductive
+System
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders
+                o balanitis; epididymitis; orchitis; prostatitis; sexually transmitted infections and exposure; chancroid
+                     (Haemophilus ducreyi); genital herpes; gonorrhea (Neisseria gonorrhoeae); human
+                     papillomavirus infection, genital/venereal/anal warts, condylomata acuminata; lymphogranuloma
+                     venereum (Chlamydia trachomatis); syphilis (Treponema pallidum); trichomoniasis (Trichomonas
+                     vaginalis); urethritis, chlamydial and nonchlamydial, nongonococcal
+
+     · immunologic and inflammatory disorders
+                o autoimmune hypogonadism
+
+Neoplasms
+
+     · malignant neoplasms, penile, prostate, testicular, breast
+
+Metabolic and regulatory disorders, including sexual dysfunction
+
+     · erectile dysfunction, impotence; infertility, male factor; male sexual dysfunction; premature ejaculation
+
+Traumatic and mechanical disorders
+
+     · benign prostatic hyperplasia/hypertrophy; circumcision, including complications; epididymal cyst;
+          hydrocele (including neonatal hydrocele); injuries, wounds, and burns to male genitalia, including blast
+          injuries; penile laceration, penile fracture, Peyronie disease; phimosis; scrotal laceration; spermatocele;
+          testicular rupture/avulsion/laceration; torsion of testis; urethral laceration/disruption; varicocele
+
+Congenital disorders
+
+     · hypospadias; Klinefelter syndrome; undescended testicle
+
+Adverse effects of drugs on the male reproductive system
+
+     · alcohol; androgens, testosterone; antipsychotics, antidepressants including selective serotonin reuptake
+          inhibitors; beta-adrenergic blockers; diuretic-including thiazides; drug-induced priapism (eg, trazodone);
+          finasteride, dutasteride; sildenafil, tadalafil, vardenafil; marijuana; nitric oxide reductase inhibitors
+
+For Public Release: USMLE Content Outline (2025)  30
+
+Public
+Endocrine System
+
+Diabetes mellitus and other disorders of the endocrine pancreas
+
+     · diabetes mellitus
+                o diabetes mellitus, type 1; diabetes mellitus, type 1.5; diabetes mellitus, type 2; diabetes mellitus,
+                     acute complications: hyperosmolar coma, hypoglycemic shock, ketoacidosis, including cerebral
+                     edema, associated electrolyte abnormalities; diabetes mellitus, chronic complications:
+                     gastrointestinal/gastroparesis, neurologic/neuropathy, ophthalmologic/retinopathy, peripheral
+                     vascular, renal/nephropathy, metabolic syndrome
+
+     · hypoglycemia and islet cell disorders
+                o hypoglycemia (secondary to insulinoma, surreptitious insulin use, sepsis, liver failure);
+                     hyperglycemia (secondary to glucagonoma); hyperinsulinism; islet cell
+                     tumors/insulinoma/somatostatinoma; pancreatic neuroendocrine tumors
+
+Thyroid disorders
+
+     · cyst, nodule; euthyroid sick syndrome; goiter (euthyroid-normal thyroid function with goiter);
+          hypothyroidism; hyperthyroidism, including thyrotoxicosis and thyroid storm; thyroiditis, including
+          Hashimoto; Graves disease; neoplasms (benign cysts and nodules, thyroid cancer including papillary,
+          follicular, medullary, and anaplastic); thyroid deficiency from pituitary disorder; infertility due to thyroid
+          disease; secondary hypothyroidism and hyperthyroidism
+
+Parathyroid disorders
+
+     · hyperparathyroidism; hypoparathyroidism; metabolic bone disease
+
+Adrenal disorders
+
+     · corticoadrenal insufficiency (Addison disease); adrenal insufficiency, secondary; hypocortisolism; Cushing
+          syndrome; hyperaldosteronism; neoplasms, benign and malignant (adrenal neuroblastoma,
+          pheochromocytoma, adrenal carcinoma, adrenal adenoma, aldosteronoma, adrenal incidentaloma);
+          delayed and precocious puberty; hypertensive endocrine disease
+
+Pituitary disorders
+
+     · acromegaly/gigantism; diabetes insipidus; galactorrhea not associated with childbirth; panhypopituitarism
+          from any cause; pituitary apoplexy (eg, Sheehan syndrome); growth hormone deficiency; short stature;
+          SIADH (inappropriate secretion of ADH [vasopressin]); neoplasm, benign and malignant (pituitary
+          adenomas, craniopharyngioma, metastatic disease); prolactinoma and hyperprolactinemia, including
+          infertility due to these disorders; hypogonadism, primary and secondary
+
+Hypothalamic endocrine disorders
+
+Multiple endocrine neoplasia (MEN1, MEN2)
+
+Congenital disorders
+
+     · disorders of sexual differentiation; congenital adrenal hyperplasia; androgen insensitivity/resistance
+          syndrome; congenital hypothyroidism
+
+For Public Release: USMLE Content Outline (2025)  31
+
+Public
+Adverse effects of drugs on the endocrine system
+
+     · drug, medicinal, and biologic substance effects; exogenous steroid suppression of adrenal glands,
+          anabolic steroids
+
+For Public Release: USMLE Content Outline (2025)                                                          32
+
+Public
+Multisystem Processes & Disorders
+
+Infectious, immunologic, and inflammatory disorders, including microbiologic and
+host response to insult
+
+     · infectious disorders
+                o bacterial
+                            brucellosis (Brucella spp); leptospirosis (Leptospira interrogans); Lyme disease (Borrelia
+                                burgdorferi); melioidosis (Burkholderia pseudomallei); miliary (disseminated) tuberculosis
+                                (Mycobacterium tuberculosis); tularemia (Francisella tularensis); toxic shock syndrome; Q
+                                fever (Coxiella burnetii); anaplasmosis and ehrlichiosis (Anaplasma and Ehrlichia
+                                species); rickettsiosis (Rocky Mountain spotted fever [Rickettsia rickettsii])
+                o viral
+                            infectious mononucleosis (Epstein-Barr virus); cytomegalovirus infection; yellow fever;
+                                human herpesvirus 8 (HHV-8)
+                o fungal
+                            blastomycosis (Blastomyces dermatitidis); candidiasis (Candida albicans);
+                                coccidioidomycosis (Coccidioides immitis/posadasii); histoplasmosis (Histoplasma
+                                capsulatum)
+                o parasitic
+                            schistosomiasis (Schistosoma); leishmaniasis (Leishmania spp), visceral (kala-azar);
+                                trypanosomiasis/Chagas disease, acute and chronic (Trypanosoma)
+
+     · immunologic and inflammatory disorders
+                o acute rheumatic fever; autoimmune arteritis/vasculitis; Behçet syndrome; Churg-Strauss
+                     syndrome; eosinophilic granuloma, histiocytosis, Langerhans cell histiocytosis; Goodpasture
+                     syndrome; IgA vasculitis (formerly Henoch-Schönlein purpura); Kawasaki disease; mixed
+                     connective tissue disease; polyangiitis; polyarteritis nodosa; polyglandular autoimmune
+                     syndrome, type 1; polymyalgia rheumatica, temporal arteritis; Raynaud disease/Raynaud
+                     syndrome; reactive arthritis (formerly Reiter disease), including Reiter arthritis; scleroderma
+                     (systemic sclerosis); Sjögren syndrome; systemic lupus erythematosus; Takayasu arteritis;
+                     granulomatosis with polyangiitis (formerly Wegener granulomatosis); familial Mediterranean fever;
+                     sarcoidosis, Lofgren syndrome
+
+Neoplasms and related disorders
+
+     · paraneoplastic syndromes
+                o endocrine (eg, SIADH, Cushing syndrome, hypercalcemia of malignancy [parathyroid-related
+                     protein and paraneoplastic syndrome with hypercalcemia]); hematologic (polycythemia,
+                     nonbacterial thrombotic endocarditis); neurologic (myasthenic syndrome, paraneoplastic
+                     cerebellar degeneration, limbic encephalitis, pure sensory neuropathy, anti-NMDA receptor
+                     encephalitis); mucocutaneous (eg, acanthosis nigricans); musculoskeletal (eg, pulmonary
+                     osteoarthropathy, polymyositis); other (membranous glomerulonephritis)
+
+     · inherited cancer syndromes
+                o DNA repair abnormalities (eg, Fanconi anemia); hereditary nonpolyposis colorectal cancer
+                     (gastrointestinal and female reproductive)
+
+Signs, symptoms, and ill-defined disorders
+
+     · arthralgias; abdominal pain; chest pain; cough; dizziness, light-headedness, syncope, including breath-
+          holding spells with syncope; dyspnea, shortness of breath; edema, anasarca; fatigue; fever of unknown
+          origin; frailty; hemoptysis; pain management (in a nonaddiction, nonpalliative-care setting, including
+          appropriate opioid prescribing practices); joint pain; lymphedema; palpitations; pruritus; unexpected
+          weight gain/weight loss
+
+For Public Release: USMLE Content Outline (2025)  33
+
+Public
+Nutrition
+
+     · protein-calorie malnutrition (kwashiorkor, marasmus)
+     · vitamin deficiencies and/or toxicities
+
+                o vitamin A; vitamin B; vitamin B1, thiamine (eg, Wernicke- Korsakoff syndrome, beriberi); vitamin
+                     B3, niacin; vitamin B6, pyridoxine; vitamin B9, folic acid; vitamin B12, cobalamins (pernicious
+                     anemia); vitamin C (scurvy); vitamin D (rickets); vitamin E; vitamin K
+
+     · mineral deficiencies and/or toxicities
+     · obesity
+     · enteral/parenteral nutrition (TPN)
+
+Toxins and environmental extremes
+
+     · physical and associated disorders
+                o temperature (eg, hypothermia, hyperthermia, heat stroke)
+                o radiation (eg, radon, uranium mining, imaging studies)
+                o thermal injury, burns, electrocution, lightning
+                o decreased atmospheric pressure, high-altitude sickness increased water pressure (nitrogen
+                     narcosis)
+
+     · chemical including Gulf War illness
+                o gases, vapors, smoke inhalation
+                o agricultural hazards (eg, pesticides, green tobacco poisoning, anhydrous ammonia, Agent
+                     Orange)
+                o volatile organic solvents metals (eg, lead)
+                o other chemical agents (eg, ethylene glycol, carbon tetrachloride, methanol; BPA)
+                o principles of poisoning and therapy (eg, acetylsalicylic acid [ASA], acetaminophen)
+
+Venomous bites and stings
+
+     · hymenoptera bites and stings; scorpion bites; snake bites; spider bites; jellyfish stings
+
+Fluid, electrolyte, and acid-base balance disorders
+
+     · fluid volume and electrolyte/ion disorders: fluid volume disorders; dehydration; hypovolemia; volume
+          overload; electrolyte disorders; hyponatremia, hypernatremia; hypokalemia, hyperkalemia; hypocalcemia,
+          hypercalcemia; hypophosphatemia, hyperphosphatemia; hypomagnesemia
+
+     · acid-base disorders: metabolic acidosis; metabolic alkalosis; respiratory acidosis; respiratory alkalosis;
+          mixed acid-base disturbances
+
+Abuse
+
+     · child, nonaccidental trauma/inflicted head trauma/factitious disorder by proxy
+     · intimate partner abuse, sexual, emotional, and physical including injuries related to abuse (eg, rib
+
+          fractures)
+     · elder abuse, sexual, emotional, and physical including injuries related to abuse (eg, rib fractures)
+     · sexual assault
+
+Multiple trauma
+
+     · prioritization, blast injury involving more than one organ system
+
+For Public Release: USMLE Content Outline (2025)  34
+
+Public
+Shock
+
+     · shock, cardiogenic, hypovolemic, neurogenic, septic, sepsis, bacteremia, systemic inflammatory response
+          syndrome (SIRS), refractory, multiorgan dysfunction syndrome: meningococcemia
+
+Genetic, metabolic, and developmental disorders
+
+     · multifactorial
+                o VATER/VACTERL association; association syndromes
+
+     · large genomic changes
+                o Beckwith-Wiedemann syndrome; Down syndrome; Prader-Willi syndrome
+
+     · enzymatic/metabolic
+                o alpha-1 antitrypsin deficiency; porphyria; inborn errors of metabolism (eg, maple syrup urine
+                     disease, diseases involving urea cycle); storage diseases (eg, Fabry disease, Tay-Sachs
+                     disease, glycogen storage disease, mucopolysaccharidoses)
+
+     · structural protein disorders
+                o amyloidosis; Ehlers-Danlos syndrome; immotile cilia syndrome (Kartagener syndrome; primary
+                     ciliary dyskinesia); Marfan syndrome
+
+     · intracellular/extracellular transport receptors
+                o cystic fibrosis; hemochromatosis; Wilson disease
+
+     · triplet repeat/RNA disorders
+                o fragile X syndrome
+
+Adverse effects of drugs on multisystem disorders
+
+     · drug-induced electrolyte abnormalities and acid base-disorders (eg, albuterol; prednisone; diuretics;
+          alcohol; drugs inducing polydipsia, SIADH, or diabetes insipidus)
+
+For Public Release: USMLE Content Outline (2025)  35
+
+Public
+Biostatistics, Epidemiology/Population
+Health, & Interpretation of the Medical
+Literature
+
+Epidemiology/population health
+
+        · Measures of disease frequency
+                  o incidence/prevalence
+
+        · Measures of health status
+                  o rates, crude and adjusted; reproductive rates (eg, maternal mortality, neonatal/infant/under-5
+                        mortality); mortality, morbidity; standardization; life expectancy, health-adjusted life expectancy;
+                        population attributable risk (PAR), population attributable risk percent (PAR%); risk factors
+
+        · Survival analysis interpretation (eg, Kaplan-Meier curve)
+        · Composite health status indicators, measures of population impact
+
+                  o years of potential life lost; quality-adjusted life years; disability-adjusted life years; standardized
+                        mortality ratio
+
+        · Population pyramids and impact of demographic changes
+        · Disease surveillance and outbreak investigation
+
+                  o disease reporting; response to public health advisory, health promotion; recognition of clusters
+        · Communicable disease transmission
+
+                  o attack rate; herd immunity; reportable diseases; vaccine effectiveness
+        · Points of intervention
+
+                  o primary, secondary; community level (eg, cigarette taxes, soda taxes, smoke-free cities,
+                        buildings: restaurants, public buildings); school policies; access, healthy food, transportation,
+                        clean air, safe environments
+
+Study design, types and selection of studies (includes dependent/independent
+variables)
+
+        · Descriptive studies (case report [one person]/case series [more than one])
+        · Analytical studies: observational
+
+                  o community surveys; cross-sectional (individuals)
+                  o ecological (populations); case control; retrospective and prospective cohort
+        · Analytical studies: interventional
+                  o clinical trial (randomized controlled trial; double-blind; placebo-controlled;
+
+                        noninferiority/equivalence trials); community intervention
+        · Systematic reviews and meta-analysis
+
+                  o potential uses; estimation of effect sizes; heterogeneity; publication bias; forest plots, funnel
+                        diagrams; risk of bias, bias risk scale
+
+        · Obtaining and describing samples, matching, inclusion/exclusion criteria, selecting appropriate controls
+             for studies, lack of controls, concealed allocation, randomization, stratification
+
+        · Methods to handle noncompliance
+                  o loss to follow-up; intention-to-treat analysis
+
+        · Qualitative analysis
+
+Measures of association
+
+        · Relative risk
+        · Odds ratio, hazard ratio
+        · Other measures of association
+
+For Public Release: USMLE Content Outline (2025)                                                                              36
+
+Public
+                o number needed to treat/harm; absolute risk (AR), absolute risk percent (AR%); population
+                     attributable risk (PAR), population attributable risk percent (PAR%)
+
+Distributions of data
+
+     · measures of central tendency; measures of variability; regression to mean; normal distribution; nominal
+          measurement
+
+Correlation and regression, uses and interpretation
+
+     · correlation coefficients; multiple regression
+
+Principles of testing and screening
+
+     · Properties of a screening test
+                o validity, accuracy, reliability; criteria for a screening test; confirmatory testing; appropriateness;
+                     lead-time bias, length bias; screening vs diagnostic tests
+
+     · Sensitivity and specificity; predictive value, positive and negative
+     · ROC curves
+     · Probability
+
+                o theory (independence, product, addition rules); decision trees; likelihood ratios (application of
+                     Bayes theorem); posttest, pretest
+
+Study interpretation, drawing conclusions from data
+
+     · Causation
+                o hypothesis-generating vs hypothesis-driven testing; causal criteria, temporality, temporal
+                     sequence, dose-response relationship; reverse causality
+
+     · Chance
+                o null hypothesis, Type I error and alpha level (multiple comparisons, random error/chance)
+                o sample size and Type II error, beta, power
+                o selection and interpretation of basic tests of statistical significance: chi-square; confidence
+                     intervals; p-values; t-test
+                o a priori vs post hoc analysis: subgroup analysis; error rate; affect types
+
+     · Interpretation of graphs/tables and text
+     · Bias, confounding, and threats to validity (includes methods to address)
+
+                o selection, sampling bias
+                o information bias: recall; ascertainment, ecologic fallacy, lack of blinding; loss to follow up
+
+                     confounding variables, Hawthorne effect (includes methods to address)
+                o other threats to validity (eg, placebo effect)
+     · Internal vs external validity
+                o generalizability (external validity); efficacy vs effectiveness
+     · Statistical vs clinical significance; clinical and surrogate outcome/end point
+
+Clinical decision making, interpretation and use of evidence-based data and
+recommendations
+
+     · application of study results to patient care and practice, including patient preferences and individualization
+          of risk profiles; risk/benefit analysis; synthesis of concepts with real data
+
+For Public Release: USMLE Content Outline (2025)  37
+
+Public
+Research ethics
+
+     · Informed consent for research
+     · Privacy of patient data (HIPAA)
+     · Roles of institutional review boards (IRBs)
+     · Interim analysis
+
+                o intervention analysis; stopping analysis; safety monitoring
+     · Regulatory issues
+
+                o drug development, phases of approval; appropriateness of placebo; appropriateness of
+                     randomized clinical trial; components of studies; ethics; scheduling; off-label use
+
+     · Other issues related to research ethics
+
+For Public Release: USMLE Content Outline (2025)                                                          38
+
+Public
+Social Sciences
+
+Communication and interpersonal skills, including health literacy and numeracy,
+cultural competence
+
+        · Patient interviewing, consultation, and interactions with the family (patient- centered communication skills)
+                  o fostering the relationship (eg, expressing interest)
+                  o information gathering (eg, exploring patient's reaction to illness)
+                  o information provision (eg, providing information about working diagnosis)
+                  o making decisions (eg, eliciting patient's perspectives)
+                  o supporting emotions (eg, effective discussion with difficult patients)
+                  o enabling patient behaviors (eg, education and counseling)
+
+        · Use of an interpreter or surrogate
+
+Medical ethics and jurisprudence, include issues related to death and dying and
+palliative care
+
+        · Consent/informed consent to treatment, permission to treat (full disclosure, risks and benefits, placebos,
+             alternative therapies, conflict of interest, and vulnerable populations)
+
+        · Determination of medical decision-making capacity/informed refusal
+        · Involuntary admission
+        · Legal issues related to abuse (child, elder, and intimate partner)
+
+                  o child protective services, foster care, immunizations
+                  o legal requirements for reporting abuse or neglect/obligation to warn
+        · Birth-related issues
+        · Death and dying and palliative care
+                  o life support
+                  o advance directive, health care proxy, advance care planning
+                  o brain death/diagnosing brain death/diagnosing death/pronouncing death
+                  o organ donation
+                  o hospice
+                  o pain management, including ethical issues related to death and dying
+                  o information sharing, counseling families
+                  o psychosocial and spiritual counseling, fear and loneliness
+        · Physician-patient relationship (boundaries, confidentiality including HIPAA, privacy, truth-telling, other
+             principles of medical ethics [eg, autonomy, justice, beneficence, nonmaleficence])
+        · Impaired physician, including duty to report impaired physician
+        · Negligence/malpractice, including duty to report negligence and malpractice
+        · Physician misconduct, including duty to report physician misconduct
+        · Referrals
+        · Cultural issues not otherwise coded
+
+Systems-based practice (including health systems, public health, community,
+schools) and patient safety (including basic concepts and terminology)
+
+        · Complexity/systems thinking
+                  o Characteristics of a complex system and factors leading to complexity
+                              how complexity leads to error
+                  o Health care/organizational behavior and culture
+                              environmental factors, workplace design and process; staffing; overcommitment, space,
+                                   people, time, scheduling; standardization, reducing variance, simplification, metrics;
+                                   safety culture; integration of care across settings; overutilization of resources (imaging
+                                   studies, antibiotics, opioids); economic factors
+
+For Public Release: USMLE Content Outline (2025)                                                                      39
+
+Public
+        · Quality improvement
+                  o Improvement science principles
+                              Variation and standardization: variation in process, practice; checklists, guidelines, and
+                                   clinical pathways
+                              Reliability
+                  o Specific models of quality improvement
+                              model for improvement: plan-do-study-act (PDSA), plan-do-check-act (PDCA)
+                  o Quality measurement
+                              Structure, process, outcome, and balancing measures
+                              Measurement tools: run and control charts
+                              Development and application of system and individual quality measures
+
+                                        · core measures; physician quality report system (PQRS); event reporting system
+                  o Strategies to improve quality
+
+                              Role of leadership
+                              Principles of change management in quality improvement: specific strategies
+                  o Attributes of high-quality health care
+                              High-value/cost-conscious care: overutilization of resources, including diagnostic testing,
+
+                                   medications
+                              Equitable care: access
+                              Patient-centered care
+                              Timely care
+
+        · Patient safety
+                  o Patient safety principles
+                              Epidemiology of medical error
+                              Error categorization/definition: active vs latent errors; Swiss cheese model of error;
+                                   preventable vs non-preventable; near miss events/safety hazards
+                              Causes of error
+
+                                        · Patient factors: understanding of medication use; health literacy; economic
+                                              status; cultural factors (eg, religion); failure to make appointments;
+                                              socioeconomic status
+
+                                        · Physician factors: deficiency of knowledge; judgment errors; diagnostic errors;
+                                              fatigue, sleep deprivation; bias - cognitive, availability, heuristic, anchoring,
+                                              framing
+
+                                        · Human factors (eg, cognitive, physical, environmental)
+                              High reliability of organization (HRO) principles
+
+                                        · change management and improvement science; conceptual models of
+                                              improvement
+
+                              Reporting and monitoring for errors
+
+                                        · event reporting systems
+                              Communication with patients after adverse events (disclosure/transparency)
+                  o Specific types of error
+                              Transitions of care errors (eg, handoff communication including shift-to-shift, transfer, and
+
+                                   discharge)
+
+                                        · handoffs and related communication; discontinuities; gaps; discharge; transfers
+                              Medication errors
+
+                                        · Ordering, transcribing, dispensing, administration (wrong quantity, wrong route,
+                                              wrong drug)
+
+                                        · Medication reconciliation
+
+                                        · Mathematical error
+                              Procedural errors
+
+                                        · Universal protocol (time out); wrong patient; wrong site; wrong procedure
+
+                                        · Retained foreign bodies
+
+                                        · Injury to structures
+                                                   o paracentesis; bowel perforation; thoracentesis; pneumothorax; central
+                                                        venous/arterial line injuries; arterial puncture and bleeding and venous
+                                                        thrombosis; lumbar puncture bleeding; paralysis
+
+                                        · Other errors
+                                                   o anesthesia-related errors; mathematical errors
+
+For Public Release: USMLE Content Outline (2025)  40
+
+Public
+                            Health care-associated infections
+                                      · nosocomial infection - eg, surgical site, ventilator associated, catheter-related;
+                                           handwashing procedures or inadequate number of handwashing stations; central
+                                           line-associated blood stream infections; surgical site infections; catheter-
+                                           associated urinary tract infections; ventilator-associated pneumonia
+
+                            Documentation errors
+                                      · electronic medical record (including voice-recognition software errors); record
+                                           keeping; incorrect documentation (eg, wrong patient, wrong date, copying and
+                                           pasting, pre-labeling)
+
+                            Patient identification errors
+                                      · Mislabeling: transfusion errors related to mislabeling
+                                      · Verification/two identifiers: lack of dual validation, including verbal verification of
+                                           lab results
+
+                            Diagnostic errors
+                                      · errors in diagnostic studies; misinterpretation
+
+                            Monitoring errors
+                                      · Cardiac monitoring/telemetry
+                                      · Drug monitoring (warfarin, antibiotics)
+
+                            Device-related errors
+                                      · Malfunction
+                                                o Programming error
+                                                o Incorrect use
+
+                o Strategies to reduce error
+                            Human factors engineering
+                                      · Situational awareness
+                                      · Hierarchy of effective interventions: forcing function; visual cues
+                            Error analysis tools
+                                      · error/near miss analysis; failure mode and effects analysis; morbidity and
+                                           mortality review; root cause analysis
+                            Safety behavior and culture at the individual level
+                                      · hierarchy of health care, flattening hierarchy, speak up to power; afraid to report,
+                                           fear; psychological safety; closed-loop communication
+                            Teamwork
+                                      · principles of highly effective teams; case management; physician teams,
+                                           physician-physician communication; interprofessional/intraprofessional teams;
+                                           strategies for communication among teams, including system-provider
+                                           communication, physician-physician communication (eg, consultations),
+                                           interprofessional communication, provider-patient communication
+
+Health care policy and economics
+
+     · Health care policy
+                o Health care disparities
+                            race/ethnicity; numeracy/literacy; socioeconomic status; gender and sexual
+                                diversity/identity; immigration status; English language proficiency; incarcerated
+                                populations; disability
+                o Access to care
+                            critical access systems or hospitals
+                o Social justice
+
+     · Health care economics/Health care financing
+                o Types of insurance
+                            Medicare, Medicaid, private insurance, self-pay
+                o Navigating the insurance system
+                            deductibles/co-pays; in-/out-of-network; preferred providers
+                o Reimbursement issues affecting safety and quality
+                            emergency services - EMTALA; pay-for-performance
+
+For Public Release: USMLE Content Outline (2025)  41
+
+Public
+
