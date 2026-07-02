@@ -175,6 +175,9 @@ secrets.json
 *.key
 *.pem
 
+# PII denylist for scripts/publish_release.py — local-only by design
+.publish_denylist.txt
+
 # Test artifacts
 .pytest_cache/
 .tox/
