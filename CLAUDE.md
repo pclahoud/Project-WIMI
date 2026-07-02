@@ -202,6 +202,8 @@ Two remotes with opposite rules:
 
 To publish: `python scripts/publish_release.py [-m "message"]` (use `--dry-run` to preview). The script snapshots master's committed tree onto the `public` branch under the public noreply identity (`pclahoud`), after scanning the tree against `.publish_denylist.txt` (git-ignored by design, one extended regex per line) and refusing to publish on any match or if the denylist is missing. Never commit the denylist, and don't reintroduce personal identifiers (real names, private IPs, `C:\Users\<name>` paths) into tracked files — the scan will block the next release.
 
+Release tags: use `python scripts/publish_release.py --tag vX.Y.Z`. NEVER run bare `git tag -a` for tags pushed to GitHub — annotated tag objects embed the tagger from the repo-local git config, which is the private identity.
+
 ## Documentation
 
 | Document | Purpose |
