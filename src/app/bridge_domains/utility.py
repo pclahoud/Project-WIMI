@@ -120,7 +120,7 @@ class UtilityBridgeMixin:
         """
         return serialize_response(True, data={
             'name': 'WIMI',
-            'version': '0.4.0',
+            'version': '0.1.0-beta',
             'phase': 4,
             'description': 'Metacognitive exam preparation tool'
         })

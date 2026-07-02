@@ -193,9 +193,14 @@ No linter/formatter is wired up — there is no `pyproject.toml`, `.flake8`, or 
 - **`wimi-test`** — spawns WIMI in test mode and drives the UI over CDP (pychrome → QtWebEngine remote debugging). One active session per server. Tools include `start_session`, `end_session`, `get_session_status`, `navigate_to`, `click`, `fill`, `wait_for`, `eval_js`, `dump_dom`, `screenshot`, plus `get_console_log` / `get_network_log` / `get_bridge_log` capture streams. Design docs: `docs/planning/TEST_INFRASTRUCTURE.md` §8, `docs/planning/PYCHROME_MIGRATION.md` (the Playwright→pychrome rewrite since Qt's CDP surface lacks the `Browser` domain).
 - **`forgejo`** (user-scope) — read/write access to the private Forgejo remote for repo browsing, PR/issue ops, file CRUD via API, and reading commit history. Cannot substitute for `git push` (creates server-side commits with different SHAs and per-file granularity).
 
-## Publishing to GitHub
+## Remotes & Publishing to GitHub
 
-The public mirror (`github` remote → `main`) receives **snapshot commits only** — NEVER push `master` to GitHub; its history contains private identities. To publish: `python scripts/publish_release.py` (use `--dry-run` to preview). The script snapshots master's committed tree onto the `public` branch under the public noreply identity, after scanning the tree against `.publish_denylist.txt` (git-ignored by design, one extended regex per line) and refusing to publish on any match or if the denylist is missing.
+Two remotes with opposite rules:
+
+- **`origin`** — private Forgejo server. Full `master` history lives here; push freely.
+- **`github`** — public mirror (`github.com/pclahoud/Project-WIMI`, branch `main`). Receives **snapshot commits from the `public` branch only** — NEVER push `master` here; its history contains private identities.
+
+To publish: `python scripts/publish_release.py [-m "message"]` (use `--dry-run` to preview). The script snapshots master's committed tree onto the `public` branch under the public noreply identity (`pclahoud`), after scanning the tree against `.publish_denylist.txt` (git-ignored by design, one extended regex per line) and refusing to publish on any match or if the denylist is missing. Never commit the denylist, and don't reintroduce personal identifiers (real names, private IPs, `C:\Users\<name>` paths) into tracked files — the scan will block the next release.
 
 ## Documentation
 

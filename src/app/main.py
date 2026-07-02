@@ -309,7 +309,7 @@ def _run_test_mode(
 
     app = QApplication(sys.argv)
     app.setApplicationName('WIMI')
-    app.setApplicationVersion('0.4.0')
+    app.setApplicationVersion('0.1.0-beta')
     app.setOrganizationName('Project WIMI')
 
     window = MainWindow(
