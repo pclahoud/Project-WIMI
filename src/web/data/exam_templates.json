@@ -1,0 +1,1067 @@
+{
+    "$schema": "exam_templates.schema.json",
+    "version": "1.0.0",
+    "lastUpdated": "2026-01-24",
+    "categories": [
+        {
+            "id": "medical",
+            "name": "Medical Examinations",
+            "description": "USMLE, NBME Shelf, MCAT, and other medical licensing and admission exams"
+        },
+        {
+            "id": "graduate",
+            "name": "Graduate Admissions",
+            "description": "GRE, GMAT, LSAT, and other graduate school entrance exams"
+        },
+        {
+            "id": "undergraduate",
+            "name": "Undergraduate Admissions",
+            "description": "SAT, ACT, and college entrance exams"
+        },
+        {
+            "id": "professional",
+            "name": "Professional Certifications",
+            "description": "CPA, Bar, and professional licensing exams"
+        },
+        {
+            "id": "other",
+            "name": "Other Exams",
+            "description": "Custom and miscellaneous exam types"
+        }
+    ],
+    "templates": [
+        {
+            "id": "nbme-shelf-internal-medicine",
+            "name": "NBME Shelf: Internal Medicine",
+            "description": "NBME Clinical Science Subject Exam with Site of Care, Physician Task, and System dimensions. Designed for third-year medical students completing their Internal Medicine clerkship.",
+            "category": "medical",
+            "tags": ["medicine", "clinical", "shelf", "nbme", "internal medicine", "IM", "clerkship", "MS3"],
+            "targetUsers": ["Medical students (MS3/MS4)", "Clinical clerkship students", "Internal Medicine rotation"],
+            "officialSource": "NBME Clinical Science Subject Examination Content Outline",
+            "sourceUrl": "https://www.nbme.org/examinations/subject-examinations",
+            "icon": "stethoscope",
+            "popularity": 5,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "Internal Medicine Shelf",
+            "suggestedDescription": "NBME Internal Medicine Subject Exam preparation - tracking missed questions by site of care, physician task, and organ system",
+
+            "dimensions": [
+                {
+                    "name": "Site of Care",
+                    "description": "The clinical setting where the patient encounter occurs (Emergency, Inpatient, or Outpatient)",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["Emergency Department", "Inpatient", "Ambulatory/Outpatient", "ICU"]
+                },
+                {
+                    "name": "Physician Task",
+                    "description": "The primary clinical task being assessed in the question",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["Diagnosis", "Prognosis", "Health Maintenance", "Pharmacotherapy", "Clinical Interventions", "Management", "Mechanisms of Disease"]
+                },
+                {
+                    "name": "System",
+                    "description": "The organ system or disease category being tested",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 3,
+                    "sampleValues": ["Cardiovascular", "Pulmonary", "Gastrointestinal", "Renal/Urinary", "Endocrine", "Hematology/Oncology", "Infectious Disease", "Rheumatology", "Neurology", "Dermatology"]
+                }
+            ],
+
+            "hierarchyLevels": ["System", "Category", "Topic", "Subtopic", "Detail"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Cardiovascular",
+                    "children": [
+                        {
+                            "name": "Heart Failure",
+                            "children": [
+                                {"name": "HFrEF"},
+                                {"name": "HFpEF"},
+                                {"name": "Acute Decompensated HF"}
+                            ]
+                        },
+                        {
+                            "name": "Coronary Artery Disease",
+                            "children": [
+                                {"name": "Stable Angina"},
+                                {"name": "Acute Coronary Syndrome"},
+                                {"name": "STEMI/NSTEMI"}
+                            ]
+                        },
+                        {
+                            "name": "Arrhythmias",
+                            "children": [
+                                {"name": "Atrial Fibrillation"},
+                                {"name": "Ventricular Tachycardia"},
+                                {"name": "Heart Blocks"}
+                            ]
+                        },
+                        {
+                            "name": "Valvular Disease",
+                            "children": [
+                                {"name": "Aortic Stenosis"},
+                                {"name": "Mitral Regurgitation"},
+                                {"name": "Endocarditis"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Pulmonary",
+                    "children": [
+                        {"name": "COPD"},
+                        {"name": "Asthma"},
+                        {"name": "Pneumonia"},
+                        {"name": "Pulmonary Embolism"},
+                        {"name": "Interstitial Lung Disease"}
+                    ]
+                },
+                {
+                    "name": "Gastrointestinal",
+                    "children": [
+                        {"name": "GERD/PUD"},
+                        {"name": "Liver Disease"},
+                        {"name": "Inflammatory Bowel Disease"},
+                        {"name": "GI Bleeding"},
+                        {"name": "Pancreatitis"}
+                    ]
+                },
+                {
+                    "name": "Endocrine",
+                    "children": [
+                        {"name": "Diabetes Mellitus"},
+                        {"name": "Thyroid Disorders"},
+                        {"name": "Adrenal Disorders"},
+                        {"name": "Pituitary Disorders"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "usmle-step-1",
+            "name": "USMLE Step 1",
+            "description": "Foundational science exam testing basic science principles and their application to medical practice. Organized by organ system and scientific discipline/process.",
+            "category": "medical",
+            "tags": ["usmle", "step 1", "basic science", "foundational", "medical licensing", "preclinical"],
+            "targetUsers": ["Medical students (MS1/MS2)", "Preclinical students", "IMG candidates"],
+            "officialSource": "USMLE Step 1 Content Description and General Information",
+            "sourceUrl": "https://www.usmle.org/step-1",
+            "icon": "microscope",
+            "popularity": 5,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "USMLE Step 1",
+            "suggestedDescription": "USMLE Step 1 preparation - tracking missed questions by organ system and scientific discipline",
+
+            "dimensions": [
+                {
+                    "name": "System",
+                    "description": "The organ system being tested",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["General Principles", "Behavioral Health", "Nervous System", "Cardiovascular", "Respiratory", "Renal/Urinary", "Gastrointestinal", "Reproductive", "Endocrine", "Musculoskeletal", "Skin", "Hematologic/Lymphoreticular", "Immune System", "Multisystem Processes"]
+                },
+                {
+                    "name": "Process/Discipline",
+                    "description": "The scientific discipline or process category",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["Biochemistry", "Microbiology", "Pharmacology", "Physiology", "Pathology", "Anatomy", "Embryology", "Genetics", "Immunology", "Behavioral Science"]
+                }
+            ],
+
+            "hierarchyLevels": ["System", "Discipline", "Topic", "Concept", "Detail"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Cardiovascular",
+                    "children": [
+                        {
+                            "name": "Anatomy",
+                            "children": [
+                                {"name": "Heart Chambers"},
+                                {"name": "Coronary Circulation"},
+                                {"name": "Great Vessels"}
+                            ]
+                        },
+                        {
+                            "name": "Physiology",
+                            "children": [
+                                {"name": "Cardiac Cycle"},
+                                {"name": "Hemodynamics"},
+                                {"name": "Electrical Conduction"}
+                            ]
+                        },
+                        {
+                            "name": "Pathology",
+                            "children": [
+                                {"name": "Ischemic Heart Disease"},
+                                {"name": "Cardiomyopathies"},
+                                {"name": "Valvular Disease"}
+                            ]
+                        },
+                        {
+                            "name": "Pharmacology",
+                            "children": [
+                                {"name": "Antihypertensives"},
+                                {"name": "Antiarrhythmics"},
+                                {"name": "Anticoagulants"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "General Principles",
+                    "children": [
+                        {
+                            "name": "Biochemistry",
+                            "children": [
+                                {"name": "Metabolism"},
+                                {"name": "Molecular Biology"},
+                                {"name": "Cell Biology"}
+                            ]
+                        },
+                        {
+                            "name": "Genetics",
+                            "children": [
+                                {"name": "Mendelian Inheritance"},
+                                {"name": "Population Genetics"},
+                                {"name": "Chromosomal Disorders"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Nervous System",
+                    "children": [
+                        {
+                            "name": "Neuroanatomy",
+                            "children": [
+                                {"name": "Brain Regions"},
+                                {"name": "Spinal Cord"},
+                                {"name": "Cranial Nerves"}
+                            ]
+                        },
+                        {
+                            "name": "Neurophysiology",
+                            "children": [
+                                {"name": "Action Potentials"},
+                                {"name": "Neurotransmitters"},
+                                {"name": "Sensory Systems"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "usmle-step-2-ck",
+            "name": "USMLE Step 2 CK",
+            "description": "Clinical Knowledge exam testing clinical science and patient management. Organized by clinical setting, physician task, and organ system.",
+            "category": "medical",
+            "tags": ["usmle", "step 2", "clinical", "CK", "medical licensing", "clinical clerkship"],
+            "targetUsers": ["Medical students (MS3/MS4)", "Clinical students", "IMG candidates", "Residency applicants"],
+            "officialSource": "USMLE Step 2 CK Content Description and General Information",
+            "sourceUrl": "https://www.usmle.org/step-2-ck",
+            "icon": "hospital",
+            "popularity": 5,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "USMLE Step 2 CK",
+            "suggestedDescription": "USMLE Step 2 CK preparation - tracking missed questions by clinical setting, task, and system",
+
+            "dimensions": [
+                {
+                    "name": "Setting",
+                    "description": "The clinical setting of the patient encounter",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["Ambulatory", "Emergency Department", "Inpatient", "Intensive Care"]
+                },
+                {
+                    "name": "Task",
+                    "description": "The physician task being assessed",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["Applying Foundational Science Concepts", "Diagnosis", "Prognosis", "Health Maintenance/Disease Prevention", "Pharmacotherapy", "Clinical Interventions", "Management"]
+                },
+                {
+                    "name": "System",
+                    "description": "The organ system or clinical area being tested",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 3,
+                    "sampleValues": ["Cardiovascular", "Respiratory", "Gastrointestinal", "Renal/Urinary", "Pregnancy/Childbirth", "Female Reproductive", "Male Reproductive", "Endocrine", "Nervous System", "Musculoskeletal", "Skin", "Hematologic/Lymphatic", "Behavioral/Emotional", "Multisystem/General", "Biostatistics/Epidemiology", "Social Sciences"]
+                }
+            ],
+
+            "hierarchyLevels": ["System", "Category", "Condition", "Topic", "Detail"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Cardiovascular",
+                    "children": [
+                        {
+                            "name": "Ischemic Disease",
+                            "children": [
+                                {"name": "Stable Angina"},
+                                {"name": "Unstable Angina/NSTEMI"},
+                                {"name": "STEMI"}
+                            ]
+                        },
+                        {
+                            "name": "Heart Failure",
+                            "children": [
+                                {"name": "Systolic HF"},
+                                {"name": "Diastolic HF"},
+                                {"name": "Acute Decompensation"}
+                            ]
+                        },
+                        {
+                            "name": "Arrhythmias",
+                            "children": [
+                                {"name": "Atrial Fibrillation"},
+                                {"name": "Ventricular Arrhythmias"},
+                                {"name": "Bradyarrhythmias"}
+                            ]
+                        },
+                        {
+                            "name": "Vascular Disease",
+                            "children": [
+                                {"name": "Hypertension"},
+                                {"name": "Peripheral Arterial Disease"},
+                                {"name": "Aortic Disease"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Behavioral/Emotional",
+                    "children": [
+                        {"name": "Mood Disorders"},
+                        {"name": "Anxiety Disorders"},
+                        {"name": "Psychotic Disorders"},
+                        {"name": "Substance Use Disorders"},
+                        {"name": "Personality Disorders"}
+                    ]
+                },
+                {
+                    "name": "Pregnancy/Childbirth",
+                    "children": [
+                        {"name": "Normal Pregnancy"},
+                        {"name": "Prenatal Screening"},
+                        {"name": "Labor and Delivery"},
+                        {"name": "Pregnancy Complications"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sat-general",
+            "name": "SAT",
+            "description": "College admission standardized test with Reading and Writing module and Math module. Uses a simple single-hierarchy structure organized by section, domain, and skill.",
+            "category": "undergraduate",
+            "tags": ["college", "admission", "standardized", "math", "reading", "writing", "high school", "College Board"],
+            "targetUsers": ["High school students", "College applicants", "Transfer students"],
+            "officialSource": "College Board SAT Suite of Assessments",
+            "sourceUrl": "https://collegereadiness.collegeboard.org/sat",
+            "icon": "graduation-cap",
+            "popularity": 5,
+
+            "examType": "simple",
+            "suggestedName": "SAT",
+            "suggestedDescription": "SAT preparation tracking - analyzing mistakes by section, domain, and skill area",
+
+            "hierarchyLevels": ["Section", "Domain", "Skill", "Topic", "Subtopic"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 0,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Reading and Writing",
+                    "children": [
+                        {
+                            "name": "Information and Ideas",
+                            "children": [
+                                {"name": "Central Ideas and Details"},
+                                {"name": "Command of Evidence (Textual)"},
+                                {"name": "Command of Evidence (Quantitative)"},
+                                {"name": "Inferences"}
+                            ]
+                        },
+                        {
+                            "name": "Craft and Structure",
+                            "children": [
+                                {"name": "Words in Context"},
+                                {"name": "Text Structure and Purpose"},
+                                {"name": "Cross-Text Connections"}
+                            ]
+                        },
+                        {
+                            "name": "Expression of Ideas",
+                            "children": [
+                                {"name": "Rhetorical Synthesis"},
+                                {"name": "Transitions"}
+                            ]
+                        },
+                        {
+                            "name": "Standard English Conventions",
+                            "children": [
+                                {"name": "Boundaries"},
+                                {"name": "Form, Structure, and Sense"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Math",
+                    "children": [
+                        {
+                            "name": "Algebra",
+                            "children": [
+                                {"name": "Linear Equations in One Variable"},
+                                {"name": "Linear Equations in Two Variables"},
+                                {"name": "Linear Functions"},
+                                {"name": "Systems of Two Linear Equations"},
+                                {"name": "Linear Inequalities"}
+                            ]
+                        },
+                        {
+                            "name": "Advanced Math",
+                            "children": [
+                                {"name": "Equivalent Expressions"},
+                                {"name": "Nonlinear Equations"},
+                                {"name": "Nonlinear Functions"}
+                            ]
+                        },
+                        {
+                            "name": "Problem-Solving and Data Analysis",
+                            "children": [
+                                {"name": "Ratios, Rates, and Proportions"},
+                                {"name": "Percentages"},
+                                {"name": "One-Variable Data"},
+                                {"name": "Two-Variable Data"},
+                                {"name": "Probability and Conditional Probability"},
+                                {"name": "Inference from Sample Statistics"},
+                                {"name": "Evaluating Statistical Claims"}
+                            ]
+                        },
+                        {
+                            "name": "Geometry and Trigonometry",
+                            "children": [
+                                {"name": "Area and Volume"},
+                                {"name": "Lines, Angles, and Triangles"},
+                                {"name": "Right Triangles and Trigonometry"},
+                                {"name": "Circles"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "gre-general",
+            "name": "GRE General Test",
+            "description": "Graduate school admission exam with Verbal Reasoning, Quantitative Reasoning, and Analytical Writing sections. Uses a simple hierarchy for standardized test prep.",
+            "category": "graduate",
+            "tags": ["graduate", "admission", "GRE", "ETS", "verbal", "quantitative", "writing", "grad school"],
+            "targetUsers": ["Graduate school applicants", "PhD candidates", "Masters program applicants"],
+            "officialSource": "ETS GRE General Test Content and Structure",
+            "sourceUrl": "https://www.ets.org/gre/test-takers/general-test/prepare/content.html",
+            "icon": "book-open",
+            "popularity": 4,
+
+            "examType": "simple",
+            "suggestedName": "GRE General Test",
+            "suggestedDescription": "GRE General Test preparation - tracking mistakes by section, question type, and skill area",
+
+            "hierarchyLevels": ["Section", "Question Type", "Skill", "Topic", "Subtopic"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 0,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Verbal Reasoning",
+                    "children": [
+                        {
+                            "name": "Reading Comprehension",
+                            "children": [
+                                {"name": "Understanding Main Ideas"},
+                                {"name": "Drawing Inferences"},
+                                {"name": "Understanding Structure"},
+                                {"name": "Understanding Meaning of Words"},
+                                {"name": "Analyzing Arguments"}
+                            ]
+                        },
+                        {
+                            "name": "Text Completion",
+                            "children": [
+                                {"name": "Single-Blank"},
+                                {"name": "Double-Blank"},
+                                {"name": "Triple-Blank"}
+                            ]
+                        },
+                        {
+                            "name": "Sentence Equivalence",
+                            "children": [
+                                {"name": "Vocabulary in Context"},
+                                {"name": "Sentence Logic"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Quantitative Reasoning",
+                    "children": [
+                        {
+                            "name": "Arithmetic",
+                            "children": [
+                                {"name": "Properties of Integers"},
+                                {"name": "Fractions and Decimals"},
+                                {"name": "Percents and Ratios"},
+                                {"name": "Exponents and Roots"}
+                            ]
+                        },
+                        {
+                            "name": "Algebra",
+                            "children": [
+                                {"name": "Operations with Algebraic Expressions"},
+                                {"name": "Equations and Inequalities"},
+                                {"name": "Functions and Their Graphs"},
+                                {"name": "Coordinate Geometry"}
+                            ]
+                        },
+                        {
+                            "name": "Geometry",
+                            "children": [
+                                {"name": "Lines and Angles"},
+                                {"name": "Polygons"},
+                                {"name": "Circles"},
+                                {"name": "3-D Figures"}
+                            ]
+                        },
+                        {
+                            "name": "Data Analysis",
+                            "children": [
+                                {"name": "Descriptive Statistics"},
+                                {"name": "Data Interpretation"},
+                                {"name": "Probability"},
+                                {"name": "Counting Methods"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Analytical Writing",
+                    "children": [
+                        {
+                            "name": "Analyze an Issue",
+                            "children": [
+                                {"name": "Developing a Position"},
+                                {"name": "Supporting with Examples"},
+                                {"name": "Considering Complexity"}
+                            ]
+                        },
+                        {
+                            "name": "Analyze an Argument",
+                            "children": [
+                                {"name": "Identifying Logical Flaws"},
+                                {"name": "Evaluating Evidence"},
+                                {"name": "Considering Alternatives"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "cpa-exam",
+            "name": "CPA Exam",
+            "description": "Uniform CPA Examination with three core sections (AUD, FAR, REG) and discipline sections (BAR, ISC, TCP). Uses multi-dimensional tracking by exam section, content area, and skill level.",
+            "category": "professional",
+            "tags": ["CPA", "accounting", "professional", "AICPA", "audit", "financial", "regulation", "business"],
+            "targetUsers": ["Accounting graduates", "CPA candidates", "Accounting professionals"],
+            "officialSource": "AICPA Uniform CPA Examination Blueprints",
+            "sourceUrl": "https://www.aicpa.org/resources/article/cpa-exam-blueprints",
+            "icon": "calculator",
+            "popularity": 4,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "CPA Exam",
+            "suggestedDescription": "CPA Exam preparation - tracking mistakes by section, content area, and skill level",
+
+            "dimensions": [
+                {
+                    "name": "Section",
+                    "description": "The CPA exam section (Core: AUD, FAR, REG; Discipline: BAR, ISC, TCP)",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["AUD - Auditing and Attestation", "FAR - Financial Accounting and Reporting", "REG - Taxation and Regulation", "BAR - Business Analysis and Reporting", "ISC - Information Systems and Controls", "TCP - Tax Compliance and Planning"]
+                },
+                {
+                    "name": "Content Area",
+                    "description": "The specific content domain within each section",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["Ethics and Professional Responsibilities", "Risk Assessment", "Financial Statement Accounts", "Select Transactions", "Tax Compliance", "Business Law", "Federal Taxation", "Entity Taxation"]
+                },
+                {
+                    "name": "Skill Level",
+                    "description": "The cognitive skill level being tested",
+                    "isRequired": false,
+                    "allowMultiple": false,
+                    "displayOrder": 3,
+                    "sampleValues": ["Remembering and Understanding", "Application", "Analysis", "Evaluation"]
+                }
+            ],
+
+            "hierarchyLevels": ["Section", "Content Area", "Topic", "Subtopic", "Detail"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "AUD - Auditing and Attestation",
+                    "children": [
+                        {
+                            "name": "Ethics, Professional Responsibilities, and General Principles",
+                            "children": [
+                                {"name": "Professional Ethics"},
+                                {"name": "Independence"},
+                                {"name": "Quality Management"}
+                            ]
+                        },
+                        {
+                            "name": "Assessing Risk and Developing a Planned Response",
+                            "children": [
+                                {"name": "Planning an Engagement"},
+                                {"name": "Understanding Internal Control"},
+                                {"name": "Assessing Risks"}
+                            ]
+                        },
+                        {
+                            "name": "Performing Further Procedures and Obtaining Evidence",
+                            "children": [
+                                {"name": "Audit Evidence"},
+                                {"name": "Sampling"},
+                                {"name": "Substantive Procedures"}
+                            ]
+                        },
+                        {
+                            "name": "Forming Conclusions and Reporting",
+                            "children": [
+                                {"name": "Reports on Audits"},
+                                {"name": "Reports on Reviews"},
+                                {"name": "Reports on Compilations"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "FAR - Financial Accounting and Reporting",
+                    "children": [
+                        {
+                            "name": "Conceptual Framework and Standard-Setting",
+                            "children": [
+                                {"name": "GAAP Hierarchy"},
+                                {"name": "Financial Statement Concepts"}
+                            ]
+                        },
+                        {
+                            "name": "Financial Statement Accounts",
+                            "children": [
+                                {"name": "Cash and Cash Equivalents"},
+                                {"name": "Trade Receivables"},
+                                {"name": "Inventory"},
+                                {"name": "Property, Plant, and Equipment"},
+                                {"name": "Investments"}
+                            ]
+                        },
+                        {
+                            "name": "Select Transactions",
+                            "children": [
+                                {"name": "Business Combinations"},
+                                {"name": "Leases"},
+                                {"name": "Revenue Recognition"},
+                                {"name": "Stock Compensation"}
+                            ]
+                        },
+                        {
+                            "name": "State and Local Governments",
+                            "children": [
+                                {"name": "Governmental Accounting Concepts"},
+                                {"name": "Fund Accounting"},
+                                {"name": "Government-wide Financial Statements"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "REG - Taxation and Regulation",
+                    "children": [
+                        {
+                            "name": "Ethics, Professional Responsibilities, and Tax Procedures",
+                            "children": [
+                                {"name": "Tax Return Preparer Regulations"},
+                                {"name": "Tax Practice and Procedures"}
+                            ]
+                        },
+                        {
+                            "name": "Business Law",
+                            "children": [
+                                {"name": "Contracts"},
+                                {"name": "Agency"},
+                                {"name": "Business Structures"},
+                                {"name": "Debtor-Creditor Relationships"}
+                            ]
+                        },
+                        {
+                            "name": "Federal Taxation of Property Transactions",
+                            "children": [
+                                {"name": "Basis and Holding Period"},
+                                {"name": "Gains and Losses"},
+                                {"name": "Like-Kind Exchanges"}
+                            ]
+                        },
+                        {
+                            "name": "Federal Taxation of Individuals",
+                            "children": [
+                                {"name": "Gross Income"},
+                                {"name": "Deductions"},
+                                {"name": "Tax Credits"}
+                            ]
+                        },
+                        {
+                            "name": "Federal Taxation of Entities",
+                            "children": [
+                                {"name": "Corporate Taxation"},
+                                {"name": "Partnership Taxation"},
+                                {"name": "S Corporation Taxation"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "nbme-shelf-surgery",
+            "name": "NBME Shelf: Surgery",
+            "description": "NBME Surgery Subject Exam with Site of Care, Physician Task, and System dimensions. Designed for medical students completing their Surgery clerkship.",
+            "category": "medical",
+            "tags": ["medicine", "clinical", "shelf", "nbme", "surgery", "surgical", "clerkship", "MS3"],
+            "targetUsers": ["Medical students (MS3/MS4)", "Surgery clerkship students"],
+            "officialSource": "NBME Clinical Science Subject Examination Content Outline",
+            "sourceUrl": "https://www.nbme.org/examinations/subject-examinations",
+            "icon": "scalpel",
+            "popularity": 5,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "Surgery Shelf",
+            "suggestedDescription": "NBME Surgery Subject Exam preparation - tracking missed questions by site of care, physician task, and system",
+
+            "dimensions": [
+                {
+                    "name": "Site of Care",
+                    "description": "The clinical setting where the patient encounter occurs",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["Emergency Department", "Inpatient", "Operating Room", "Ambulatory/Outpatient", "ICU"]
+                },
+                {
+                    "name": "Physician Task",
+                    "description": "The primary clinical task being assessed",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["Diagnosis", "Management", "Surgical Intervention", "Perioperative Care", "Health Maintenance"]
+                },
+                {
+                    "name": "System",
+                    "description": "The organ system or surgical specialty area",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 3,
+                    "sampleValues": ["Gastrointestinal", "Vascular", "Trauma", "Breast", "Endocrine", "Cardiothoracic", "Transplant", "Pediatric Surgery"]
+                }
+            ],
+
+            "hierarchyLevels": ["System", "Category", "Topic", "Subtopic", "Detail"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Gastrointestinal",
+                    "children": [
+                        {"name": "Esophageal Disorders"},
+                        {"name": "Gastric Disorders"},
+                        {"name": "Small Bowel"},
+                        {"name": "Colorectal"},
+                        {"name": "Hepatobiliary"},
+                        {"name": "Pancreatic"}
+                    ]
+                },
+                {
+                    "name": "Trauma",
+                    "children": [
+                        {"name": "ATLS Principles"},
+                        {"name": "Thoracic Trauma"},
+                        {"name": "Abdominal Trauma"},
+                        {"name": "Orthopedic Trauma"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "act",
+            "name": "ACT",
+            "description": "College readiness assessment with English, Math, Reading, Science, and optional Writing sections. Uses a simple hierarchy for standardized test prep.",
+            "category": "undergraduate",
+            "tags": ["college", "admission", "standardized", "math", "reading", "english", "science", "high school"],
+            "targetUsers": ["High school students", "College applicants"],
+            "officialSource": "ACT Test Description",
+            "sourceUrl": "https://www.act.org/content/act/en/products-and-services/the-act.html",
+            "icon": "school",
+            "popularity": 5,
+
+            "examType": "simple",
+            "suggestedName": "ACT",
+            "suggestedDescription": "ACT preparation tracking - analyzing mistakes by section and skill area",
+
+            "hierarchyLevels": ["Section", "Reporting Category", "Skill", "Topic", "Subtopic"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 0,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "English",
+                    "children": [
+                        {"name": "Production of Writing"},
+                        {"name": "Knowledge of Language"},
+                        {"name": "Conventions of Standard English"}
+                    ]
+                },
+                {
+                    "name": "Math",
+                    "children": [
+                        {"name": "Preparing for Higher Math"},
+                        {"name": "Integrating Essential Skills"},
+                        {"name": "Modeling"}
+                    ]
+                },
+                {
+                    "name": "Reading",
+                    "children": [
+                        {"name": "Key Ideas and Details"},
+                        {"name": "Craft and Structure"},
+                        {"name": "Integration of Knowledge and Ideas"}
+                    ]
+                },
+                {
+                    "name": "Science",
+                    "children": [
+                        {"name": "Interpretation of Data"},
+                        {"name": "Scientific Investigation"},
+                        {"name": "Evaluation of Models"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "lsat",
+            "name": "LSAT",
+            "description": "Law school admission test with Logical Reasoning, Analytical Reasoning (Logic Games), and Reading Comprehension sections.",
+            "category": "graduate",
+            "tags": ["law", "graduate", "logic", "reasoning", "reading", "LSAC"],
+            "targetUsers": ["Law school applicants", "Pre-law students"],
+            "officialSource": "LSAC LSAT Content and Format",
+            "sourceUrl": "https://www.lsac.org/lsat/taking-lsat/test-format",
+            "icon": "scale-balanced",
+            "popularity": 4,
+
+            "examType": "simple",
+            "suggestedName": "LSAT",
+            "suggestedDescription": "LSAT preparation tracking - analyzing mistakes by section, question type, and skill",
+
+            "hierarchyLevels": ["Section", "Question Type", "Skill", "Topic", "Subtopic"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 0,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Logical Reasoning",
+                    "children": [
+                        {"name": "Assumption Questions"},
+                        {"name": "Strengthen/Weaken Questions"},
+                        {"name": "Flaw Questions"},
+                        {"name": "Inference Questions"},
+                        {"name": "Method of Reasoning"}
+                    ]
+                },
+                {
+                    "name": "Analytical Reasoning",
+                    "children": [
+                        {"name": "Sequencing Games"},
+                        {"name": "Grouping Games"},
+                        {"name": "Hybrid Games"},
+                        {"name": "Mapping Games"}
+                    ]
+                },
+                {
+                    "name": "Reading Comprehension",
+                    "children": [
+                        {"name": "Main Point Questions"},
+                        {"name": "Detail Questions"},
+                        {"name": "Inference Questions"},
+                        {"name": "Comparative Reading"}
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "mcat",
+            "name": "MCAT",
+            "description": "Medical College Admission Test with four sections testing scientific foundations and critical thinking for medical school readiness.",
+            "category": "medical",
+            "tags": ["medicine", "admission", "mcat", "AAMC", "science", "critical thinking", "pre-med"],
+            "targetUsers": ["Pre-medical students", "Medical school applicants"],
+            "officialSource": "AAMC MCAT Content Categories",
+            "sourceUrl": "https://students-residents.aamc.org/mcat-exam",
+            "icon": "flask",
+            "popularity": 5,
+
+            "examType": "multi_dimensional",
+            "suggestedName": "MCAT",
+            "suggestedDescription": "MCAT preparation tracking - analyzing mistakes by section and foundational concept",
+
+            "dimensions": [
+                {
+                    "name": "Section",
+                    "description": "The MCAT section being tested",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 1,
+                    "sampleValues": ["Chemical and Physical Foundations (C/P)", "Critical Analysis and Reasoning (CARS)", "Biological and Biochemical Foundations (B/B)", "Psychological, Social, and Biological Foundations (P/S)"]
+                },
+                {
+                    "name": "Foundational Concept",
+                    "description": "The foundational concept being tested (FC1-FC10)",
+                    "isRequired": true,
+                    "allowMultiple": false,
+                    "displayOrder": 2,
+                    "sampleValues": ["FC1 - Biomolecules", "FC2 - Cells", "FC3 - Organ Systems", "FC4 - Physical Principles", "FC5 - Chemical Processes", "FC6 - Psychology", "FC7 - Social Processes", "FC8 - Self and Identity", "FC9 - Cultural Factors", "FC10 - Social Stratification"]
+                }
+            ],
+
+            "hierarchyLevels": ["Section", "Foundational Concept", "Content Category", "Topic", "Subtopic"],
+
+            "weightSettings": {
+                "autonomousBalancing": true,
+                "precision": 1,
+                "balancingAlgorithm": "proportional"
+            },
+
+            "sampleHierarchy": [
+                {
+                    "name": "Chemical and Physical Foundations (C/P)",
+                    "children": [
+                        {
+                            "name": "FC4 - Physical Principles",
+                            "children": [
+                                {"name": "Translational Motion"},
+                                {"name": "Fluids"},
+                                {"name": "Electrochemistry"}
+                            ]
+                        },
+                        {
+                            "name": "FC5 - Chemical Processes",
+                            "children": [
+                                {"name": "Atomic Structure"},
+                                {"name": "Chemical Bonding"},
+                                {"name": "Thermodynamics"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "Biological and Biochemical Foundations (B/B)",
+                    "children": [
+                        {
+                            "name": "FC1 - Biomolecules",
+                            "children": [
+                                {"name": "Amino Acids and Proteins"},
+                                {"name": "Carbohydrates"},
+                                {"name": "Lipids"},
+                                {"name": "Nucleic Acids"}
+                            ]
+                        },
+                        {
+                            "name": "FC2 - Cells",
+                            "children": [
+                                {"name": "Cell Structure"},
+                                {"name": "Cell Division"},
+                                {"name": "Cell Signaling"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

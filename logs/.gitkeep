@@ -1,0 +1,10 @@
+# This file ensures the logs directory is tracked by git
+# while the actual log files are ignored (see .gitignore)
+# 
+# The logs directory is used to store:
+# - Application error logs (StudentApp_*.log)
+# - Migration-specific logs (migrations_*.log)
+# - Exported error reports
+# 
+# Log files are automatically rotated when they reach 50MB
+# and the system keeps the last 10 log files

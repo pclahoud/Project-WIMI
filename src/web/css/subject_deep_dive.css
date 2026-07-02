@@ -1,0 +1,517 @@
+/* ============================================================================
+   WIMI Subject Deep Dive Styles
+   Phase 6 Stage 3
+   ============================================================================ */
+
+/* Page Container */
+.page-container {
+    max-width: 87.5rem;
+    margin: 0 auto;
+    padding: 1.25rem;
+    background: var(--bg-secondary);
+    min-height: 100vh;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.subject-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.875rem;
+    padding: 1.25rem;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.header-left .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    transition: color 0.2s;
+}
+
+.header-left .back-link:hover {
+    color: var(--color-primary-hover);
+}
+
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-center h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.subject-icon {
+    color: var(--color-primary);
+}
+
+.header-right .exam-filter {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.header-right .exam-label {
+    padding: 0.5rem 1rem;
+    background: var(--color-primary-bg);
+    border: 1px solid var(--color-primary-light);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+/* ============================================================================
+   Section Titles
+   ============================================================================ */
+
+.section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 1rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: var(--font-size-xs);
+}
+
+.card-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 1rem 0;
+}
+
+/* ============================================================================
+   Info & Trend Section
+   ============================================================================ */
+
+.info-trend-section {
+    margin-bottom: 1.875rem;
+}
+
+.info-trend-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1.25rem;
+}
+
+.info-card,
+.trend-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.info-item label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-item span {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.trend-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.trend-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.trend-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.trend-col label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trend-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.trend-change {
+    padding: 0.75rem;
+    background: var(--color-primary-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.trend-change.improving {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.trend-change.declining {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+/* ============================================================================
+   Stats Section
+   ============================================================================ */
+
+.stats-section {
+    margin-bottom: 1.875rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.stat-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ============================================================================
+   Timeline Section
+   ============================================================================ */
+
+.timeline-section {
+    margin-bottom: 1.875rem;
+}
+
+.timeline-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================================
+   Breakdown Section
+   ============================================================================ */
+
+.breakdown-section {
+    margin-bottom: 1.875rem;
+}
+
+.breakdown-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+}
+
+.breakdown-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.child-subjects-list,
+.mistake-types-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.child-subject-item,
+.mistake-type-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.child-subject-item:hover {
+    background: var(--color-primary-bg);
+}
+
+.child-subject-name {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.child-subject-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.mistake-type-item {
+    cursor: default;
+}
+
+.mistake-type-name {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mistake-type-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.mistake-type-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   Recent Entries Section
+   ============================================================================ */
+
+.recent-entries-section {
+    margin-bottom: 1.875rem;
+}
+
+.recent-entries-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.recent-entries-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recent-entry-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--color-primary);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.recent-entry-item:hover {
+    background: var(--color-primary-bg);
+}
+
+.recent-entry-date {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 5rem;
+}
+
+.recent-entry-subject {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    min-width: 9.375rem;
+}
+
+.recent-entry-note {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================================================
+   Related Section
+   ============================================================================ */
+
+.related-section {
+    margin-bottom: 1.875rem;
+}
+
+.related-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+}
+
+.related-card,
+.recommendations-card {
+    background: var(--bg-primary);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.related-topics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.related-topic-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.related-topic-item:hover {
+    background: var(--color-primary-bg);
+}
+
+.related-topic-name {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.related-topic-count {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recommendation-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: var(--color-warning-bg);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--color-warning);
+}
+
+.recommendation-icon {
+    font-size: var(--font-size-xl);
+    flex-shrink: 0;
+}
+
+.recommendation-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* ============================================================================
+   Empty States
+   ============================================================================ */
+
+.empty-state {
+    padding: 2.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 1024px) {
+    .info-trend-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .breakdown-grid,
+    .related-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .subject-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .recent-entry-item {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .recent-entry-date,
+    .recent-entry-subject {
+        min-width: auto;
+    }
+}

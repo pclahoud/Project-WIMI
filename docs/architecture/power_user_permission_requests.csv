@@ -1,0 +1,1 @@
+id,power_user_id,child_user_id,requested_permissions,request_message,request_status,requested_at,responded_at,response_message,revocation_requested_by,revocation_requested_at,revocation_reason,both_parties_agree_revocation

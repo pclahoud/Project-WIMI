@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Session - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/session.css">
+    <link rel="stylesheet" href="../css/export_dialog.css">
+    <link rel="stylesheet" href="../css/session_import.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+    <script src="../js/custom-select.js"></script>
+    <script src="../js/export_dialog.js"></script>
+</head>
+<body>
+    <div class="session-page">
+        <!-- Header -->
+        <header class="session-header">
+            <div class="session-header-left">
+                <a href="index.html" class="back-button" title="Back to Exams">
+                    <span class="back-arrow">←</span>
+                    <span class="back-text">Back</span>
+                </a>
+                <div class="session-header-title">
+                    <a href="index.html" class="exam-name-link" id="exam-name-link" title="Return to Exams">
+                        <h1 id="exam-name">Loading...</h1>
+                    </a>
+                    <span id="exam-badge" class="badge badge-primary">Review Session</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="session-content">
+            <!-- Previous Sessions Section -->
+            <section class="previous-sessions-section" id="previous-sessions-section">
+                <h2 class="section-title">
+                    <span class="section-icon">📋</span>
+                    Previous Sessions
+                </h2>
+                
+                <div class="sessions-scroll-container" id="previous-sessions-container">
+                    <!-- Session cards will be rendered here -->
+                    <div class="session-loading" id="sessions-loading">
+                        <div class="spinner"></div>
+                        <span>Loading sessions...</span>
+                    </div>
+                </div>
+                
+                <div class="sessions-empty hidden" id="sessions-empty">
+                    <p>No previous review sessions for this exam.</p>
+                </div>
+            </section>
+
+            <!-- New Session Section -->
+            <section class="new-session-section">
+                <div class="section-title-row">
+                    <h2 class="section-title">
+                        <span class="section-icon">➕</span>
+                        Start New Session
+                    </h2>
+                    <button type="button" class="btn btn-secondary btn-sm import-session-btn" id="btn-import-session">
+                        Import Session
+                    </button>
+                </div>
+                
+                <div class="new-session-form card">
+                    <div class="card-body">
+                        <!-- Exam Context (read-only) -->
+                        <div class="form-group">
+                            <label for="session-exam">Exam Context</label>
+                            <input type="text" id="session-exam" readonly disabled>
+                            <p class="form-help">This session will be linked to the selected exam.</p>
+                        </div>
+
+                        <!-- Question Source -->
+                        <div class="form-group">
+                            <label for="session-source">Question Source <span class="required">*</span></label>
+                            <div class="source-input-group">
+                                <div class="source-select-container" id="source-select-container" data-testid="session-source-select">
+                                    <!-- Custom select will be rendered here -->
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source">
+                                    + Add New
+                                </button>
+                            </div>
+                            <p class="form-help">Where did these practice questions come from?</p>
+                        </div>
+
+                        <!-- Date Encountered -->
+                        <div class="form-group">
+                            <label for="session-date">Date Encountered <span class="required">*</span></label>
+                            <input type="date" id="session-date">
+                            <p class="form-help">When did you take this practice test?</p>
+                        </div>
+
+                        <!-- Question Counts -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="session-total-questions">Total Questions <span class="required">*</span></label>
+                                <input type="number" id="session-total-questions" min="1" max="1000" placeholder="e.g., 40">
+                                <p class="form-help">How many questions in the practice set?</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="session-total-incorrect">Questions Incorrect <span class="required">*</span></label>
+                                <input type="number" id="session-total-incorrect" min="0" max="1000" placeholder="e.g., 12">
+                                <p class="form-help">How many did you get wrong?</p>
+                            </div>
+                        </div>
+
+                        <!-- Session Duration (optional) -->
+                        <div class="form-group">
+                            <label for="session-duration-preset">Session Duration <span class="optional">(optional)</span></label>
+                            <div class="duration-input-group">
+                                <select id="session-duration-preset">
+                                    <option value="0">No Limit</option>
+                                    <option value="15">15 minutes</option>
+                                    <option value="25">25 minutes</option>
+                                    <option value="30">30 minutes</option>
+                                    <option value="45">45 minutes</option>
+                                    <option value="60">60 minutes</option>
+                                    <option value="90">90 minutes</option>
+                                    <option value="120">120 minutes</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <input type="number" id="session-duration-custom" min="1" max="480" placeholder="minutes" style="display:none;">
+                            </div>
+                            <p class="form-help">Set a time limit for this session, or leave as "No Limit" for untimed.</p>
+                        </div>
+
+                        <!-- Session Name (optional) -->
+                        <div class="form-group">
+                            <label for="session-name">Session Name <span class="optional">(optional)</span></label>
+                            <input type="text" id="session-name" placeholder="e.g., UWorld Block 5 Review">
+                            <p class="form-help">Leave blank to auto-generate: "{Source} - {Date}"</p>
+                        </div>
+
+                        <!-- Error display -->
+                        <div class="form-error-container hidden" id="form-error" data-testid="session-form-error">
+                            <span class="form-error-icon">⚠️</span>
+                            <span class="form-error-message" id="form-error-message"></span>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <button type="button" class="btn btn-secondary" id="btn-manage-sources">
+                            Manage Sources
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg" id="btn-start-session" disabled>
+                            Start Session
+                        </button>
+                    </div>
+                </div>
+            </section>
+            <div data-plugin-slot="session-after-cards"></div>
+        </main>
+    </div>
+
+    <!-- Add Source Modal -->
+    <div class="modal-backdrop" id="add-source-modal" data-testid="session-source-add-modal">
+        <div class="modal">
+            <h3 class="modal-title">Add Question Source</h3>
+            <div class="form-group">
+                <label for="new-source-name">Source Name <span class="required">*</span></label>
+                <input type="text" id="new-source-name" placeholder="e.g., UWorld, Amboss, First Aid">
+            </div>
+            <div class="form-group">
+                <label for="new-source-type">Source Type</label>
+                <select id="new-source-type">
+                    <option value="commercial_prep">Commercial Prep (UWorld, Amboss, etc.)</option>
+                    <option value="official_prep">Official Prep Materials</option>
+                    <option value="textbook">Textbook</option>
+                    <option value="online_platform">Online Platform</option>
+                    <option value="practice_tests">Practice Tests</option>
+                    <option value="previous_exams">Previous Exams</option>
+                    <option value="tutoring_materials">Tutoring Materials</option>
+                    <option value="flashcard_system">Flashcard System</option>
+                    <option value="video_course">Video Course</option>
+                    <option value="study_group">Study Group</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="new-source-description">Description <span class="optional">(optional)</span></label>
+                <textarea id="new-source-description" rows="2" placeholder="Any notes about this source..."></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="add-source-cancel">Cancel</button>
+                <button class="btn btn-primary" id="add-source-save">Add Source</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Sources Modal -->
+    <div class="modal-backdrop" id="manage-sources-modal" data-testid="session-source-manage-modal">
+        <div class="modal modal-lg">
+            <h3 class="modal-title">Manage Question Sources</h3>
+            <div class="sources-list" id="sources-list">
+                <!-- Source items will be rendered here -->
+                <div class="sources-loading">
+                    <div class="spinner"></div>
+                    <span>Loading sources...</span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="manage-sources-add">
+                    + Add New Source
+                </button>
+                <button class="btn btn-secondary" id="manage-sources-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Source Modal -->
+    <div class="modal-backdrop" id="edit-source-modal" data-testid="session-source-edit-modal">
+        <div class="modal">
+            <h3 class="modal-title">Edit Question Source</h3>
+            <input type="hidden" id="edit-source-id">
+            <div class="form-group">
+                <label for="edit-source-name">Source Name <span class="required">*</span></label>
+                <input type="text" id="edit-source-name">
+            </div>
+            <div class="form-group">
+                <label for="edit-source-type">Source Type</label>
+                <select id="edit-source-type">
+                    <option value="commercial_prep">Commercial Prep (UWorld, Amboss, etc.)</option>
+                    <option value="official_prep">Official Prep Materials</option>
+                    <option value="textbook">Textbook</option>
+                    <option value="online_platform">Online Platform</option>
+                    <option value="practice_tests">Practice Tests</option>
+                    <option value="previous_exams">Previous Exams</option>
+                    <option value="tutoring_materials">Tutoring Materials</option>
+                    <option value="flashcard_system">Flashcard System</option>
+                    <option value="video_course">Video Course</option>
+                    <option value="study_group">Study Group</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-source-description">Description</label>
+                <textarea id="edit-source-description" rows="2"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-danger" id="edit-source-delete">Delete</button>
+                <div class="modal-actions-right">
+                    <button class="btn btn-secondary" id="edit-source-cancel">Cancel</button>
+                    <button class="btn btn-primary" id="edit-source-save">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Source Confirmation Modal -->
+    <div class="modal-backdrop" id="delete-source-modal" data-testid="session-source-delete-confirm">
+        <div class="modal">
+            <div class="modal-icon">⚠️</div>
+            <h3 class="modal-title">Delete Source?</h3>
+            <p class="modal-message">
+                Are you sure you want to delete 
+                <strong id="delete-source-name">this source</strong>?
+                <br><br>
+                This will not affect existing review sessions.
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="delete-source-cancel">Cancel</button>
+                <button class="btn btn-danger" id="delete-source-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Session Modal -->
+    <div class="modal-backdrop" id="edit-session-modal" data-testid="session-edit-modal">
+        <div class="modal">
+            <h3 class="modal-title">Edit Session</h3>
+            <input type="hidden" id="edit-session-id">
+            <div class="form-group">
+                <label for="edit-session-name">Session Name</label>
+                <input type="text" id="edit-session-name" class="form-input" placeholder="Session name">
+            </div>
+            <div class="form-group">
+                <label>Question Source</label>
+                <div id="edit-source-select-container" data-testid="session-edit-source-select"></div>
+            </div>
+            <div class="form-group">
+                <label for="edit-session-date">Date Encountered</label>
+                <input type="date" id="edit-session-date" class="form-input">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-session-total-questions">Total Questions</label>
+                    <input type="number" id="edit-session-total-questions" class="form-input" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="edit-session-total-incorrect">Questions Incorrect</label>
+                    <input type="number" id="edit-session-total-incorrect" class="form-input" min="1">
+                </div>
+            </div>
+            <p class="form-help" id="edit-session-min-hint"></p>
+            <div class="form-error-container" id="edit-session-error" style="display: none;">
+                <span class="form-error-icon">!</span>
+                <span id="edit-session-error-text"></span>
+            </div>
+            <!-- Timer Round History -->
+            <div id="round-history-section" data-testid="session-round-history" style="display: none;">
+                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Timer Round History</label>
+                <div class="round-history-list" id="round-history-list"></div>
+            </div>
+            <!-- Inline Entry Picker (shown when reducing counts below entries_completed) -->
+            <div id="inline-entry-picker" data-testid="session-entry-picker-inline" style="display: none;">
+                <p class="entry-picker-message" id="inline-picker-message"></p>
+                <div class="entry-picker-list" id="inline-picker-list" data-testid="session-entry-picker-list"></div>
+                <div class="entry-picker-counter" id="inline-picker-counter"></div>
+                <button class="btn btn-danger btn-sm" id="inline-picker-confirm" disabled style="width: 100%; margin-bottom: var(--space-sm);">Confirm Removal</button>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="edit-session-cancel">Cancel</button>
+                <button class="btn btn-primary" id="edit-session-save">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Entry Picker Modal (for reducing incorrect count) -->
+    <div class="modal-backdrop" id="entry-picker-modal" data-testid="session-entry-picker">
+        <div class="modal">
+            <h3 class="modal-title">Select Entries to Remove</h3>
+            <p class="entry-picker-message" id="entry-picker-message"></p>
+            <div class="entry-picker-list" id="entry-picker-list"></div>
+            <div class="entry-picker-counter" id="entry-picker-counter"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="entry-picker-cancel">Cancel</button>
+                <button class="btn btn-danger" id="entry-picker-confirm" disabled>Confirm Removal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Session Confirmation Modal -->
+    <div class="modal-backdrop" id="delete-session-modal" data-testid="session-session-delete-confirm">
+        <div class="modal">
+            <div class="modal-icon">⚠️</div>
+            <h3 class="modal-title">Delete Session?</h3>
+            <p class="modal-message">
+                Are you sure you want to delete 
+                <strong id="delete-session-name">this session</strong>?
+                <br><br>
+                This will permanently delete the session and all logged question entries.
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="delete-session-cancel">Cancel</button>
+                <button class="btn btn-danger" id="delete-session-confirm">Delete Session</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Session Wizard Modal -->
+    <div class="modal-backdrop import-wizard-modal" id="import-wizard-modal" data-testid="session-import-wizard-modal">
+        <div class="modal">
+            <h3 class="modal-title">Import Session from JSON</h3>
+
+            <!-- Progress Steps -->
+            <div class="import-wizard-progress">
+                <div class="import-progress-track">
+                    <div class="import-progress-fill" id="import-progress-fill" style="width: 20%"></div>
+                </div>
+                <div class="import-progress-steps">
+                    <div class="import-step-indicator active" data-step="1">
+                        <div class="import-step-circle">1</div>
+                        <div class="import-step-label">File</div>
+                    </div>
+                    <div class="import-step-indicator" data-step="2">
+                        <div class="import-step-circle">2</div>
+                        <div class="import-step-label">Mapping</div>
+                    </div>
+                    <div class="import-step-indicator" data-step="3">
+                        <div class="import-step-circle">3</div>
+                        <div class="import-step-label">Config</div>
+                    </div>
+                    <div class="import-step-indicator" data-step="4">
+                        <div class="import-step-circle">4</div>
+                        <div class="import-step-label">Preview</div>
+                    </div>
+                    <div class="import-step-indicator" data-step="5">
+                        <div class="import-step-circle">5</div>
+                        <div class="import-step-label">Import</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step Content -->
+            <div class="modal-body">
+                <div class="import-wizard-content">
+                    <!-- Step 1: File Selection -->
+                    <div class="import-wizard-step active" id="import-step-1">
+                        <div class="import-step-title">Select JSON File</div>
+                        <div class="import-step-description">Choose the exported session JSON file from your question bank.</div>
+                        <div class="import-file-dropzone" id="import-file-dropzone" data-testid="session-import-file-dropzone" role="button" tabindex="0" aria-label="Click to select JSON file">
+                            <div class="import-file-dropzone-icon">📂</div>
+                            <div class="import-file-dropzone-text">Click to select a JSON file</div>
+                            <div class="import-file-dropzone-hint">Supports AMBOSS, UWorld, and other JSON formats</div>
+                        </div>
+                        <div class="import-file-info hidden" id="import-file-info" data-testid="session-import-file-info">
+                            <!-- Populated by JS after file selection -->
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Field Mapping -->
+                    <div class="import-wizard-step" id="import-step-2">
+                        <div class="import-step-title">Map Fields</div>
+                        <div class="import-step-description">Map source JSON fields to WIMI entry fields.</div>
+                        <div class="import-mapping-header">
+                            <div class="import-profile-actions">
+                                <select id="import-profile-select" class="import-target-select" style="width: auto; min-width: 160px;">
+                                    <option value="">-- Load Profile --</option>
+                                </select>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-save-mapping-profile">Save Profile</button>
+                            </div>
+                        </div>
+                        <table class="import-mapping-table" id="import-mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>Source Field</th>
+                                    <th>WIMI Target</th>
+                                    <th>Order</th>
+                                </tr>
+                            </thead>
+                            <tbody id="import-mapping-tbody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div class="import-sample-preview" id="import-sample-preview">
+                            <div class="import-sample-preview-title">Sample Data Preview</div>
+                            <div id="import-sample-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Session Configuration -->
+                    <div class="import-wizard-step" id="import-step-3">
+                        <div class="import-step-title">Session Configuration</div>
+                        <div class="import-step-description">Configure the review session details.</div>
+                        <div class="import-config-form">
+                            <div class="form-group">
+                                <label for="import-source-select">Question Source</label>
+                                <div class="source-select-container" id="import-source-select-container" data-testid="session-import-source-select">
+                                    <!-- Custom select rendered by JS -->
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="import-session-date">Date Encountered</label>
+                                <input type="date" id="import-session-date">
+                            </div>
+                            <div class="form-group">
+                                <label for="import-session-name">Session Name</label>
+                                <input type="text" id="import-session-name" placeholder="Auto-generated if blank">
+                            </div>
+                            <div class="form-group">
+                                <label for="import-duration-preset">Session Duration <span class="optional">(optional)</span></label>
+                                <div class="duration-input-group">
+                                    <select id="import-duration-preset">
+                                        <option value="0">No Limit</option>
+                                        <option value="15">15 minutes</option>
+                                        <option value="25">25 minutes</option>
+                                        <option value="30">30 minutes</option>
+                                        <option value="45">45 minutes</option>
+                                        <option value="60">60 minutes</option>
+                                        <option value="90">90 minutes</option>
+                                        <option value="120">120 minutes</option>
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                    <input type="number" id="import-duration-custom" min="1" max="480" placeholder="minutes" style="display:none;">
+                                </div>
+                                <p class="form-help">Set a time limit for this session, or leave as "No Limit" for untimed.</p>
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="import-images-checkbox" checked>
+                                    Import images from images/ folder
+                                </label>
+                                <p class="form-help" id="import-images-info">0 images found</p>
+                            </div>
+                            <div class="import-config-note">
+                                All entries will be created as drafts. You can assign subjects and tags later in the entry form.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Preview & Confirm -->
+                    <div class="import-wizard-step" id="import-step-4">
+                        <div class="import-step-title">Preview & Confirm</div>
+                        <div class="import-step-description">Review your import settings before proceeding.</div>
+                        <div class="import-preview-summary" id="import-preview-summary" data-testid="session-import-preview-summary">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="import-mapping-preview" id="import-mapping-preview">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="import-entry-preview" id="import-entry-preview" data-testid="session-import-entry-preview">
+                            <div class="import-entry-preview-title">First Entry Preview</div>
+                            <div id="import-entry-preview-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Progress & Results -->
+                    <div class="import-wizard-step" id="import-step-5">
+                        <div class="import-progress-container" id="import-progress-container" data-testid="session-import-progress">
+                            <div class="spinner-lg spinner"></div>
+                            <div class="import-progress-bar">
+                                <div class="import-progress-bar-fill" id="import-bar-fill"></div>
+                            </div>
+                            <div class="import-progress-label" id="import-progress-label">Importing...</div>
+                        </div>
+                        <div class="import-results hidden" id="import-results" data-testid="session-import-results">
+                            <!-- Populated by JS after import completes -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="import-wizard-nav">
+                <button type="button" class="btn btn-secondary" id="import-btn-cancel">Cancel</button>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button type="button" class="btn btn-secondary hidden" id="import-btn-back">Back</button>
+                    <button type="button" class="btn btn-primary" id="import-btn-next" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Mapping Profile Modal -->
+    <div class="modal-backdrop" id="save-profile-modal" data-testid="session-import-save-profile">
+        <div class="modal" style="max-width: 360px;">
+            <h3 class="modal-title">Save Mapping Profile</h3>
+            <div class="form-group">
+                <label for="save-profile-name">Profile Name <span class="required">*</span></label>
+                <input type="text" id="save-profile-name" placeholder="e.g., AMBOSS Surgery">
+            </div>
+            <div class="form-group">
+                <label for="save-profile-source-type">Source Type</label>
+                <select id="save-profile-source-type">
+                    <option value="custom">Custom</option>
+                    <option value="amboss">AMBOSS</option>
+                    <option value="uworld">UWorld</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="save-profile-cancel">Cancel</button>
+                <button class="btn btn-primary" id="save-profile-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/session_setup.js"></script>
+    <script src="../js/session_import.js"></script>
+</body>
+</html>

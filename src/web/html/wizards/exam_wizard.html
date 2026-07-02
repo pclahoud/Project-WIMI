@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Setup Wizard - WIMI</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+    <link rel="stylesheet" href="../../css/wizard.css">
+    <link rel="stylesheet" href="../../css/exam_type_selector.css">
+    <link rel="stylesheet" href="../../css/dimension_editor.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../../js/api/_bridge.js"></script>
+    <script src="../../js/api/_loader.js"></script>
+    <script src="../../js/themes.js"></script>
+    <script src="../../js/event_bus.js"></script>
+    <script src="../../js/plugin_loader.js"></script>
+</head>
+<body>
+    <div class="wizard-page">
+        <!-- Wizard Container -->
+        <div class="wizard-container">
+            <!-- Wizard Header -->
+            <div class="wizard-header">
+                <button type="button" class="wizard-close-btn" id="btn-cancel" data-testid="wizard-cancel-button" title="Cancel and return home">
+                    ✕
+                </button>
+                <a href="../index.html" class="wizard-logo-link" data-testid="wizard-home-link" title="Return to home">
+                    <div class="wizard-logo">📚</div>
+                </a>
+                <h1 class="wizard-title">Exam Setup Wizard</h1>
+                <p class="wizard-subtitle">Let's configure your exam preparation environment</p>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="wizard-progress">
+                <div class="progress-track">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-steps" id="progress-steps">
+                    <!-- Progress steps will be dynamically updated based on exam type -->
+                    <div class="progress-step active" data-step="1">
+                        <div class="step-circle">1</div>
+                        <div class="step-label">Exam Type</div>
+                    </div>
+                    <div class="progress-step" data-step="2">
+                        <div class="step-circle">2</div>
+                        <div class="step-label">Exam Info</div>
+                    </div>
+                    <div class="progress-step" data-step="3">
+                        <div class="step-circle">3</div>
+                        <div class="step-label">Hierarchy</div>
+                    </div>
+                    <div class="progress-step" data-step="4">
+                        <div class="step-circle">4</div>
+                        <div class="step-label">Weights</div>
+                    </div>
+                    <div class="progress-step" data-step="5">
+                        <div class="step-circle">5</div>
+                        <div class="step-label">Review</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wizard Content -->
+            <div class="wizard-content">
+                <!-- Step 1: Exam Type Selection (NEW) -->
+                <div class="wizard-step active" id="step-1">
+                    <h2 class="step-title">Choose Exam Type</h2>
+                    <p class="step-description">
+                        Select the structure that best fits your exam's organization.
+                    </p>
+                    
+                    <div class="exam-type-cards">
+                        <!-- Simple Exam Card -->
+                        <div class="exam-type-card selected" data-type="simple" id="card-simple" data-testid="wizard-step1-type-simple">
+                            <div class="card-radio">
+                                <input type="radio" name="exam-type" id="type-simple" value="simple" checked>
+                            </div>
+                            <div class="card-icon">📋</div>
+                            <div class="card-content">
+                                <h3>Simple Exam</h3>
+                                <p>Single topic hierarchy</p>
+                                <p class="examples">e.g., SAT Math, GRE Verbal, LSAT</p>
+                                <div class="hierarchy-preview">
+                                    <div class="preview-node">Mathematics</div>
+                                    <div class="preview-node level-1">├─ Algebra</div>
+                                    <div class="preview-node level-2">│  └─ Quadratics</div>
+                                    <div class="preview-node level-1">└─ Geometry</div>
+                                </div>
+                                <button type="button" class="btn-learn-more" data-type="simple" data-testid="wizard-step1-learn-simple">
+                                    Learn More
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Multi-Dimensional Exam Card -->
+                        <div class="exam-type-card" data-type="multi_dimensional" id="card-multi" data-testid="wizard-step1-type-multi">
+                            <div class="card-radio">
+                                <input type="radio" name="exam-type" id="type-multi" value="multi_dimensional">
+                            </div>
+                            <div class="card-icon">🎯</div>
+                            <div class="card-content">
+                                <h3>Multi-Dimensional Exam <span class="badge-advanced">Advanced</span></h3>
+                                <p>Multiple independent categorization dimensions</p>
+                                <p class="examples">e.g., NBME Shelf, USMLE, MCAT</p>
+                                <div class="dimension-preview">
+                                    <div class="preview-dimension">Site of Care</div>
+                                    <div class="preview-dimension">Physician Task</div>
+                                    <div class="preview-dimension">System</div>
+                                </div>
+                                <button type="button" class="btn-learn-more" data-type="multi_dimensional" data-testid="wizard-step1-learn-multi">
+                                    Learn More
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Feature Comparison -->
+                    <div class="exam-type-features">
+                        <h4>Feature Comparison</h4>
+                        <div class="feature-comparison">
+                            <div class="feature-column">
+                                <h5>Simple Exam</h5>
+                                <ul class="feature-list">
+                                    <li>Single topic hierarchy</li>
+                                    <li>Performance by topic</li>
+                                    <li>Standard analytics</li>
+                                    <li>Quick setup</li>
+                                </ul>
+                            </div>
+                            <div class="feature-column">
+                                <h5>Multi-Dimensional</h5>
+                                <ul class="feature-list advanced">
+                                    <li>Multiple independent dimensions</li>
+                                    <li>Cross-dimensional heatmaps</li>
+                                    <li>Interaction effect detection</li>
+                                    <li>Contextual recommendations</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 1.5: Template Selection (shown after exam type) -->
+                <div class="wizard-step" id="step-1-template">
+                    <h2 class="step-title">Choose a Template</h2>
+                    <p class="step-description">
+                        Start with a pre-configured template or build from scratch.
+                    </p>
+
+                    <!-- Start from Scratch Option -->
+                    <div class="template-scratch-option" id="template-scratch" data-testid="wizard-step1-template-scratch">
+                        <div class="scratch-icon">+</div>
+                        <div class="scratch-content">
+                            <h3>Start from Scratch</h3>
+                            <p>Build your own custom exam configuration</p>
+                        </div>
+                        <div class="scratch-radio">
+                            <input type="radio" name="template-selection" value="scratch" checked>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filter -->
+                    <div class="template-filters">
+                        <div class="template-search">
+                            <input type="text"
+                                   id="template-search-input"
+                                   data-testid="wizard-step1-template-search-input"
+                                   placeholder="Search templates..."
+                                   autocomplete="off">
+                            <span class="search-icon">&#128269;</span>
+                        </div>
+                        <div class="template-category-filters" id="template-category-filters">
+                            <button type="button" class="category-filter-btn active" data-category="all" data-testid="wizard-step1-template-filter-all">All</button>
+                            <button type="button" class="category-filter-btn" data-category="medical" data-testid="wizard-step1-template-filter-medical">Medical</button>
+                            <button type="button" class="category-filter-btn" data-category="graduate" data-testid="wizard-step1-template-filter-graduate">Graduate</button>
+                            <button type="button" class="category-filter-btn" data-category="undergraduate" data-testid="wizard-step1-template-filter-undergraduate">Undergraduate</button>
+                            <button type="button" class="category-filter-btn" data-category="professional" data-testid="wizard-step1-template-filter-professional">Professional</button>
+                        </div>
+                    </div>
+
+                    <!-- Template Cards Grid -->
+                    <div class="template-cards-grid" id="template-cards-grid">
+                        <!-- Template cards will be populated by JavaScript -->
+                    </div>
+
+                    <!-- No Results Message -->
+                    <div class="template-no-results hidden" id="template-no-results">
+                        <p>No templates found matching your criteria.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Exam Information -->
+                <div class="wizard-step" id="step-2">
+                    <h2 class="step-title">Exam Information</h2>
+                    <p class="step-description">Tell us about the exam you're preparing for.</p>
+
+                    <!-- Template Modification Indicator and Reset Button -->
+                    <div class="template-status-bar" id="template-status-bar">
+                        <span class="template-modification-indicator hidden" id="template-modification-indicator">
+                            Using template defaults
+                        </span>
+                        <button type="button" class="btn btn-text-only hidden" id="btn-reset-template" data-testid="wizard-reset-template-button">
+                            Reset to template defaults
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exam-name">Exam Name <span class="required">*</span></label>
+                        <input
+                            type="text"
+                            id="exam-name"
+                            data-testid="wizard-exam-name-input"
+                            placeholder="e.g., USMLE Step 1, SAT, GRE, MCAT"
+                            required
+                            autocomplete="off"
+                        >
+                        <p class="form-help">The official name of the standardized exam you're preparing for</p>
+                        <p class="form-error hidden" id="exam-name-error"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exam-description">Description <span class="optional">(optional)</span></label>
+                        <textarea
+                            id="exam-description"
+                            data-testid="wizard-exam-description-textarea"
+                            rows="3"
+                            placeholder="Brief description of your exam goals and strategy..."
+                        ></textarea>
+                        <p class="form-help">Personal notes about your preparation goals</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exam-date">Scheduled Exam Date <span class="optional">(optional)</span></label>
+                        <input
+                            type="date"
+                            id="exam-date"
+                            data-testid="wizard-exam-date-input"
+                        >
+                        <p class="form-help">When are you planning to take this exam?</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exam-notes">Additional Notes <span class="optional">(optional)</span></label>
+                        <textarea
+                            id="exam-notes"
+                            data-testid="wizard-exam-notes-textarea"
+                            rows="2"
+                            placeholder="Any additional notes..."
+                        ></textarea>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Dimensions (Multi-Dimensional Only) -->
+                <div class="wizard-step" id="step-3-dimensions">
+                    <h2 class="step-title">Define Dimensions</h2>
+                    <p class="step-description">
+                        Create independent categories for classifying your questions.
+                        Each dimension represents a different way to categorize the same question.
+                    </p>
+                    
+                    <div class="dimensions-container" id="dimensions-list">
+                        <!-- Dimension cards will be rendered here by JavaScript -->
+                    </div>
+                    
+                    <button type="button" class="btn btn-secondary" id="btn-add-dimension" data-testid="wizard-step3-add-dimension-button">
+                        + Add Dimension
+                    </button>
+                    
+                    <div class="alert alert-info" style="margin-top: var(--space-lg);">
+                        <strong>💡 Example:</strong> NBME Shelf exams use 3 dimensions:
+                        Site of Care (where), Physician Task (what), and System (which organ system).
+                        Each question gets tagged in all three dimensions.
+                    </div>
+                    
+                    <div class="options-help" style="margin-top: var(--space-md); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius-md); font-size: 0.9rem;">
+                        <strong>Dimension Options:</strong>
+                        <ul style="margin: var(--space-sm) 0 0 var(--space-md); padding: 0;">
+                            <li><strong>Required</strong> — User must tag every question in this dimension. Can't skip it.</li>
+                            <li><strong>Allow multiple selections</strong> — User can pick more than one option when tagging (checkboxes instead of radio buttons).</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Step 3/4: Hierarchy Levels (renamed from step-2) -->
+                <div class="wizard-step" id="step-3">
+                    <h2 class="step-title">Subject Hierarchy</h2>
+                    <p class="step-description">
+                        Your study topics will be organized in a hierarchical structure. 
+                        The first 3 levels are always present.
+                    </p>
+                    
+                    <div class="hierarchy-levels" id="hierarchy-levels">
+                        <!-- Levels will be populated by JavaScript -->
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <strong>💡 Tip:</strong> You can add deeper levels later if needed. 
+                        Custom levels beyond the default 5 will be displayed as "Daughter of [Parent Name]" in the interface.
+                    </div>
+                </div>
+                
+                <!-- Step 3.5/4.5: Exam Length (Stage 4 of HIERARCHICAL_WEIGHT_ALLOCATION_REWORK.md §3.2/§7.4) -->
+                <div class="wizard-step" id="step-exam-length" data-testid="exam-wizard-length-step">
+                    <h2 class="step-title">Exam Length</h2>
+                    <p class="step-description">
+                        How long is this exam? The planning baseline drives question-count
+                        rendering ("Cardio = 25 of 280 questions") and the Hamilton
+                        allocation math. You can change this later in Settings.
+                    </p>
+
+                    <div class="exam-length-options">
+                        <label class="exam-length-option">
+                            <input
+                                type="radio"
+                                name="exam-length-kind"
+                                value="fixed"
+                                id="exam-length-kind-fixed"
+                                data-testid="exam-wizard-length-kind-fixed"
+                            >
+                            <div class="exam-length-option-content">
+                                <span class="exam-length-option-label">Fixed length</span>
+                                <span class="exam-length-option-help">
+                                    The exam always has the same number of items
+                                    (USMLE Step 1: 280, Step 2 CK: 318, MCAT: 230, etc.).
+                                </span>
+                            </div>
+                        </label>
+
+                        <label class="exam-length-option">
+                            <input
+                                type="radio"
+                                name="exam-length-kind"
+                                value="range"
+                                id="exam-length-kind-range"
+                                data-testid="exam-wizard-length-kind-range"
+                            >
+                            <div class="exam-length-option-content">
+                                <span class="exam-length-option-label">Variable length (CAT)</span>
+                                <span class="exam-length-option-help">
+                                    Computer Adaptive Test — the real exam ends when the algorithm
+                                    reaches a confident decision (NCLEX-RN: 85–150 items).
+                                </span>
+                            </div>
+                        </label>
+
+                        <label class="exam-length-option">
+                            <input
+                                type="radio"
+                                name="exam-length-kind"
+                                value="unknown"
+                                id="exam-length-kind-unknown"
+                                checked
+                                data-testid="exam-wizard-length-kind-unknown"
+                            >
+                            <div class="exam-length-option-content">
+                                <span class="exam-length-option-label">Don't know yet</span>
+                                <span class="exam-length-option-help">
+                                    Skip this for now; the analytics will show percentages only
+                                    until you fill it in later.
+                                </span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Fixed-length input — visible only when kind='fixed' -->
+                    <div class="exam-length-fields exam-length-fields-fixed hidden"
+                         id="exam-length-fields-fixed">
+                        <div class="form-group">
+                            <label for="exam-length-fixed-typical">Number of items <span class="required">*</span></label>
+                            <input
+                                type="number"
+                                id="exam-length-fixed-typical"
+                                data-testid="exam-wizard-length-typical"
+                                min="1"
+                                placeholder="e.g., 280"
+                            >
+                            <p class="form-help">The total number of questions on the real exam.</p>
+                        </div>
+                    </div>
+
+                    <!-- Variable-length inputs — visible only when kind='range' -->
+                    <div class="exam-length-fields exam-length-fields-range hidden"
+                         id="exam-length-fields-range">
+                        <div class="exam-length-range-grid">
+                            <div class="form-group">
+                                <label for="exam-length-range-min">Minimum items <span class="required">*</span></label>
+                                <input
+                                    type="number"
+                                    id="exam-length-range-min"
+                                    data-testid="exam-wizard-length-min"
+                                    min="1"
+                                    placeholder="e.g., 85"
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="exam-length-range-typical">Typical items <span class="required">*</span></label>
+                                <input
+                                    type="number"
+                                    id="exam-length-range-typical"
+                                    data-testid="exam-wizard-length-range-typical"
+                                    min="1"
+                                    placeholder="e.g., 100"
+                                >
+                                <p class="form-help">Planning baseline used for question-count math.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="exam-length-range-max">Maximum items <span class="required">*</span></label>
+                                <input
+                                    type="number"
+                                    id="exam-length-range-max"
+                                    data-testid="exam-wizard-length-max"
+                                    min="1"
+                                    placeholder="e.g., 150"
+                                >
+                            </div>
+                        </div>
+                        <!--
+                            Stage 8 — Planning-baseline copy per design §7.4.
+                            Populated dynamically by exam_wizard.js#updatePlanningBaselineCopy()
+                            whenever the user toggles to CAT or edits the
+                            min/typical/max inputs. Visible only when
+                            ``length_kind='range'`` (the parent ``.exam-length-fields-range``
+                            container handles the toggle).
+                        -->
+                        <div class="alert alert-info exam-length-cat-help"
+                             id="exam-length-cat-planning-copy"
+                             data-testid="exam-wizard-length-cat-planning-copy">
+                            <strong>Planning baseline:</strong>
+                            <span id="exam-length-cat-planning-copy-text">
+                                Use the typical value to budget your study allocation;
+                                the real exam ends when the algorithm reaches a
+                                confident decision.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exam-length-note">Notes <span class="optional">(optional)</span></label>
+                        <input
+                            type="text"
+                            id="exam-length-note"
+                            data-testid="exam-wizard-length-note"
+                            placeholder="e.g., +13 CCS cases, time limit 2h"
+                        >
+                        <p class="form-help">Any extra context to remember about this exam's length.</p>
+                    </div>
+
+                    <p class="form-error hidden" id="exam-length-error" data-testid="exam-wizard-length-error"></p>
+                </div>
+
+                <!-- Step 4/5: Weight Settings (renamed from step-3) -->
+                <div class="wizard-step" id="step-4">
+                    <h2 class="step-title">Weight Calculation Settings</h2>
+                    <p class="step-description">
+                        Configure how topic weights are calculated and balanced across your subject hierarchy.
+                    </p>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Autonomous Weight Balancing</h3>
+                                <p class="setting-description">
+                                    When enabled, editing one topic's weight automatically adjusts sibling weights to maintain 100%.
+                                    When disabled, you'll manually balance weights and see both relative and absolute percentages.
+                                </p>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle">
+                                    <input type="checkbox" id="autonomous-balancing" data-testid="wizard-weight-autonomous-balancing-toggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Weight Precision</h3>
+                                <p class="setting-description">
+                                    How precise should weight percentages be? Higher precision allows finer control.
+                                </p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="custom-select" id="weight-precision-select" data-value="1" data-testid="wizard-weight-precision-select">
+                                    <div class="custom-select-trigger">
+                                        <span class="custom-select-value">One decimal (40.5%, 59.5%)</span>
+                                        <span class="custom-select-arrow">▾</span>
+                                    </div>
+                                    <div class="custom-select-options">
+                                        <div class="custom-select-option" data-value="0" data-testid="wizard-weight-precision-select-option-0">Whole numbers (40%, 60%)</div>
+                                        <div class="custom-select-option selected" data-value="1" data-testid="wizard-weight-precision-select-option-1">One decimal (40.5%, 59.5%)</div>
+                                        <div class="custom-select-option" data-value="2" data-testid="wizard-weight-precision-select-option-2">Two decimals (40.25%, 59.75%)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Balancing Algorithm</h3>
+                                <p class="setting-description">
+                                    <strong>Proportional:</strong> Distributes changes based on current sibling weights (preserves relative importance).<br>
+                                    <strong>Even:</strong> Distributes changes equally across all siblings (simpler behavior).
+                                </p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="custom-select" id="balancing-algorithm-select" data-value="proportional" data-testid="wizard-weight-algorithm-select">
+                                    <div class="custom-select-trigger">
+                                        <span class="custom-select-value">Proportional (Recommended)</span>
+                                        <span class="custom-select-arrow">▾</span>
+                                    </div>
+                                    <div class="custom-select-options">
+                                        <div class="custom-select-option selected" data-value="proportional" data-testid="wizard-weight-algorithm-select-option-proportional">Proportional (Recommended)</div>
+                                        <div class="custom-select-option" data-value="even" data-testid="wizard-weight-algorithm-select-option-even">Even Distribution</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="algorithm-preview" id="algorithm-preview">
+                        <!-- Algorithm preview will be shown here -->
+                    </div>
+                </div>
+                
+                <!-- Step 5/6: Review & Create (renamed from step-4) -->
+                <div class="wizard-step" id="step-5">
+                    <h2 class="step-title">Review & Create</h2>
+                    <p class="step-description">
+                        Review your configuration before creating the exam context.
+                    </p>
+                    
+                    <div class="summary-card">
+                        <div class="summary-section">
+                            <h3 class="summary-section-title">📋 Exam Information</h3>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <span class="summary-label">Name</span>
+                                    <span class="summary-value" id="summary-name" data-testid="wizard-step5-summary-name">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Type</span>
+                                    <span class="summary-value" id="summary-type" data-testid="wizard-step5-summary-type">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Description</span>
+                                    <span class="summary-value" id="summary-description" data-testid="wizard-step5-summary-description">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Exam Date</span>
+                                    <span class="summary-value" id="summary-date" data-testid="wizard-step5-summary-date">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Template Section (if a template was used) -->
+                        <div class="summary-section" id="summary-template-section" style="display: none;">
+                            <h3 class="summary-section-title">📑 Template Used</h3>
+                            <div class="summary-item">
+                                <span class="summary-value" id="summary-template">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Dimensions Section (Multi-Dimensional Only) -->
+                        <div class="summary-section" id="summary-dimensions-section" style="display: none;">
+                            <h3 class="summary-section-title">🎯 Dimensions</h3>
+                            <div class="summary-dimensions" id="summary-dimensions">
+                                <!-- Dimensions will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="summary-section">
+                            <h3 class="summary-section-title">📊 Hierarchy Structure</h3>
+                            <div class="summary-hierarchy" id="summary-hierarchy">
+                                <!-- Hierarchy summary will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="summary-section">
+                            <h3 class="summary-section-title">⚖️ Weight Settings</h3>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <span class="summary-label">Auto-Balancing</span>
+                                    <span class="summary-value" id="summary-balancing" data-testid="wizard-step5-summary-balancing">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Precision</span>
+                                    <span class="summary-value" id="summary-precision" data-testid="wizard-step5-summary-precision">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Algorithm</span>
+                                    <span class="summary-value" id="summary-algorithm" data-testid="wizard-step5-summary-algorithm">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wizard Navigation -->
+            <!--
+                Stage 4 (HIERARCHICAL_WEIGHT_ALLOCATION_REWORK.md §3.2/§7.4)
+                shipped the exam-length step above (id="step-exam-length")
+                with the testid family ``exam-wizard-length-*`` — the
+                wimi-test scenario test_exam_wizard_length_step.py asserts
+                against these.
+            -->
+            <div class="wizard-nav">
+                <button type="button" class="btn btn-secondary" id="btn-back" data-testid="wizard-back-button" disabled>
+                    ← Back
+                </button>
+                <div class="wizard-nav-spacer"></div>
+                <button type="button" class="btn btn-primary" id="btn-next" data-testid="wizard-next-button">
+                    Next →
+                </button>
+                <button type="button" class="btn btn-success hidden" id="btn-create" data-testid="wizard-create-button">
+                    <span class="btn-text">Create Exam</span>
+                    <span class="btn-loading hidden">
+                        <span class="spinner spinner-sm"></span>
+                        Creating...
+                    </span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Success Modal -->
+        <div class="modal-backdrop hidden" id="success-modal" data-testid="wizard-modal-success">
+            <div class="modal">
+                <div class="modal-icon success">✓</div>
+                <h2 class="modal-title">Exam Created Successfully!</h2>
+                <p class="modal-message" id="success-message">
+                    Your exam context has been created and is ready to use.
+                </p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="btn-continue" data-testid="wizard-success-continue-button">
+                        Continue to Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Modal -->
+        <div class="modal-backdrop hidden" id="error-modal" data-testid="wizard-modal-error">
+            <div class="modal">
+                <div class="modal-icon error">✕</div>
+                <h2 class="modal-title">Error Creating Exam</h2>
+                <p class="modal-message" id="error-message">
+                    An error occurred while creating your exam context.
+                </p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-dismiss-error" data-testid="wizard-error-dismiss-button">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Learn More Modal: Simple Exam -->
+        <div class="modal-backdrop hidden learn-more-modal" id="modal-learn-simple" data-testid="wizard-modal-learn-simple">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Simple Exam Structure</h2>
+                    <button type="button" class="modal-close" data-dismiss="modal">✕</button>
+                </div>
+                <div class="learn-more-content">
+                    <p>
+                        <strong>Best for exams with straightforward topic organization.</strong>
+                        Questions are categorized in a single hierarchical tree, making it easy to 
+                        track progress by topic and subtopic.
+                    </p>
+                    
+                    <h4>Recommended For:</h4>
+                    <ul>
+                        <li>SAT Math (Algebra, Geometry, etc.)</li>
+                        <li>GRE Verbal (Reading Comprehension, Vocabulary, etc.)</li>
+                        <li>LSAT Logic Games</li>
+                        <li>Subject tests with clear topic hierarchies</li>
+                    </ul>
+                    
+                    <h4>Example Structure:</h4>
+                    <div class="example-box">Mathematics
+├─ Algebra
+│  ├─ Linear Equations
+│  └─ Quadratic Equations
+└─ Geometry
+   ├─ Triangles
+   └─ Circles</div>
+                    
+                    <h4>Analytics Include:</h4>
+                    <ul>
+                        <li>Performance by topic (sunburst, treemap)</li>
+                        <li>Mistake type distribution</li>
+                        <li>Time vs difficulty analysis</li>
+                        <li>Goal tracking and streak management</li>
+                    </ul>
+                    
+                    <div class="highlight-box">
+                        <strong>💡 Tip:</strong> If you're unsure, start with a Simple exam. 
+                        You can convert to Multi-Dimensional later if needed.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Learn More Modal: Multi-Dimensional Exam -->
+        <div class="modal-backdrop hidden learn-more-modal" id="modal-learn-multi" data-testid="wizard-modal-learn-multi">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Multi-Dimensional Exam Structure</h2>
+                    <button type="button" class="modal-close" data-dismiss="modal">✕</button>
+                </div>
+                <div class="learn-more-content">
+                    <p>
+                        <strong>Best for complex standardized exams</strong> where questions 
+                        can be categorized in multiple independent ways simultaneously.
+                    </p>
+                    
+                    <h4>Recommended For:</h4>
+                    <ul>
+                        <li>NBME Shelf Exams (Internal Medicine, Surgery, etc.)</li>
+                        <li>USMLE Step 1, Step 2 CK</li>
+                        <li>MCAT (with multiple content categories)</li>
+                        <li>Any exam with official content outlines using multiple dimensions</li>
+                    </ul>
+                    
+                    <h4>Example: NBME Shelf Exam</h4>
+                    <p>Each question is tagged across 3 independent dimensions:</p>
+                    <div class="example-box">Question: "A 68-year-old presents to clinic with palpitations..."
+
+Tags:
+├─ Site of Care: Ambulatory
+├─ Physician Task: Diagnosis
+└─ System: Cardiovascular → Arrhythmias</div>
+                    
+                    <h4>Advanced Analytics Include:</h4>
+                    <ul>
+                        <li>Everything from Simple exams, plus:</li>
+                        <li>Cross-dimension heatmaps (e.g., Site × Task performance)</li>
+                        <li>Interaction effect detection ("You struggle with Cardio specifically in Emergency settings")</li>
+                        <li>Triple-dimension analysis</li>
+                        <li>Context-aware study recommendations</li>
+                    </ul>
+                    
+                    <div class="highlight-box">
+                        <strong>💡 Tip:</strong> Multi-dimensional exams unlock powerful analytics 
+                        but require tagging questions in multiple categories. Best for exams 
+                        with official content outlines that use multiple categorization systems.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../../js/exam_wizard.js"></script>
+</body>
+</html>

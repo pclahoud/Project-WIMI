@@ -1,0 +1,1135 @@
+/**
+ * Wizard Styles
+ * Styles for the multi-step exam setup wizard
+ */
+
+/* =========================================================================
+   Wizard Layout
+   ========================================================================= */
+
+.wizard-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+}
+
+.wizard-container {
+    width: 100%;
+    max-width: 45rem;
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+}
+
+
+/* =========================================================================
+   Wizard Header
+   ========================================================================= */
+
+.wizard-header {
+    position: relative;
+    text-align: center;
+    padding: var(--space-2xl) var(--space-xl) var(--space-lg);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+    color: var(--text-inverse);
+}
+
+.wizard-close-btn {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    width: 2.25rem;
+    height: 2.25rem;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-inverse);
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.wizard-close-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.wizard-close-btn:active {
+    transform: scale(0.95);
+}
+
+.wizard-logo-link {
+    text-decoration: none;
+    color: inherit;
+    display: inline-block;
+    transition: transform var(--transition-fast);
+}
+
+.wizard-logo-link:hover {
+    transform: scale(1.1);
+}
+
+.wizard-logo-link:hover .wizard-logo {
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+.wizard-logo {
+    font-size: 3rem;
+    margin-bottom: var(--space-md);
+}
+
+.wizard-title {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-sm);
+    color: inherit;
+}
+
+.wizard-subtitle {
+    font-size: var(--font-size-md);
+    opacity: 0.9;
+    margin-bottom: 0;
+}
+
+
+/* =========================================================================
+   Progress Bar
+   ========================================================================= */
+
+.wizard-progress {
+    padding: var(--space-lg) var(--space-xl);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.progress-track {
+    height: 0.25rem;
+    background: var(--color-gray-200);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--space-lg);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: var(--radius-full);
+    transition: width var(--transition-slow);
+    width: 25%; /* Default: step 1 of 4 */
+}
+
+.progress-steps {
+    display: flex;
+    justify-content: space-between;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    cursor: default;
+    user-select: none;
+}
+
+.step-circle {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--color-gray-200);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    transition: all var(--transition-normal);
+    margin-bottom: var(--space-xs);
+}
+
+.progress-step.active .step-circle,
+.progress-step.completed .step-circle {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+}
+
+.progress-step.completed .step-circle {
+    background: var(--color-success);
+}
+
+.step-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-weight: var(--font-weight-medium);
+    text-align: center;
+    transition: color var(--transition-normal);
+}
+
+.progress-step.active .step-label,
+.progress-step.completed .step-label {
+    color: var(--text-primary);
+}
+
+
+/* =========================================================================
+   Wizard Content
+   ========================================================================= */
+
+.wizard-content {
+    padding: var(--space-xl);
+    min-height: 25rem;
+}
+
+.wizard-step {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.wizard-step.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.step-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-xs);
+    color: var(--text-primary);
+}
+
+.step-description {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+}
+
+.required {
+    color: var(--color-error);
+}
+
+.optional {
+    color: var(--text-muted);
+    font-weight: var(--font-weight-normal);
+}
+
+
+/* =========================================================================
+   Hierarchy Levels (Step 2)
+   ========================================================================= */
+
+.hierarchy-levels {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+}
+
+.hierarchy-level {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.hierarchy-level:hover {
+    border-color: var(--border-medium);
+}
+
+.hierarchy-level.required {
+    border-left: 3px solid var(--color-primary);
+}
+
+.level-order {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+}
+
+.hierarchy-level.required .level-order {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+}
+
+.level-info {
+    flex: 1;
+}
+
+.level-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.level-badge {
+    margin-left: var(--space-sm);
+}
+
+.badge-required {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.badge-optional {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+
+/* =========================================================================
+   Settings Card (Step 3)
+   ========================================================================= */
+
+.settings-card {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+.setting-info {
+    flex: 1;
+}
+
+.setting-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-xs);
+    color: var(--text-primary);
+}
+
+.setting-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: 0;
+    line-height: var(--line-height-relaxed);
+}
+
+.setting-control {
+    flex-shrink: 0;
+}
+
+.setting-control select {
+    width: auto;
+    min-width: 12.5rem;
+}
+
+
+/* =========================================================================
+   Algorithm Preview
+   ========================================================================= */
+
+.algorithm-preview {
+    margin-top: var(--space-lg);
+    padding: var(--space-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+}
+
+.preview-title {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-md);
+    color: var(--text-primary);
+}
+
+.preview-example {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+.preview-highlight {
+    color: var(--color-primary);
+    font-weight: var(--font-weight-medium);
+}
+
+
+/* =========================================================================
+   Summary Card (Step 4)
+   ========================================================================= */
+
+.summary-card {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.summary-section {
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.summary-section:last-child {
+    border-bottom: none;
+}
+
+.summary-section-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-md);
+    color: var(--text-primary);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+    gap: var(--space-md);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.summary-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+.summary-value {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.summary-hierarchy {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.summary-hierarchy .hierarchy-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.summary-hierarchy .hierarchy-arrow {
+    color: var(--text-muted);
+}
+
+
+/* =========================================================================
+   Wizard Navigation
+   ========================================================================= */
+
+.wizard-nav {
+    display: flex;
+    align-items: center;
+    padding: var(--space-lg) var(--space-xl);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-light);
+}
+
+.wizard-nav-spacer {
+    flex: 1;
+}
+
+.wizard-nav .btn {
+    min-width: 7.5rem;
+}
+
+.btn-text,
+.btn-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+}
+
+.btn-loading.hidden,
+.btn-text.hidden {
+    display: none;
+}
+
+
+/* =========================================================================
+   Modals
+   ========================================================================= */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-backdrop.hidden {
+    display: none;
+}
+
+.modal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-2xl);
+    max-width: 25rem;
+    width: 90%;
+    text-align: center;
+    box-shadow: var(--shadow-xl);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-icon {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    margin: 0 auto var(--space-lg);
+}
+
+.modal-icon.success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.modal-icon.error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-sm);
+}
+
+.modal-message {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-md);
+}
+
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+/* =========================================================================
+   Template Selection Step (Phase 7.2 Stage 2.4)
+   ========================================================================= */
+
+/* Start from Scratch Option */
+.template-scratch-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--bg-primary);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    margin-bottom: var(--space-lg);
+}
+
+.template-scratch-option:hover {
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.template-scratch-option.selected {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.scratch-icon {
+    width: 3rem;
+    height: 3rem;
+    background: var(--bg-secondary);
+    border: 2px dashed var(--border-medium);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.template-scratch-option.selected .scratch-icon {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--text-inverse);
+}
+
+.scratch-content {
+    flex: 1;
+}
+
+.scratch-content h3 {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.scratch-content p {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.scratch-radio {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Template Filters */
+.template-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+.template-search {
+    position: relative;
+}
+
+.template-search input {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    padding-left: 2.5rem;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.template-search input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.template-search .search-icon {
+    position: absolute;
+    left: var(--space-sm);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: var(--font-size-md);
+    pointer-events: none;
+}
+
+.template-category-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.category-filter-btn {
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.category-filter-btn:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-medium);
+}
+
+.category-filter-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--text-inverse);
+}
+
+/* Template Cards Grid */
+.template-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+/* Template Card */
+.template-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    overflow: hidden;
+}
+
+.template-card:hover {
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.template-card.selected {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.template-card.selected::after {
+    content: '';
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--color-primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center/16px no-repeat;
+    border-radius: 50%;
+}
+
+.template-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.template-card.selected .template-card-header {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.template-category-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-weight: var(--font-weight-medium);
+}
+
+.template-category-badge.category-medical {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.template-category-badge.category-graduate {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.template-category-badge.category-undergraduate {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.template-category-badge.category-professional {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.template-category-badge.category-other {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.template-popular-badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    font-weight: var(--font-weight-medium);
+}
+
+.template-card-body {
+    flex: 1;
+    padding: var(--space-md);
+}
+
+.template-name {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.template-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+    line-height: var(--line-height-relaxed);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.template-dimensions-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+
+.template-dimension-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    border-left: 2px solid var(--color-primary);
+}
+
+.template-dimension-more {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.template-target-users {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.template-card-footer {
+    padding: var(--space-sm) var(--space-md);
+    border-top: 1px solid var(--border-light);
+}
+
+.template-card.selected .template-card-footer {
+    border-top-color: rgba(37, 99, 235, 0.2);
+}
+
+.template-radio {
+    opacity: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* No Results */
+.template-no-results {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--text-muted);
+}
+
+.template-no-results.hidden {
+    display: none;
+}
+
+
+/* =========================================================================
+   Template Modification Tracking (Phase 7.2)
+   ========================================================================= */
+
+/* Status bar for template modification tracking */
+.template-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+}
+
+.template-status-bar:empty,
+.template-status-bar:has(.hidden:only-child) {
+    display: none;
+}
+
+/* Template modification indicator */
+.template-modification-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+}
+
+.template-modification-indicator.hidden {
+    display: none;
+}
+
+.template-modification-indicator.default {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.template-modification-indicator.default::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--color-primary);
+    border-radius: 50%;
+}
+
+.template-modification-indicator.modified {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.template-modification-indicator.modified::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--color-warning);
+    border-radius: 50%;
+}
+
+/* Reset to template button */
+.btn-reset-template,
+.btn.btn-text-only {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.btn-reset-template:hover,
+.btn.btn-text-only:hover {
+    background: var(--color-primary-bg);
+    text-decoration: none;
+}
+
+.btn-reset-template.hidden,
+.btn.btn-text-only.hidden {
+    display: none;
+}
+
+/* Template source badge on dimension cards */
+.template-source-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-medium);
+    margin-left: auto;
+}
+
+/* Dimension card with template origin */
+.dimension-card.from-template {
+    border-left: 3px solid var(--color-primary);
+}
+
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+@media (max-width: 640px) {
+    .wizard-page {
+        padding: var(--space-md);
+    }
+
+    .wizard-container {
+        border-radius: var(--radius-lg);
+    }
+
+    .wizard-header {
+        padding: var(--space-xl) var(--space-lg) var(--space-md);
+    }
+
+    .wizard-progress {
+        padding: var(--space-md);
+    }
+
+    .step-label {
+        display: none;
+    }
+
+    .wizard-content {
+        padding: var(--space-lg);
+    }
+
+    .wizard-nav {
+        padding: var(--space-md);
+    }
+
+    .setting-item {
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+
+    .setting-control {
+        width: 100%;
+    }
+
+    .setting-control select {
+        width: 100%;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Template responsive */
+    .template-cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .template-scratch-option {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .template-category-filters {
+        justify-content: center;
+    }
+}
+
+/* ==============================================================
+ * Stage 4 — Exam-length step.
+ * Radio group styled as cards (mirrors .exam-type-card pattern from
+ * exam_type_selector.css) so the three options have an obvious
+ * tap target. Conditional .hidden field groups slide in below.
+ * ============================================================== */
+
+.exam-length-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+}
+
+.exam-length-option {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.exam-length-option:hover {
+    border-color: var(--color-primary);
+}
+
+.exam-length-option input[type="radio"] {
+    margin-top: 0.25rem;
+    flex-shrink: 0;
+}
+
+.exam-length-option-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.exam-length-option-label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.exam-length-option-help {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.exam-length-fields {
+    margin-top: var(--space-md);
+}
+
+.exam-length-fields.hidden {
+    display: none;
+}
+
+.exam-length-range-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
+}
+
+@media (max-width: 720px) {
+    .exam-length-range-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.exam-length-cat-help {
+    margin-top: var(--space-md);
+}

@@ -1,0 +1,398 @@
+/**
+ * Exam Type Selector Styles
+ * Phase 7.2 - Multi-Dimensional Exam Setup
+ * 
+ * Styles for the exam type selection step in the wizard,
+ * allowing users to choose between Simple and Multi-Dimensional exams.
+ */
+
+/* =========================================================================
+   Exam Type Cards Container
+   ========================================================================= */
+
+.exam-type-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+}
+
+/* =========================================================================
+   Individual Type Card
+   ========================================================================= */
+
+.exam-type-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-lg);
+    background: var(--bg-primary);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.exam-type-card:hover {
+    border-color: var(--color-primary-light);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.exam-type-card.selected {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.exam-type-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+}
+
+/* =========================================================================
+   Card Header
+   ========================================================================= */
+
+.card-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-md);
+}
+
+.card-content h3 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.card-content > p {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.card-content .examples {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-bottom: var(--space-md);
+    font-style: italic;
+}
+
+/* =========================================================================
+   Hierarchy Preview (Simple Exam)
+   ========================================================================= */
+
+.hierarchy-preview {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+}
+
+.preview-node {
+    color: var(--text-secondary);
+    white-space: pre;
+}
+
+.preview-node.level-1 {
+    margin-left: 0;
+}
+
+.preview-node.level-2 {
+    margin-left: 0;
+}
+
+.exam-type-card.selected .hierarchy-preview {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* =========================================================================
+   Dimension Preview (Multi-Dimensional Exam)
+   ========================================================================= */
+
+.dimension-preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.preview-dimension {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    border-left: 3px solid var(--color-primary);
+}
+
+.preview-dimension::before {
+    content: '◈';
+    color: var(--color-primary);
+    font-size: 0.8rem;
+}
+
+.exam-type-card.selected .dimension-preview {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.exam-type-card.selected .preview-dimension {
+    background: var(--bg-primary);
+}
+
+/* =========================================================================
+   Learn More Button
+   ========================================================================= */
+
+.btn-learn-more {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    margin-top: auto;
+}
+
+.btn-learn-more:hover {
+    background: var(--bg-secondary);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.btn-learn-more::after {
+    content: '→';
+    font-size: 0.9em;
+}
+
+.exam-type-card.selected .btn-learn-more {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+/* =========================================================================
+   Feature Comparison
+   ========================================================================= */
+
+.exam-type-features {
+    margin-top: var(--space-lg);
+    padding: var(--space-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+}
+
+.exam-type-features h4 {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.feature-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+}
+
+.feature-column h5 {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-sm);
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.feature-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+}
+
+.feature-list li::before {
+    content: '✓';
+    color: var(--color-success);
+    font-weight: var(--font-weight-bold);
+    flex-shrink: 0;
+}
+
+.feature-list.advanced li::before {
+    content: '★';
+    color: var(--color-warning);
+}
+
+/* =========================================================================
+   Learn More Modal
+   ========================================================================= */
+
+.learn-more-modal .modal {
+    max-width: 35rem;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    text-align: left;
+}
+
+.learn-more-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-lg);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.learn-more-modal .modal-header h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+}
+
+.learn-more-modal .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: var(--space-xs);
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.learn-more-modal .modal-close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.learn-more-content {
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+.learn-more-content p {
+    margin-bottom: var(--space-md);
+}
+
+.learn-more-content h4 {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-top: var(--space-lg);
+    margin-bottom: var(--space-sm);
+}
+
+.learn-more-content ul {
+    padding-left: var(--space-lg);
+    margin-bottom: var(--space-md);
+}
+
+.learn-more-content li {
+    margin-bottom: var(--space-xs);
+}
+
+.learn-more-content .example-box {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin: var(--space-md) 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    white-space: pre-line;
+}
+
+.learn-more-content .highlight-box {
+    background: var(--color-primary-bg);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    padding: var(--space-md);
+    margin: var(--space-md) 0;
+}
+
+.learn-more-content .highlight-box strong {
+    color: var(--color-primary);
+}
+
+/* =========================================================================
+   Badge Styles for Exam Type
+   ========================================================================= */
+
+.badge-simple {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.badge-multi {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.badge-advanced {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-xs);
+}
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+@media (max-width: 640px) {
+    .exam-type-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .feature-comparison {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+    
+    .learn-more-modal .modal {
+        width: 95%;
+        padding: var(--space-lg);
+    }
+}

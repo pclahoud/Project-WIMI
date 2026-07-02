@@ -1,0 +1,836 @@
+/**
+ * WIMI Settings Page Styles
+ * Global settings UI with sidebar navigation and form panels
+ *
+ * All spacing, font sizes, and widths use rem so they scale
+ * with the user's global font-size preference on :root.
+ */
+
+/* ============================================
+   1. Settings Layout
+   ============================================ */
+
+.settings-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.settings-container {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    overflow: hidden;
+}
+
+.settings-sidebar {
+    width: 17.5rem;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    padding: 1rem;
+    background: var(--bg-secondary);
+}
+
+.settings-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem 2.5rem;
+}
+
+/* ============================================
+   2. Sidebar Navigation
+   ============================================ */
+
+.settings-nav-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+}
+
+.settings-nav-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.settings-nav-item.active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    font-weight: 600;
+    border-left: 3px solid var(--color-primary);
+}
+
+.nav-icon {
+    font-size: 1.125rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+.nav-label {
+    flex: 1;
+}
+
+/* ============================================
+   3. Preview Warning Banner
+   ============================================ */
+
+.preview-warning {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    display: none;
+}
+
+.preview-warning.visible {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-warning::before {
+    content: "\26A0\FE0F";
+    flex-shrink: 0;
+}
+
+/* ============================================
+   4. Actions Bar
+   ============================================ */
+
+.actions-bar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.actions-left {
+    display: flex;
+    align-items: center;
+}
+
+.actions-right {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+}
+
+.btn-reset {
+    background: none;
+    border: 1px solid var(--color-warning);
+    color: var(--color-warning);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-reset:hover {
+    background: var(--color-warning-bg);
+}
+
+.btn-save {
+    background: var(--color-primary);
+    color: var(--text-inverse, white);
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-save:hover {
+    background: var(--color-primary-hover);
+}
+
+.btn-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-cancel {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-cancel:hover {
+    background: var(--bg-tertiary);
+}
+
+/* ============================================
+   5. Settings Panel
+   ============================================ */
+
+.settings-panel {
+    display: none;
+}
+
+.settings-panel.active {
+    display: block;
+}
+
+.panel-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.panel-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+/* ============================================
+   6. Form Groups
+   ============================================ */
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.375rem;
+}
+
+.field-description {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+    width: 100%;
+    max-width: 20rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    transition: border-color 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    outline: none;
+}
+
+.form-group input[type="checkbox"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.checkbox-group label {
+    display: inline;
+    margin-bottom: 0;
+}
+
+/* ============================================
+   7. Color Picker Group
+   ============================================ */
+
+.color-input-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.color-input-group input[type="color"] {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 2px;
+    cursor: pointer;
+}
+
+.color-hex-input {
+    width: 5.625rem;
+    font-family: monospace;
+}
+
+/* ============================================
+   8. Range Slider
+   ============================================ */
+
+.range-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.range-group input[type="range"] {
+    width: 100%;
+    max-width: 20rem;
+    accent-color: var(--color-primary);
+}
+
+.range-labels {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    max-width: 20rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.range-value {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+/* ============================================
+   8b. Per-Exam Analytics
+   ============================================ */
+
+.settings-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 2rem 0 1.5rem;
+}
+
+.subsection-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.chart-toggle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 25rem;
+}
+
+.chart-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.375rem 0;
+}
+
+.chart-toggle-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    margin-bottom: 0;
+}
+
+.chart-toggle-item input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* ============================================
+   8c. Hotkey Capture
+   ============================================ */
+
+.hotkey-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 20rem;
+}
+
+.hotkey-capture {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: monospace;
+    font-size: var(--font-size-sm);
+    text-align: center;
+    cursor: pointer;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.hotkey-capture:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    outline: none;
+}
+
+.hotkey-capture.recording {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    animation: hotkey-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes hotkey-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+    50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.35); }
+}
+
+.hotkey-clear-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+
+.hotkey-clear-btn:hover {
+    background: var(--color-error-bg, #fef2f2);
+    color: var(--color-error, #dc2626);
+    border-color: var(--color-error, #dc2626);
+}
+
+.hotkey-conflict-warning {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    padding: 0.625rem 0.875rem;
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+    margin-top: 0.5rem;
+    max-width: 20rem;
+}
+
+/* ============================================
+   8d. Addons
+   ============================================ */
+
+.settings-nav-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0.75rem 0.875rem;
+}
+
+.settings-nav-item.plugin-sub-nav {
+    padding-left: 2.5rem;
+    font-size: var(--font-size-xs);
+}
+
+.addon-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.addon-panel-header .panel-title {
+    margin-bottom: 0.25rem;
+}
+
+.addon-panel-header .btn-save {
+    flex-shrink: 0;
+}
+
+.addon-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.625rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-addon-uninstall {
+    background: none;
+    border: 1px solid var(--color-error, #dc2626);
+    color: var(--color-error, #dc2626);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-addon-uninstall:hover {
+    background: var(--color-error, #dc2626);
+    color: var(--text-inverse, white);
+}
+
+.addon-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.addon-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    background: var(--bg-primary);
+}
+
+.addon-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.addon-card-info {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.addon-card-name {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.addon-card-version {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.addon-card-author {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.addon-card-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0.5rem 0 0;
+}
+
+.addon-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.addon-toggle-label input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.addon-permissions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.625rem;
+}
+
+.addon-permission-badge {
+    display: inline-block;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-xl);
+    font-size: 0.6875rem;
+    font-family: monospace;
+}
+
+.addon-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+}
+
+.addon-empty code {
+    background: var(--bg-tertiary);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+}
+
+.plugin-settings-save {
+    margin-top: 1.5rem;
+}
+
+/* ============================================
+   9. Coming Soon Panel
+   ============================================ */
+
+.coming-soon-panel {
+    position: relative;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.coming-soon-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+.coming-soon-badge {
+    display: inline-block;
+    background: var(--color-info-bg);
+    color: var(--color-info);
+    padding: 0.25rem 0.625rem;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
+.coming-soon-control[title] {
+    cursor: help;
+}
+
+/* ============================================
+   10. Toast Notification
+   ============================================ */
+
+.settings-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    z-index: 1000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    box-shadow: var(--shadow-lg);
+}
+
+.settings-toast.visible {
+    transform: translateX(0);
+}
+
+.settings-toast.success {
+    background: var(--color-success);
+    color: var(--text-inverse, white);
+}
+
+.settings-toast.error {
+    background: var(--color-error);
+    color: var(--text-inverse, white);
+}
+
+.settings-toast.info {
+    background: var(--color-info);
+    color: var(--text-inverse, white);
+}
+
+/* ============================================
+   11. Responsive (< 1024px)
+   ============================================ */
+
+@media (max-width: 1024px) {
+    .settings-container {
+        flex-direction: column;
+    }
+
+    .settings-sidebar {
+        flex-direction: row;
+        width: 100%;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0.5rem;
+        display: flex;
+    }
+
+    .settings-nav-item {
+        white-space: nowrap;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .settings-nav-item.active {
+        border-left: none;
+        border-bottom: 3px solid var(--color-primary);
+    }
+}
+
+/* ============================================
+   MCP Server Status Indicator
+   ============================================ */
+
+.mcp-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.mcp-status-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.mcp-status-dot.stopped {
+    background-color: var(--color-text-tertiary, #999);
+}
+
+.mcp-status-dot.running {
+    background-color: #4caf50;
+    box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+}
+
+.mcp-status-dot.error {
+    background-color: #f44336;
+}
+
+.mcp-status-text {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.mcp-connection-url code {
+    background: var(--color-surface-alt, #f5f5f5);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    user-select: all;
+}
+
+.mcp-connect-instructions {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border, #e0e0e0);
+}
+
+.mcp-connect-instructions > label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.mcp-config-block {
+    margin-top: 0.75rem;
+    border: 1px solid var(--color-border, #e0e0e0);
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+.mcp-config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    background: var(--color-surface-alt, #f5f5f5);
+    border-bottom: 1px solid var(--color-border, #e0e0e0);
+}
+
+.mcp-config-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+}
+
+.mcp-copy-btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-border, #ccc);
+    border-radius: 0.25rem;
+    background: var(--color-surface, #fff);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.mcp-copy-btn:hover {
+    background: var(--color-primary, #2196F3);
+    color: var(--text-inverse, #fff);
+    border-color: var(--color-primary, #2196F3);
+}
+
+.mcp-copy-btn.copied {
+    background: #4caf50;
+    color: var(--text-inverse, #fff);
+    border-color: #4caf50;
+}
+
+.mcp-config-code {
+    margin: 0;
+    padding: 0.75rem;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+    background: var(--color-surface, #fff);
+    color: var(--color-text-primary);
+}

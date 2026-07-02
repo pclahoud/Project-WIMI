@@ -1,0 +1,2 @@
+id,user_id,database_filename,current_schema_version,last_migration_applied,migration_history,needs_migration,migration_backup_created,last_migration_check,created_at
+1,1,user_001_demo_user.db,1.0.0,,,0,0,2026-01-19 22:52:20,2026-01-19 22:52:20

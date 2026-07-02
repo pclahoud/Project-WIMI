@@ -1,0 +1,1 @@
+id,power_user_id,child_user_id,relationship_status,permissions_granted,relationship_label,established_at,last_interaction_at,revocation_requested_by,revocation_requested_at,both_parties_agree_revocation,is_active

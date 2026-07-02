@@ -1,0 +1,253 @@
+{
+  "$schema": "https://wimi.app/schemas/subject-tree-import-v1.json",
+  "_documentation": {
+    "description": "Sample subject tree import file for WIMI (What I Missed It)",
+    "version": "1.0",
+    "notes": [
+      "This file demonstrates the structure for importing exam subject hierarchies",
+      "Remove this _documentation section before importing",
+      "All weight values are percentages (0-100)",
+      "weight_source can be: 'official', 'derived', 'user_estimate', or 'user_defined'",
+      "Official weights should have weight_locked: true to prevent accidental edits",
+      "For weight ranges use: { 'low': 11, 'high': 15 }",
+      "For single values use: { 'value': 50 } or just { 'low': 50 } (high defaults to low)"
+    ]
+  },
+
+  "exam_context": {
+    "name": "USMLE Step 1",
+    "description": "United States Medical Licensing Examination Step 1",
+    "source": {
+      "name": "NBME Content Outline 2024",
+      "url": "https://www.usmle.org/prepare-your-exam/step-1-materials/step-1-content-outline",
+      "retrieved_date": "2024-12-01"
+    }
+  },
+
+  "subjects": [
+    {
+      "name": "Gastrointestinal System",
+      "level_type": "System",
+      "weight": {
+        "low": 11,
+        "high": 15,
+        "source": "official",
+        "locked": true
+      },
+      "children": [
+        {
+          "name": "Anatomy",
+          "level_type": "Category",
+          "weight": {
+            "relative": 20,
+            "source": "user_estimate",
+            "locked": false
+          },
+          "children": [
+            {
+              "name": "Gross Anatomy",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Histology",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Embryology",
+              "level_type": "Topic"
+            }
+          ]
+        },
+        {
+          "name": "Physiology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 25,
+            "source": "user_estimate",
+            "locked": false
+          },
+          "children": [
+            {
+              "name": "Motility",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Secretion",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Digestion & Absorption",
+              "level_type": "Topic"
+            }
+          ]
+        },
+        {
+          "name": "Pathology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 35,
+            "source": "user_estimate",
+            "locked": false
+          },
+          "children": [
+            {
+              "name": "Inflammatory Conditions",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Neoplasms",
+              "level_type": "Topic"
+            },
+            {
+              "name": "Liver Diseases",
+              "level_type": "Topic"
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 20,
+            "source": "user_estimate",
+            "locked": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cardiovascular System",
+      "level_type": "System",
+      "weight": {
+        "low": 11,
+        "high": 15,
+        "source": "official",
+        "locked": true
+      },
+      "children": [
+        {
+          "name": "Anatomy",
+          "level_type": "Category",
+          "weight": {
+            "relative": 15,
+            "source": "user_estimate"
+          }
+        },
+        {
+          "name": "Physiology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 30,
+            "source": "user_estimate"
+          }
+        },
+        {
+          "name": "Pathology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 35,
+            "source": "user_estimate"
+          }
+        },
+        {
+          "name": "Pharmacology",
+          "level_type": "Category",
+          "weight": {
+            "relative": 20,
+            "source": "user_estimate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Respiratory System",
+      "level_type": "System",
+      "weight": {
+        "low": 11,
+        "high": 15,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Renal System",
+      "level_type": "System",
+      "weight": {
+        "low": 9,
+        "high": 13,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Endocrine System",
+      "level_type": "System",
+      "weight": {
+        "low": 8,
+        "high": 12,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Reproductive System",
+      "level_type": "System",
+      "weight": {
+        "low": 8,
+        "high": 12,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Musculoskeletal System",
+      "level_type": "System",
+      "weight": {
+        "low": 8,
+        "high": 12,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Nervous System & Special Senses",
+      "level_type": "System",
+      "weight": {
+        "low": 13,
+        "high": 17,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Skin & Subcutaneous Tissue",
+      "level_type": "System",
+      "weight": {
+        "low": 3,
+        "high": 7,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Blood & Lymphoreticular System",
+      "level_type": "System",
+      "weight": {
+        "low": 7,
+        "high": 11,
+        "source": "official",
+        "locked": true
+      }
+    },
+    {
+      "name": "Behavioral Health",
+      "level_type": "System",
+      "weight": {
+        "low": 6,
+        "high": 10,
+        "source": "official",
+        "locked": true
+      }
+    }
+  ]
+}

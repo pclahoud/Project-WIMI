@@ -1,0 +1,367 @@
+{
+  "exam_metadata": {
+    "exam_name": "USMLE Step 1",
+    "exam_code": "USMLE-1",
+    "exam_source": "USMLE Content Outline 2025",
+    "source_document": "USMLE_Content_Outline_0.pdf",
+    "hierarchy_levels": ["System", "Category", "Subcategory", "Topic", "Subtopic"],
+    "notes": "Cardiovascular System section only - test import"
+  },
+  "root_nodes": [
+    {
+      "name": "Cardiovascular System",
+      "level_type": "System",
+      "sort_order": 1,
+      "aliases": ["CV", "Cardio", "Heart"],
+      "children": [
+        {
+          "name": "Infectious, immunologic, and inflammatory disorders",
+          "level_type": "Category",
+          "sort_order": 1,
+          "children": [
+            {
+              "name": "Infectious disorders",
+              "level_type": "Subcategory",
+              "sort_order": 1,
+              "children": [
+                {"name": "Bacterial endocarditis", "level_type": "Topic", "sort_order": 1, "aliases": ["IE", "Infective endocarditis"]},
+                {"name": "Myocarditis", "level_type": "Topic", "sort_order": 2}
+              ]
+            },
+            {
+              "name": "Immunologic and inflammatory disorders",
+              "level_type": "Subcategory",
+              "sort_order": 2,
+              "children": [
+                {"name": "Atherosclerosis", "level_type": "Topic", "sort_order": 1, "aliases": ["ASCVD"]},
+                {"name": "Atherosclerosis of the aorta", "level_type": "Topic", "sort_order": 2}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Neoplasms",
+          "level_type": "Category",
+          "sort_order": 2,
+          "children": [
+            {"name": "Myxoma", "level_type": "Subcategory", "sort_order": 1, "aliases": ["Atrial myxoma"]},
+            {"name": "Metastases", "level_type": "Subcategory", "sort_order": 2, "aliases": ["Cardiac metastases"]}
+          ]
+        },
+        {
+          "name": "Dysrhythmias",
+          "level_type": "Category",
+          "sort_order": 3,
+          "aliases": ["Arrhythmias", "Cardiac arrhythmias"],
+          "children": [
+            {"name": "Premature beats (PACs, PVCs)", "level_type": "Subcategory", "sort_order": 1, "aliases": ["PAC", "PVC", "Premature atrial contractions", "Premature ventricular contractions"]},
+            {"name": "Atrial flutter/fibrillation", "level_type": "Subcategory", "sort_order": 2, "aliases": ["AFib", "AFlutter", "AF"]},
+            {"name": "Multifocal atrial tachycardia", "level_type": "Subcategory", "sort_order": 3, "aliases": ["MAT"]},
+            {"name": "Paroxysmal tachycardias", "level_type": "Subcategory", "sort_order": 4, "aliases": ["PSVT", "SVT"]},
+            {"name": "Ventricular tachycardia/fibrillation", "level_type": "Subcategory", "sort_order": 5, "aliases": ["VT", "VFib", "V-tach", "V-fib"]},
+            {"name": "Wide complex tachycardia", "level_type": "Subcategory", "sort_order": 6, "aliases": ["WCT"]},
+            {"name": "Torsades de pointes", "level_type": "Subcategory", "sort_order": 7, "aliases": ["TdP"]},
+            {"name": "Bradycardias", "level_type": "Subcategory", "sort_order": 8},
+            {
+              "name": "Atrioventricular block",
+              "level_type": "Subcategory",
+              "sort_order": 9,
+              "aliases": ["AV block", "Heart block"],
+              "children": [
+                {"name": "First-degree AV block", "level_type": "Topic", "sort_order": 1, "aliases": ["1st degree block"]},
+                {"name": "Second-degree AV block", "level_type": "Topic", "sort_order": 2, "aliases": ["2nd degree block", "Mobitz I", "Mobitz II", "Wenckebach"]},
+                {"name": "Third-degree AV block", "level_type": "Topic", "sort_order": 3, "aliases": ["3rd degree block", "Complete heart block"]}
+              ]
+            },
+            {
+              "name": "Conduction disorder",
+              "level_type": "Subcategory",
+              "sort_order": 10,
+              "children": [
+                {"name": "Left bundle branch block", "level_type": "Topic", "sort_order": 1, "aliases": ["LBBB"]},
+                {"name": "Right bundle branch block", "level_type": "Topic", "sort_order": 2, "aliases": ["RBBB"]}
+              ]
+            },
+            {"name": "Cardiac arrest", "level_type": "Subcategory", "sort_order": 11, "aliases": ["SCA", "Sudden cardiac arrest"]},
+            {"name": "Sick sinus syndrome", "level_type": "Subcategory", "sort_order": 12, "aliases": ["SSS"]},
+            {"name": "Prolonged QT syndrome", "level_type": "Subcategory", "sort_order": 13, "aliases": ["Long QT", "LQTS"]},
+            {"name": "Wolff-Parkinson-White syndrome", "level_type": "Subcategory", "sort_order": 14, "aliases": ["WPW"]},
+            {"name": "Carotid sinus hypersensitivity", "level_type": "Subcategory", "sort_order": 15},
+            {
+              "name": "Pacemaker dysfunction",
+              "level_type": "Subcategory",
+              "sort_order": 16,
+              "children": [
+                {"name": "Failure to sense", "level_type": "Topic", "sort_order": 1},
+                {"name": "Failure to capture", "level_type": "Topic", "sort_order": 2}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Heart failure",
+          "level_type": "Category",
+          "sort_order": 4,
+          "aliases": ["HF", "CHF"],
+          "children": [
+            {"name": "Chordae tendineae rupture", "level_type": "Subcategory", "sort_order": 1},
+            {"name": "Congestive heart failure", "level_type": "Subcategory", "sort_order": 2, "aliases": ["CHF"]},
+            {"name": "Cor pulmonale", "level_type": "Subcategory", "sort_order": 3},
+            {"name": "Diastolic dysfunction", "level_type": "Subcategory", "sort_order": 4, "aliases": ["HFpEF"]},
+            {"name": "Systolic dysfunction", "level_type": "Subcategory", "sort_order": 5, "aliases": ["HFrEF"]},
+            {"name": "Mitral valve dysfunction", "level_type": "Subcategory", "sort_order": 6},
+            {"name": "Heart failure secondary to myocardial infarction", "level_type": "Subcategory", "sort_order": 7},
+            {
+              "name": "High-output heart failure",
+              "level_type": "Subcategory",
+              "sort_order": 8,
+              "children": [
+                {"name": "Thyrotoxicosis-induced", "level_type": "Topic", "sort_order": 1},
+                {"name": "Anemia-induced", "level_type": "Topic", "sort_order": 2},
+                {"name": "Tachycardia-induced", "level_type": "Topic", "sort_order": 3}
+              ]
+            },
+            {"name": "Cardiogenic pulmonary edema", "level_type": "Subcategory", "sort_order": 9}
+          ]
+        },
+        {
+          "name": "Ischemic heart disease",
+          "level_type": "Category",
+          "sort_order": 5,
+          "aliases": ["IHD", "CAD", "Coronary artery disease"],
+          "children": [
+            {"name": "Acute coronary syndrome", "level_type": "Subcategory", "sort_order": 1, "aliases": ["ACS"]},
+            {"name": "Acute myocardial infarction", "level_type": "Subcategory", "sort_order": 2, "aliases": ["AMI", "MI", "Heart attack", "STEMI", "NSTEMI"]},
+            {"name": "Angina pectoris, stable and unstable", "level_type": "Subcategory", "sort_order": 3, "aliases": ["Angina"]},
+            {"name": "Coronary artery disease/coronary insufficiency", "level_type": "Subcategory", "sort_order": 4, "aliases": ["CAD"]},
+            {"name": "Coronary artery spasm", "level_type": "Subcategory", "sort_order": 5, "aliases": ["Prinzmetal angina", "Variant angina"]}
+          ]
+        },
+        {
+          "name": "Diseases of the myocardium",
+          "level_type": "Category",
+          "sort_order": 6,
+          "children": [
+            {
+              "name": "Cardiomyopathy, dilated",
+              "level_type": "Subcategory",
+              "sort_order": 1,
+              "aliases": ["DCM"],
+              "children": [
+                {"name": "Alcoholic cardiomyopathy", "level_type": "Topic", "sort_order": 1},
+                {"name": "Viral cardiomyopathy", "level_type": "Topic", "sort_order": 2},
+                {"name": "Takotsubo cardiomyopathy", "level_type": "Topic", "sort_order": 3, "aliases": ["Broken heart syndrome", "Stress cardiomyopathy"]}
+              ]
+            },
+            {"name": "Cardiomyopathy, obstructive hypertrophic", "level_type": "Subcategory", "sort_order": 2, "aliases": ["HCM", "HOCM"]},
+            {"name": "Cardiomyopathy, familial dilated", "level_type": "Subcategory", "sort_order": 3},
+            {"name": "Cardiomyopathy, restrictive", "level_type": "Subcategory", "sort_order": 4, "aliases": ["RCM"]},
+            {
+              "name": "Hypertensive heart disease",
+              "level_type": "Subcategory",
+              "sort_order": 5,
+              "children": [
+                {"name": "Left ventricular hypertrophy", "level_type": "Topic", "sort_order": 1, "aliases": ["LVH"]},
+                {"name": "Right ventricular hypertrophy", "level_type": "Topic", "sort_order": 2, "aliases": ["RVH"]}
+              ]
+            },
+            {
+              "name": "Complications of myocardial infarction",
+              "level_type": "Subcategory",
+              "sort_order": 6,
+              "children": [
+                {"name": "Nontraumatic tamponade post-MI", "level_type": "Topic", "sort_order": 1},
+                {"name": "Papillary muscle rupture/dysfunction", "level_type": "Topic", "sort_order": 2},
+                {"name": "Ventricular free wall rupture", "level_type": "Topic", "sort_order": 3}
+              ]
+            },
+            {"name": "Myocarditis", "level_type": "Subcategory", "sort_order": 7}
+          ]
+        },
+        {
+          "name": "Diseases of the pericardium",
+          "level_type": "Category",
+          "sort_order": 7,
+          "children": [
+            {"name": "Chronic constrictive pericarditis", "level_type": "Subcategory", "sort_order": 1},
+            {"name": "Pericardial effusion", "level_type": "Subcategory", "sort_order": 2},
+            {"name": "Pericardial tamponade", "level_type": "Subcategory", "sort_order": 3, "aliases": ["Cardiac tamponade"]},
+            {"name": "Acute pericarditis", "level_type": "Subcategory", "sort_order": 4},
+            {
+              "name": "Pericarditis, secondary",
+              "level_type": "Subcategory",
+              "sort_order": 5,
+              "children": [
+                {"name": "Post-myocardial infarction pericarditis", "level_type": "Topic", "sort_order": 1, "aliases": ["Dressler syndrome"]},
+                {"name": "Post-surgical pericarditis", "level_type": "Topic", "sort_order": 2},
+                {"name": "Post-traumatic pericarditis", "level_type": "Topic", "sort_order": 3}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Valvular heart disease",
+          "level_type": "Category",
+          "sort_order": 8,
+          "aliases": ["VHD"],
+          "children": [
+            {
+              "name": "Valve disorders",
+              "level_type": "Subcategory",
+              "sort_order": 1,
+              "children": [
+                {"name": "Mitral valve disorders", "level_type": "Topic", "sort_order": 1, "aliases": ["MR", "MS", "MVP"]},
+                {"name": "Aortic valve disorders", "level_type": "Topic", "sort_order": 2, "aliases": ["AR", "AS"]},
+                {"name": "Tricuspid valve disorders", "level_type": "Topic", "sort_order": 3, "aliases": ["TR", "TS"]},
+                {"name": "Pulmonic valve disorders", "level_type": "Topic", "sort_order": 4, "aliases": ["PR", "PS"]}
+              ]
+            },
+            {"name": "Functional murmurs", "level_type": "Subcategory", "sort_order": 2, "aliases": ["Innocent murmurs", "Flow murmurs"]},
+            {"name": "Rheumatic heart disease", "level_type": "Subcategory", "sort_order": 3, "aliases": ["RHD"]},
+            {"name": "Complications of artificial valves", "level_type": "Subcategory", "sort_order": 4, "aliases": ["Prosthetic valve complications"]}
+          ]
+        },
+        {
+          "name": "Hypotension",
+          "level_type": "Category",
+          "sort_order": 9,
+          "children": [
+            {"name": "Orthostatic hypotension", "level_type": "Subcategory", "sort_order": 1, "aliases": ["Postural hypotension"]}
+          ]
+        },
+        {
+          "name": "Hypertension",
+          "level_type": "Category",
+          "sort_order": 10,
+          "aliases": ["HTN", "High blood pressure"],
+          "children": [
+            {"name": "Elevated blood pressure reading without diagnosis", "level_type": "Subcategory", "sort_order": 1},
+            {"name": "Essential hypertension", "level_type": "Subcategory", "sort_order": 2, "aliases": ["Primary hypertension"]},
+            {"name": "Hypertensive emergency", "level_type": "Subcategory", "sort_order": 3, "aliases": ["Hypertensive crisis"]},
+            {"name": "Secondary hypertension", "level_type": "Subcategory", "sort_order": 4}
+          ]
+        },
+        {
+          "name": "Dyslipidemia",
+          "level_type": "Category",
+          "sort_order": 11,
+          "children": [
+            {"name": "Hypercholesterolemia", "level_type": "Subcategory", "sort_order": 1, "aliases": ["High cholesterol"]},
+            {"name": "Hyperlipidemia", "level_type": "Subcategory", "sort_order": 2, "aliases": ["HLD"]},
+            {"name": "Hypertriglyceridemia", "level_type": "Subcategory", "sort_order": 3, "aliases": ["High triglycerides"]},
+            {"name": "Lipoproteins/lipoprotein lipase deficiency", "level_type": "Subcategory", "sort_order": 4}
+          ]
+        },
+        {
+          "name": "Vascular disorders",
+          "level_type": "Category",
+          "sort_order": 12,
+          "children": [
+            {
+              "name": "Disorders of the great vessels",
+              "level_type": "Subcategory",
+              "sort_order": 1,
+              "children": [
+                {"name": "Aneurysm, aortic (abdominal/thoracic)", "level_type": "Topic", "sort_order": 1, "aliases": ["AAA", "TAA"]},
+                {"name": "Aortic dissection", "level_type": "Topic", "sort_order": 2},
+                {"name": "Ruptured aortic aneurysm", "level_type": "Topic", "sort_order": 3},
+                {"name": "Aneurysm, iliac", "level_type": "Topic", "sort_order": 4},
+                {"name": "Other peripheral vascular aneurysm", "level_type": "Topic", "sort_order": 5},
+                {"name": "Aortoiliac disease", "level_type": "Topic", "sort_order": 6}
+              ]
+            },
+            {
+              "name": "Peripheral arterial vascular disease",
+              "level_type": "Subcategory",
+              "sort_order": 2,
+              "aliases": ["PAD", "PVD"],
+              "children": [
+                {"name": "Arterial embolus/thrombosis", "level_type": "Topic", "sort_order": 1},
+                {"name": "Arteriovenous fistula", "level_type": "Topic", "sort_order": 2, "aliases": ["AVF"]},
+                {"name": "Atheroembolic disease", "level_type": "Topic", "sort_order": 3},
+                {"name": "Claudication", "level_type": "Topic", "sort_order": 4, "aliases": ["Intermittent claudication"]},
+                {"name": "Cholesterol emboli", "level_type": "Topic", "sort_order": 5},
+                {"name": "Hypertensive vascular disease", "level_type": "Topic", "sort_order": 6},
+                {"name": "Peripheral arterial disease", "level_type": "Topic", "sort_order": 7, "aliases": ["PAD"]},
+                {"name": "Thromboangiitis obliterans", "level_type": "Topic", "sort_order": 8, "aliases": ["Buerger disease"]}
+              ]
+            },
+            {
+              "name": "Diseases of the veins",
+              "level_type": "Subcategory",
+              "sort_order": 3,
+              "children": [
+                {"name": "Deep venous thrombosis", "level_type": "Topic", "sort_order": 1, "aliases": ["DVT"]},
+                {"name": "Venous thromboembolism", "level_type": "Topic", "sort_order": 2, "aliases": ["VTE"]},
+                {"name": "Phlebitis/thrombophlebitis", "level_type": "Topic", "sort_order": 3},
+                {"name": "Varicose veins", "level_type": "Topic", "sort_order": 4},
+                {"name": "Venous insufficiency", "level_type": "Topic", "sort_order": 5, "aliases": ["CVI", "Chronic venous insufficiency"]},
+                {"name": "Stasis ulcers", "level_type": "Topic", "sort_order": 6, "aliases": ["Venous stasis ulcers"]},
+                {"name": "Stasis dermatitis", "level_type": "Topic", "sort_order": 7}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Traumatic and mechanical disorders",
+          "level_type": "Category",
+          "sort_order": 13,
+          "children": [
+            {"name": "Ventricular puncture", "level_type": "Subcategory", "sort_order": 1},
+            {"name": "Myocardial contusion", "level_type": "Subcategory", "sort_order": 2},
+            {"name": "Myocardial rupture", "level_type": "Subcategory", "sort_order": 3},
+            {"name": "Traumatic aortic dissection", "level_type": "Subcategory", "sort_order": 4},
+            {"name": "Traumatic tamponade", "level_type": "Subcategory", "sort_order": 5}
+          ]
+        },
+        {
+          "name": "Congenital disorders",
+          "level_type": "Category",
+          "sort_order": 14,
+          "aliases": ["Congenital heart disease", "CHD"],
+          "children": [
+            {"name": "Anomalous left coronary artery", "level_type": "Subcategory", "sort_order": 1, "aliases": ["ALCAPA"]},
+            {"name": "Atrial septal defect", "level_type": "Subcategory", "sort_order": 2, "aliases": ["ASD"]},
+            {"name": "Coarctation of the aorta", "level_type": "Subcategory", "sort_order": 3, "aliases": ["CoA"]},
+            {"name": "Endocardial cushion defect", "level_type": "Subcategory", "sort_order": 4, "aliases": ["AV canal defect"]},
+            {"name": "Patent foramen ovale", "level_type": "Subcategory", "sort_order": 5, "aliases": ["PFO"]},
+            {"name": "Patent ductus arteriosus", "level_type": "Subcategory", "sort_order": 6, "aliases": ["PDA"]},
+            {"name": "Tetralogy of Fallot", "level_type": "Subcategory", "sort_order": 7, "aliases": ["TOF"]},
+            {"name": "Transposition of the great vessels", "level_type": "Subcategory", "sort_order": 8, "aliases": ["TGA", "d-TGA"]},
+            {"name": "Ventricular septal defect", "level_type": "Subcategory", "sort_order": 9, "aliases": ["VSD"]}
+          ]
+        },
+        {
+          "name": "Adverse effects of drugs on the cardiovascular system",
+          "level_type": "Category",
+          "sort_order": 15,
+          "aliases": ["Drug-induced cardiovascular effects"],
+          "children": [
+            {"name": "Adriamycin cardiotoxicity", "level_type": "Subcategory", "sort_order": 1, "aliases": ["Doxorubicin cardiotoxicity"]},
+            {
+              "name": "Stimulant cardiotoxicity",
+              "level_type": "Subcategory",
+              "sort_order": 2,
+              "children": [
+                {"name": "Cocaine cardiotoxicity", "level_type": "Topic", "sort_order": 1},
+                {"name": "Amphetamine cardiotoxicity", "level_type": "Topic", "sort_order": 2},
+                {"name": "PCP cardiotoxicity", "level_type": "Topic", "sort_order": 3}
+              ]
+            },
+            {
+              "name": "Antihypertensive adverse effects",
+              "level_type": "Subcategory",
+              "sort_order": 3,
+              "children": [
+                {"name": "ACE inhibitor adverse effects", "level_type": "Topic", "sort_order": 1, "aliases": ["ACEI side effects"]},
+                {"name": "Calcium channel blocker adverse effects", "level_type": "Topic", "sort_order": 2, "aliases": ["CCB side effects"]},
+                {"name": "Alpha blocker adverse effects", "level_type": "Topic", "sort_order": 3},
+                {"name": "Minoxidil adverse effects", "level_type": "Topic", "sort_order": 4}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entry Detail - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/detail.css">
+    <link rel="stylesheet" href="../css/rich_content.css">
+    <link rel="stylesheet" href="../css/toast.css">
+    <link rel="stylesheet" href="../css/export_dialog.css">
+    <link rel="stylesheet" href="../lib/katex/katex.min.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../lib/katex/katex.min.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+    <script src="../js/export_dialog.js"></script>
+</head>
+<body>
+    <div class="detail-page">
+        <!-- Header -->
+        <header class="detail-header">
+            <div class="header-left">
+                <a href="#" class="back-link" id="back-link" data-testid="detail-back-link">
+                    <span class="back-arrow">←</span>
+                    <span>Back to Entries</span>
+                </a>
+            </div>
+            <div class="header-center">
+                <!-- Entry Navigation -->
+                <div class="entry-navigation" style="display: none;">
+                    <button id="prev-entry-btn" class="nav-btn" title="Previous entry (Left Arrow)" data-testid="detail-prev-entry-button">
+                        <span class="nav-arrow">←</span>
+                        <span class="nav-text">Previous</span>
+                    </button>
+                    <span id="position-indicator" class="position-indicator">1 of 10</span>
+                    <button id="next-entry-btn" class="nav-btn" title="Next entry (Right Arrow)" data-testid="detail-next-entry-button">
+                        <span class="nav-text">Next</span>
+                        <span class="nav-arrow">→</span>
+                    </button>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="export-actions" id="export-actions" style="display: none;">
+                    <button class="btn btn-secondary" id="export-btn" data-testid="detail-export-button">
+                        Export IDs
+                    </button>
+                    <div class="export-dropdown-menu" id="export-dropdown-menu" data-testid="detail-export-dropdown-menu">
+                        <button class="export-dropdown-item" id="export-copy-this" data-testid="detail-export-copy-id">Copy This ID</button>
+                        <button class="export-dropdown-item" id="export-session-ids" data-testid="detail-export-session-ids">Export Session IDs</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="edit-btn" data-testid="detail-edit-button">
+                    <span class="btn-icon">✏️</span>
+                    Edit Entry
+                </button>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div class="loading-container" id="loading-state" data-testid="detail-loading-state">
+            <div class="spinner"></div>
+            <p>Loading entry...</p>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-container" id="error-state" style="display: none;" data-testid="detail-error-state">
+            <div class="error-icon">⚠️</div>
+            <h2>Failed to Load Entry</h2>
+            <p id="error-message">An error occurred while loading the entry.</p>
+            <button class="btn btn-secondary" onclick="location.reload()">Try Again</button>
+        </div>
+
+        <!-- Main Content -->
+        <main class="detail-content" id="main-content" style="display: none;" data-testid="detail-main-content">
+            <!-- Entry Header Section -->
+            <section class="entry-header-section">
+                <div class="entry-title-row">
+                    <div class="subject-path" id="subject-path" data-testid="detail-subject-path">
+                        <!-- Subject breadcrumb will be inserted here -->
+                    </div>
+                    <div class="difficulty-badge-container">
+                        <span class="difficulty-badge" id="difficulty-badge" data-testid="detail-difficulty-badge">Hard</span>
+                    </div>
+                </div>
+
+                <div class="entry-meta-row">
+                    <span class="meta-item" id="source-name" data-testid="detail-meta-source">
+                        <span class="meta-icon">📚</span>
+                        <span class="meta-text">UWorld Block 5</span>
+                    </span>
+                    <span class="meta-separator">•</span>
+                    <span class="meta-item" id="entry-date" data-testid="detail-meta-date">
+                        <span class="meta-icon">📅</span>
+                        <span class="meta-text">Dec 27, 2025</span>
+                    </span>
+                    <span class="meta-separator">•</span>
+                    <span class="meta-item" id="question-id" data-testid="detail-meta-question-id">
+                        <span class="meta-icon">📝</span>
+                        <span class="meta-text">Q #142</span>
+                    </span>
+                    <span class="meta-separator" id="time-separator">•</span>
+                    <span class="meta-item" id="time-spent" data-testid="detail-meta-time-spent">
+                        <span class="meta-icon">⏱️</span>
+                        <span class="meta-text">2m 30s</span>
+                    </span>
+                </div>
+
+                <div class="tags-row" id="tags-container" data-testid="detail-tags-container">
+                    <!-- Tags will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Answers Section -->
+            <section class="answers-section">
+                <div class="answer-card answer-wrong" data-testid="detail-user-answer-card">
+                    <div class="answer-label">
+                        <span class="answer-icon">✗</span>
+                        YOUR ANSWER
+                    </div>
+                    <div class="answer-text" id="user-answer">
+                        B. Angiotensin receptor blocker
+                    </div>
+                </div>
+
+                <div class="answer-card answer-correct" data-testid="detail-correct-answer-card">
+                    <div class="answer-label">
+                        <span class="answer-icon">✓</span>
+                        CORRECT ANSWER
+                    </div>
+                    <div class="answer-text" id="correct-answer">
+                        A. ACE inhibitor
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reflection Section -->
+            <section class="content-section">
+                <h3 class="section-title">REFLECTION</h3>
+                <div class="section-content" id="reflection-content" data-testid="detail-reflection-content">
+                    I confused the mechanism of action between ACE inhibitors and ARBs. I knew that both affect the renin-angiotensin system, but I mixed up which one blocks the receptor vs. which one inhibits the enzyme. I need to create a clear mental model distinguishing these two drug classes.
+                </div>
+            </section>
+
+            <!-- Explanation Section -->
+            <section class="content-section">
+                <h3 class="section-title">EXPLANATION</h3>
+                <div class="section-content" id="explanation-content" data-testid="detail-explanation-content">
+                    ACE inhibitors (like lisinopril) block angiotensin-converting enzyme, preventing conversion of angiotensin I to angiotensin II. ARBs (like losartan) block the AT1 receptor where angiotensin II acts. Key mnemonic: ACE = Enzyme, ARB = Receptor Blocker. Both reduce BP but via different mechanisms.
+                </div>
+            </section>
+
+            <!-- Attachments and Notes Row -->
+            <section class="attachments-notes-section">
+                <div class="attachments-panel">
+                    <h3 class="section-title">ATTACHMENTS (<span id="attachment-count">0</span>)</h3>
+                    <div class="attachments-grid" id="attachments-grid" data-testid="detail-attachments-grid">
+                        <!-- Attachment thumbnails will be inserted here -->
+                    </div>
+                    <div class="no-attachments" id="no-attachments" style="display: none;">
+                        No attachments
+                    </div>
+                </div>
+                
+                <div class="notes-panel">
+                    <h3 class="section-title">
+                        QUESTION NOTES
+                        <span class="notes-count" id="notes-count"></span>
+                    </h3>
+                    <div class="notes-tabs" id="notes-tabs"></div>
+                    <div class="notes-tab-content" id="notes-tab-content" data-testid="detail-notes-tab-content"></div>
+                    <div class="notes-content" id="notes-content" style="display: none;"></div>
+                    <div class="no-notes" id="no-notes" style="display: none;">
+                        No notes added
+                    </div>
+                </div>
+            </section>
+
+            <!-- Related Topics Section -->
+            <section class="related-topics-section">
+                <h3 class="section-title">
+                    <span class="title-icon">💡</span>
+                    RELATED TOPICS TO REVIEW
+                </h3>
+                <div class="related-topics-grid" id="related-topics-grid" data-testid="detail-related-topics-grid">
+                    <!-- Related topics will be inserted here -->
+                </div>
+                <div class="no-related-topics" id="no-related-topics" style="display: none;">
+                    No related topics found
+                </div>
+            </section>
+
+            <div data-plugin-slot="detail-after-content"></div>
+        </main>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div class="lightbox-modal" id="lightbox-modal" data-testid="detail-lightbox-modal">
+        <div class="lightbox-backdrop" data-testid="detail-lightbox-backdrop"></div>
+        <div class="lightbox-content">
+            <button class="lightbox-close" id="lightbox-close" data-testid="detail-lightbox-close">×</button>
+            <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous image" data-testid="detail-lightbox-prev">‹</button>
+            <img class="lightbox-image" id="lightbox-image" src="" alt="Attachment">
+            <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next image" data-testid="detail-lightbox-next">›</button>
+            <div class="lightbox-caption" id="lightbox-caption"></div>
+        </div>
+    </div>
+
+    <script src="../js/toast.js"></script>
+    <script src="../js/rich_content_renderer.js"></script>
+    <script src="../js/entry_detail.js"></script>
+</body>
+</html>

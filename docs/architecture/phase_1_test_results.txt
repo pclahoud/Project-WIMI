@@ -1,0 +1,46 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\path\to\Project_WIMI_Dev
+configfile: pytest.ini
+plugins: anyio-4.9.0, langsmith-0.4.5, cov-7.0.0
+collecting ... collected 18 items
+
+tests/database/test_user_db_phase1.py::TestUserPreferences::test_default_preferences_created PASSED [  5%]
+tests/database/test_user_db_phase1.py::TestUserPreferences::test_update_preferences PASSED [ 11%]
+tests/database/test_user_db_phase1.py::TestUserPreferences::test_preference_validation PASSED [ 16%]
+tests/database/test_user_db_phase1.py::TestSubjectHierarchy::test_create_subject_node PASSED [ 22%]
+tests/database/test_user_db_phase1.py::TestSubjectHierarchy::test_create_hierarchy PASSED [ 27%]
+tests/database/test_user_db_phase1.py::TestSubjectHierarchy::test_duplicate_node_error PASSED [ 33%]
+tests/database/test_user_db_phase1.py::TestSubjectHierarchy::test_update_weights PASSED [ 38%]
+tests/database/test_user_db_phase1.py::TestQuestionAnalysis::test_create_question_analysis PASSED [ 44%]
+tests/database/test_user_db_phase1.py::TestQuestionAnalysis::test_metacognitive_reflection PASSED [ 50%]
+tests/database/test_user_db_phase1.py::TestQuestionAnalysis::test_invalid_mistake_category PASSED [ 55%]
+tests/database/test_user_db_phase1.py::TestQuestionAnalysis::test_assign_to_topics PASSED [ 61%]
+tests/database/test_user_db_phase1.py::TestTagging::test_create_tag PASSED [ 66%]
+tests/database/test_user_db_phase1.py::TestTagging::test_invalid_tag_category PASSED [ 72%]
+tests/database/test_user_db_phase1.py::TestTagging::test_invalid_color_hex PASSED [ 77%]
+tests/database/test_user_db_phase1.py::TestTagging::test_tag_question PASSED [ 83%]
+tests/database/test_user_db_phase1.py::TestAnalytics::test_get_recent_questions PASSED [ 88%]
+tests/database/test_user_db_phase1.py::TestAnalytics::test_mistake_statistics PASSED [ 94%]
+tests/database/test_user_db_phase1.py::TestAnalytics::test_search_questions PASSED [100%]
+ERROR: Coverage failure: total of 67 is less than fail-under=90
+
+
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.13.7-final-0 _______________
+
+Name                             Stmts   Miss  Cover   Missing
+--------------------------------------------------------------
+src\database\__init__.py             8      0   100%
+src\database\base_db.py             78     24    69%   69-70, 92-95, 116-119, 129-132, 165-168, 172-176, 183-189, 193, 197
+src\database\exceptions.py          42      0   100%
+src\database\master_db.py          243    141    42%   49, 75, 86-99, 131, 147-151, 193, 202-211, 226-229, 248-261, 287-322, 335-381, 391-392, 411-456, 466-524, 545, 562, 567-583, 604, 640-644, 656-660, 672-692, 699, 702, 710
+src\database\models.py             248     25    90%   72, 76, 80, 100, 130, 144-150, 206, 262, 291, 325, 355, 391, 428-430, 460, 490-492
+src\database\schema_manager.py      79     54    32%   39-42, 46-50, 54-61, 74-77, 81-90, 94-100, 104-118, 135-157, 166-167, 171-175, 187-188, 192-194, 197, 200
+src\database\user_db.py            280     76    73%   106, 115, 119-151, 178, 185-187, 243, 325, 332-337, 456, 459, 486, 493-494, 521, 526, 533, 570, 582, 589-600, 644, 651-656, 681-700, 717, 722, 729, 777, 834-847, 872
+--------------------------------------------------------------
+TOTAL                              978    320    67%
+Coverage HTML written to dir htmlcov
+FAIL Required test coverage of 90% not reached. Total coverage: 67.28%
+============================= 18 passed in 2.88s ==============================

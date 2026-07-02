@@ -1,0 +1,22 @@
+# WIMI Production Requirements
+# Minimal dependencies for building and running the application
+#
+# Versions pinned to match the active development venv. Bump deliberately.
+
+# GUI Framework
+PyQt6==6.9.1
+PyQt6-WebEngine==6.9.0
+
+# Image processing
+Pillow==11.3.0
+
+# Logging (optional but recommended)
+# Not currently installed in the active dev venv; left at lower-bound pin
+# until a maintainer installs and verifies a specific version.
+python-json-logger>=2.0.0
+
+# MCP server (embedded for Claude Code integration)
+mcp==1.27.0
+
+# Build tool (only needed for compiling)
+pyinstaller==6.19.0

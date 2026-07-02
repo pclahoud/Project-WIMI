@@ -1,0 +1,310 @@
+/**
+ * Dimension Editor Styles
+ * Phase 7.2 - Multi-Dimensional Exam Setup
+ * 
+ * Styles for the dimension definition step in the wizard,
+ * including dimension cards, drag-and-drop, and form elements.
+ */
+
+/* =========================================================================
+   Dimensions Container
+   ========================================================================= */
+
+.dimensions-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    min-height: 6.25rem;
+}
+
+.dimensions-container:empty::before {
+    content: 'Click "+ Add Dimension" to create your first dimension';
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding: var(--space-xl);
+}
+
+/* =========================================================================
+   Dimension Card
+   ========================================================================= */
+
+.dimension-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.dimension-card:hover {
+    border-color: var(--border-medium);
+    box-shadow: var(--shadow-sm);
+}
+
+.dimension-card.dragging {
+    opacity: 0.5;
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+}
+
+.dimension-card:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* =========================================================================
+   Dimension Header
+   ========================================================================= */
+
+.dimension-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 1rem;
+    padding: var(--space-xs);
+    user-select: none;
+    transition: color var(--transition-fast);
+}
+
+.drag-handle:hover {
+    color: var(--text-secondary);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.dimension-number {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.btn-delete-dimension {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.btn-delete-dimension:hover:not(:disabled) {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
+
+.btn-delete-dimension:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* =========================================================================
+   Dimension Body
+   ========================================================================= */
+
+.dimension-body {
+    padding: var(--space-md);
+}
+
+.dimension-body .form-group {
+    margin-bottom: var(--space-md);
+}
+
+.dimension-body .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.dimension-body label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.dimension-body input[type="text"] {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.dimension-body input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.dimension-body input[type="text"]::placeholder {
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Dimension Options (Checkboxes)
+   ========================================================================= */
+
+.dimension-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-lg);
+    padding-top: var(--space-xs);
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.checkbox-label:hover {
+    color: var(--text-primary);
+}
+
+/* =========================================================================
+   Add Dimension Button
+   ========================================================================= */
+
+#btn-add-dimension {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    border: 2px dashed var(--border-medium);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+#btn-add-dimension:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-bg);
+}
+
+#btn-add-dimension:active {
+    transform: scale(0.98);
+}
+
+/* =========================================================================
+   Summary Dimensions (Review Step)
+   ========================================================================= */
+
+.summary-dimensions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.summary-dimension-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-primary);
+}
+
+.dimension-name-badge {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.summary-dimension-item .badge {
+    font-size: var(--font-size-xs);
+    padding: 0.125rem 0.375rem;
+}
+
+/* =========================================================================
+   Form Row Helper (for inline elements)
+   ========================================================================= */
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+@media (max-width: 640px) {
+    .dimension-options {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+    
+    .dimension-body {
+        padding: var(--space-sm);
+    }
+    
+    .dimension-header {
+        padding: var(--space-sm);
+    }
+}
+
+/* =========================================================================
+   Drag and Drop Placeholder
+   ========================================================================= */
+
+.dimension-card.drag-placeholder {
+    border: 2px dashed var(--color-primary);
+    background: var(--color-primary-bg);
+    opacity: 0.5;
+}
+
+/* =========================================================================
+   Validation States
+   ========================================================================= */
+
+.dimension-body input[type="text"].error {
+    border-color: var(--color-error);
+}
+
+.dimension-body input[type="text"].error:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.dimension-body .field-error {
+    color: var(--color-error);
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-xs);
+}

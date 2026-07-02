@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Question Entry - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/session.css">
+    <link rel="stylesheet" href="../css/entry.css">
+    <link rel="stylesheet" href="../css/media.css">
+    <link rel="stylesheet" href="../css/subject_search_widget.css">
+    <!-- KaTeX for math rendering -->
+    <link rel="stylesheet" href="../lib/katex/katex.min.css">
+    <!-- Rich Editor CSS -->
+    <link rel="stylesheet" href="../css/rich_editor.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+    <!-- Fuse.js for fuzzy search (bundled locally) -->
+    <script src="../js/fuse.min.js"></script>
+    <script src="../js/fuzzy_search.js"></script>
+    <script src="../js/subject_search_widget.js"></script>
+    <script src="../js/dropdown_keyboard.js"></script>
+    <script src="../js/media_upload.js"></script>
+    <script src="../js/image_browser.js"></script>
+    <!-- KaTeX for math rendering -->
+    <script src="../lib/katex/katex.min.js"></script>
+    <!-- TinyMCE Rich Text Editor -->
+    <script src="../lib/tinymce/tinymce.min.js"></script>
+    <script src="../js/rich_editor.js"></script>
+</head>
+<body>
+    <div class="entry-page">
+        <!-- Header -->
+        <header class="entry-header">
+            <div class="entry-header-left">
+                <button class="back-button" id="btn-back" title="Back to Session Setup" data-testid="entry-form-back-button">
+                    <span class="back-arrow">←</span>
+                    <span class="back-text">Back</span>
+                </button>
+                <div class="entry-header-info">
+                    <h1 id="session-name" data-testid="entry-form-session-name">Loading...</h1>
+                    <div class="entry-header-meta">
+                        <span class="badge badge-primary" id="exam-badge" data-testid="entry-form-exam-badge">Exam</span>
+                        <span class="entry-counter" id="entry-counter" data-testid="entry-form-entry-counter">Entry 1 of 0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="entry-header-right">
+                <div class="session-timer" id="session-timer" style="display: none;">
+                    <span class="round-indicator" id="round-indicator" style="display: none;"></span>
+                    <span class="session-timer-display" id="timer-display" data-testid="entry-form-timer-display">00:00</span>
+                    <button type="button" class="session-timer-btn" id="btn-timer-pause" title="Pause timer" data-testid="entry-form-timer-pause-button">
+                        <span id="timer-pause-icon">&#x23F8;</span>
+                    </button>
+                    <button type="button" class="session-timer-btn session-timer-new-round" id="btn-new-round" title="Start new timer round" style="display: none;" data-testid="entry-form-timer-new-round-button">
+                        &#x21BB;
+                    </button>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline add-entries-btn" id="btn-add-entries" title="Add more entry slots" data-testid="entry-form-add-entries-button">
+                    + Add Entries
+                </button>
+                <div class="auto-save-indicator" id="auto-save-indicator" data-testid="entry-form-auto-save-indicator">
+                    <span class="auto-save-icon">💾</span>
+                    <span class="auto-save-text">Auto-save enabled</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Entry Navigation -->
+        <nav class="entry-nav" id="entry-nav" tabindex="-1">
+            <button class="entry-nav-btn" id="btn-prev-entry" disabled title="Previous Entry" tabindex="-1" data-testid="entry-form-nav-previous-button">
+                ← Previous
+            </button>
+            <div class="entry-nav-dots" id="entry-dots">
+                <!-- Entry dots will be rendered here -->
+            </div>
+            <button class="entry-nav-btn" id="btn-next-entry" disabled title="Next Entry" tabindex="-1" data-testid="entry-form-nav-next-button">
+                Next →
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="entry-content">
+            <div data-plugin-slot="entry-before-form"></div>
+            <form id="entry-form" class="entry-form">
+
+                <!-- Section A: Question Information -->
+                <section class="entry-section expanded" id="section-question-info" data-section="A">
+                    <div class="entry-section-header" tabindex="0" role="button"
+                         aria-expanded="true" aria-controls="section-question-info-content"
+                         onclick="toggleSection('section-question-info')"
+                         onkeydown="handleSectionKeydown(event, 'section-question-info')"
+                         data-testid="entry-form-section-a-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">A</span>
+                            <span class="section-name">Question Information</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-question-info-content" data-testid="entry-form-section-a-content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="question-id">Question ID / Reference</label>
+                                <input type="text" id="question-id" placeholder="e.g., Q15, Page 42, etc."
+                                       data-section="section-question-info"
+                                       data-testid="entry-form-question-id-input">
+                                <p class="form-help">Optional identifier for this question</p>
+                            </div>
+                            <div class="form-group">
+                                <label>Perceived Difficulty</label>
+                                <div class="difficulty-rating" id="difficulty-rating">
+                                    <button type="button" class="difficulty-dot" data-value="1" title="Very Easy">1</button>
+                                    <button type="button" class="difficulty-dot" data-value="2" title="Easy">2</button>
+                                    <button type="button" class="difficulty-dot" data-value="3" title="Medium">3</button>
+                                    <button type="button" class="difficulty-dot" data-value="4" title="Hard">4</button>
+                                    <button type="button" class="difficulty-dot" data-value="5" title="Very Hard">5</button>
+                                </div>
+                                <input type="hidden" id="perceived-difficulty" value="">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="user-answer">Your Answer <span class="required">*</span></label>
+                                <textarea id="user-answer" rows="2" placeholder="What answer did you select?"
+                                          data-section="section-question-info"
+                                          data-testid="entry-form-user-answer-textarea"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="correct-answer">Correct Answer <span class="required">*</span></label>
+                                <textarea id="correct-answer" rows="2" placeholder="What was the correct answer?"
+                                          data-section="section-question-info"
+                                          data-testid="entry-form-correct-answer-textarea"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group form-group-sm">
+                                <label for="time-spent">Time Spent</label>
+                                <div class="time-input-group">
+                                    <input type="number" id="time-spent" min="0" max="999" placeholder="0"
+                                           data-section="section-question-info" data-last-in-section="true"
+                                           data-testid="entry-form-time-spent-input">
+                                    <select id="time-unit" data-section="section-question-info"
+                                            data-testid="entry-form-time-unit-select">
+                                        <option value="minutes">minutes</option>
+                                        <option value="seconds">seconds</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section B: Subject Mapping -->
+                <section class="entry-section" id="section-subjects" data-section="B">
+                    <div class="entry-section-header" tabindex="0" role="button"
+                         aria-expanded="false" aria-controls="section-subjects-content"
+                         onclick="toggleSection('section-subjects')"
+                         onkeydown="handleSectionKeydown(event, 'section-subjects')"
+                         data-testid="entry-form-section-b-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">B</span>
+                            <span class="section-name">Subject Mapping</span>
+                            <span class="required">*</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-subjects-content" data-testid="entry-form-section-b-content">
+                        <div class="form-group">
+                            <label>Primary Subject(s) <span class="required">*</span></label>
+                            <div class="subject-search-container">
+                                <input type="text" id="primary-subject-search" class="subject-search"
+                                       placeholder="Search subjects..." autocomplete="off"
+                                       data-section="section-subjects"
+                                       data-testid="entry-form-subject-primary-search">
+                                <div class="subject-dropdown" id="primary-subject-dropdown"></div>
+                            </div>
+                            <div class="selected-chips" id="primary-subjects-chips">
+                                <!-- Selected primary subjects will appear here -->
+                            </div>
+                            <p class="form-help">The main topic(s) this question tests</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Secondary Subject(s)</label>
+                            <div class="subject-search-container">
+                                <input type="text" id="secondary-subject-search" class="subject-search"
+                                       placeholder="Search subjects..." autocomplete="off"
+                                       data-section="section-subjects" data-last-in-section="true"
+                                       data-testid="entry-form-subject-secondary-search">
+                                <div class="subject-dropdown" id="secondary-subject-dropdown"></div>
+                            </div>
+                            <div class="selected-chips" id="secondary-subjects-chips">
+                                <!-- Selected secondary subjects will appear here -->
+                            </div>
+                            <p class="form-help">Related topics also tested by this question</p>
+                        </div>
+
+                        <!-- Quick Add Subject -->
+                        <div class="quick-add-subject">
+                            <button type="button" class="btn btn-sm btn-ghost" id="btn-quick-add-subject" data-testid="entry-form-subject-add-quick-button">
+                                + Add New Subject
+                            </button>
+                        </div>
+
+                        <!-- Quick Add Subject Modal (inline) -->
+                        <div class="quick-add-modal" id="quick-add-subject-modal" style="display: none;" data-testid="entry-form-quick-add-modal">
+                            <div class="quick-add-header">
+                                <h4>Quick Add Subject</h4>
+                                <button type="button" class="quick-add-close" id="quick-add-close" data-testid="entry-form-quick-add-close-button">&times;</button>
+                            </div>
+                            <div class="quick-add-body">
+                                <div class="form-group">
+                                    <label for="quick-add-name">Subject Name <span class="required">*</span></label>
+                                    <input type="text" id="quick-add-name" class="form-input" placeholder="e.g., Cardiology" data-testid="entry-form-quick-add-name-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="quick-add-parent-search">Parent Subject</label>
+                                    <div class="subject-search-container">
+                                        <input type="text" id="quick-add-parent-search"
+                                               class="subject-search"
+                                               placeholder="Search or leave empty for Root..."
+                                               autocomplete="off"
+                                               data-testid="entry-form-quick-add-parent-search">
+                                        <div class="subject-dropdown" id="quick-add-parent-dropdown"></div>
+                                    </div>
+                                    <input type="hidden" id="quick-add-parent" value="">
+                                </div>
+                                <div class="form-group">
+                                    <label for="quick-add-aliases">Aliases (Optional)</label>
+                                    <input type="text" id="quick-add-aliases" class="form-input"
+                                           placeholder="e.g., MI, Heart Attack (comma-separated)"
+                                           data-testid="entry-form-quick-add-aliases-input">
+                                    <p class="form-help">Alternative names for better searchability</p>
+                                </div>
+                                <div class="form-group" id="quick-add-alias-type-group" style="display: none;">
+                                    <label for="quick-add-alias-type">Alias Type</label>
+                                    <select id="quick-add-alias-type" class="form-input" data-testid="entry-form-quick-add-alias-type-select">
+                                        <option value="alternate_name">Alternate Name</option>
+                                        <option value="eponym">Eponym</option>
+                                        <option value="acronym">Acronym/Abbreviation</option>
+                                        <option value="colloquial">Common/Slang</option>
+                                    </select>
+                                    <p class="form-help">Applied to all aliases entered above</p>
+                                </div>
+                            </div>
+                            <div class="quick-add-footer">
+                                <button type="button" class="btn btn-sm btn-secondary" id="quick-add-cancel" data-testid="entry-form-quick-add-cancel-button">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-primary" id="quick-add-save" data-testid="entry-form-quick-add-save-button">Create & Select</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section C: Tags -->
+                <section class="entry-section" id="section-tags" data-section="C">
+                    <div class="entry-section-header" tabindex="0" role="button"
+                         aria-expanded="false" aria-controls="section-tags-content"
+                         onclick="toggleSection('section-tags')"
+                         onkeydown="handleSectionKeydown(event, 'section-tags')"
+                         data-testid="entry-form-section-c-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">C</span>
+                            <span class="section-name">Mistake Categories</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-tags-content" data-testid="entry-form-section-c-content">
+                        <div class="form-group">
+                            <label>Tags</label>
+                            <div class="tag-picker-container">
+                                <input type="text" id="tag-search" class="tag-search"
+                                       placeholder="Search tags..." autocomplete="off"
+                                       data-section="section-tags"
+                                       data-testid="entry-form-tags-search-input">
+                                <div class="tag-dropdown" id="tag-dropdown"></div>
+                            </div>
+                            <div class="selected-chips" id="tags-chips">
+                                <!-- Selected tags will appear here -->
+                            </div>
+                            <p class="form-help">Categorize why you got this wrong (optional)</p>
+                        </div>
+                        
+                        <!-- Tag hierarchy display -->
+                        <div class="tag-hierarchy" id="tag-hierarchy" data-last-in-section="true">
+                            <!-- Tag groups will be rendered here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section D: Reflection (Required) -->
+                <section class="entry-section" id="section-reflection" data-section="D">
+                    <div class="entry-section-header required-section" tabindex="0" role="button"
+                         aria-expanded="false" aria-controls="section-reflection-content"
+                         onclick="toggleSection('section-reflection')"
+                         onkeydown="handleSectionKeydown(event, 'section-reflection')"
+                         data-testid="entry-form-section-d-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">D</span>
+                            <span class="section-name">Reflection</span>
+                            <span class="required">*</span>
+                            <span class="section-badge badge-warning">Required</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-reflection-content" data-testid="entry-form-section-d-content">
+                        <div class="form-group">
+                            <label for="reflection-editor">Why did you get this wrong? <span class="required">*</span></label>
+                            <div id="reflection-editor" class="rich-editor-container"
+                                 data-section="section-reflection" data-last-in-section="true"
+                                 data-testid="entry-form-reflection-editor"></div>
+                            <p class="form-help">This is the core of metacognitive learning - understanding WHY you got it wrong</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section E: Explanation (Required) -->
+                <section class="entry-section" id="section-explanation" data-section="E">
+                    <div class="entry-section-header required-section" tabindex="0" role="button"
+                         aria-expanded="false" aria-controls="section-explanation-content"
+                         onclick="toggleSection('section-explanation')"
+                         onkeydown="handleSectionKeydown(event, 'section-explanation')"
+                         data-testid="entry-form-section-e-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">E</span>
+                            <span class="section-name">Explanation</span>
+                            <span class="required">*</span>
+                            <span class="section-badge badge-warning">Required</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-explanation-content" data-testid="entry-form-section-e-content">
+                        <div class="form-group">
+                            <label for="explanation-editor">Why is the correct answer correct? <span class="required">*</span></label>
+                            <div id="explanation-editor" class="rich-editor-container"
+                                 data-section="section-explanation" data-last-in-section="true"
+                                 data-testid="entry-form-explanation-editor"></div>
+                            <p class="form-help">Document the correct reasoning for future review</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section F: Notes & Media -->
+                <section class="entry-section" id="section-notes" data-section="F">
+                    <div class="entry-section-header" tabindex="0" role="button"
+                         aria-expanded="false" aria-controls="section-notes-content"
+                         onclick="toggleSection('section-notes')"
+                         onkeydown="handleSectionKeydown(event, 'section-notes')"
+                         data-testid="entry-form-section-f-toggle">
+                        <div class="section-title">
+                            <span class="section-letter">F</span>
+                            <span class="section-name">Notes & Media</span>
+                        </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="entry-section-content" id="section-notes-content" data-testid="entry-form-section-f-content">
+                        <div class="form-group">
+                            <div class="form-group-header">
+                                <label>Notes</label>
+                                <button type="button"
+                                        class="btn btn-sm btn-ghost section-header-action"
+                                        id="btn-attach-existing-notes"
+                                        data-testid="entry-form-notes-attach-existing-button"
+                                        disabled
+                                        title="No matching notes found for this entry's subjects yet"
+                                        onclick="openAttachExistingPicker('notes')">
+                                    <span class="btn-label">+ Add existing</span>
+                                    <span class="btn-count" id="btn-attach-existing-notes-count" hidden></span>
+                                </button>
+                            </div>
+                            <div id="notes-list-container" data-testid="entry-form-notes-list"></div>
+                            <button type="button" id="btn-add-note" class="btn btn-outline btn-sm" style="margin-top: 8px;" data-testid="entry-form-notes-add-button">
+                                + Add Note
+                            </button>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="form-group-header">
+                                <label>Media Attachments</label>
+                                <button type="button"
+                                        class="btn btn-sm btn-ghost section-header-action"
+                                        id="btn-attach-existing-media"
+                                        data-testid="entry-form-media-attach-existing-button"
+                                        disabled
+                                        title="No matching images found for this entry's subjects yet"
+                                        onclick="openAttachExistingPicker('media')">
+                                    <span class="btn-label">+ Add existing</span>
+                                    <span class="btn-count" id="btn-attach-existing-media-count" hidden></span>
+                                </button>
+                            </div>
+                            <div id="media-upload-container"
+                                 data-section="section-notes" data-last-in-section="true"
+                                 data-testid="entry-form-media-upload">
+                                <!-- MediaUpload component will be initialized here -->
+                            </div>
+                            <p class="form-help">Attach screenshots or images of the question (optional)</p>
+                        </div>
+                    </div>
+                </section>
+
+            </form>
+            <div data-plugin-slot="entry-after-form"></div>
+        </main>
+
+        <!-- Footer Actions -->
+        <footer class="entry-footer">
+            <div class="entry-footer-left">
+                <span class="draft-indicator hidden" id="draft-indicator">
+                    <span class="draft-icon">📝</span>
+                    Draft - missing required fields
+                </span>
+            </div>
+            <div class="entry-footer-right">
+                <button type="button" class="btn btn-secondary btn-lg" id="btn-save-draft" data-testid="entry-form-save-draft-button">
+                    Save as Draft
+                </button>
+                <button type="button" class="btn btn-primary btn-lg" id="btn-save-next" disabled data-testid="entry-form-save-next-button">
+                    Save & Next →
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Unsaved Changes Modal -->
+    <div class="modal-backdrop" id="unsaved-modal" data-testid="entry-form-unsaved-modal">
+        <div class="modal">
+            <div class="modal-icon">⚠️</div>
+            <h3 class="modal-title">Unsaved Changes</h3>
+            <p class="modal-message" id="unsaved-modal-message">
+                You have unsaved changes. What would you like to do?
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="unsaved-discard" data-testid="entry-form-unsaved-discard-button">Discard & Leave</button>
+                <button class="btn btn-primary" id="unsaved-save" data-testid="entry-form-unsaved-save-button">Save & Leave</button>
+                <button class="btn btn-secondary" id="unsaved-cancel" data-testid="entry-form-unsaved-cancel-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Note Delete Many-To-Many Confirmation Modal -->
+    <div class="modal-backdrop note-delete-modal" id="note-delete-modal" data-testid="note-delete-modal">
+        <div class="modal">
+            <div class="modal-icon">🗑️</div>
+            <h3 class="modal-title">Delete this note?</h3>
+            <p class="modal-message" id="note-delete-modal-message">
+                This note is attached to multiple entries. What would you like to do?
+            </p>
+            <div class="note-delete-detail" id="note-delete-modal-detail"></div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="note-delete-modal-detach" data-testid="note-delete-modal-detach">Detach from this entry</button>
+                <button class="btn btn-danger" id="note-delete-modal-delete-everywhere" data-testid="note-delete-modal-delete-everywhere">Delete everywhere</button>
+                <button class="btn btn-secondary" id="note-delete-modal-cancel" data-testid="note-delete-modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attach Existing (notes/media) Picker Modal -->
+    <div class="modal-backdrop attach-existing-modal-backdrop"
+         id="attach-existing-modal"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="attach-existing-modal-title"
+         data-testid="attach-existing-modal">
+        <div class="modal attach-existing-modal">
+            <h3 class="modal-title" id="attach-existing-modal-title">Attach existing</h3>
+            <p class="modal-message attach-existing-modal-sub" id="attach-existing-modal-sub"></p>
+            <div class="attach-existing-list"
+                 id="attach-existing-list"
+                 data-testid="attach-existing-list"
+                 role="list"></div>
+            <p class="attach-existing-empty"
+               id="attach-existing-empty"
+               hidden
+               data-testid="attach-existing-empty">No more matching items to attach.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary"
+                        id="btn-attach-existing-cancel"
+                        data-testid="attach-existing-cancel-button">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        id="btn-attach-existing-confirm"
+                        data-testid="attach-existing-confirm-button"
+                        disabled>Attach selected</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Entries Popover -->
+    <div class="add-entries-popover" id="add-entries-popover" style="display: none;" data-testid="entry-form-add-entries-popover">
+        <div class="add-entries-popover-content">
+            <label for="add-entries-count">How many entries to add?</label>
+            <input type="number" id="add-entries-count" class="form-input" value="1" min="1" max="50" data-testid="entry-form-add-entries-count-input">
+            <div class="add-entries-popover-actions">
+                <button type="button" class="btn btn-sm btn-secondary" id="add-entries-cancel" data-testid="entry-form-add-entries-cancel-button">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="add-entries-confirm" data-testid="entry-form-add-entries-confirm-button">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Complete Modal -->
+    <div class="modal-backdrop" id="complete-modal" data-testid="entry-form-complete-modal">
+        <div class="modal">
+            <div class="modal-icon">🎉</div>
+            <h3 class="modal-title">Session Complete!</h3>
+            <p class="modal-message">
+                You've logged all <span id="complete-count">0</span> incorrect questions for this session.
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="complete-review" data-testid="entry-form-complete-review-button">Review Entries</button>
+                <button class="btn btn-primary" id="complete-done" data-testid="entry-form-complete-done-button">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Round Complete Overlay -->
+    <div class="new-round-dialog-overlay" id="round-complete-overlay" style="display: none;" data-testid="entry-form-round-complete-overlay">
+        <div class="new-round-dialog">
+            <h3>Round Complete!</h3>
+            <p id="round-complete-message" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">Time for a break!</p>
+            <label for="break-duration-input">Break Duration (minutes)</label>
+            <input type="number" id="break-duration-input" min="1" max="60" value="5" data-testid="entry-form-round-complete-break-duration-input" />
+            <div class="new-round-dialog-actions" style="flex-direction: column; gap: 8px;">
+                <button type="button" class="btn btn-sm btn-primary" onclick="startBreakFromModal()" data-testid="entry-form-round-complete-start-break-button">Start Break</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="skipBreakNewRound()" data-testid="entry-form-round-complete-skip-break-button">Start New Round</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="endTimerFromModal()" data-testid="entry-form-round-complete-end-timer-button">End Timer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Timer Round Dialog -->
+    <div class="new-round-dialog-overlay" id="new-round-dialog-overlay" style="display: none;" data-testid="entry-form-new-round-dialog">
+        <div class="new-round-dialog">
+            <h3>Start New Timer Round</h3>
+            <label for="new-round-duration">Duration (minutes)</label>
+            <input type="number" id="new-round-duration" min="1" max="600" value="30" data-testid="entry-form-new-round-duration-input" />
+            <div class="new-round-dialog-actions">
+                <button type="button" class="btn btn-sm btn-outline" onclick="cancelNewRound()" data-testid="entry-form-new-round-cancel-button">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="startNewRound()" data-testid="entry-form-new-round-start-button">Start</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/question_entry.js"></script>
+</body>
+</html>

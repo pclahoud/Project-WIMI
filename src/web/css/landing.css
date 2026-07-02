@@ -1,0 +1,775 @@
+/**
+ * WIMI Landing Page Styles
+ * Phase 3 - Enhanced landing with exam cards
+ */
+
+/* =========================================================================
+   Landing Page Layout
+   ========================================================================= */
+
+.landing-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+}
+
+/* =========================================================================
+   Header Section
+   ========================================================================= */
+
+.landing-header {
+    background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 50%, var(--color-primary-hover) 100%);
+    color: var(--text-inverse, white);
+    padding: var(--space-3xl) var(--space-xl);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-medium);
+}
+
+.landing-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: headerPattern 30s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes headerPattern {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(40px, 40px); }
+}
+
+.landing-logo {
+    font-size: 4rem;
+    margin-bottom: var(--space-md);
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+.landing-title {
+    font-size: var(--font-size-4xl);
+    margin-bottom: var(--space-sm);
+    color: inherit;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: -0.02em;
+    position: relative;
+    z-index: 1;
+}
+
+.landing-subtitle {
+    font-size: var(--font-size-lg);
+    opacity: 0.9;
+    max-width: 37.5rem;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+    line-height: var(--line-height-relaxed);
+}
+
+/* Settings gear icon */
+.settings-gear-link {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    color: rgba(255, 255, 255, 0.75);
+    opacity: 1;
+    transition: opacity 0.2s, color 0.2s, background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    z-index: 1;
+}
+
+.settings-gear-link:hover {
+    opacity: 1;
+    color: var(--color-primary, #2563eb);
+    background: var(--color-primary-bg, #eff6ff);
+}
+
+/* =========================================================================
+   Main Content
+   ========================================================================= */
+
+.landing-content {
+    flex: 1;
+    padding: var(--space-2xl);
+}
+
+.landing-container {
+    max-width: 68.75rem;
+    margin: 0 auto;
+}
+
+/* =========================================================================
+   Analytics Preview Section
+   ========================================================================= */
+
+.analytics-preview-section {
+    margin-bottom: var(--space-xl);
+}
+
+/* =========================================================================
+   Section Headers
+   ========================================================================= */
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-lg);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.section-title {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.section-title-icon {
+    font-size: 1.5rem;
+}
+
+/* =========================================================================
+   Exam Cards Grid
+   ========================================================================= */
+
+.exam-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
+    gap: var(--space-lg);
+}
+
+/* Individual Exam Card */
+.exam-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.exam-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.exam-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.exam-card:hover::before {
+    opacity: 1;
+}
+
+.exam-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-sm);
+}
+
+.exam-card-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.exam-card-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.exam-card-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin: 0 0 var(--space-xs) 0;
+    line-height: var(--line-height-tight);
+}
+
+.exam-card-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-md) 0;
+    line-height: var(--line-height-relaxed);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.5em;
+}
+
+/* Exam Card Stats */
+.exam-card-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+}
+
+.exam-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.exam-stat-icon {
+    font-size: 0.875rem;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.exam-stat-label {
+    font-size: 0.625rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.exam-stat-value {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+/* Exam Card Actions */
+.exam-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: auto;
+}
+
+/* Main primary button - full width */
+.exam-card-btn-main {
+    width: 100%;
+    justify-content: center;
+    padding: var(--space-sm) var(--space-md) !important;
+    font-size: var(--font-size-sm) !important;
+}
+
+/* Secondary actions row - 3 equal buttons */
+.exam-card-actions-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-xs);
+}
+
+.exam-card-actions-row .btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-xs);
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+/* Utility actions - edit/delete at bottom */
+.exam-card-actions-utility {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-md);
+    padding-top: var(--space-xs);
+    border-top: 1px solid var(--border-light);
+    margin-top: var(--space-xs);
+}
+
+.exam-card-actions-utility .btn {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.exam-card-actions-utility .btn:hover {
+    color: var(--text-primary);
+}
+
+.exam-card-actions-utility .btn-danger-text:hover {
+    color: var(--color-error);
+}
+
+/* Legacy support - remove old styles */
+.exam-card-actions-primary,
+.exam-card-actions-secondary {
+    display: none;
+}
+
+/* =========================================================================
+   Empty State
+   ========================================================================= */
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-3xl) var(--space-xl);
+    background: var(--bg-primary);
+    border: 2px dashed var(--border-medium);
+    border-radius: var(--radius-xl);
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-lg);
+    opacity: 0.4;
+}
+
+.empty-state-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin: 0 0 var(--space-sm) 0;
+}
+
+.empty-state-text {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xl) 0;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.empty-state-action {
+    display: inline-flex;
+}
+
+/* =========================================================================
+   Create New Card (Special styling)
+   ========================================================================= */
+
+.exam-card--create {
+    background: var(--bg-secondary);
+    border: 2px dashed var(--border-medium);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 12.5rem;
+    cursor: pointer;
+    text-decoration: none;
+    padding: var(--space-xl);
+}
+
+.exam-card--create:hover {
+    background: var(--bg-primary);
+    border-color: var(--color-primary);
+    border-style: solid;
+}
+
+.exam-card--create::before {
+    display: none;
+}
+
+.exam-card--create .exam-card-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    font-size: 1.75rem;
+    margin-bottom: var(--space-md);
+    border-radius: var(--radius-lg);
+}
+
+.exam-card--create .exam-card-title {
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-xs);
+}
+
+.exam-card--create .exam-card-description {
+    font-size: var(--font-size-sm);
+    margin: 0;
+    min-height: unset;
+}
+
+/* =========================================================================
+   Status Section
+   ========================================================================= */
+
+.status-section {
+    margin-top: var(--space-2xl);
+    padding: var(--space-lg);
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+}
+
+.status-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-md);
+    color: var(--text-primary);
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11.25rem, 1fr));
+    gap: var(--space-md);
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.status-indicator {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background: var(--color-gray-300);
+    flex-shrink: 0;
+}
+
+.status-indicator.connected {
+    background: var(--color-success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.status-indicator.disconnected {
+    background: var(--color-error);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.status-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+/* =========================================================================
+   Delete Confirmation Modal
+   ========================================================================= */
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-normal);
+}
+
+.modal-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    max-width: 26.25rem;
+    width: 90%;
+    box-shadow: var(--shadow-xl);
+    transform: scale(0.9) translateY(-20px);
+    transition: transform var(--transition-normal);
+}
+
+.modal-backdrop.active .modal {
+    transform: scale(1) translateY(0);
+}
+
+.modal-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: var(--radius-full);
+    background: var(--color-error-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-lg);
+    font-size: 1.75rem;
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+    margin: 0 0 var(--space-sm) 0;
+}
+
+.modal-message {
+    text-align: center;
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-xl) 0;
+}
+
+.modal-exam-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.modal-actions .btn {
+    flex: 1;
+}
+
+/* =========================================================================
+   Loading State
+   ========================================================================= */
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3xl);
+    gap: var(--space-md);
+}
+
+.loading-text {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+/* Skeleton loading cards */
+.exam-card--skeleton {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    min-height: 17.5rem;
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+    border-radius: var(--radius-sm);
+}
+
+.skeleton-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-lg);
+}
+
+.skeleton-title {
+    height: 1.5rem;
+    width: 70%;
+    margin: var(--space-md) 0 var(--space-sm) 0;
+}
+
+.skeleton-text {
+    height: 1rem;
+    width: 100%;
+    margin-bottom: var(--space-sm);
+}
+
+.skeleton-text:last-child {
+    width: 60%;
+}
+
+.skeleton-stats {
+    height: 5rem;
+    width: 100%;
+    margin: var(--space-lg) 0;
+}
+
+.skeleton-button {
+    height: 2.5rem;
+    width: 100%;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* =========================================================================
+   Toast Notifications
+   ========================================================================= */
+
+.toast-container {
+    position: fixed;
+    bottom: var(--space-xl);
+    right: var(--space-xl);
+    z-index: var(--z-toast);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.toast {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    box-shadow: var(--shadow-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    min-width: 18.75rem;
+    max-width: 28.125rem;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all var(--transition-normal);
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: var(--font-weight-medium);
+    margin: 0 0 2px 0;
+    font-size: var(--font-size-sm);
+}
+
+.toast-message {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    padding: var(--space-xs);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.toast-close:hover {
+    color: var(--text-primary);
+}
+
+.toast--success {
+    border-left: 4px solid var(--color-success);
+}
+
+.toast--success .toast-icon {
+    color: var(--color-success);
+}
+
+.toast--error {
+    border-left: 4px solid var(--color-error);
+}
+
+.toast--error .toast-icon {
+    color: var(--color-error);
+}
+
+.toast--warning {
+    border-left: 4px solid var(--color-warning);
+}
+
+.toast--warning .toast-icon {
+    color: var(--color-warning);
+}
+
+.toast--info {
+    border-left: 4px solid var(--color-info);
+}
+
+.toast--info .toast-icon {
+    color: var(--color-info);
+}
+
+/* =========================================================================
+   Responsive Adjustments
+   ========================================================================= */
+
+@media (max-width: 768px) {
+    .landing-header {
+        padding: var(--space-2xl) var(--space-lg);
+    }
+    
+    .landing-logo {
+        font-size: 3rem;
+    }
+    
+    .landing-title {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .landing-content {
+        padding: var(--space-lg);
+    }
+    
+    .exam-cards-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+    }
+    
+    .toast-container {
+        left: var(--space-md);
+        right: var(--space-md);
+        bottom: var(--space-md);
+    }
+    
+    .toast {
+        min-width: auto;
+        width: 100%;
+    }
+}
