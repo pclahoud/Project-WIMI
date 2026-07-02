@@ -356,7 +356,7 @@ class MainWindow(QMainWindow):
             self,
             'About WIMI',
             '<h2>WIMI - What I Missed It</h2>'
-            '<p>Version 0.2.0 (Phase 2)</p>'
+            '<p>Version 0.1.0-beta</p>'
             '<p>A metacognitive exam preparation tool for analyzing '
             'mistakes and improving learning outcomes.</p>'
             '<p>© 2025 Project WIMI</p>'
@@ -436,7 +436,7 @@ def run_application(
     """
     app = QApplication(sys.argv)
     app.setApplicationName('WIMI')
-    app.setApplicationVersion('0.4.0')
+    app.setApplicationVersion('0.1.0-beta')
     app.setOrganizationName('Project WIMI')
 
     # Create and show main window
