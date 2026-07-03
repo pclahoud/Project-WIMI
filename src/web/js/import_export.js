@@ -1076,46 +1076,32 @@ function parseMarkdown(markdown) {
 }
 
 /**
- * Show the import help modal with markdown documentation
+ * Show the import help modal with markdown documentation.
+ * The guide is embedded in the page (#import-help-source, a text/markdown
+ * script block in tree_editor.html) and rendered locally — no bridge fetch.
  */
-async function showImportHelpModal() {
+function showImportHelpModal() {
     const modal = document.getElementById('import-help-modal');
     const content = document.getElementById('import-help-content');
-    
+
     if (!modal || !content) return;
-    
-    // Show modal with loading state
+
     modal.classList.add('active');
-    
+
     // If we have cached content, use it
     if (cachedHelpContent) {
         content.innerHTML = cachedHelpContent;
         return;
     }
-    
-    // Show loading spinner
-    content.innerHTML = `
-        <div class="loading-spinner">
-            <div class="spinner"></div>
-            <p>Loading documentation...</p>
-        </div>
-    `;
-    
-    try {
-        // Fetch the markdown file via the bridge
-        const result = await api.readDocumentation('subject_tree_import_format.md');
-        
-        if (result && result.content) {
-            // Parse markdown to HTML
-            const htmlContent = parseMarkdown(result.content);
-            cachedHelpContent = htmlContent;
-            content.innerHTML = htmlContent;
-        } else {
-            throw new Error('Documentation not found');
-        }
-    } catch (error) {
-        console.error('Failed to load import help:', error);
-        
+
+    const source = document.getElementById('import-help-source');
+    if (source && source.textContent.trim()) {
+        const htmlContent = parseMarkdown(source.textContent.trim());
+        cachedHelpContent = htmlContent;
+        content.innerHTML = htmlContent;
+    } else {
+        console.error('Import help source block missing from page');
+
         // Show fallback content
         content.innerHTML = `
             <div class="error-message">

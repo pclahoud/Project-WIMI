@@ -28,6 +28,7 @@ Valid route names:
 - ``settings``
 - ``exam-wizard``
 - ``error-viewer``
+- ``profile-select``
 
 This is a leaf module: stdlib imports only, no imports from any ``wimi_test.*``
 sibling. File existence is intentionally not checked at import or resolve
@@ -56,6 +57,7 @@ ROUTES: MappingProxyType = MappingProxyType({
     "settings": "settings.html",
     "exam-wizard": "wizards/exam_wizard.html",
     "error-viewer": "error-viewer.html",
+    "profile-select": "profile_select.html",
 })
 
 

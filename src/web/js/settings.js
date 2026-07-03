@@ -99,6 +99,7 @@ class SettingsPage {
         this.setupUnsavedChangesGuard();
         await this.loadSettings();
         await this.initExamAnalytics();
+        await this.initProfileSection();
         await this.initAddons();
         await this.refreshMcpStatus();
 
@@ -970,6 +971,153 @@ class SettingsPage {
         const el = document.getElementById('hotkeyConflictWarning');
         if (el) {
             el.style.display = 'none';
+        }
+    }
+
+    // =========================================================================
+    // Profile (export / import — same flows as the profile picker)
+    // =========================================================================
+
+    /**
+     * True when the profile transfer API (Task-4 bridge surface) is
+     * available. Mirrors the feature detection in profile_select.js.
+     */
+    _profileTransferApiAvailable() {
+        return typeof api.openProfileExportDialog === 'function' &&
+               typeof api.exportProfile === 'function' &&
+               typeof api.openProfileImportDialog === 'function' &&
+               typeof api.readProfileArchive === 'function';
+    }
+
+    /** Normalize a file-dialog response ({file_path} | string | null). */
+    _profileDialogPath(result) {
+        if (!result) return null;
+        if (typeof result === 'string') return result;
+        return result.file_path || result.dest_path || result.path || null;
+    }
+
+    /** Two-letter initials from a display name (fallback: username). */
+    _profileInitials(displayName, username) {
+        const source = (displayName || username || '?').trim();
+        const words = source.split(/\s+/).filter(Boolean);
+        if (words.length >= 2) {
+            return (words[0][0] + words[1][0]).toUpperCase();
+        }
+        return source.slice(0, 2).toUpperCase();
+    }
+
+    async initProfileSection() {
+        const navItem = document.getElementById('profileNavItem');
+        const panel = document.getElementById('profilePanel');
+        if (!navItem || !panel) return;
+
+        // Feature-detect the profile API — hide the whole section when the
+        // bridge surface is absent so this page keeps working standalone.
+        if (typeof api.getCurrentProfile !== 'function') {
+            navItem.style.display = 'none';
+            return;
+        }
+
+        this._currentProfile = null;
+        try {
+            const data = await api.getCurrentProfile();
+            this._currentProfile = (data && data.profile) || null;
+        } catch (e) {
+            console.warn('Failed to load current profile:', e);
+        }
+
+        // Render the current-profile card.
+        const avatarEl = document.getElementById('profileSettingsAvatar');
+        const nameEl = document.getElementById('profileSettingsName');
+        const usernameEl = document.getElementById('profileSettingsUsername');
+        if (this._currentProfile) {
+            const p = this._currentProfile;
+            if (avatarEl) avatarEl.textContent = this._profileInitials(p.display_name, p.username);
+            if (nameEl) nameEl.textContent = p.display_name || p.username;
+            if (usernameEl) usernameEl.textContent = '@' + p.username;
+        } else {
+            if (avatarEl) avatarEl.textContent = '?';
+            if (nameEl) nameEl.textContent = 'No profile open';
+            if (usernameEl) usernameEl.textContent = '';
+        }
+
+        // Transfer controls (export/import) need the Task-4 bridge surface.
+        const transferSection = document.getElementById('profileTransferSection');
+        if (!this._profileTransferApiAvailable()) {
+            if (transferSection) transferSection.style.display = 'none';
+            return;
+        }
+
+        const exportBtn = document.getElementById('profileExportBtn');
+        const importBtn = document.getElementById('profileImportBtn');
+        if (exportBtn) {
+            exportBtn.disabled = !this._currentProfile;
+            exportBtn.addEventListener('click', () => this.handleProfileExport());
+        }
+        if (importBtn) {
+            importBtn.addEventListener('click', () => this.handleProfileImport());
+        }
+    }
+
+    async handleProfileExport() {
+        const profile = this._currentProfile;
+        if (!profile || !this._profileTransferApiAvailable()) return;
+
+        const includeMedia = !!document.getElementById('profileExportIncludeMedia')?.checked;
+        const exportBtn = document.getElementById('profileExportBtn');
+        const originalText = exportBtn ? exportBtn.textContent : '';
+
+        try {
+            const dialogResult = await api.openProfileExportDialog({
+                default_filename: profile.username + '.wimi'
+            });
+            const destPath = this._profileDialogPath(dialogResult);
+            if (!destPath) return; // user cancelled the save dialog
+
+            if (exportBtn) {
+                exportBtn.disabled = true;
+                exportBtn.textContent = 'Exporting…';
+            }
+
+            await api.exportProfile({
+                user_id: profile.id,
+                include_media: includeMedia,
+                dest_path: destPath
+            });
+            this.showToast('Profile exported to ' + destPath, 'success');
+        } catch (e) {
+            console.error('Failed to export profile:', e);
+            this.showToast(e.message || 'Failed to export profile', 'error');
+        } finally {
+            if (exportBtn) {
+                exportBtn.disabled = false;
+                exportBtn.textContent = originalText;
+            }
+        }
+    }
+
+    async handleProfileImport() {
+        if (!this._profileTransferApiAvailable()) return;
+
+        try {
+            const dialogResult = await api.openProfileImportDialog();
+            const archivePath = this._profileDialogPath(dialogResult);
+            if (!archivePath) return; // user cancelled
+
+            // Hand off to the profile picker page, which owns the single
+            // import-preview implementation (profile_select.js checks this
+            // sessionStorage key on load and auto-opens the preview modal).
+            try {
+                sessionStorage.setItem('wimi.pendingProfileImport', archivePath);
+            } catch (storageError) {
+                console.error('Failed to stage import path:', storageError);
+                this.showToast('Could not start the import', 'error');
+                return;
+            }
+            window.location.href = 'profile_select.html';
+        } catch (e) {
+            console.error('Failed to open import dialog:', e);
+            this.showToast(e.message || 'Failed to open the file dialog', 'error');
         }
     }
 

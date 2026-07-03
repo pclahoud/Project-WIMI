@@ -291,9 +291,22 @@ class MasterDatabase(BaseDatabase):
         
         with self.transaction():
             self.execute(query, tuple(params))
-        
+
         return self.get_user(user_id)
-    
+
+    def touch_user_last_active(self, user_id: int) -> None:
+        """
+        Update a user's last_active_at timestamp to now.
+
+        Args:
+            user_id: User ID to touch (no-op if the user doesn't exist)
+        """
+        with self.transaction():
+            self.execute(
+                "UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (user_id,)
+            )
+
     def soft_delete_user(self, user_id: int) -> None:
         """
         Soft delete a user (10-day grace period before permanent deletion).
@@ -464,6 +477,51 @@ class MasterDatabase(BaseDatabase):
         
         return deleted_ids
     
+    def email_in_use(self, email: str) -> bool:
+        """
+        Check whether any user record (including soft-deleted ones) uses this email.
+
+        ``users.email`` carries a UNIQUE constraint, so importing a profile
+        whose email is already registered must drop the email instead of
+        failing the whole import.
+
+        Args:
+            email: Email address to check (None/empty returns False)
+
+        Returns:
+            True if some user row already has this email
+        """
+        if not email:
+            return False
+        row = self.fetchone("SELECT 1 AS present FROM users WHERE email = ?", (email,))
+        return row is not None
+
+    def remove_user_record(self, user_id: int) -> None:
+        """
+        Hard-delete a user's registry rows (``users`` + ``user_database_schemas``).
+
+        FOR PROFILE-IMPORT ROLLBACK ONLY. This is deliberately distinct from
+        :meth:`soft_delete_user` (the user-facing deletion flow with its
+        10-day grace period): when ``install_profile_as_new`` fails partway
+        through, the freshly created registry row must disappear without a
+        trace so the failed import leaves zero residue. Does not touch any
+        files on disk — the import rollback handles those separately.
+
+        Args:
+            user_id: User ID whose registry rows should be removed
+        """
+        with self.transaction():
+            self.execute(
+                "DELETE FROM user_database_schemas WHERE user_id = ?", (user_id,)
+            )
+            self.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Removed user record {user_id} (import rollback)",
+                category=ErrorCategory.DATABASE
+            )
+
     # ==================== User Database Management ====================
     
     def ensure_user_database(self, user_id: int) -> Path:

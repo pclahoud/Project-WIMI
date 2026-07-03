@@ -1,0 +1,839 @@
+/**
+ * WIMI Profile Picker Styles
+ * Profile selection page (profile_select.html) + the small profile chip
+ * shown in the dashboard header (index.html links this stylesheet too).
+ *
+ * Theme variables only — no hardcoded colors (the few rgba() values are
+ * translucent overlays on the primary gradient, matching landing.css).
+ * All class names are profile-/pf- prefixed so this file can be linked
+ * alongside landing.css without collisions.
+ */
+
+/* =========================================================================
+   Page Layout
+   ========================================================================= */
+
+.profile-select-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+}
+
+.profile-select-header {
+    padding: var(--space-2xl) var(--space-xl) var(--space-lg);
+    text-align: center;
+    position: relative;
+}
+
+.profile-back-link {
+    position: absolute;
+    top: var(--space-lg);
+    left: var(--space-xl);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.profile-back-link:hover {
+    color: var(--color-primary);
+    background: var(--bg-tertiary);
+    text-decoration: none;
+}
+
+.profile-select-title {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin: 0 0 var(--space-xs) 0;
+}
+
+.profile-select-subtitle {
+    color: var(--text-secondary);
+    font-size: var(--font-size-md);
+    margin: 0;
+}
+
+.profile-select-main {
+    flex: 1;
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: var(--space-lg) var(--space-xl) var(--space-2xl);
+}
+
+/* =========================================================================
+   Profile Card Grid
+   ========================================================================= */
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: var(--space-lg);
+    align-items: stretch;
+}
+
+.profile-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-fast),
+                border-color var(--transition-fast),
+                transform var(--transition-fast);
+}
+
+.profile-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.profile-card-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    flex: 1;
+    padding: var(--space-xl) var(--space-lg);
+    background: none;
+    border: none;
+    border-radius: var(--radius-xl);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+}
+
+.profile-card-main:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.profile-card-main:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.profile-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-semibold);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.profile-avatar--sm {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: var(--font-size-md);
+}
+
+.profile-avatar--create {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-weight: var(--font-weight-normal);
+}
+
+.profile-card-name {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.profile-card-username {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+.profile-card-lastactive {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.profile-card-current-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-full);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+/* =========================================================================
+   Kebab Menu
+   ========================================================================= */
+
+.profile-kebab-btn {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.profile-kebab-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.profile-menu {
+    position: absolute;
+    top: 2.5rem;
+    right: var(--space-sm);
+    min-width: 9rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-dropdown);
+    overflow: hidden;
+    padding: var(--space-xs) 0;
+}
+
+.profile-menu-item {
+    display: block;
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.profile-menu-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.profile-menu-item--danger {
+    color: var(--color-error);
+}
+
+.profile-menu-item--danger:hover {
+    background: var(--color-error-bg);
+}
+
+/* =========================================================================
+   Create Card + Inline Form
+   ========================================================================= */
+
+.profile-card--create {
+    border-style: dashed;
+    border-color: var(--border-medium);
+    background: transparent;
+    box-shadow: none;
+}
+
+.profile-card--create:hover {
+    border-color: var(--color-primary);
+    background: var(--bg-primary);
+    transform: translateY(-2px);
+}
+
+.profile-card--create .profile-card-name {
+    color: var(--text-secondary);
+}
+
+.profile-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    width: 100%;
+}
+
+.profile-create-form label {
+    margin-bottom: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.profile-create-form input {
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.profile-form-error {
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.profile-form-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+}
+
+.profile-form-actions .btn {
+    flex: 1;
+}
+
+/* =========================================================================
+   Footer (import / startup prefs)
+   ========================================================================= */
+
+.profile-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border-light);
+}
+
+.profile-always-ask {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-normal);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.profile-always-ask input[type="checkbox"] {
+    margin-right: var(--space-xs);
+}
+
+/* =========================================================================
+   Recently Deleted Section
+   ========================================================================= */
+
+.profile-deleted-section {
+    margin-top: var(--space-lg);
+}
+
+.profile-deleted-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    background: none;
+    border: none;
+    padding: var(--space-xs) 0;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.profile-deleted-toggle:hover {
+    color: var(--text-primary);
+}
+
+.profile-deleted-caret {
+    display: inline-block;
+    transition: transform var(--transition-fast);
+    font-size: var(--font-size-xs);
+}
+
+.profile-deleted-caret.open {
+    transform: rotate(90deg);
+}
+
+.profile-deleted-list {
+    margin-top: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.profile-deleted-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+}
+
+.profile-deleted-row .profile-avatar--sm {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.profile-deleted-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-deleted-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.profile-deleted-days {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* =========================================================================
+   Modals (prefixed to avoid landing.css .modal collisions on index.html)
+   ========================================================================= */
+
+.profile-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.profile-modal-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.profile-modal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    max-width: 26.25rem;
+    width: 90%;
+    box-shadow: var(--shadow-xl);
+    transform: scale(0.9) translateY(-20px);
+    transition: transform var(--transition-normal);
+}
+
+.profile-modal-backdrop.active .profile-modal {
+    transform: scale(1) translateY(0);
+}
+
+.profile-modal-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    text-align: center;
+    margin: 0 0 var(--space-sm) 0;
+}
+
+.profile-modal-message {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-lg) 0;
+}
+
+.profile-modal-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.profile-modal-body {
+    margin-bottom: var(--space-lg);
+}
+
+.profile-modal-error {
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
+.profile-modal-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.profile-modal-actions .btn {
+    flex: 1;
+}
+
+.profile-modal-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-bottom: 0;
+    font-weight: var(--font-weight-normal);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.profile-modal-checkbox input[type="checkbox"] {
+    margin-top: 0.15rem;
+}
+
+.profile-modal-checkbox-hint {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+
+/* =========================================================================
+   Import Preview Modal
+   ========================================================================= */
+
+.profile-modal--wide {
+    max-width: 32rem;
+}
+
+.profile-import-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) 0 var(--space-md);
+}
+
+.profile-import-summary .profile-avatar {
+    width: 3rem;
+    height: 3rem;
+    font-size: var(--font-size-lg);
+}
+
+.profile-import-who {
+    min-width: 0;
+}
+
+.profile-import-name {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.profile-import-username {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+.profile-import-stats {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+
+.profile-import-stat {
+    flex: 1;
+    text-align: center;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.profile-import-stat-value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.profile-import-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.profile-import-media {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-md);
+}
+
+.profile-import-media--warning {
+    color: var(--text-primary);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+}
+
+.profile-import-note {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    background: var(--color-info-bg);
+    border: 1px solid var(--color-info);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.profile-import-note--error {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+    color: var(--color-error);
+}
+
+.profile-import-modes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+}
+
+.profile-import-modes--disabled {
+    opacity: 0.5;
+}
+
+.profile-import-mode {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-bottom: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-normal);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.profile-import-mode input[type="radio"] {
+    margin-top: 0.15rem;
+}
+
+.profile-import-mode-hint {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+
+.profile-import-replace {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-left: 1.5rem;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.profile-import-replace select {
+    font-size: var(--font-size-sm);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+/* =========================================================================
+   Busy Overlay (blocks the page during export/import work)
+   ========================================================================= */
+
+.pf-busy-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: var(--z-toast);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.pf-busy-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.pf-busy-box {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    padding: var(--space-lg) var(--space-xl);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+}
+
+.pf-busy-spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+    border: 3px solid var(--border-light);
+    border-top-color: var(--color-primary);
+    border-radius: var(--radius-full);
+    animation: pf-busy-spin 0.8s linear infinite;
+}
+
+@keyframes pf-busy-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* =========================================================================
+   Toasts (pf- prefixed to avoid landing.css/toast.css collisions)
+   ========================================================================= */
+
+.pf-toast-container {
+    position: fixed;
+    bottom: var(--space-xl);
+    right: var(--space-xl);
+    z-index: var(--z-toast);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    pointer-events: none;
+}
+
+.pf-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    max-width: 22rem;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-medium);
+    border-left: 4px solid var(--color-info);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity var(--transition-normal), transform var(--transition-normal);
+}
+
+.pf-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.pf-toast--success { border-left-color: var(--color-success); }
+.pf-toast--error   { border-left-color: var(--color-error); }
+.pf-toast--info    { border-left-color: var(--color-info); }
+
+.pf-toast-title {
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.pf-toast-message {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    word-break: break-all;
+}
+
+/* =========================================================================
+   Dashboard Header Profile Chip (index.html)
+   Sits on the landing gradient header, left of the settings gear.
+   ========================================================================= */
+
+.profile-chip {
+    position: absolute;
+    top: 1rem;
+    right: 4rem;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--radius-full);
+    color: var(--text-inverse);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    z-index: 1;
+    transition: background var(--transition-fast);
+}
+
+.profile-chip:hover {
+    background: rgba(255, 255, 255, 0.28);
+    color: var(--text-inverse);
+    text-decoration: none;
+}
+
+.profile-chip-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--radius-full);
+    background: var(--bg-primary);
+    color: var(--color-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    flex-shrink: 0;
+}
+
+.profile-chip-name {
+    max-width: 10rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 640px) {
+    .profile-grid {
+        grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+        gap: var(--space-md);
+    }
+
+    .profile-select-main {
+        padding: var(--space-md);
+    }
+
+    .profile-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .profile-chip-name {
+        display: none;
+    }
+}

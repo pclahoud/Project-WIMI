@@ -29,6 +29,7 @@ from . import m007_exam_length_triple
 # checked out that branch already have v8 applied; the registry skips
 # straight to v9 here so master doesn't collide.
 from . import m009_entry_note_attachments
+from . import m010_default_tag_definitions
 
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
@@ -39,4 +40,5 @@ MIGRATIONS: list[Migration] = [
     build_migration(m006_subject_edge_weight_history),
     build_migration(m007_exam_length_triple),
     build_migration(m009_entry_note_attachments),
+    build_migration(m010_default_tag_definitions),
 ]

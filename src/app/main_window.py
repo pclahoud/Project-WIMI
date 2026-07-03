@@ -35,6 +35,7 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtCore import QUrl, Qt, QSize
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut, QIcon
 
+from app import APP_VERSION
 from app.bridge import DatabaseBridge
 from app.media_manager import MediaManager
 from app.media_scheme_handler import MediaSchemeHandler, install_scheme_handler
@@ -75,7 +76,8 @@ class MainWindow(QMainWindow):
         error_logger: Optional[ErrorLogger] = None,
         dev_mode: bool = True,
         app_data_dir: Optional[Path] = None,
-        plugin_manager=None
+        plugin_manager=None,
+        initial_page: str = 'index.html'
     ):
         super().__init__()
 
@@ -115,12 +117,13 @@ class MainWindow(QMainWindow):
         self._setup_status_bar()
         self._setup_shortcuts()
         
-        # Load initial page
-        self.load_page('index.html')
+        # Load initial page (test mode constructs with the default and
+        # re-issues load_page('index.html') itself after its page swap)
+        self.load_page(initial_page)
     
     def _setup_window(self):
         """Configure the main window properties"""
-        self.setWindowTitle("WIMI - What I Missed It")
+        self._update_window_title()
         self.setGeometry(100, 100, 1400, 900)
         self.setMinimumSize(QSize(800, 600))
         
@@ -138,7 +141,22 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         
         self.central_layout = layout
-    
+
+    def _update_window_title(self):
+        """Set the window title, including the open profile's display name."""
+        if self.user_db is None:
+            self.setWindowTitle('WIMI - What I Missed It')
+            return
+        display_name = self.user_db.username
+        if self.master_db is not None:
+            try:
+                user = self.master_db.get_user(user_id=self.user_db.user_id)
+                if user is not None and user.display_name:
+                    display_name = user.display_name
+            except Exception:
+                pass  # fall back to the username
+        self.setWindowTitle(f'WIMI — {display_name}')
+
     def _setup_web_view(self):
         """Initialize and configure the web view"""
         self.web_view = QWebEngineView()
@@ -194,10 +212,10 @@ class MainWindow(QMainWindow):
             self.db_bridge.plugin_manager = self.plugin_manager
             self.db_bridge._plugin_registry = self.plugin_manager.get_plugin_registry()
 
-        # Test-mode hook: when the bridge's loadTestUserDatabase slot
-        # swaps in a new user_db, route through set_user_database() so
-        # the media manager / scheme handler / plugin manager get
-        # rewired the same way as the production login flow.
+        # Profile-switch hook: when a bridge slot swaps in a new user_db
+        # (selectProfile in production, loadTestUserDatabase in test
+        # mode), route through set_user_database() so the media manager /
+        # scheme handler / plugin manager get rewired consistently.
         self.db_bridge.userDatabaseLoaded.connect(self._on_test_user_database_loaded)
 
         # Create JavaScript error bridge
@@ -257,6 +275,10 @@ class MainWindow(QMainWindow):
         settings_action.setShortcut(QKeySequence('Ctrl+,'))
         settings_action.triggered.connect(lambda: self.load_page('settings.html'))
         file_menu.addAction(settings_action)
+
+        switch_profile_action = QAction('Switch &Profile…', self)
+        switch_profile_action.triggered.connect(lambda: self.load_page('profile_select.html'))
+        file_menu.addAction(switch_profile_action)
 
         file_menu.addSeparator()
 
@@ -356,7 +378,7 @@ class MainWindow(QMainWindow):
             self,
             'About WIMI',
             '<h2>WIMI - What I Missed It</h2>'
-            '<p>Version 0.1.0-beta</p>'
+            f'<p>Version {APP_VERSION}</p>'
             '<p>A metacognitive exam preparation tool for analyzing '
             'mistakes and improving learning outcomes.</p>'
             '<p>© 2025 Project WIMI</p>'
@@ -364,9 +386,10 @@ class MainWindow(QMainWindow):
     
     def set_user_database(self, user_db: UserDatabase):
         """Update the user database reference"""
+        old_db = self.user_db
         self.user_db = user_db
         self.db_bridge.set_user_database(user_db)
-        
+
         # Update media manager for new user
         self.media_manager = MediaManager(
             base_path=self.app_data_dir,
@@ -383,14 +406,27 @@ class MainWindow(QMainWindow):
         if self.media_scheme_handler:
             self.media_scheme_handler.set_media_manager(self.media_manager)
 
+        # Close the outgoing user database. Nothing else closes it, and
+        # a lingering SQLite WAL handle keeps the file locked on Windows,
+        # which would block a later export/delete of that profile.
+        if old_db is not None and old_db is not user_db:
+            try:
+                old_db.close()
+            except Exception as exc:
+                self.error_logger.error(
+                    f"Failed to close previous user database: {exc}",
+                    context={'old_user_id': getattr(old_db, 'user_id', None)}
+                )
+
+        self._update_window_title()
         self.status_bar.showMessage(f'User database loaded')
 
     def _on_test_user_database_loaded(self, user_id: int) -> None:
-        """Test-mode hook: complete the user-DB wiring after the bridge
-        slot loadTestUserDatabase has set bridge.user_db. The bridge can't
-        reach the media manager / scheme handler / plugin manager
-        directly, so we route through the existing set_user_database()
-        which knows how to wire all four.
+        """Complete the user-DB wiring after a bridge slot (selectProfile
+        in production, loadTestUserDatabase in test mode) has set
+        bridge.user_db. The bridge can't reach the media manager / scheme
+        handler / plugin manager directly, so we route through the
+        existing set_user_database() which knows how to wire all four.
         """
         user_db = self.db_bridge.user_db
         if user_db is None:
@@ -419,7 +455,8 @@ def run_application(
     user_db: Optional[UserDatabase] = None,
     dev_mode: bool = True,
     app_data_dir: Optional[Path] = None,
-    plugin_manager=None
+    plugin_manager=None,
+    initial_page: str = 'index.html'
 ) -> int:
     """
     Run the WIMI application.
@@ -430,13 +467,15 @@ def run_application(
         dev_mode: Whether to run in development mode
         app_data_dir: Path to application data directory
         plugin_manager: Optional PluginManager instance
+        initial_page: First page to load ('profile_select.html' when
+            startup profile resolution decides to show the picker)
 
     Returns:
         Application exit code
     """
     app = QApplication(sys.argv)
     app.setApplicationName('WIMI')
-    app.setApplicationVersion('0.1.0-beta')
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName('Project WIMI')
 
     # Create and show main window
@@ -445,7 +484,8 @@ def run_application(
         user_db=user_db,
         dev_mode=dev_mode,
         app_data_dir=app_data_dir,
-        plugin_manager=plugin_manager
+        plugin_manager=plugin_manager,
+        initial_page=initial_page
     )
     window.show()
 

@@ -14,7 +14,7 @@ if [ ! -f ".venv/bin/activate" ]; then
     echo "[ERROR] Virtual environment not found!"
     echo "Please run: python3 -m venv .venv"
     echo "Then: source .venv/bin/activate"
-    echo "Then: pip install -r requirements.txt"
+    echo "Then: pip install -r requirements-prod.txt"
     exit 1
 fi
 

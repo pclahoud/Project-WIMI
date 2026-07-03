@@ -377,6 +377,7 @@ class AnalyticsMixin:
                     t.id as tag_id,
                     t.tag_name,
                     t.color_hex,
+                    t.description,
                     COALESCE(t.tag_category, 'other') as group_name,
                     COUNT(DISTINCT qe.id) as count
                 FROM tags t
@@ -384,7 +385,7 @@ class AnalyticsMixin:
                 JOIN question_entries qe ON et.question_entry_id = qe.id
                 JOIN review_sessions rs ON qe.review_session_id = rs.id
                 WHERE {where_clause}
-                GROUP BY t.id, t.tag_name, t.color_hex, t.tag_category
+                GROUP BY t.id, t.tag_name, t.color_hex, t.description, t.tag_category
                 ORDER BY count DESC
             """
             tag_rows = self.fetchall(tag_query, tuple(params))
@@ -400,6 +401,7 @@ class AnalyticsMixin:
                     'tag_id': row['tag_id'],
                     'name': row['tag_name'],
                     'color': row['color_hex'],
+                    'description': row['description'],
                     'count': row['count'],
                     'percentage': round(row['count'] / total_tagged * 100, 1) if total_tagged > 0 else 0
                 })
@@ -412,13 +414,14 @@ class AnalyticsMixin:
                 t.id as tag_id,
                 t.tag_name,
                 t.color_hex,
+                t.description,
                 COUNT(DISTINCT qe.id) as count
             FROM tags t
             JOIN entry_tags et ON t.id = et.tag_id
             JOIN question_entries qe ON et.question_entry_id = qe.id
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE {where_clause}
-            GROUP BY t.id, t.tag_name, t.color_hex
+            GROUP BY t.id, t.tag_name, t.color_hex, t.description
             ORDER BY count DESC
             LIMIT 10
         """
@@ -432,6 +435,7 @@ class AnalyticsMixin:
                     'tag_id': row['tag_id'],
                     'name': row['tag_name'],
                     'color': row['color_hex'],
+                    'description': row['description'],
                     'count': row['count'],
                     'percentage': round(row['count'] / total_tagged * 100, 1) if total_tagged > 0 else 0
                 }

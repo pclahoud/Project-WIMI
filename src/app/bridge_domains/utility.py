@@ -4,6 +4,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import pyqtSlot
 
+from app import APP_VERSION
 from app.bridge_test_instrumentation import get_test_mode_bridge_calls, instrumented_slot
 
 from ..bridge_helpers import serialize_response
@@ -120,7 +121,7 @@ class UtilityBridgeMixin:
         """
         return serialize_response(True, data={
             'name': 'WIMI',
-            'version': '0.1.0-beta',
+            'version': APP_VERSION,
             'phase': 4,
             'description': 'Metacognitive exam preparation tool'
         })
@@ -141,7 +142,8 @@ class UtilityBridgeMixin:
             if getattr(sys, 'frozen', False):
                 base_path = Path(sys._MEIPASS)
             else:
-                base_path = Path(__file__).parent.parent.parent
+                # bridge_domains/ -> app/ -> src/ -> project root
+                base_path = Path(__file__).parents[3]
 
             docs_path = base_path / 'docs' / 'examples' / filename
 
@@ -149,11 +151,7 @@ class UtilityBridgeMixin:
                 return serialize_response(False, error='Invalid filename')
 
             if not docs_path.exists():
-                alt_path = Path(__file__).parent.parent.parent / 'docs' / 'examples' / filename
-                if alt_path.exists():
-                    docs_path = alt_path
-                else:
-                    return serialize_response(False, error=f'Documentation file not found: {filename}')
+                return serialize_response(False, error=f'Documentation file not found: {filename}')
 
             with open(docs_path, 'r', encoding='utf-8') as f:
                 content = f.read()
