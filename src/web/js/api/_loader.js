@@ -24,6 +24,8 @@
         'dimension_analytics.js',
         'import_export.js',
         'preferences.js',
+        'profiles.js',
+        'profile_transfer.js',
         'mcp_server.js',
         'utility.js',
         'plugins.js'

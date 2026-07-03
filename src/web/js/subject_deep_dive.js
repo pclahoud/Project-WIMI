@@ -548,6 +548,10 @@ class SubjectDeepDive {
                 </span>
                 <span class="mistake-type-count">${type.count} (${type.percentage}%)</span>
             `;
+            // Surface the tag definition as a hover tooltip when one is set
+            if (typeof type.description === 'string' && type.description.trim() !== '') {
+                item.title = type.description;
+            }
             container.appendChild(item);
         });
     }

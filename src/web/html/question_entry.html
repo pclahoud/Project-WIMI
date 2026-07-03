@@ -287,6 +287,14 @@
                         </div>
                         
                         <!-- Tag hierarchy display -->
+                        <div class="tag-hierarchy-toolbar">
+                            <button type="button" class="btn btn-sm btn-ghost" id="btn-manage-tags"
+                                    onclick="openManageTagsModal()"
+                                    title="Edit definitions or delete error types"
+                                    data-testid="entry-form-manage-tags-button">
+                                ⚙️ Manage error types
+                            </button>
+                        </div>
                         <div class="tag-hierarchy" id="tag-hierarchy" data-last-in-section="true">
                             <!-- Tag groups will be rendered here -->
                         </div>
@@ -455,6 +463,47 @@
                 <button class="btn btn-primary" id="note-delete-modal-detach" data-testid="note-delete-modal-detach">Detach from this entry</button>
                 <button class="btn btn-danger" id="note-delete-modal-delete-everywhere" data-testid="note-delete-modal-delete-everywhere">Delete everywhere</button>
                 <button class="btn btn-secondary" id="note-delete-modal-cancel" data-testid="note-delete-modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Error Types Modal -->
+    <div class="modal-backdrop manage-tags-modal-backdrop"
+         id="manage-tags-modal"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="manage-tags-modal-title"
+         data-testid="manage-tags-modal">
+        <div class="modal manage-tags-modal">
+            <h3 class="modal-title" id="manage-tags-modal-title">Manage Error Types</h3>
+            <p class="modal-message manage-tags-modal-sub">
+                Edit definitions or delete types. Definitions appear as hover tooltips in the picker.
+            </p>
+            <div class="manage-tags-list" id="manage-tags-list" data-testid="manage-tags-list">
+                <!-- Tag groups and types rendered by renderManageTagsModal() -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="manage-tags-close"
+                        onclick="closeManageTagsModal()"
+                        data-testid="manage-tags-close-button">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Error Type Confirmation Modal -->
+    <div class="modal-backdrop delete-tag-modal" id="delete-tag-modal" data-testid="delete-tag-modal">
+        <div class="modal">
+            <div class="modal-icon">🗑️</div>
+            <h3 class="modal-title" id="delete-tag-modal-title">Delete this error type?</h3>
+            <p class="modal-message delete-tag-modal-name" id="delete-tag-modal-name"></p>
+            <p class="modal-message" id="delete-tag-modal-usage" data-testid="delete-tag-modal-usage"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="delete-tag-cancel"
+                        onclick="cancelDeleteTag()"
+                        data-testid="delete-tag-modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delete-tag-confirm"
+                        onclick="executeDeleteTag()"
+                        data-testid="delete-tag-modal-confirm">Delete</button>
             </div>
         </div>
     </div>

@@ -62,8 +62,13 @@ def db(tmp_path):
         date_encountered=date.today()
     )
 
-    # Create tags
-    tag1 = db.create_tag(exam_context=exam.exam_name, tag_name="Knowledge Gap", tag_category="mistake_type")
+    # Create tags (tag1 carries a definition, tag2 deliberately does not)
+    tag1 = db.create_tag(
+        exam_context=exam.exam_name,
+        tag_name="Knowledge Gap",
+        tag_category="mistake_type",
+        description="You never learned or covered this material."
+    )
     tag2 = db.create_tag(exam_context=exam.exam_name, tag_name="Silly Mistake", tag_category="mistake_type")
 
     # Create entries with subject mappings and tags
@@ -199,3 +204,47 @@ class TestTagAnalyticsDimensionFilter:
         tag_names = [t['name'] for t in result['top_tags']]
         assert 'Knowledge Gap' in tag_names
         assert 'Silly Mistake' in tag_names
+
+
+class TestTagAnalyticsDescriptions:
+    """Tag definitions must surface in analytics payloads (legend tooltips)."""
+
+    def test_top_tags_carry_description(self, db):
+        """top_tags rows include the tag's description; None when unset."""
+        udb, exam = db['db'], db['exam']
+
+        result = udb.get_tag_analytics(exam_context_id=exam.id)
+        by_name = {t['name']: t for t in result['top_tags']}
+
+        assert by_name['Knowledge Gap']['description'] == \
+            "You never learned or covered this material."
+        # Key must be present even when no definition is set
+        assert 'description' in by_name['Silly Mistake']
+        assert by_name['Silly Mistake']['description'] is None
+
+    def test_by_group_carries_description(self, db):
+        """Grouped tag rows include the tag's description; None when unset."""
+        udb, exam = db['db'], db['exam']
+
+        result = udb.get_tag_analytics(exam_context_id=exam.id, group_by_parent=True)
+        rows = [t for tags in result['by_group'].values() for t in tags]
+        by_name = {t['name']: t for t in rows}
+
+        assert by_name['Knowledge Gap']['description'] == \
+            "You never learned or covered this material."
+        assert 'description' in by_name['Silly Mistake']
+        assert by_name['Silly Mistake']['description'] is None
+
+    def test_deep_dive_mistake_types_carry_description(self, db):
+        """Subject deep-dive mistake_types rows include the tag description."""
+        udb, exam = db['db'], db['exam']
+
+        payload = udb.get_subject_deep_dive(
+            subject_id=db['subj_clinical'].id,
+            exam_context_id=exam.id
+        )
+        by_name = {t['tag_name']: t for t in payload['mistake_types']}
+
+        assert 'Knowledge Gap' in by_name
+        assert by_name['Knowledge Gap']['description'] == \
+            "You never learned or covered this material."

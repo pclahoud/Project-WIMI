@@ -8,6 +8,44 @@ from ..models import Tag, QuestionAnalysis
 from app_logging import ErrorCategory
 
 
+# FROZEN — mirror of ``DEFAULT_DEFINITIONS`` in
+# ``src/database/migrations/user/m010_default_tag_definitions.py``.
+# Migrations never import live domain code, hence the deliberate
+# duplication; ``tests/database/test_tag_management.py`` asserts the two
+# maps stay identical. Covers every group and type name created by
+# ``seed_default_tags`` below. If the seeded set changes, update both
+# copies AND write a new migration for existing databases.
+_DEFAULT_TAG_DEFINITIONS: Dict[str, str] = {
+    # ------------------------------------------------------- groups
+    'Knowledge Issues': "Mistakes caused by gaps or errors in what you know.",
+    'Reading & Interpretation': "Mistakes from misreading or misinterpreting what the question asked.",
+    'Execution Errors': "Mistakes made while working the problem, even though you knew the material.",
+    'Test Strategy': "Mistakes in how you played the test itself — timing, guessing, and answer changes.",
+    'Mental & Physical State': "Mistakes influenced by how you felt — stress, focus, or energy.",
+    # ------------------------------------ types: Knowledge Issues
+    'Knowledge Gap': "You never learned or covered this material.",
+    'Memory Failure': "You studied this before but couldn't recall it when it mattered.",
+    'Misunderstanding': "You learned the material but understood it incorrectly.",
+    # --------------------------- types: Reading & Interpretation
+    'Misread Question': "You misread or overlooked key wording in the question.",
+    # ------------------------------------ types: Execution Errors
+    'Calculation Error': "You set up the problem correctly but made an arithmetic slip.",
+    'Careless Mistake': "You knew the answer but slipped through haste or inattention.",
+    'Incomplete Solution': "You started down the right path but didn't carry the work to completion.",
+    'Wrong Approach': "You chose a method or strategy that couldn't solve this problem.",
+    # --------------------------------------- types: Test Strategy
+    'Time Pressure': "Running low on time forced you to rush or abandon the question.",
+    'Second-Guessing': "You changed a correct answer to a wrong one.",
+    'Elimination Error': "You ruled out the correct answer while narrowing the choices.",
+    'Poor Prioritization': "You spent your time on the wrong questions or in the wrong order.",
+    'Wrong Guess Strategy': "You had to guess, and your guessing approach didn't pay off.",
+    # ---------------------------- types: Mental & Physical State
+    'Anxiety Related': "Nervousness or stress interfered with your thinking on this question.",
+    'Focus Problem': "You lost concentration or got distracted while answering.",
+    'Fatigue Related': "Tiredness or low energy dulled your performance on this question.",
+}
+
+
 class TagsMixin:
     """Mixin for tags operations. Composed into UserDatabase."""
 
@@ -321,9 +359,134 @@ class TagsMixin:
 
         return depth
 
+    def get_tag_usage_count(self, tag_id: int) -> int:
+        """
+        Get the LIVE number of question entries tagged with a tag.
+
+        Counts ``entry_tags`` rows directly — the ``tags.usage_count``
+        column is stale (only the legacy ``question_tags`` path ever
+        incremented it) and must not be trusted for display.
+
+        Args:
+            tag_id: Tag ID
+
+        Returns:
+            Number of entries currently tagged with this tag
+        """
+        self._ensure_phase4_schema()
+
+        row = self.fetchone(
+            "SELECT COUNT(*) as count FROM entry_tags WHERE tag_id = ?",
+            (tag_id,)
+        )
+        return row['count'] if row else 0
+
+    def update_tag_description(self, tag_id: int, description: Optional[str]) -> Tag:
+        """
+        Update a tag's description (student-facing definition).
+
+        Args:
+            tag_id: Tag ID
+            description: New description; empty/whitespace-only strings
+                are normalized to NULL (clears the definition)
+
+        Returns:
+            Refreshed Tag object
+
+        Raises:
+            TagError: If the tag does not exist
+        """
+        tag = self.get_tag(tag_id)
+        if not tag:
+            raise TagError(f"Tag {tag_id} not found")
+
+        normalized = description.strip() if description else None
+        if not normalized:
+            normalized = None
+
+        with self.transaction():
+            self.execute("""
+                UPDATE tags
+                SET description = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (normalized, tag_id))
+
+        if self.error_logger:
+            self.error_logger.debug(
+                f"Updated description for tag {tag_id} ({tag.tag_name})",
+                category=ErrorCategory.DATABASE
+            )
+
+        return self.get_tag(tag_id)
+
+    def delete_tag(self, tag_id: int) -> Dict[str, Any]:
+        """
+        Hard-delete a tag (or an EMPTY tag group).
+
+        ``entry_tags.tag_id`` and legacy ``question_tags.tag_id`` both
+        declare ``ON DELETE CASCADE``, so the delete untags the tag
+        everywhere with no manual junction cleanup. Groups with active
+        children are refused — ``tags.parent_id`` carries no ON DELETE
+        action, so deleting a populated group would FK-error anyway;
+        we guard explicitly for a clean, actionable message.
+
+        Args:
+            tag_id: Tag ID
+
+        Returns:
+            Dict with 'id', 'name', and 'affected_entries' (number of
+            entries that were untagged by the delete)
+
+        Raises:
+            TagError: If the tag does not exist, or is a group that
+                still contains active types
+        """
+        self._ensure_phase4_schema()
+
+        tag = self.get_tag(tag_id)
+        if not tag:
+            raise TagError(f"Tag {tag_id} not found")
+
+        # Tag model doesn't carry is_group — read it directly.
+        row = self.fetchone("SELECT is_group FROM tags WHERE id = ?", (tag_id,))
+        if row and row.get('is_group'):
+            child_row = self.fetchone("""
+                SELECT COUNT(*) as count FROM tags
+                WHERE parent_id = ? AND is_active = TRUE
+            """, (tag_id,))
+            child_count = child_row['count'] if child_row else 0
+            if child_count > 0:
+                raise TagError(
+                    f"Group '{tag.tag_name}' contains {child_count} types; "
+                    f"delete or move them first"
+                )
+
+        affected = self.get_tag_usage_count(tag_id)
+
+        with self.transaction():
+            self.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Deleted tag {tag_id} ({tag.tag_name}), "
+                f"untagged {affected} entries",
+                category=ErrorCategory.DATABASE
+            )
+
+        return {
+            'id': tag_id,
+            'name': tag.tag_name,
+            'affected_entries': affected
+        }
+
     def get_tag_hierarchy(self, exam_context: str) -> List[Dict[str, Any]]:
         """
         Get the full tag hierarchy for an exam context.
+
+        ``usage_count`` is LIVE — a correlated ``COUNT(*)`` against
+        ``entry_tags`` per tag, not the stale ``tags.usage_count``
+        column. Group nodes report the sum of their children (plus any
+        direct usage of the group itself, normally zero).
 
         Args:
             exam_context: Exam context code
@@ -336,13 +499,19 @@ class TagsMixin:
         def build_tree(parent_id: Optional[int]) -> List[Dict[str, Any]]:
             if parent_id is None:
                 rows = self.fetchall("""
-                    SELECT * FROM tags
+                    SELECT *,
+                        (SELECT COUNT(*) FROM entry_tags et
+                         WHERE et.tag_id = tags.id) AS live_usage_count
+                    FROM tags
                     WHERE exam_context = ? AND parent_id IS NULL AND is_active = TRUE
                     ORDER BY display_order, tag_name
                 """, (exam_context,))
             else:
                 rows = self.fetchall("""
-                    SELECT * FROM tags
+                    SELECT *,
+                        (SELECT COUNT(*) FROM entry_tags et
+                         WHERE et.tag_id = tags.id) AS live_usage_count
+                    FROM tags
                     WHERE exam_context = ? AND parent_id = ? AND is_active = TRUE
                     ORDER BY display_order, tag_name
                 """, (exam_context, parent_id))
@@ -355,12 +524,16 @@ class TagsMixin:
                     'color': row['color_hex'],
                     'description': row['description'],
                     'is_group': bool(row.get('is_group', False)),
-                    'usage_count': row.get('usage_count', 0),
+                    'usage_count': row['live_usage_count'],
                     'children': []
                 }
 
                 if tag_dict['is_group']:
                     tag_dict['children'] = build_tree(row['id'])
+                    # Groups aggregate their children's live counts.
+                    tag_dict['usage_count'] += sum(
+                        child['usage_count'] for child in tag_dict['children']
+                    )
 
                 result.append(tag_dict)
 
@@ -385,7 +558,10 @@ class TagsMixin:
         if existing and existing['count'] > 0:
             return  # Already seeded
 
-        # Default tag structure
+        # Default tag structure. Every name below MUST have an entry in
+        # _DEFAULT_TAG_DEFINITIONS (module top) — and, mirrored, in
+        # m010_default_tag_definitions.DEFAULT_DEFINITIONS — so fresh
+        # installs and migrated databases carry the same definitions.
         default_tags = {
             'Knowledge Issues': {
                 'color': '#EF4444',  # Red
@@ -415,7 +591,8 @@ class TagsMixin:
                 group = self.create_tag_group(
                     exam_context=exam_context,
                     group_name=group_name,
-                    color_hex=group_data['color']
+                    color_hex=group_data['color'],
+                    description=_DEFAULT_TAG_DEFINITIONS.get(group_name)
                 )
 
                 # Create tags within group
@@ -424,7 +601,8 @@ class TagsMixin:
                         exam_context=exam_context,
                         tag_name=tag_name,
                         group_id=group.id,
-                        color_hex=group_data['color']
+                        color_hex=group_data['color'],
+                        description=_DEFAULT_TAG_DEFINITIONS.get(tag_name)
                     )
 
         if self.error_logger:

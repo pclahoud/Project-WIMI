@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WIMI - Choose Profile</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/profiles.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <!-- No plugin_loader.js: this page runs without a user context -->
+</head>
+<body>
+    <div class="profile-select-page">
+        <!-- Header -->
+        <header class="profile-select-header">
+            <!-- Shown only when a profile is already loaded (getCurrentProfile) -->
+            <a href="index.html" class="profile-back-link hidden" id="backToDashboard" data-testid="profile-back-to-dashboard">
+                <span>&larr;</span>
+                <span>Back to dashboard</span>
+            </a>
+            <h1 class="profile-select-title">Who's studying?</h1>
+            <p class="profile-select-subtitle">Choose a profile to open, or create a new one.</p>
+        </header>
+
+        <!-- Main -->
+        <main class="profile-select-main">
+            <div id="profileGrid" class="profile-grid" data-testid="profile-grid">
+                <!-- Profile cards rendered by profile_select.js -->
+            </div>
+
+            <!-- Footer: import + startup prefs -->
+            <footer class="profile-footer">
+                <button type="button" class="btn btn-secondary" id="importProfileBtn" data-testid="profile-import-btn">
+                    Import profile&hellip;
+                </button>
+                <label class="profile-always-ask">
+                    <input type="checkbox" id="alwaysAskCheckbox" data-testid="profile-always-ask">
+                    <span>Always ask at startup</span>
+                </label>
+            </footer>
+
+            <!-- Recently deleted (collapsible) -->
+            <section class="profile-deleted-section hidden" id="deletedSection">
+                <button type="button" class="profile-deleted-toggle" id="deletedToggle" data-testid="profile-deleted-toggle">
+                    <span class="profile-deleted-caret" id="deletedCaret">&#9656;</span>
+                    <span id="deletedToggleLabel">Recently deleted (0)</span>
+                </button>
+                <div class="profile-deleted-list hidden" id="deletedList" data-testid="profile-deleted-list">
+                    <!-- Deleted profile rows rendered by profile_select.js -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="profile-modal-backdrop" id="renameModal" data-testid="profile-rename-modal">
+        <div class="profile-modal">
+            <h3 class="profile-modal-title">Rename profile</h3>
+            <p class="profile-modal-message">
+                Change the display name for
+                <span class="profile-modal-name" id="renameModalName">this profile</span>.
+                The username stays the same.
+            </p>
+            <div class="profile-modal-body">
+                <label for="renameInput">Display name</label>
+                <input type="text" id="renameInput" data-testid="profile-rename-input" maxlength="80" placeholder="Display name">
+                <div class="profile-modal-error hidden" id="renameError" data-testid="profile-rename-error"></div>
+            </div>
+            <div class="profile-modal-actions">
+                <button type="button" class="btn btn-secondary" id="renameCancelBtn" data-testid="profile-rename-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="renameSaveBtn" data-testid="profile-rename-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="profile-modal-backdrop" id="deleteModal" data-testid="profile-delete-modal">
+        <div class="profile-modal">
+            <h3 class="profile-modal-title">Delete profile?</h3>
+            <p class="profile-modal-message">
+                Delete <span class="profile-modal-name" id="deleteModalName">this profile</span>?
+                <br><br>
+                The profile will be kept for <strong>10 days</strong> and can be restored
+                from the "Recently deleted" section during that time. After the grace
+                period it is permanently removed, including all its entries and data.
+            </p>
+            <div class="profile-modal-error hidden" id="deleteError" data-testid="profile-delete-error"></div>
+            <div class="profile-modal-actions">
+                <button type="button" class="btn btn-secondary" id="deleteCancelBtn" data-testid="profile-delete-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="deleteConfirmBtn" data-testid="profile-delete-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Options Modal (include media?) -->
+    <div class="profile-modal-backdrop" id="exportModal" data-testid="profile-export-modal">
+        <div class="profile-modal">
+            <h3 class="profile-modal-title">Export profile</h3>
+            <p class="profile-modal-message">
+                Export <span class="profile-modal-name" id="exportModalName">this profile</span>
+                as a portable <code>.wimi</code> file.
+            </p>
+            <div class="profile-modal-body">
+                <label class="profile-modal-checkbox">
+                    <input type="checkbox" id="exportIncludeMedia" data-testid="profile-export-include-media" checked>
+                    <span>
+                        Include media files
+                        <span class="profile-modal-checkbox-hint">
+                            Images attached to entries. Skipping media makes the export
+                            much smaller, but images will be missing after import.
+                        </span>
+                    </span>
+                </label>
+                <div class="profile-modal-error hidden" id="exportError" data-testid="profile-export-error"></div>
+            </div>
+            <div class="profile-modal-actions">
+                <button type="button" class="btn btn-secondary" id="exportCancelBtn" data-testid="profile-export-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="exportConfirmBtn" data-testid="profile-export-confirm">Choose location&hellip;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Preview Modal -->
+    <div class="profile-modal-backdrop" id="importModal" data-testid="profile-import-modal">
+        <div class="profile-modal profile-modal--wide">
+            <h3 class="profile-modal-title">Import profile</h3>
+
+            <!-- Who -->
+            <div class="profile-import-summary">
+                <div class="profile-avatar" id="importAvatar" aria-hidden="true"></div>
+                <div class="profile-import-who">
+                    <div class="profile-import-name" id="importDisplayName" data-testid="profile-import-display-name"></div>
+                    <div class="profile-import-username" id="importUsername" data-testid="profile-import-username"></div>
+                </div>
+            </div>
+
+            <!-- Stats + media -->
+            <div class="profile-import-stats" id="importStats" data-testid="profile-import-stats"></div>
+            <div class="profile-import-media" id="importMediaInfo" data-testid="profile-import-media"></div>
+
+            <!-- Schema verdict (hidden when verdict is 'ok') -->
+            <div class="profile-import-note hidden" id="importSchemaNote" data-testid="profile-import-schema-note"></div>
+
+            <!-- Mode choice -->
+            <div class="profile-import-modes" id="importModeChoice" data-testid="profile-import-mode-choice">
+                <label class="profile-import-mode">
+                    <input type="radio" name="importMode" value="create" id="importModeCreate"
+                           data-testid="profile-import-mode-create" checked>
+                    <span>
+                        Import as new profile
+                        <span class="profile-import-mode-hint hidden" id="importSuggestedName"
+                              data-testid="profile-import-suggested-name"></span>
+                    </span>
+                </label>
+                <label class="profile-import-mode">
+                    <input type="radio" name="importMode" value="replace" id="importModeReplace"
+                           data-testid="profile-import-mode-replace">
+                    <span>Replace existing profile</span>
+                </label>
+                <div class="profile-import-replace hidden" id="importReplaceOptions">
+                    <select id="importReplaceTarget" data-testid="profile-import-replace-target"></select>
+                    <div class="profile-import-mode-hint hidden" id="importReplaceHint"
+                         data-testid="profile-import-replace-hint"></div>
+                    <label class="profile-modal-checkbox">
+                        <input type="checkbox" id="importReplaceConfirm" data-testid="profile-import-replace-confirm">
+                        <span>I understand this replaces all data in the selected profile</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="profile-modal-error hidden" id="importError" data-testid="profile-import-error"></div>
+            <div class="profile-modal-actions">
+                <button type="button" class="btn btn-secondary" id="importCancelBtn" data-testid="profile-import-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn" data-testid="profile-import-confirm">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Busy overlay (long-running export/import work) -->
+    <div class="pf-busy-overlay" id="busyOverlay" data-testid="profile-busy-overlay">
+        <div class="pf-busy-box">
+            <span class="pf-busy-spinner" aria-hidden="true"></span>
+            <span id="busyOverlayText">Working&hellip;</span>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/profile_select.js"></script>
+</body>
+</html>

@@ -132,11 +132,14 @@ class FuzzySearch {
                 }
             } else {
                 // This is a leaf tag, add it to the flat list
+                // NOTE: description is carried for tooltip display only —
+                // it is deliberately NOT part of the Fuse search keys.
                 flatTags.push({
                     id: item.id,
                     name: item.name,
                     groupName: parentName || '',
                     color: item.color,
+                    description: item.description || '',
                     fullPath: parentName ? `${parentName} > ${item.name}` : item.name
                 });
             }

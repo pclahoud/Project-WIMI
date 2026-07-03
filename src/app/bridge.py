@@ -21,6 +21,8 @@ from app.bridge_helpers import DateTimeEncoder, serialize_response  # noqa: F401
 from app.bridge_domains import (
     SerializerMixin,
     PreferencesBridgeMixin,
+    ProfileBridgeMixin,
+    ProfileTransferBridgeMixin,
     UtilityBridgeMixin,
     TagBridgeMixin,
     TimerBridgeMixin,
@@ -70,6 +72,8 @@ class DatabaseBridge(
     GoalsBridgeMixin,
     ImportExportBridgeMixin,
     PreferencesBridgeMixin,
+    ProfileBridgeMixin,
+    ProfileTransferBridgeMixin,
     UtilityBridgeMixin,
     PluginDispatchMixin,
     PluginManagementMixin,
@@ -89,7 +93,7 @@ class DatabaseBridge(
     examContextCreated = pyqtSignal(str)  # Emits exam_context_id
     examContextUpdated = pyqtSignal(str)  # Emits exam_context_id
     weightUpdated = pyqtSignal(str)       # Emits node_id
-    userDatabaseLoaded = pyqtSignal(int)  # Emits user_id (test-mode only)
+    userDatabaseLoaded = pyqtSignal(int)  # Emits user_id when a profile's DB is attached (selectProfile + test-mode loadTestUserDatabase)
 
     def __init__(
         self,

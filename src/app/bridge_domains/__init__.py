@@ -6,6 +6,8 @@ Composed into DatabaseBridge via multiple inheritance.
 
 from ._serializers import SerializerMixin
 from .preferences import PreferencesBridgeMixin
+from .profiles import ProfileBridgeMixin
+from .profile_transfer import ProfileTransferBridgeMixin
 from .utility import UtilityBridgeMixin
 from .tags import TagBridgeMixin
 from .timer import TimerBridgeMixin
@@ -32,6 +34,8 @@ from .plugin_management import PluginManagementMixin
 __all__ = [
     'SerializerMixin',
     'PreferencesBridgeMixin',
+    'ProfileBridgeMixin',
+    'ProfileTransferBridgeMixin',
     'UtilityBridgeMixin',
     'TagBridgeMixin',
     'TimerBridgeMixin',

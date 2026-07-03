@@ -1859,6 +1859,9 @@ async function loadTagHierarchy() {
         }
         
         renderTagHierarchy();
+        // Re-render chips so tooltips pick up descriptions when the form was
+        // hydrated (edit mode) before the hierarchy finished loading
+        renderTagChips();
     } catch (error) {
         console.error('Error loading tag hierarchy:', error);
         EntryState.tagHierarchy = [];
@@ -1899,7 +1902,8 @@ function initTagSearch() {
                         id: tag.id,
                         name: tag.name,
                         groupName: group.name,
-                        color: tag.color || group.color
+                        color: tag.color || group.color,
+                        description: tag.description || ''
                     });
                 });
             });
@@ -1981,6 +1985,7 @@ function renderTagDropdown(dropdown, results, query = '') {
                         <div class="tag-option ${isBestMatch ? 'best-match' : ''} ${isSelected ? 'already-selected' : ''}"
                              role="option"
                              id="tag-option-${index}"
+                             ${tag.description ? `title="${escapeHtml(tag.description)}"` : ''}
                              data-id="${tag.id}"
                              data-name="${escapeHtml(tag.name)}"
                              data-color="${tag.color || '#6B7280'}"
@@ -2039,7 +2044,12 @@ function renderCreateTagOption(tagName, tagGroups) {
                     </label>
                 `).join('')}
             </div>
-            <button type="button" class="btn btn-sm btn-primary dropdown-create-btn" 
+            <input type="text" class="form-input dropdown-create-definition"
+                   id="create-tag-definition"
+                   placeholder="Definition (optional) — shown as a tooltip"
+                   autocomplete="off"
+                   data-testid="entry-form-create-tag-definition-input">
+            <button type="button" class="btn btn-sm btn-primary dropdown-create-btn"
                     onclick="createTagInline('${escapeHtml(tagName).replace(/'/g, "&apos;")}')">
                 Create Tag
             </button>
@@ -2082,28 +2092,34 @@ async function createTagInline(tagName) {
     
     try {
         const examContext = EntryState.examContext?.exam_name || '';
-        const newTag = await api.createTagInGroup(examContext, tagName, groupId);
-        
+        const definitionInput = document.querySelector('[data-testid="entry-form-create-tag-definition-input"]');
+        const definition = definitionInput ? definitionInput.value.trim() : '';
+        const newTag = await api.createTagInGroup(examContext, tagName, groupId, definition);
+        const newDescription = newTag.description || definition || '';
+
         // Add the new tag to our local hierarchy
         if (group.children) {
             group.children.push({
                 id: newTag.id,
                 name: tagName,
                 color: group.color,
-                is_group: false
+                is_group: false,
+                description: newDescription || null,
+                usage_count: 0
             });
         }
-        
+
         // Refresh the fuzzy search index
         if (typeof fuzzySearch !== 'undefined') {
             fuzzySearch.initTagIndex(EntryState.tagHierarchy);
         }
-        
+
         // Add the tag to the current selection
         EntryState.formData.tags.push({
             id: newTag.id,
             name: tagName,
-            color: group.color || '#6B7280'
+            color: group.color || '#6B7280',
+            description: newDescription
         });
         
         // Update UI
@@ -2142,7 +2158,7 @@ function selectTagFromDropdown(id, name, color) {
         removeTag(id);
     } else {
         // Add the tag
-        EntryState.formData.tags.push({ id, name, color });
+        EntryState.formData.tags.push({ id, name, color, description: getTagDescriptionById(id) });
         renderTagHierarchy();
         renderTagChips();
         markDirty();
@@ -2153,24 +2169,51 @@ function selectTagFromDropdown(id, name, color) {
     if (dropdown) dropdown.classList.remove('visible');
 }
 
+/**
+ * Find a tag or group node in the loaded hierarchy by id
+ * @returns {{node: object, isGroup: boolean, group: object|null}|null}
+ */
+function findTagNodeById(tagId) {
+    for (const group of (EntryState.tagHierarchy || [])) {
+        if (group.id === tagId) {
+            return { node: group, isGroup: true, group: null };
+        }
+        for (const child of (group.children || [])) {
+            if (child.id === tagId) {
+                return { node: child, isGroup: false, group };
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Look up a tag's description (definition) from the loaded hierarchy
+ */
+function getTagDescriptionById(tagId) {
+    const found = findTagNodeById(tagId);
+    return (found && found.node.description) || '';
+}
+
 function renderTagHierarchy() {
     const container = document.getElementById('tag-hierarchy');
     if (!container) return;
-    
+
     if (!EntryState.tagHierarchy || EntryState.tagHierarchy.length === 0) {
         container.innerHTML = '<p class="form-help">No tags available. Tags will be created when you first use them.</p>';
         return;
     }
-    
+
     container.innerHTML = EntryState.tagHierarchy.map(group => `
         <div class="tag-group">
-            <div class="tag-group-header">
+            <div class="tag-group-header" ${group.description ? `title="${escapeHtml(group.description)}"` : ''}>
                 <span class="tag-group-color" style="background: ${group.color || '#6B7280'}"></span>
                 <span>${escapeHtml(group.name)}</span>
             </div>
             <div class="tag-group-items">
                 ${(group.children || []).map(tag => `
-                    <button type="button" class="tag-item ${isTagSelected(tag.id) ? 'selected' : ''}" 
+                    <button type="button" class="tag-item ${isTagSelected(tag.id) ? 'selected' : ''}"
+                            ${tag.description ? `title="${escapeHtml(tag.description)}"` : ''}
                             data-tag-id="${tag.id}" onclick="toggleTag(${tag.id}, '${escapeHtml(tag.name).replace(/'/g, "&apos;")}', '${tag.color || group.color}')">
                         ${escapeHtml(tag.name)}
                     </button>
@@ -2192,7 +2235,7 @@ function toggleTag(id, name, color) {
         EntryState.formData.tags.splice(index, 1);
     } else {
         // Add tag
-        EntryState.formData.tags.push({ id, name, color });
+        EntryState.formData.tags.push({ id, name, color, description: getTagDescriptionById(id) });
     }
     
     renderTagHierarchy();
@@ -2204,12 +2247,15 @@ function renderTagChips() {
     const container = document.getElementById('tags-chips');
     if (!container) return;
     
-    container.innerHTML = EntryState.formData.tags.map(tag => `
-        <div class="chip tag" style="border-left: 3px solid ${tag.color || '#6B7280'}" data-testid="entry-form-tags-chip-${tag.id}">
+    container.innerHTML = EntryState.formData.tags.map(tag => {
+        const description = tag.description || getTagDescriptionById(tag.id);
+        return `
+        <div class="chip tag" style="border-left: 3px solid ${tag.color || '#6B7280'}" ${description ? `title="${escapeHtml(description)}"` : ''} data-testid="entry-form-tags-chip-${tag.id}">
             <span>${escapeHtml(tag.name)}</span>
             <button type="button" class="chip-remove" onclick="removeTag(${tag.id})" title="Remove">×</button>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function removeTag(id) {
@@ -2217,10 +2263,253 @@ function removeTag(id) {
     if (index > -1) {
         EntryState.formData.tags.splice(index, 1);
     }
-    
+
     renderTagHierarchy();
     renderTagChips();
     markDirty();
+}
+
+// =========================================================================
+// Error Type Management (Manage modal: definitions + delete)
+// =========================================================================
+
+// Original definition text per tag id, captured at render time for dirty checks
+let manageTagOriginals = {};
+
+// Tag pending deletion via the confirmation modal: { id, name, isGroup, usageCount }
+let pendingDeleteTag = null;
+
+/**
+ * Open the "Manage error types" modal with fresh live usage counts
+ */
+async function openManageTagsModal() {
+    await loadTagHierarchy();
+    renderManageTagsModal();
+    Modal.open('manage-tags-modal');
+}
+
+function closeManageTagsModal() {
+    Modal.close('manage-tags-modal');
+}
+
+/**
+ * Render the manage modal body from EntryState.tagHierarchy
+ */
+function renderManageTagsModal() {
+    const container = document.getElementById('manage-tags-list');
+    if (!container) return;
+
+    manageTagOriginals = {};
+
+    const hierarchy = EntryState.tagHierarchy || [];
+    if (hierarchy.length === 0) {
+        container.innerHTML = '<p class="form-help">No error types yet. Defaults are re-seeded the next time the picker loads.</p>';
+        return;
+    }
+
+    const usageLabel = (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`;
+
+    container.innerHTML = hierarchy.map(group => {
+        const children = group.children || [];
+        const groupCount = group.usage_count || 0;
+        const groupEmpty = children.length === 0;
+
+        return `
+        <div class="manage-tag-group">
+            <div class="manage-tag-group-header" ${group.description ? `title="${escapeHtml(group.description)}"` : ''}>
+                <span class="tag-group-color" style="background: ${group.color || '#6B7280'}"></span>
+                <span class="manage-tag-group-name">${escapeHtml(group.name)}</span>
+                <span class="manage-tag-usage" data-testid="manage-tag-usage-${group.id}">${usageLabel(groupCount)}</span>
+                <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${group.id}"
+                        ${groupEmpty ? 'title="Delete this empty group"' : 'disabled title="Delete or move its types first"'}
+                        onclick="confirmDeleteTag(${group.id})">🗑️</button>
+            </div>
+            <div class="manage-tag-rows">
+                ${children.map(tag => {
+                    const count = tag.usage_count || 0;
+                    manageTagOriginals[tag.id] = tag.description || '';
+                    return `
+                <div class="manage-tag-row" data-tag-id="${tag.id}">
+                    <div class="manage-tag-row-main">
+                        <span class="tag-option-color" style="background: ${tag.color || group.color || '#6B7280'}"></span>
+                        <span class="manage-tag-name">${escapeHtml(tag.name)}</span>
+                        <span class="manage-tag-usage" data-testid="manage-tag-usage-${tag.id}">${usageLabel(count)}</span>
+                        <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${tag.id}"
+                                title="Delete this error type"
+                                onclick="confirmDeleteTag(${tag.id})">🗑️</button>
+                    </div>
+                    <div class="manage-tag-def">
+                        <textarea class="manage-tag-def-input" rows="2"
+                                  placeholder="Definition (optional) — shown as a tooltip in the picker"
+                                  data-testid="manage-tag-def-${tag.id}"
+                                  oninput="onTagDefinitionInput(${tag.id})">${escapeHtml(tag.description || '')}</textarea>
+                        <button type="button" class="btn btn-sm btn-primary manage-tag-save"
+                                data-testid="manage-tag-save-${tag.id}" hidden
+                                onclick="saveTagDefinition(${tag.id})">Save</button>
+                    </div>
+                </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+/**
+ * Show/hide the Save button when a definition textarea diverges from its saved value
+ */
+function onTagDefinitionInput(tagId) {
+    const textarea = document.querySelector(`[data-testid="manage-tag-def-${tagId}"]`);
+    const saveBtn = document.querySelector(`[data-testid="manage-tag-save-${tagId}"]`);
+    if (!textarea || !saveBtn) return;
+    const original = manageTagOriginals[tagId] || '';
+    saveBtn.hidden = textarea.value.trim() === original.trim();
+}
+
+/**
+ * Persist a tag definition and refresh every surface that shows it
+ */
+async function saveTagDefinition(tagId) {
+    const textarea = document.querySelector(`[data-testid="manage-tag-def-${tagId}"]`);
+    if (!textarea) return;
+    const saveBtn = document.querySelector(`[data-testid="manage-tag-save-${tagId}"]`);
+    const value = textarea.value.trim();
+
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        const result = await api.updateTagDescription(tagId, value);
+        const newDescription = (result && result.description) || '';
+
+        // Update the in-memory hierarchy node
+        const found = findTagNodeById(tagId);
+        if (found) {
+            found.node.description = newDescription || null;
+        }
+
+        // Sync any selected chip carrying this tag
+        let chipsChanged = false;
+        EntryState.formData.tags.forEach(t => {
+            if (t.id === tagId) {
+                t.description = newDescription;
+                chipsChanged = true;
+            }
+        });
+
+        // Reindex fuzzy search (flattened records carry description) and re-render
+        if (typeof fuzzySearch !== 'undefined') {
+            fuzzySearch.initTagIndex(EntryState.tagHierarchy);
+        }
+        renderTagHierarchy();
+        if (chipsChanged) renderTagChips();
+
+        // Reset dirty state in the modal row
+        manageTagOriginals[tagId] = newDescription;
+        textarea.value = newDescription;
+        if (saveBtn) saveBtn.hidden = true;
+
+        const tagName = found ? found.node.name : 'error type';
+        Toast.success('Definition Saved', `Updated "${tagName}"`);
+    } catch (error) {
+        console.error('Error saving tag definition:', error);
+        Toast.error('Save Failed', error.message || 'Could not save the definition.');
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
+/**
+ * Open the delete confirmation modal, filling in the live usage line
+ */
+function confirmDeleteTag(tagId) {
+    const found = findTagNodeById(tagId);
+    if (!found) return;
+
+    const count = found.node.usage_count || 0;
+    pendingDeleteTag = {
+        id: tagId,
+        name: found.node.name,
+        isGroup: found.isGroup,
+        usageCount: count
+    };
+
+    const nameEl = document.getElementById('delete-tag-modal-name');
+    if (nameEl) {
+        nameEl.textContent = found.isGroup
+            ? `Delete the group "${found.node.name}"?`
+            : `Delete "${found.node.name}"?`;
+    }
+
+    const usageEl = document.getElementById('delete-tag-modal-usage');
+    if (usageEl) {
+        usageEl.textContent = count > 0
+            ? `Used by ${count} ${count === 1 ? 'entry' : 'entries'}. Deleting removes this tag from those entries and from analytics. This cannot be undone.`
+            : 'Not used by any entries. This cannot be undone.';
+    }
+
+    Modal.open('delete-tag-modal');
+}
+
+/**
+ * Close the delete confirmation, keeping the manage modal's scroll lock intact
+ */
+function closeDeleteTagModal() {
+    Modal.close('delete-tag-modal');
+    const manageModal = document.getElementById('manage-tags-modal');
+    if (manageModal && manageModal.classList.contains('active')) {
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function cancelDeleteTag() {
+    pendingDeleteTag = null;
+    closeDeleteTagModal();
+}
+
+/**
+ * Hard-delete the pending tag/group, then refresh chips, picker, and modal
+ */
+async function executeDeleteTag() {
+    if (!pendingDeleteTag) return;
+    const { id, name, isGroup } = pendingDeleteTag;
+
+    const confirmBtn = document.getElementById('delete-tag-confirm');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+        const result = await api.deleteTag(id);
+        const affected = (result && result.affected_entries) || 0;
+
+        if (isGroup) {
+            Toast.success('Group Deleted', `Removed "${name}"`);
+        } else {
+            Toast.success('Error Type Deleted', `Removed "${name}" (untagged ${affected} ${affected === 1 ? 'entry' : 'entries'})`);
+        }
+
+        // Prune from the current selection if present
+        const index = EntryState.formData.tags.findIndex(t => t.id === id);
+        if (index > -1) {
+            EntryState.formData.tags.splice(index, 1);
+            renderTagChips();
+            markDirty();
+        }
+
+        pendingDeleteTag = null;
+        closeDeleteTagModal();
+
+        // Refresh hierarchy (re-renders browse-all + reindexes Fuse) and the modal in place
+        await loadTagHierarchy();
+        renderManageTagsModal();
+    } catch (error) {
+        // e.g. stale UI: group became non-empty — bridge returns a user-facing message
+        console.error('Error deleting tag:', error);
+        Toast.error('Delete Failed', error.message || 'Could not delete this error type.');
+        pendingDeleteTag = null;
+        closeDeleteTagModal();
+        await loadTagHierarchy();
+        renderManageTagsModal();
+    } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
 }
 
 // =========================================================================
@@ -2803,7 +3092,9 @@ function populateFormWithEntry(entry) {
     EntryState.formData.tags = (entry.tags || []).map(t => ({
         id: t.id,
         name: t.tag_name || t.name,
-        color: t.color_hex || t.color || '#6B7280'
+        color: t.color_hex || t.color || '#6B7280',
+        // Join definition from the loaded tag hierarchy for chip tooltips
+        description: t.description || getTagDescriptionById(t.id)
     }));
     renderTagHierarchy();
     renderTagChips();
@@ -3295,7 +3586,8 @@ function applyAutofillData(sourceEntry) {
                 EntryState.formData.tags.push({
                     id: tag.id,
                     name: tag.name || tag.tag_name,
-                    color: tag.color || tag.color_hex || '#6b7280'
+                    color: tag.color || tag.color_hex || '#6b7280',
+                    description: tag.description || getTagDescriptionById(tag.id)
                 });
                 addedCount++;
             }

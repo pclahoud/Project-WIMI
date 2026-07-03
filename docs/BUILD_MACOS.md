@@ -18,17 +18,16 @@ chmod +x build_macos.sh
 
 ```bash
 # 1. Create and activate virtual environment
+# (python.org universal2 Python recommended; Homebrew/uv Pythons are
+# single-arch — see "Universal Binary" below)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-prod.txt   # includes PyInstaller
 
-# 2. Install PyInstaller
-pip install pyinstaller
-
-# 3. Build
+# 2. Build
 pyinstaller wimi_macos.spec --noconfirm
 
-# 4. Create data directories next to the .app
+# 3. Create data directories next to the .app
 mkdir -p dist/WIMI/app_data
 mkdir -p dist/WIMI/logs
 ```

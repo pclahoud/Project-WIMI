@@ -1441,6 +1441,11 @@ class AnalyticsDashboard {
                 <span class="legend-count">${item[valueKey]}</span>
             `;
 
+            // Surface tag definitions as hover tooltips (only tag data carries a description)
+            if (typeof item.description === 'string' && item.description.trim() !== '') {
+                legendItem.title = item.description;
+            }
+
             container.appendChild(legendItem);
         });
     }

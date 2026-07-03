@@ -80,7 +80,7 @@ class AdvancedAnalyticsMixin:
                 'last_week': int,
                 'timeline': [{'label': str, 'count': int}, ...],
                 'child_subjects': [{'subject_id': int, 'subject_name': str, 'mistake_count': int, 'total_mistake_count': int}, ...],
-                'mistake_types': [{'tag_name': str, 'color': str, 'count': int, 'percentage': float}, ...],
+                'mistake_types': [{'tag_name': str, 'color': str, 'description': str, 'count': int, 'percentage': float}, ...],
                 'recent_entries': [{'entry_id': int, 'date_encountered': str, 'subject_name': str, 'reflection': str, 'explanation': str}, ...],
                 'sibling_subjects': [{'subject_id': int, 'subject_name': str, 'mistake_count': int}, ...]
             }
@@ -433,6 +433,7 @@ class AdvancedAnalyticsMixin:
             SELECT
                 t.tag_name,
                 t.color_hex,
+                t.description,
                 COUNT(DISTINCT qe.id) as count
             FROM tags t
             JOIN entry_tags et ON t.id = et.tag_id
@@ -440,7 +441,7 @@ class AdvancedAnalyticsMixin:
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
             WHERE {agg_where_clause} AND esm.mapping_type = 'primary'
-            GROUP BY t.id, t.tag_name, t.color_hex
+            GROUP BY t.id, t.tag_name, t.color_hex, t.description
             ORDER BY count DESC
             LIMIT 5
         """

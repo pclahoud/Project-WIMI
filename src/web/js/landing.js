@@ -502,6 +502,40 @@ async function confirmHardDeleteExam(examId, examName) {
 }
 
 // =========================================================================
+// Profile Chip (header, links to the profile picker)
+// =========================================================================
+
+function profileChipInitials(displayName, username) {
+    const source = (displayName || username || '?').trim();
+    const words = source.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+        return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+}
+
+async function loadProfileChip() {
+    const chip = document.getElementById('profileChip');
+    if (!chip) return;
+    try {
+        await api.ready();
+        const data = await api.getCurrentProfile();
+        const profile = data && data.profile;
+        if (!profile) return; // no loaded user — keep the chip hidden
+
+        const avatarEl = document.getElementById('profileChipAvatar');
+        const nameEl = document.getElementById('profileChipName');
+        if (avatarEl) avatarEl.textContent = profileChipInitials(profile.display_name, profile.username);
+        if (nameEl) nameEl.textContent = profile.display_name || profile.username;
+        chip.title = `Switch profile (currently ${profile.display_name || profile.username})`;
+        chip.classList.remove('hidden');
+    } catch (error) {
+        // Fail soft: profile bridge unavailable or no master DB — no chip.
+        console.warn('Profile chip unavailable:', error);
+    }
+}
+
+// =========================================================================
 // Status Initialization
 // =========================================================================
 
@@ -552,6 +586,9 @@ async function initializeLandingPage() {
     
     // Initialize status
     await initializeStatus();
+
+    // Profile chip in the header (fails soft when no profile is loaded)
+    await loadProfileChip();
     
     // Load analytics preview
     await loadAnalyticsPreview();

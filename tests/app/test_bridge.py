@@ -165,7 +165,7 @@ class TestBridgeConnection:
         
         assert data['name'] == 'WIMI'
         assert 'version' in data
-        assert data['phase'] == 3
+        assert data['phase'] == 4
 
 
 # ==================== Exam Context Tests ====================

@@ -56,40 +56,69 @@ def _run_mcp_server():
     return 0
 
 
-def setup_demo_user(master_db, UserDatabase):
-    """
-    Set up a demo user for development/testing.
+def resolve_startup_profile(master_db, UserDatabase):
+    """Decide which profile (if any) to auto-open at launch.
+
+    Rules, in order:
+    1. Housekeeping: purge soft-deleted profiles past the grace period
+       (failure must never block launch).
+    2. ``profiles.always_ask`` setting == 'true'  -> None (show picker).
+    3. Valid + active ``profiles.last_used_id``   -> open it.
+    4. Exactly one active profile                 -> open it (zero-friction
+       upgrade path for existing single-profile installs, e.g. legacy
+       demo_user setups).
+    5. Otherwise (0 or 2+ active profiles)        -> None (show picker).
+
+    Args:
+        master_db: MasterDatabase instance
+        UserDatabase: the UserDatabase class (injected to keep this
+            function import-light and unit-testable)
 
     Returns:
-        UserDatabase instance for the demo user
+        An open UserDatabase, or None when the profile picker should
+        be shown instead.
     """
-    # Check if demo user exists
-    demo_user = master_db.get_user_by_username('demo_user')
+    # Rule 1: housekeeping — never block launch on failure
+    try:
+        master_db.permanently_delete_expired_users()
+    except Exception as exc:
+        print(f"Warning: expired-profile cleanup failed: {exc}")
 
-    if not demo_user:
-        # Create demo user
-        print("Creating demo user...")
-        demo_user = master_db.create_user(
-            username='demo_user',
-            display_name='Demo User',
-            email='demo@example.com'
+    def _open_profile(user):
+        db_path = master_db.ensure_user_database(user.id)
+        user_db = UserDatabase(
+            db_path=db_path,
+            user_id=user.id,
+            username=user.username
         )
-        print(f"Created demo user: {demo_user.username}")
-    else:
-        print(f"Found existing demo user: {demo_user.username}")
+        master_db.touch_user_last_active(user.id)
+        return user_db
 
-    # Ensure user database exists
-    user_db_path = master_db.ensure_user_database(demo_user.id)
-    print(f"User database: {user_db_path}")
+    # Rule 2: explicit "always ask" preference wins
+    always_ask = master_db.get_setting('profiles.always_ask')
+    if always_ask is not None and always_ask.setting_value == 'true':
+        return None
 
-    # Create UserDatabase instance
-    user_db = UserDatabase(
-        db_path=user_db_path,
-        user_id=demo_user.id,
-        username=demo_user.username
-    )
+    # Rule 3: last-used profile, if it still exists and is active
+    last_used = master_db.get_setting('profiles.last_used_id')
+    if last_used is not None:
+        try:
+            last_used_id = int(last_used.setting_value)
+        except (TypeError, ValueError):
+            last_used_id = None
+        if last_used_id is not None:
+            user = master_db.get_user(user_id=last_used_id)
+            if user is not None and user.account_status == 'active':
+                return _open_profile(user)
+            # Stale reference (deleted/suspended user) — fall through.
 
-    return user_db
+    # Rule 4: exactly one active profile -> open it without asking
+    active_users = master_db.get_all_users(account_status='active')
+    if len(active_users) == 1:
+        return _open_profile(active_users[0])
+
+    # Rule 5: zero or multiple profiles -> picker
+    return None
 
 
 def main(args: Optional[argparse.Namespace] = None):
@@ -220,18 +249,18 @@ def main(args: Optional[argparse.Namespace] = None):
     print(f"Master database: {app_data_dir / 'users.db'}")
 
     # ------------------------------------------------------------------
-    # Demo-user setup is a developer convenience and must be skipped in
-    # test mode — tests provision their own users via ``TestUser``.
-    # We still need a ``user_db`` to pass into ``run_application`` /
-    # ``MainWindow`` because much of the bridge layer assumes one is
-    # present, so we leave it ``None`` and rely on the existing
-    # nullable handling in MainWindow / DatabaseBridge.
+    # Startup profile resolution. In test mode we keep ``user_db=None``
+    # — tests provision their own users via ``TestUser`` and the bridge
+    # / MainWindow already handle a null user_db. Otherwise the 5-rule
+    # cascade in ``resolve_startup_profile`` decides between auto-opening
+    # a profile and showing the profile picker.
     # ------------------------------------------------------------------
     if test_mode.is_active():
-        print("[test-mode] Skipping demo-user creation.")
+        print("[test-mode] Skipping startup profile resolution.")
         user_db = None
     else:
-        user_db = setup_demo_user(master_db, UserDatabase)
+        user_db = resolve_startup_profile(master_db, UserDatabase)
+    initial_page = 'index.html' if user_db is not None else 'profile_select.html'
     print()
 
     # Initialize plugin system
@@ -279,7 +308,8 @@ def main(args: Optional[argparse.Namespace] = None):
         user_db=user_db,
         dev_mode=dev_mode,
         app_data_dir=app_data_dir,
-        plugin_manager=plugin_manager
+        plugin_manager=plugin_manager,
+        initial_page=initial_page
     )
 
     return exit_code
@@ -304,12 +334,12 @@ def _run_test_mode(
     """
     from PyQt6.QtWidgets import QApplication
 
+    from app import APP_VERSION, test_mode
     from app.main_window import MainWindow, _auto_start_mcp_server
-    from app import test_mode
 
     app = QApplication(sys.argv)
     app.setApplicationName('WIMI')
-    app.setApplicationVersion('0.1.0-beta')
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName('Project WIMI')
 
     window = MainWindow(

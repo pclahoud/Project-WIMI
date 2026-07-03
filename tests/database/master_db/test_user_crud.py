@@ -337,9 +337,44 @@ class TestUserUpdate:
             username="test",
             display_name="Test"
         )
-        
+
         with pytest.raises(ValueError):
             master_db.update_user(
                 user_id=user.id,
                 account_status="invalid_status"
             )
+
+
+class TestTouchUserLastActive:
+    """Test touch_user_last_active functionality"""
+
+    def test_touch_sets_last_active(self, master_db, admin_user):
+        """Test that touching a user sets last_active_at in the DB"""
+        master_db.touch_user_last_active(admin_user.id)
+
+        row = master_db.fetchone(
+            "SELECT last_active_at FROM users WHERE id = ?",
+            (admin_user.id,)
+        )
+        assert row['last_active_at'] is not None
+
+    def test_touch_updates_existing_value(self, master_db, admin_user):
+        """Test that touching replaces a stale last_active_at value"""
+        # Plant a stale sentinel timestamp
+        with master_db.transaction():
+            master_db.execute(
+                "UPDATE users SET last_active_at = '2020-01-01 00:00:00' WHERE id = ?",
+                (admin_user.id,)
+            )
+
+        master_db.touch_user_last_active(admin_user.id)
+
+        row = master_db.fetchone(
+            "SELECT last_active_at FROM users WHERE id = ?",
+            (admin_user.id,)
+        )
+        assert row['last_active_at'] != '2020-01-01 00:00:00'
+
+    def test_touch_nonexistent_user_is_noop(self, master_db):
+        """Test that touching a non-existent user does not raise"""
+        master_db.touch_user_last_active(99999)
