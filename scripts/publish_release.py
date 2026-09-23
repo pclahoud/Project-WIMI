@@ -46,7 +46,27 @@ REMOTE_BRANCH = "main"
 #: published front page renders with broken images and dead links. That is
 #: why the README's screenshots live in ``assets/`` and not in
 #: ``docs/testing/images/`` where the rest of them are.
-EXCLUDE_PREFIXES = ("docs/",)
+EXCLUDE_PREFIXES = (
+    # Internal planning, decision records and handoff notes -- written for
+    # whoever maintains WIMI, not for a visitor.
+    "docs/",
+    # Design files from development phases 5 and 6, in a format nothing on
+    # a visitor's machine opens. ~1.9 MB, the largest thing in the tree.
+    "wireframe designs/",
+    # This project's own agent tooling: slash commands and the private
+    # tracker's issue templates. Internal workflow, not part of the app.
+    ".claude/",
+    ".forgejo/",
+    # MCP server wiring for local development. Harmless -- it points at
+    # 127.0.0.1 -- but it is plumbing for working ON WIMI, not using it.
+    ".mcp.json",
+    # A 3,108-row export of the owner's own subject tree, committed in
+    # January for a one-off analysis and described in the handoff notes as
+    # "user-provided data for analysis". Not personal, but it is somebody's
+    # real data rather than a worked example, and docs/examples/ already
+    # documents the import format properly.
+    "examples/subject_nodes.csv",
+)
 
 PUBLIC_NAME = "pclahoud"
 PUBLIC_EMAIL = "14871598+pclahoud@users.noreply.github.com"
