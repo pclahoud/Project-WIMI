@@ -36,6 +36,9 @@
                 <button type="button" class="btn btn-secondary" id="importProfileBtn" data-testid="profile-import-btn">
                     Import profile&hellip;
                 </button>
+                <button type="button" class="btn btn-secondary" id="syncInstallBtn" data-testid="profile-sync-install-btn">
+                    Get from a sync folder&hellip;
+                </button>
                 <label class="profile-always-ask">
                     <input type="checkbox" id="alwaysAskCheckbox" data-testid="profile-always-ask">
                     <span>Always ask at startup</span>
@@ -168,6 +171,15 @@
                         <input type="checkbox" id="importReplaceConfirm" data-testid="profile-import-replace-confirm">
                         <span>I understand this replaces all data in the selected profile</span>
                     </label>
+                    <!-- #150: a .wimi exported without media carries no images,
+                         so replacing with one used to delete every image the
+                         profile had and put nothing back. Ticked by default. -->
+                    <label class="profile-modal-checkbox">
+                        <input type="checkbox" id="importReplaceKeepMedia" data-testid="profile-import-replace-keep-media" checked>
+                        <span>Keep the images already in this profile</span>
+                    </label>
+                    <div class="profile-import-mode-hint" id="importReplaceKeepMediaHint"
+                         data-testid="profile-import-replace-keep-media-hint"></div>
                 </div>
             </div>
 
@@ -175,6 +187,38 @@
             <div class="profile-modal-actions">
                 <button type="button" class="btn btn-secondary" id="importCancelBtn" data-testid="profile-import-cancel">Cancel</button>
                 <button type="button" class="btn btn-primary" id="importConfirmBtn" data-testid="profile-import-confirm">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Get a profile from a sync folder (#151). The second computer's first
+         copy: it has no profile open yet, which is why this lives here and
+         not in Settings. Installs, records the installed generation as the
+         profile's base, and links it to the folder it came from. -->
+    <div class="profile-modal-backdrop" id="syncInstallModal" data-testid="profile-sync-install-modal">
+        <div class="profile-modal profile-modal--wide">
+            <h3 class="profile-modal-title">Get a profile from a sync folder</h3>
+            <p class="profile-modal-message">
+                Choose the folder your cloud client keeps in sync - the same one your
+                other computer sends to. WIMI installs the newest copy it finds there
+                and keeps this computer linked to that folder.
+            </p>
+            <div class="profile-modal-body">
+                <label for="syncInstallProvider">Cloud client</label>
+                <select id="syncInstallProvider" data-testid="profile-sync-install-provider"></select>
+                <div class="profile-sync-install-folder">
+                    <span id="syncInstallFolder" data-testid="profile-sync-install-folder">No folder chosen</span>
+                    <button type="button" class="btn btn-secondary" id="syncInstallChooseBtn"
+                            data-testid="profile-sync-install-choose">Choose folder&hellip;</button>
+                </div>
+                <div id="syncInstallFound" class="profile-sync-install-found"
+                     data-testid="profile-sync-install-found"></div>
+                <div class="profile-modal-error hidden" id="syncInstallError"
+                     data-testid="profile-sync-install-error"></div>
+            </div>
+            <div class="profile-modal-actions">
+                <button type="button" class="btn btn-secondary" id="syncInstallCloseBtn"
+                        data-testid="profile-sync-install-close">Close</button>
             </div>
         </div>
     </div>

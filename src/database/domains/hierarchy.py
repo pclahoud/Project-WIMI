@@ -2,6 +2,7 @@
 
 import json
 import math
+import uuid
 from typing import Optional, List, Dict, Any, Callable, Tuple
 from datetime import date
 from decimal import Decimal
@@ -3450,3 +3451,485 @@ class HierarchyMixin:
                 )
 
         return added_columns
+
+    # ------------------------------------------------------------------
+    # Subject deletion (issue #15)
+    # ------------------------------------------------------------------
+
+    def _delete_plan_context(self, node_id: int) -> Dict[str, Any]:
+        """Gather the graph facts a delete plan needs, before any mutation.
+
+        Returns a dict with:
+
+        - ``node``          — the target row (id, name, status).
+        - ``descendants``   — every active node reachable from the target
+          through ``subject_edges``. This is the *former descendant set*
+          the fixpoint in :meth:`plan_subject_delete` iterates over; it is
+          captured up front because the delete removes edges as it goes
+          and the set must not shrink underneath the loop.
+        - ``parents_of``    — ``{child_id: {parent_id, ...}}`` restricted
+          to parents whose node is ``status='active'``. An edge from an
+          already-archived parent is not a *surviving* parent edge — it is
+          exactly the orphan-making row issue #15 records as casualty 1 —
+          so it must not keep a node alive here either.
+        - ``direct_children`` — the target's immediate edge children
+          (active only), in display order. Decision 2's promote choice is
+          only ever asked about these.
+        - ``names``         — ``{node_id: name}`` for everything above.
+        """
+        node = self.fetchone(
+            "SELECT id, name, status FROM subject_nodes WHERE id = ?",
+            (node_id,),
+        )
+        if node is None:
+            raise SubjectNodeError(f"Subject node {node_id} not found")
+
+        descendants = set(self._get_descendant_node_ids(node_id))
+        universe_params = tuple(sorted(descendants | {node_id}))
+        placeholders = ','.join(['?'] * len(universe_params))
+
+        parent_rows = self.fetchall(
+            f"""
+            SELECT se.parent_id AS parent_id, se.child_id AS child_id
+            FROM subject_edges se
+            JOIN subject_nodes p ON p.id = se.parent_id
+            WHERE se.child_id IN ({placeholders})
+              AND p.status = 'active'
+            """,
+            universe_params,
+        )
+        parents_of: Dict[int, set] = {}
+        for row in parent_rows:
+            parents_of.setdefault(row['child_id'], set()).add(row['parent_id'])
+
+        direct_children = [
+            row['child_id']
+            for row in self.fetchall(
+                """
+                SELECT se.child_id AS child_id
+                FROM subject_edges se
+                JOIN subject_nodes sn ON sn.id = se.child_id
+                WHERE se.parent_id = ?
+                  AND sn.status = 'active'
+                ORDER BY se.display_order ASC, se.id ASC
+                """,
+                (node_id,),
+            )
+        ]
+
+        names = {
+            row['id']: row['name']
+            for row in self.fetchall(
+                f"SELECT id, name FROM subject_nodes WHERE id IN ({placeholders})",
+                universe_params,
+            )
+        }
+
+        return {
+            'node': node,
+            'descendants': descendants,
+            'parents_of': parents_of,
+            'direct_children': direct_children,
+            'names': names,
+        }
+
+    def plan_subject_delete(
+        self,
+        node_id: int,
+        promote_children: bool = False,
+    ) -> Dict[str, Any]:
+        """Work out exactly what deleting ``node_id`` would do. Read-only.
+
+        Single source of truth for delete semantics: both
+        :meth:`get_subject_delete_preview` (what the confirmation modal
+        shows) and :meth:`delete_subject_subtree` (what actually runs)
+        consume it, so the preview cannot drift from the mutation.
+
+        **The cascade is a fixpoint, not a recursive walk.** Order matters
+        when a node inside the doomed subtree is reachable by several
+        paths — given ``P→A→X`` and ``P→B→X``, archiving ``A`` does not
+        orphan ``X`` (``B`` still holds it), and a depth-first walk that
+        archived ``X`` on the way through ``A`` would be wrong. So: mark
+        the target archived, then repeatedly archive any node in its
+        former descendant set whose surviving parent set has become empty,
+        until a pass changes nothing.
+
+        A *surviving* parent edge is one from a node that is still active.
+        Subtracting the archived set each round is what makes the fixpoint
+        equivalent to "the edges into archived nodes are gone", without
+        mutating anything to find out.
+
+        Issue #15's decision 1 falls straight out of that rule: a child
+        with another parent never enters the archived set, so it survives
+        and merely loses its edge to the deleted parent. Decision 2 is the
+        ``promote_children`` flag — the target's *direct* children are
+        exempted from the fixpoint, so they end up parentless (top-level)
+        instead of archived, and carry their own exclusive descendants
+        with them because those descendants still have a surviving parent.
+
+        Args:
+            node_id: the subject to delete.
+            promote_children: when True, the target's direct children are
+                kept and become roots (decision 2's single global choice,
+                applied to all of them at once).
+
+        Returns:
+            A dict with:
+
+            - ``archived``  — ``{'id', 'name'}`` for every node that will
+              be soft-deleted, target first; the rest are its exclusive
+              descendants.
+            - ``detached``  — surviving children that lose an edge, as
+              ``{'edge_id', 'parent_id', 'parent_name', 'child_id',
+              'child_name'}``. The shared-and-surviving ones, plus any
+              promoted children.
+            - ``promoted``  — ``{'id', 'name'}`` for nodes left with no
+              parent at all, i.e. that become top-level.
+            - ``removed_edge_ids`` — the ``subject_edges`` rows the delete
+              will remove (the ``detached`` rows' edges).
+            - ``entries_unscoped`` — how many ``entry_subject_mappings``
+              rows carry a ``primary_parent_id`` pointing into
+              ``archived`` and will therefore be nulled (decision 3).
+            - ``entry_mapping_ids`` — those mapping row ids.
+
+        Raises:
+            SubjectNodeError: if ``node_id`` does not exist.
+        """
+        ctx = self._delete_plan_context(node_id)
+        descendants = ctx['descendants']
+        parents_of = ctx['parents_of']
+        names = ctx['names']
+
+        protected = set(ctx['direct_children']) if promote_children else set()
+
+        archived = {node_id}
+        changed = True
+        while changed:
+            changed = False
+            for candidate in sorted(descendants):
+                if candidate in archived or candidate in protected:
+                    continue
+                if not (parents_of.get(candidate, set()) - archived):
+                    archived.add(candidate)
+                    changed = True
+
+        # Edges to remove: every edge out of an archived node into a node
+        # that survives. Edges *into* an archived node, and edges between
+        # two archived nodes, are deliberately left in place — the status
+        # filter already hides them, and keeping them means a restore
+        # (#37) only replays this list rather than rebuilding the whole
+        # subtree's wiring. A surviving child is the only case where the
+        # row does harm: it leaves the child neither a root (it has an
+        # incoming edge) nor anybody's child (its parent is archived),
+        # which is issue #15's casualty 1.
+        archived_params = tuple(sorted(archived))
+        archived_placeholders = ','.join(['?'] * len(archived_params))
+        detached: List[Dict[str, Any]] = []
+        for row in self.fetchall(
+            f"""
+            SELECT se.id AS edge_id, se.parent_id AS parent_id,
+                   se.child_id AS child_id, sn.name AS child_name
+            FROM subject_edges se
+            JOIN subject_nodes sn ON sn.id = se.child_id
+            WHERE se.parent_id IN ({archived_placeholders})
+              AND sn.status = 'active'
+            ORDER BY se.id ASC
+            """,
+            archived_params,
+        ):
+            if row['child_id'] in archived:
+                continue
+            detached.append({
+                'edge_id': row['edge_id'],
+                'parent_id': row['parent_id'],
+                'parent_name': names.get(row['parent_id'], ''),
+                'child_id': row['child_id'],
+                'child_name': row['child_name'],
+            })
+
+        # A detached child with nothing left holding it becomes a root.
+        promoted_ids: List[int] = []
+        for item in detached:
+            child = item['child_id']
+            if child in promoted_ids:
+                continue
+            if not (parents_of.get(child, set()) - archived):
+                promoted_ids.append(child)
+
+        entry_mapping_ids = [
+            row['id']
+            for row in self.fetchall(
+                f"""
+                SELECT id FROM entry_subject_mappings
+                WHERE primary_parent_id IN ({archived_placeholders})
+                ORDER BY id ASC
+                """,
+                archived_params,
+            )
+        ]
+
+        archived_ordered = [node_id] + sorted(archived - {node_id})
+
+        return {
+            'node_id': node_id,
+            'node_name': ctx['node']['name'],
+            'promote_children': bool(promote_children),
+            'archived': [
+                {'id': nid, 'name': names.get(nid, '')}
+                for nid in archived_ordered
+            ],
+            'detached': detached,
+            'promoted': [
+                {'id': nid, 'name': names.get(nid, '')}
+                for nid in promoted_ids
+            ],
+            'removed_edge_ids': [item['edge_id'] for item in detached],
+            'entries_unscoped': len(entry_mapping_ids),
+            'entry_mapping_ids': entry_mapping_ids,
+        }
+
+    def get_subject_delete_preview(self, node_id: int) -> Dict[str, Any]:
+        """Both outcomes of deleting ``node_id``, for the confirm modal.
+
+        Issue #15's decision 5 puts a truthful preview in scope. The modal
+        used to warn using the *rendered* child count, which is
+        edge-derived, while the delete walked the legacy
+        ``subject_nodes.parent_id`` column — so it promised to delete a set
+        the backend did not delete.
+
+        Both modes come back from one call, so flipping the "keep direct
+        children" checkbox re-renders from cached data instead of making
+        the user wait on a round trip mid-decision.
+
+        Returns ``node_id``, ``node_name``, ``direct_child_count``,
+        ``exclusive_direct_children`` (the direct children the checkbox is
+        about — no other parent holds them, so the choice really is delete
+        vs. promote), ``shared_direct_children`` (direct children that
+        survive either way) and ``modes``: ``{'delete': <plan>, 'promote':
+        <plan>}``, each a full :meth:`plan_subject_delete` payload.
+        """
+        delete_plan = self.plan_subject_delete(node_id, promote_children=False)
+        promote_plan = self.plan_subject_delete(node_id, promote_children=True)
+
+        ctx = self._delete_plan_context(node_id)
+        direct = ctx['direct_children']
+        names = ctx['names']
+        archived_on_delete = {item['id'] for item in delete_plan['archived']}
+
+        return {
+            'node_id': node_id,
+            'node_name': ctx['node']['name'],
+            'direct_child_count': len(direct),
+            'exclusive_direct_children': [
+                {'id': cid, 'name': names.get(cid, '')}
+                for cid in direct if cid in archived_on_delete
+            ],
+            'shared_direct_children': [
+                {'id': cid, 'name': names.get(cid, '')}
+                for cid in direct if cid not in archived_on_delete
+            ],
+            'modes': {
+                'delete': delete_plan,
+                'promote': promote_plan,
+            },
+        }
+
+    def delete_subject_subtree(
+        self,
+        node_id: int,
+        promote_children: bool = False,
+    ) -> Dict[str, Any]:
+        """Soft-delete ``node_id`` per :meth:`plan_subject_delete`.
+
+        Executes the plan in one transaction and journals every reversible
+        mutation under a single **delete batch id** (issue #15's decision
+        4), so restore (#37) can undo the operation rather than un-archive
+        one row. Nothing here reads the journal; it only writes it.
+
+        Four mutations, in this order:
+
+        1. Archive each planned node, stamping ``deleted_batch_id``.
+        2. Remove the planned edges — those from an archived parent to a
+           surviving child. Everything else stays wired.
+        3. Null ``entry_subject_mappings.primary_parent_id`` wherever it
+           points at a node this batch archived (decision 3). ``m005``
+           declares that column ``ON DELETE SET NULL``; the FK never fires
+           because the delete is soft, so doing it by hand honours the
+           intent the schema already states rather than inventing policy.
+           Those entries drop into §5.4's NULL branch and roll up through
+           every ancestor of their leaf again, instead of nowhere.
+        4. Hide every semantic relation (#14) with an endpoint in the
+           archived set, journalling each as a ``relation_hidden`` item
+           (issue #14's decision 9). Delegated to
+           ``RelationsMixin.hide_relations_for_delete_batch`` so the
+           relation table's shape stays that domain's business; it is
+           called inside this transaction and opens none of its own.
+
+        Deleting an **already-archived** node is a no-op (issue #57): it
+        returns an empty plan with ``batch_id=None`` and
+        ``already_archived=True`` rather than opening a batch that
+        archives nothing. Those empty rows had no owner — restore (#37)
+        would list them and then undo nothing — and while no UI path
+        reaches here (the tree renders only active nodes, and the
+        bridge's ``get_subject_node`` lookup is status-filtered),
+        ``src/web/js/import_export.js`` deletes in a loop over a list it
+        built earlier and a stale list arrives here.
+
+        This is hygiene, **not** a re-delete guard. Deleting a still-
+        active node that was archived and restored before is legitimate
+        and re-stamps ``deleted_batch_id`` on purpose — the later delete
+        is the more recent statement of intent (owner, 2026-09-14); #37
+        handles reporting what a restore skipped. The gate is the
+        target's own ``status`` and nothing else.
+
+        Returns the plan dict with ``batch_id`` added.
+        """
+        node = self.fetchone(
+            "SELECT id, name, status FROM subject_nodes WHERE id = ?", (node_id,)
+        )
+        if node is None:
+            raise SubjectNodeError(f"Subject node {node_id} not found")
+        if node['status'] != 'active':
+            # Worth a line: reaching here means a caller held a stale id,
+            # and the no-op is otherwise indistinguishable from a delete.
+            if self.error_logger:
+                self.error_logger.info(
+                    f"Subject node {node_id} is already "
+                    f"{node['status']}; delete is a no-op",
+                    category=ErrorCategory.DATABASE,
+                )
+            return {
+                'node_id': node_id,
+                'node_name': node['name'],
+                'promote_children': bool(promote_children),
+                'archived': [],
+                'detached': [],
+                'promoted': [],
+                'removed_edge_ids': [],
+                'entries_unscoped': 0,
+                'entry_mapping_ids': [],
+                'relations_hidden': 0,
+                'batch_id': None,
+                'already_archived': True,
+            }
+
+        plan = self.plan_subject_delete(node_id, promote_children=promote_children)
+        batch_id = uuid.uuid4().hex
+        archived_ids = [item['id'] for item in plan['archived']]
+
+        with self.transaction():
+            self.execute(
+                "INSERT INTO subject_delete_batches "
+                "(id, root_node_id, root_node_name, promote_children) "
+                "VALUES (?, ?, ?, ?)",
+                (batch_id, node_id, plan['node_name'], bool(promote_children)),
+            )
+
+            for nid in archived_ids:
+                previous = self.fetchone(
+                    "SELECT status FROM subject_nodes WHERE id = ?", (nid,)
+                )
+                self.execute(
+                    "INSERT INTO subject_delete_batch_items "
+                    "(batch_id, item_type, subject_node_id, payload) "
+                    "VALUES (?, 'node_archived', ?, ?)",
+                    (
+                        batch_id,
+                        nid,
+                        json.dumps({
+                            'previous_status': previous['status'] if previous else None
+                        }),
+                    ),
+                )
+                self.execute(
+                    "UPDATE subject_nodes "
+                    "SET status = 'archived', deleted_batch_id = ?, "
+                    "    updated_at = CURRENT_TIMESTAMP "
+                    "WHERE id = ?",
+                    (batch_id, nid),
+                )
+
+            promoted_ids = {item['id'] for item in plan['promoted']}
+            for edge_id in plan['removed_edge_ids']:
+                edge = self.fetchone(
+                    "SELECT * FROM subject_edges WHERE id = ?", (edge_id,)
+                )
+                if edge is None:
+                    continue
+                self.execute(
+                    "INSERT INTO subject_delete_batch_items "
+                    "(batch_id, item_type, subject_node_id, parent_id, payload) "
+                    "VALUES (?, 'edge_removed', ?, ?, ?)",
+                    (
+                        batch_id,
+                        edge['child_id'],
+                        edge['parent_id'],
+                        json.dumps({
+                            'is_primary': bool(edge['is_primary']),
+                            'display_order': edge['display_order'],
+                            'is_anchor': bool(edge['is_anchor']),
+                            'relative_weight': edge['relative_weight'],
+                            'weight_source': edge['weight_source'],
+                            # #37 treats the two kinds of detachment
+                            # differently — a merely-shared child gets its
+                            # edge back on restore, a promoted one does
+                            # not, because promotion is a fact the user
+                            # chose. Whether the child had another parent
+                            # is only knowable at delete time, so record
+                            # it here rather than leaving restore to guess.
+                            'promoted': edge['child_id'] in promoted_ids,
+                        }),
+                    ),
+                )
+                self.execute("DELETE FROM subject_edges WHERE id = ?", (edge_id,))
+
+            for mapping_id in plan['entry_mapping_ids']:
+                mapping = self.fetchone(
+                    "SELECT id, subject_node_id, primary_parent_id "
+                    "FROM entry_subject_mappings WHERE id = ?",
+                    (mapping_id,),
+                )
+                if mapping is None:
+                    continue
+                self.execute(
+                    "INSERT INTO subject_delete_batch_items "
+                    "(batch_id, item_type, subject_node_id, parent_id, "
+                    " entry_subject_mapping_id) "
+                    "VALUES (?, 'primary_parent_cleared', ?, ?, ?)",
+                    (
+                        batch_id,
+                        mapping['subject_node_id'],
+                        mapping['primary_parent_id'],
+                        mapping_id,
+                    ),
+                )
+                self.execute(
+                    "UPDATE entry_subject_mappings "
+                    "SET primary_parent_id = NULL WHERE id = ?",
+                    (mapping_id,),
+                )
+
+            # Issue #14, decision 9. Relations are hidden by the same
+            # batch that archived their subject so #37's restore brings
+            # them back with it. Inside this transaction on purpose: a
+            # relation left visible after its subject disappeared points
+            # the student at a topic the tree no longer has.
+            relations_hidden = self.hide_relations_for_delete_batch(
+                batch_id, archived_ids
+            )
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Deleted subject node {node_id} as batch {batch_id}: "
+                f"{len(archived_ids)} archived, "
+                f"{len(plan['removed_edge_ids'])} edges removed, "
+                f"{plan['entries_unscoped']} entry contexts cleared, "
+                f"{relations_hidden} relations hidden",
+                category=ErrorCategory.DATABASE,
+            )
+
+        result = dict(plan)
+        result['batch_id'] = batch_id
+        result['relations_hidden'] = relations_hidden
+        result['already_archived'] = False
+        return result

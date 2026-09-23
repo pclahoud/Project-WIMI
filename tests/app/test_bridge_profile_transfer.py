@@ -329,7 +329,12 @@ class TestExportProfile:
         assert data['media_files'] == 0
         assert data['total_bytes'] == dest.stat().st_size
         assert data['total_bytes'] > 0
-        assert data['stats'] == {"entries": 3, "sessions": 1, "exam_contexts": 1}
+        # Subset: #124 added date ranges and a subject count so a fork report
+        # can tell "a month of work" from "a stale copy". The counts are what
+        # this test is about.
+        assert data['stats']["entries"] == 3
+        assert data['stats']["sessions"] == 1
+        assert data['stats']["exam_contexts"] == 1
         with zipfile.ZipFile(str(dest)) as zf:
             names = zf.namelist()
         assert "manifest.json" in names
@@ -387,9 +392,9 @@ class TestReadProfileArchive:
         manifest = data['manifest']
         assert manifest['format'] == "wimi-profile"
         assert manifest['user']['username'] == "alice"
-        assert manifest['stats'] == {
-            "entries": 3, "sessions": 1, "exam_contexts": 1,
-        }
+        assert manifest['stats']["entries"] == 3
+        assert manifest['stats']["sessions"] == 1
+        assert manifest['stats']["exam_contexts"] == 1
 
         # Schema preflight.
         assert data['schema']['verdict'] == VERDICT_OK
@@ -650,3 +655,137 @@ class TestExecuteProfileImportErrors:
     def test_malformed_json_fails(self, bridge):
         response = bridge.executeProfileImport("{not json")
         assert_error(response, "Invalid import params")
+
+
+# ==================== #150: media on replace ====================
+
+@pytest.fixture
+def alice_archive_no_media(source_master, alice, tmp_path) -> Path:
+    """Alice exported with *Include media* unticked — the #150 case.
+
+    The archive carries no ``media/`` members at all, so a replace that
+    clears the target's media directory has nothing to put back.
+    """
+    dest = tmp_path / "alice_no_media.wimi"
+    build_profile_archive(source_master, alice.id, dest, include_media=False)
+    return dest
+
+
+class TestReplaceMediaChoice:
+    """Replacing a profile asks what to do with the images it already has.
+
+    Before #150 it never asked: the media directory was renamed aside,
+    the archive's media copied in, and the renamed original deleted on
+    success. With a media-less archive that is a pure deletion.
+    """
+
+    def _bob_with_media(self, bridge, master_db, replace_setup):
+        bob, carol = replace_setup
+        media_dir = _make_media(master_db, bob)
+        assert_success(bridge.selectProfile(carol.id))
+        return bob, media_dir
+
+    def test_media_less_archive_keeps_the_images_by_default(
+        self, bridge, master_db, alice_archive_no_media, replace_setup
+    ):
+        """The bug: omitting the flag must not delete anything."""
+        bob, media_dir = self._bob_with_media(bridge, master_db, replace_setup)
+
+        assert_success(bridge.executeProfileImport(json.dumps({
+            "archive_path": str(alice_archive_no_media),
+            "mode": "replace",
+            "target_user_id": bob.id,
+            "confirm_replace": True,
+            # keep_existing_media deliberately absent
+        })))
+
+        assert (media_dir / FLAT_IMG).exists(), (
+            "replacing from an archive with no media deleted the profile's "
+            "images and put nothing back (#150)"
+        )
+        assert (media_dir / FLAT_THUMB).exists()
+        assert (media_dir / "entry_5" / LEGACY_IMG).exists(), (
+            "legacy entry_N/ media is inside the directory that used to be "
+            "deleted wholesale"
+        )
+
+    def test_ticked_box_keeps_the_images(
+        self, bridge, master_db, alice_archive_no_media, replace_setup
+    ):
+        bob, media_dir = self._bob_with_media(bridge, master_db, replace_setup)
+
+        assert_success(bridge.executeProfileImport(json.dumps({
+            "archive_path": str(alice_archive_no_media),
+            "mode": "replace",
+            "target_user_id": bob.id,
+            "confirm_replace": True,
+            "keep_existing_media": True,
+        })))
+
+        assert (media_dir / FLAT_IMG).exists()
+
+    def test_unticked_box_deletes_them(
+        self, bridge, master_db, alice_archive_no_media, replace_setup
+    ):
+        """The negative control: the choice has to actually do something.
+
+        Without this, passing the flag through incorrectly (or ignoring it)
+        would leave every other test in this class green.
+        """
+        bob, media_dir = self._bob_with_media(bridge, master_db, replace_setup)
+
+        assert_success(bridge.executeProfileImport(json.dumps({
+            "archive_path": str(alice_archive_no_media),
+            "mode": "replace",
+            "target_user_id": bob.id,
+            "confirm_replace": True,
+            "keep_existing_media": False,
+        })))
+
+        assert not (media_dir / FLAT_IMG).exists(), (
+            "unticking the box is the student asking for the media to match "
+            "the archive exactly; it must still be obeyed"
+        )
+
+    def test_keeping_images_also_takes_the_archives_own(
+        self, bridge, master_db, alice_archive, replace_setup
+    ):
+        """Keep means union, not "ignore the archive's media"."""
+        bob, media_dir = self._bob_with_media(bridge, master_db, replace_setup)
+        only_bob_has = media_dir / "cccccccc-9999-0000-1111-222222222222.png"
+        only_bob_has.write_bytes(b"bob-only-image")
+
+        data = assert_success(bridge.executeProfileImport(json.dumps({
+            "archive_path": str(alice_archive),
+            "mode": "replace",
+            "target_user_id": bob.id,
+            "confirm_replace": True,
+            "keep_existing_media": True,
+        })))
+
+        assert only_bob_has.exists(), "keep must not drop an existing file"
+        # alice's 3 files: two share bob's flat names, one is new.
+        assert data['media_files_restored'] == 1, (
+            "a merge reports what it added; files already present by the "
+            "same UUID name are the same file"
+        )
+        assert (media_dir / LEGACY_IMG).exists(), (
+            "the archive flattens legacy media, so alice's entry_5 file "
+            "arrives at the top level"
+        )
+
+    def test_preview_reports_what_each_profile_would_lose(
+        self, bridge, master_db, alice_archive, replace_setup
+    ):
+        """The checkbox is unanswerable without the count behind it."""
+        bob, carol = replace_setup
+        _make_media(master_db, bob)
+
+        data = assert_success(bridge.readProfileArchive(str(alice_archive)))
+
+        targets = {t['user_id']: t for t in data['replace_targets']}
+        assert targets[bob.id]['media_file_count'] == 3, (
+            "two flat files plus one legacy entry_5/ file — all of it sits "
+            "in the directory a replace would delete"
+        )
+        assert targets[carol.id]['media_file_count'] == 0

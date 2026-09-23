@@ -24,10 +24,8 @@
     --correct-text: var(--color-success, #16a34a);
     --correct-label-bg: var(--color-success-bg, #dcfce7);
     
-    /* Difficulty colors */
-    --difficulty-easy: var(--color-success, #22c55e);
-    --difficulty-medium: var(--color-warning, #f59e0b);
-    --difficulty-hard: var(--color-error, #ef4444);
+    /* Difficulty colours are the shared five-step ramp in difficulty.css,
+       not a local three-step one -- see Forgejo #46. */
     
     /* Related topics */
     --related-bg: var(--color-warning-bg, #fffbeb);
@@ -225,47 +223,9 @@
     text-transform: capitalize;
 }
 
-.difficulty-badge::before {
-    content: '●●●○○';
-    letter-spacing: -2px;
-    font-size: 0.625rem;
-}
-
-.difficulty-badge.easy {
-    background: var(--color-success-bg);
-    color: var(--difficulty-easy);
-}
-
-.difficulty-badge.easy::before {
-    content: '●○○○○';
-}
-
-.difficulty-badge.medium {
-    background: var(--color-warning-bg);
-    color: var(--difficulty-medium);
-}
-
-.difficulty-badge.medium::before {
-    content: '●●●○○';
-}
-
-.difficulty-badge.hard {
-    background: var(--color-error-bg);
-    color: var(--difficulty-hard);
-}
-
-.difficulty-badge.hard::before {
-    content: '●●●●○';
-}
-
-.difficulty-badge.very-hard {
-    background: var(--color-error-bg);
-    color: var(--color-error);
-}
-
-.difficulty-badge.very-hard::before {
-    content: '●●●●●';
-}
+/* The scale itself -- five colours and the ●○ dot indicator -- lives in
+   difficulty.css, shared with the entry browser. This page opts its badge
+   into the dots with .difficulty-badge--dots (entry_detail.js). */
 
 /* Meta Row */
 .entry-meta-row {
@@ -402,7 +362,6 @@
     white-space: pre-wrap;
 }
 
-.section-content:empty::after,
 .no-content {
     content: 'No content provided';
     color: var(--text-muted);

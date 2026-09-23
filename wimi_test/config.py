@@ -133,6 +133,14 @@ class TestConfig:
     timeout_attach_s: int = 30
     allow_eval_js: bool = True
     test_user_isolation: Literal["session", "test"] = "session"
+    # Path to a built WIMI executable. ``None`` (the default) spawns
+    # ``python run_wimi.py``, which is what every scenario has always
+    # done. Set it — or ``WIMI_TEST_BINARY`` — and the whole suite runs
+    # against the frozen artifact instead. That was impossible before
+    # #137/#138: the binary died on the piped stdout this harness needs
+    # and ignored ``--test-mode`` even when it survived, which is why
+    # #135's Chromium drift could not be caught by any test.
+    wimi_binary: Optional[Path] = None
 
     @classmethod
     def resolve(cls, cli_overrides: Optional[dict] = None) -> "TestConfig":
@@ -194,6 +202,13 @@ class TestConfig:
         env_isolation = os.environ.get("WIMI_TEST_USER_ISOLATION")
         if env_isolation is not None:
             values["test_user_isolation"] = env_isolation
+
+        # An empty or whitespace-only value reads as unset rather than as
+        # "spawn the empty string" — ``WIMI_TEST_BINARY=`` is how a shell
+        # script most naturally turns the switch back off.
+        env_binary = os.environ.get("WIMI_TEST_BINARY")
+        if env_binary is not None and env_binary.strip():
+            values["wimi_binary"] = Path(env_binary.strip())
 
         # --- 3. CLI overrides (highest priority) ----------------------
         if cli_overrides:

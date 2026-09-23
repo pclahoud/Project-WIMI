@@ -1,5 +1,15 @@
-"""WIMI Preferences bridge operations."""
-from dataclasses import asdict
+"""WIMI Preferences bridge operations.
+
+**One flat object, two stores.** m021 (#126) split the machine-local
+settings out of ``user_preferences`` into ``device_settings``, keyed by
+a device id that never travels with a profile. That split is a storage
+and travel property; it is not something the settings page has any
+reason to model, and forcing it into the UI would mean two save paths
+and a second place for a field to be forgotten. So these two slots keep
+speaking the flat vocabulary the page already uses, and
+``get_all_settings`` / ``update_settings`` on the database route each
+field to the store that owns it.
+"""
 
 from PyQt6.QtCore import pyqtSlot
 
@@ -19,11 +29,10 @@ class PreferencesBridgeMixin:
             return serialize_response(False, error='No user database connected')
 
         try:
-            prefs = self.user_db.get_preferences()
-            if not prefs:
+            prefs_dict = self.user_db.get_all_settings()
+            if not prefs_dict:
                 return serialize_response(False, error='Could not load preferences')
 
-            prefs_dict = asdict(prefs)
             prefs_dict.pop('created_at', None)
             prefs_dict.pop('updated_at', None)
 
@@ -50,9 +59,7 @@ class PreferencesBridgeMixin:
             import json
             params = json.loads(params_json)
 
-            updated = self.user_db.update_preferences(**params)
-
-            prefs_dict = asdict(updated)
+            prefs_dict = self.user_db.update_settings(**params)
             prefs_dict.pop('created_at', None)
             prefs_dict.pop('updated_at', None)
 

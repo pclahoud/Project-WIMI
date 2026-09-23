@@ -197,20 +197,70 @@ class SerializerMixin:
             'status': node.status
         }
 
-    def _get_subject_mistake_counts(self, exam_context_id: int) -> dict:
-        """
-        Get mistake counts per subject for an exam context.
+    def _get_subject_mistake_buckets(self, exam_context_id: int) -> dict:
+        """Mistake counts per subject, split by the parent context chosen.
 
-        Returns:
-            Dictionary mapping subject_id to mistake count
+        Returns ``{subject_id: {primary_parent_id_or_None: count}}``.
+
+        The nesting is the point. A subject in a polyhierarchy is drawn
+        at several positions in the tree, and ``POLYHIERARCHY_MIGRATION``
+        §5.4 says an entry belongs at all of them or exactly one,
+        depending on whether the student disambiguated it:
+
+        * ``None`` bucket — never disambiguated, so it rolls up through
+          every parent (OMOP non-additivity, §5.3).
+        * ``parent_id`` bucket — the student chose that parent, so it
+          belongs only at that position.
+
+        This used to return ``{subject_id: count}``, which threw the
+        context away before the caller could use it. The caller then
+        attached the same total to every position, so one mistake on a
+        subject with N parents rendered as N mistakes — worst on exactly
+        the cross-cutting, high-yield topics, and attributed to branches
+        the student had explicitly excluded.
+
+        Pair with :meth:`_position_mistake_count`, which does the
+        lookup; callers should not reach into the nesting themselves.
         """
         query = """
-            SELECT esm.subject_node_id, COUNT(DISTINCT qe.id) as count
+            SELECT esm.subject_node_id, esm.primary_parent_id,
+                   COUNT(DISTINCT qe.id) as count
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
             WHERE rs.exam_context_id = ? AND rs.user_id = ? AND esm.mapping_type = 'primary'
-            GROUP BY esm.subject_node_id
+            GROUP BY esm.subject_node_id, esm.primary_parent_id
         """
         rows = self.user_db.fetchall(query, (exam_context_id, self.user_db.user_id))
-        return {row['subject_node_id']: row['count'] for row in rows}
+        buckets: dict = {}
+        for row in rows:
+            buckets.setdefault(row['subject_node_id'], {})[
+                row['primary_parent_id']
+            ] = row['count']
+        return buckets
+
+    @staticmethod
+    def _position_mistake_count(buckets: dict, subject_id: int,
+                                parent_id) -> int:
+        """Mistakes to draw for ``subject_id`` *at this position*.
+
+        ``parent_id`` is the parent the subject is being rendered under
+        (``None`` at a root). Sums the undisambiguated bucket, which
+        belongs at every position, with the bucket the student pinned to
+        this particular parent.
+
+        ``primary_parent_id`` always names a *direct* parent of the
+        subject (the pill writes it from ``getEdgesForChild``), so
+        comparing against the rendering position's direct parent is the
+        whole test -- no ancestor walk needed.
+        """
+        by_parent = buckets.get(subject_id)
+        if not by_parent:
+            return 0
+        # The undisambiguated bucket belongs at every position.
+        count = by_parent.get(None, 0)
+        # ...and it is keyed by None, which is also what parent_id is at a
+        # root. Guard, or a root subject counts that bucket twice.
+        if parent_id is not None:
+            count += by_parent.get(parent_id, 0)
+        return count

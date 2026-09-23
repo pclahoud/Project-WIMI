@@ -665,3 +665,175 @@
         padding: var(--space-xs) var(--space-sm);
     }
 }
+
+/* =========================================================================
+   Import merge plan (issue #67)
+
+   The counts of what a re-import will add, update, remove and keep,
+   shown before anything is written. Colour carries meaning here — a
+   removal has to look different from an addition at a glance — so the
+   stat tiles tint, but only through the theme variables; nothing below
+   names a colour.
+   ========================================================================= */
+
+.import-merge-plan {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.import-plan-pending {
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+}
+
+.import-plan-error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.import-plan-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.import-plan-stat {
+    flex: 1 1 5.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.import-plan-number {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.import-plan-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-plan-stat.is-added {
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
+}
+
+.import-plan-stat.is-added .import-plan-number {
+    color: var(--color-success);
+}
+
+.import-plan-stat.is-updated {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+}
+
+.import-plan-stat.is-updated .import-plan-number {
+    color: var(--color-primary);
+}
+
+.import-plan-stat.is-removed {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+}
+
+.import-plan-stat.is-removed .import-plan-number {
+    color: var(--color-error);
+}
+
+/* A zero is still information — it stays legible, just quiet. */
+.import-plan-stat.is-zero .import-plan-number {
+    color: var(--text-secondary);
+}
+
+.import-plan-detail {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-plan-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.import-plan-note p {
+    margin: 0 0 var(--space-xs) 0;
+}
+
+.import-plan-note strong {
+    color: var(--text-primary);
+}
+
+.import-plan-note.warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.import-plan-note.warning strong {
+    color: inherit;
+}
+
+.import-plan-note.kept {
+    background: var(--color-primary-bg);
+}
+
+.import-plan-kept-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.import-plan-kept-list li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+}
+
+.import-plan-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: var(--font-weight-semibold);
+}
+
+.import-plan-link:hover {
+    text-decoration: underline;
+}
+
+.import-plan-count,
+.import-plan-more {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.import-plan-note code {
+    padding: 0 0.2em;
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    font-family: var(--font-mono, monospace);
+}

@@ -44,6 +44,32 @@ from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
 
+
+def _wait_for(
+    wimi_page: WimiPage,
+    js_expression: str,
+    *,
+    timeout_ms: int = 5000,
+    poll_step_ms: int = 100,
+) -> Any:
+    """Poll ``js_expression`` until it returns something truthy.
+
+    Returns the last value seen rather than raising, so the caller's own
+    assertion still reports what it actually found. This replaces a fixed
+    ``wait_for_timeout`` that was "enough on an idle box" and a race under
+    load -- the #84 shape.
+    """
+    elapsed = 0
+    last: Any = None
+    while elapsed < timeout_ms:
+        last = wimi_page.eval_js(js_expression)
+        if last:
+            return last
+        wimi_page.wait_for_timeout(poll_step_ms)
+        elapsed += poll_step_ms
+    return last
+
+
 @pytest.mark.slow
 @pytest.mark.regression
 def test_tag_context_pill_persists_choice_to_db(
@@ -150,9 +176,30 @@ def test_tag_context_pill_persists_choice_to_db(
         "_loader.js."
     )
 
-    # The page's init() is async. Give it a beat to load the session
-    # + render the empty form before tagging.
-    wimi_page.wait_for_timeout(500)
+    # The page's init() is async, and this used to be a fixed 500 ms
+    # settle because the obvious signal — ``EntryState.session`` — goes
+    # truthy several bridge calls too early, so polling on it made
+    # ``addSubjectChip`` fire before the form could mount a pill.
+    #
+    # That comment was right about the signal and wrong about the
+    # conclusion. ``EntryState.isLoading`` is the proper "form ready"
+    # signal it wished for: it is cleared by the last statement of
+    # ``initializeEntryPage``, after ``resetFormForNewEntry()`` has
+    # replaced ``EntryState.formData`` and after the footer handlers
+    # bind. Tagging before that point is not merely early, it is
+    # discarded — see #105, where the same 500 ms guess at this exact
+    # step lost a subject in 3 of 6 measured runs.
+    form_ready = _wait_for(
+        wimi_page,
+        "(() => { try { return typeof EntryState !== 'undefined' "
+        "&& EntryState.isLoading === false; } catch (e) { return false; } })()",
+        timeout_ms=20000,
+    )
+    assert form_ready, (
+        "initializeEntryPage never finished (EntryState.isLoading stayed "
+        "true). Either it threw — look for an 'Initialization Failed' "
+        "toast — or one of its awaited bridge calls never resolved."
+    )
 
     # Tag the entry with D via the chip-add helper. addSubjectChip
     # writes formData.primarySubjects and re-renders chips — the same
@@ -179,12 +226,11 @@ def test_tag_context_pill_persists_choice_to_db(
     )
 
     # The pill render is async — it fires getEdgesForChild then mounts
-    # the pill into the slot. Settle wait for the bridge round-trip.
-    wimi_page.wait_for_timeout(500)
-
-    pill_present = wimi_page.eval_js(
+    # the pill into the slot. Poll for the mount (#84).
+    pill_present = _wait_for(
+        wimi_page,
         f"!!document.querySelector("
-        f"'[data-testid=\"entry-form-tag-context-pill-{node_d.id}\"]')"
+        f"'[data-testid=\"entry-form-tag-context-pill-{node_d.id}\"]')",
     )
     assert pill_present, (
         f"Tag context pill did not render for subject id={node_d.id}. "
@@ -203,12 +249,12 @@ def test_tag_context_pill_persists_choice_to_db(
         f"'[data-testid=\"entry-form-tag-context-pill-{node_d.id}\"]'"
         f").click()"
     )
-    wimi_page.wait_for_timeout(100)
 
-    # Menu should be present with C as an option.
-    menu_present = wimi_page.eval_js(
+    # Menu should be present with C as an option. Poll for it (#84).
+    menu_present = _wait_for(
+        wimi_page,
         f"!!document.querySelector("
-        f"'[data-testid=\"entry-form-tag-context-menu-{node_d.id}\"]')"
+        f"'[data-testid=\"entry-form-tag-context-menu-{node_d.id}\"]')",
     )
     assert menu_present, "Tag context menu did not open after pill click."
 
@@ -228,9 +274,20 @@ def test_tag_context_pill_persists_choice_to_db(
     assert pick_result.get("ok"), (
         f"Could not click the C-parent option in the menu: {pick_result!r}"
     )
-    wimi_page.wait_for_timeout(100)
-
     # The pill value should now read the C parent name (visual sanity).
+    # Poll for the re-render rather than sleeping (#84).
+    _wait_for(
+        wimi_page,
+        f"""
+        (() => {{
+            const v = document.querySelector(
+                '[data-testid="entry-form-tag-context-pill-{node_d.id}"] '
+                + '.tag-context-pill-value'
+            );
+            return !!v && v.textContent.trim() === 'TCP C Branch';
+        }})()
+        """,
+    )
     pill_value = wimi_page.eval_js(
         f"""
         (() => {{

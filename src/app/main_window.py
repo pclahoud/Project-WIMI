@@ -27,7 +27,7 @@ def get_resource_path(relative_path: str) -> Path:
 
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QApplication,
-    QMenuBar, QMenu, QStatusBar, QMessageBox, QFileDialog
+    QMenuBar, QMenu, QStatusBar, QMessageBox, QFileDialog, QSplitter
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEnginePage
@@ -37,8 +37,8 @@ from PyQt6.QtGui import QAction, QKeySequence, QShortcut, QIcon
 
 from app import APP_VERSION
 from app.bridge import DatabaseBridge
+from app.browser_pane import BrowserPaneController
 from app.media_manager import MediaManager
-from app.media_scheme_handler import MediaSchemeHandler, install_scheme_handler
 from database import MasterDatabase, UserDatabase
 from app_logging import ErrorLogger, JavaScriptErrorBridge
 
@@ -90,7 +90,6 @@ class MainWindow(QMainWindow):
         
         # Media manager (will be initialized when user_db is set)
         self.media_manager: Optional[MediaManager] = None
-        self.media_scheme_handler: Optional[MediaSchemeHandler] = None
         
         # Path configuration - handles both dev and frozen modes
         self.is_frozen = getattr(sys, 'frozen', False)
@@ -112,6 +111,7 @@ class MainWindow(QMainWindow):
         self._setup_window()
         self._setup_web_view()
         self._setup_web_channel()
+        self._setup_browser_pane()
         self._setup_media_handler()
         self._setup_menu_bar()
         self._setup_status_bar()
@@ -179,8 +179,56 @@ class MainWindow(QMainWindow):
         # Handle file downloads (e.g. export JSON from subject tree)
         self.web_page.profile().downloadRequested.connect(self._handle_download)
 
-        # Add to layout
-        self.central_layout.addWidget(self.web_view)
+        # Add to layout inside a splitter so the browser pane (a second
+        # QWebEngineView, hidden by default — see _setup_browser_pane)
+        # can sit beside the app view. External sites can't be iframed
+        # (X-Frame-Options/CSP), hence native Qt chrome for the pane.
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+
+        # Make the seam between the app and the browser pane obvious.
+        #
+        # Qt's default handle is a hairline, which reads as a rendering
+        # artifact rather than a divider you can drag -- and the two sides
+        # are entirely different documents (the app's own page on the
+        # left, a question bank on the right), so the boundary carries
+        # real meaning. A 7px bar with a centred grip mark says "these are
+        # two things" and "this moves"; the accent on hover confirms the
+        # second before you press.
+        #
+        # The colours are fixed rather than themed: the handle sits
+        # between a page that follows the student's WIMI theme and a page
+        # styled by whoever runs the question bank, so there is no theme
+        # it could inherit that is right on both sides. A mid-slate reads
+        # against light and dark alike.
+        self.splitter.setHandleWidth(7)
+        self.splitter.setStyleSheet("""
+            QSplitter::handle:horizontal {
+                background: qlineargradient(
+                    x1:0, y1:0, x2:0, y2:1,
+                    stop:0.00 #cbd5e1,
+                    stop:0.44 #cbd5e1,
+                    stop:0.45 #64748b,
+                    stop:0.55 #64748b,
+                    stop:0.56 #cbd5e1,
+                    stop:1.00 #cbd5e1);
+                border-left: 1px solid #94a3b8;
+                border-right: 1px solid #94a3b8;
+            }
+            QSplitter::handle:horizontal:hover {
+                background: #2563eb;
+                border-left-color: #2563eb;
+                border-right-color: #2563eb;
+            }
+            QSplitter::handle:horizontal:pressed {
+                background: #1d4ed8;
+                border-left-color: #1d4ed8;
+                border-right-color: #1d4ed8;
+            }
+        """)
+
+        self.splitter.addWidget(self.web_view)
+        self.central_layout.addWidget(self.splitter)
     
     def _handle_download(self, download):
         """Handle file download requests from the web view (e.g. JSON export)"""
@@ -228,8 +276,87 @@ class MainWindow(QMainWindow):
         # Attach channel to the page
         self.web_page.setWebChannel(self.channel)
     
+    def _setup_browser_pane(self):
+        """Build the embedded browser pane.
+
+        A second QWebEngineView with its own persistent profile, living
+        in the right half of the splitter and hidden until a page calls
+        the openBrowserPane bridge slot. Lets a question bank sit beside
+        the entry form without alt-tabbing.
+
+        Must run after _setup_web_channel() (the bridge must exist to
+        attach the controller to) and after _setup_web_view() (the
+        splitter must exist).
+        """
+        # The controller takes the window and derives run_js_in_app,
+        # app_data_dir and error_logger from it. It resolves
+        # web_view.page() at call time rather than capturing
+        # self.web_page: test mode swaps the view's page after
+        # construction, and a captured reference would go stale.
+        self.browser_pane = BrowserPaneController(self)
+        self.browser_pane.attach_to_splitter(self.splitter)
+
+        # Shortcut buttons come from the student's question sources. Both
+        # callables resolve self.user_db at call time rather than closing
+        # over it: the database is swapped on profile switch, and a
+        # captured reference would keep serving the previous profile's
+        # banks. A missing database yields an empty row, not an error —
+        # the profile picker runs before any user database is attached.
+        def _pane_sources():
+            db = getattr(self, 'user_db', None)
+            return db.get_pane_sources() if db else []
+
+        def _pane_source_opened(source_id):
+            db = getattr(self, 'user_db', None)
+            if db:
+                db.touch_pane_source(source_id)
+
+        self.browser_pane.set_sources_provider(
+            _pane_sources, on_opened=_pane_source_opened
+        )
+
+        # Pane state: where it opens, how wide it was, what zoom. Same
+        # call-time resolution, same "no database is an empty answer
+        # rather than an error" rule as the sources provider above.
+        # Six values from two stores since m021 (#126): open mode,
+        # default bank and shortcut behaviour are stated preferences that
+        # follow the student, while the last URL, the split and the zoom
+        # describe THIS machine's window and stay behind. Both sides go
+        # through get_all_settings / update_settings so the pane never
+        # has to know which is which.
+        def _pane_state():
+            db = getattr(self, 'user_db', None)
+            if not db:
+                return {}
+            s = db.get_all_settings()
+            return {
+                'open_mode': s.get('pane_open_mode'),
+                'default_source_id': s.get('pane_default_source_id'),
+                'last_url': s.get('pane_last_url'),
+                'split_app_pct': s.get('pane_split_app_pct'),
+                'zoom_pct': s.get('pane_zoom_pct'),
+                'shortcut_opens': s.get('pane_shortcut_opens'),
+            }
+
+        def _pane_state_save(**fields):
+            db = getattr(self, 'user_db', None)
+            if db and fields:
+                db.update_settings(**fields)
+
+        self.browser_pane.set_state_provider(_pane_state, saver=_pane_state_save)
+
+        # BrowserPaneBridgeMixin's slots (openBrowserPane /
+        # closeBrowserPane / getBrowserPaneStatus) delegate to this.
+        self.db_bridge._browser_pane_controller = self.browser_pane
+
     def _setup_media_handler(self):
-        """Set up the media URL scheme handler"""
+        """Set up the media manager the bridge serves images through.
+
+        Images reach the page as base64 data URLs built by the bridge
+        (``_get_media_data_url``). A ``wimi-media://`` scheme handler used to
+        be installed here too; nothing ever built such a URL, and it was
+        deleted (#140).
+        """
         # Initialize MediaManager if we have a user database
         if self.user_db:
             self.media_manager = MediaManager(
@@ -245,10 +372,6 @@ class MainWindow(QMainWindow):
                 username='temp'
             )
         
-        # Install the scheme handler on the default profile
-        profile = self.web_page.profile()
-        self.media_scheme_handler = install_scheme_handler(profile, self.media_manager)
-        
         # Store reference in bridge for access from JavaScript
         self.db_bridge.media_manager = self.media_manager
 
@@ -257,7 +380,7 @@ class MainWindow(QMainWindow):
             self.plugin_manager.set_media_manager(self.media_manager)
 
         if self.dev_mode:
-            print(f"📷 Media handler installed for: {self.media_manager.user_media_path}")
+            print(f"Media handler installed for: {self.media_manager.user_media_path}")
     
     def _setup_menu_bar(self):
         """Create the application menu bar"""
@@ -294,6 +417,19 @@ class MainWindow(QMainWindow):
         reload_action.setShortcut(QKeySequence.StandardKey.Refresh)
         reload_action.triggered.connect(self.reload_page)
         view_menu.addAction(reload_action)
+
+        # The browser pane lives in the menu rather than on a page,
+        # because it is useful from every page and a per-page button
+        # would need HTML, CSS and JS wiring repeated on each one. The
+        # bridge slots still exist so a page can open the pane AT a
+        # specific URL; this is just the always-available toggle.
+        self.browser_pane_action = QAction('&Browser Pane', self)
+        self.browser_pane_action.setCheckable(True)
+        self.browser_pane_action.setShortcut(QKeySequence('Ctrl+B'))
+        self.browser_pane_action.setStatusTip(
+            'Show a web browser beside the app, for a question bank')
+        self.browser_pane_action.triggered.connect(self._toggle_browser_pane)
+        view_menu.addAction(self.browser_pane_action)
         
         if self.dev_mode:
             view_menu.addSeparator()
@@ -310,6 +446,27 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
     
+    def _toggle_browser_pane(self, checked: bool):
+        """Show or hide the browser pane from the View menu.
+
+        Keeps the menu item's checked state in step with what actually
+        happened: if the controller is missing or refuses, the tick is
+        put back rather than left claiming a pane that is not there.
+        """
+        pane = getattr(self, 'browser_pane', None)
+        if pane is None:
+            self.browser_pane_action.setChecked(False)
+            return
+        try:
+            state = pane.open_pane('') if checked else pane.close_pane()
+        except Exception as e:  # noqa: BLE001 — a menu action must not crash the app
+            if self.error_logger:
+                self.error_logger.error(f'Browser pane toggle failed: {e}')
+            self.browser_pane_action.setChecked(not checked)
+            return
+        if isinstance(state, dict) and 'open' in state:
+            self.browser_pane_action.setChecked(bool(state['open']))
+
     def _setup_status_bar(self):
         """Create the status bar"""
         self.status_bar = QStatusBar()
@@ -352,7 +509,7 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f'Loaded: {page_name}')
         
         if self.dev_mode:
-            print(f"📄 Loaded page: {page_path}")
+            print(f"Loaded page: {page_path}")
     
     def reload_page(self):
         """Reload the current page (hot reload)"""
@@ -360,7 +517,7 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage('Page reloaded')
         
         if self.dev_mode:
-            print("🔄 Page reloaded")
+            print("Page reloaded")
     
     def _open_dev_tools(self):
         """Open browser developer tools (dev mode only)"""
@@ -402,10 +559,6 @@ class MainWindow(QMainWindow):
         if self.plugin_manager:
             self.plugin_manager.set_media_manager(self.media_manager)
 
-        # Update scheme handler's reference
-        if self.media_scheme_handler:
-            self.media_scheme_handler.set_media_manager(self.media_manager)
-
         # Close the outgoing user database. Nothing else closes it, and
         # a lingering SQLite WAL handle keeps the file locked on Windows,
         # which would block a later export/delete of that profile.
@@ -441,12 +594,20 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'dev_tools'):
             self.dev_tools.close()
         
-        # Close database connections
+        # Stop the folder-sync worker and discard anything it staged but
+        # never handed back. A push whose job was never polled -- the window
+        # closed mid-sync -- otherwise leaves a sealed copy of the whole
+        # profile in app_data for good (#123).
+        if getattr(self, 'db_bridge', None) is not None:
+            self.db_bridge.teardownFolderSync()
+
+        # Close database connections. After the teardown above, deliberately:
+        # phase 3 of a sync job runs on this thread and may touch master_db.
         if self.user_db:
             self.user_db.close()
         if self.master_db:
             self.master_db.close()
-        
+
         event.accept()
 
 
@@ -456,7 +617,8 @@ def run_application(
     dev_mode: bool = True,
     app_data_dir: Optional[Path] = None,
     plugin_manager=None,
-    initial_page: str = 'index.html'
+    initial_page: str = 'index.html',
+    error_logger=None
 ) -> int:
     """
     Run the WIMI application.
@@ -482,6 +644,7 @@ def run_application(
     window = MainWindow(
         master_db=master_db,
         user_db=user_db,
+        error_logger=error_logger,
         dev_mode=dev_mode,
         app_data_dir=app_data_dir,
         plugin_manager=plugin_manager,
@@ -502,7 +665,11 @@ def _auto_start_mcp_server(window):
         if not bridge or not bridge.user_db:
             return
 
-        prefs = bridge.user_db.get_preferences()
+        # mcp_server_* is device-local since m021 (#126): the server
+        # binds a TCP port on THIS machine, so a port that is free on the
+        # desktop may be taken on the laptop and "the server is running"
+        # is a fact about one machine's processes.
+        prefs = bridge.user_db.get_device_settings()
         if prefs and prefs.mcp_server_enabled:
             import json
             result_json = bridge.startMcpServer(

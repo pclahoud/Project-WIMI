@@ -19,6 +19,52 @@ function _wimiAdjustColor(hex, amount) {
 }
 
 // =========================================================================
+// Font Families
+// =========================================================================
+
+/**
+ * Stacks the `font_family` preference can name, keyed by the values the
+ * Appearance select offers.
+ *
+ * Every stack is built from faces the host already has and ends in a
+ * generic family, so nothing here depends on a font file shipping with
+ * the app — a bundled typeface is a packaging decision this does not
+ * take. `system` is null: it means "leave --font-family alone", i.e.
+ * whatever styles.css declares, which is what every profile had before
+ * the preference did anything.
+ */
+window.WIMI_FONT_STACKS = {
+    system: null,
+    sans:   "'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+    serif:  "Georgia, 'Times New Roman', 'Noto Serif', Times, serif",
+    mono:   "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace"
+};
+
+/**
+ * Apply the `font_family` preference to the --font-family custom property.
+ *
+ * Scope is deliberate. --font-family is the UI typeface: styles.css hands
+ * it to `body`, and the chrome inherits from there. It is NOT --font-mono
+ * (code, hotkeys, the pane's URL bar), NOT `.rich-content` (saved answers,
+ * reflections and notes, whose stack is matched to TinyMCE's content_style
+ * so view and edit modes agree) and NOT KaTeX (its own KaTeX_* faces).
+ * A student's written work must not reflow because they changed a UI font.
+ *
+ * @param {string} name - Key in WIMI_FONT_STACKS. Anything else (including
+ *   the legacy 'system_default') falls back to the stylesheet default.
+ */
+function _wimiApplyFontFamily(name) {
+    var stacks = window.WIMI_FONT_STACKS;
+    var stack = Object.prototype.hasOwnProperty.call(stacks, name)
+        ? stacks[name] : null;
+    if (stack) {
+        document.documentElement.style.setProperty('--font-family', stack);
+    } else {
+        document.documentElement.style.removeProperty('--font-family');
+    }
+}
+
+// =========================================================================
 // Theme Definitions
 // =========================================================================
 
@@ -74,7 +120,15 @@ window.WIMI_THEMES = {
             '--color-error':      '#f87171',
             '--color-error-bg':   '#450a0a',
             '--color-info':       '#22d3ee',
-            '--color-info-bg':    '#083344'
+            '--color-info-bg':    '#083344',
+            // Toast slabs (#110). This theme inverts --color-white to #0f172a,
+            // so a toast's text is dark and its slab has to be LIGHT -- these
+            // are the brightest of the three, not darker ones. The name is a
+            // light-theme name; see the --color-success-dark comment in
+            // styles.css before changing or copying these.
+            '--color-success-dark': '#34d399',
+            '--color-warning-dark': '#fbbf24',
+            '--color-error-dark':   '#f87171'
         }
     },
 
@@ -252,7 +306,13 @@ window.WIMI_THEMES = {
             '--color-error':      '#ff4444',
             '--color-error-bg':   '#4d0000',
             '--color-info':       '#00e5ff',
-            '--color-info-bg':    '#003d44'
+            '--color-info-bg':    '#003d44',
+            // Toast slabs (#110). Same inversion as Midnight: --color-white is
+            // #000000 here, so the slab has to be LIGHT. See the
+            // --color-success-dark comment in styles.css.
+            '--color-success-dark': '#00ff88',
+            '--color-warning-dark': '#ffcc00',
+            '--color-error-dark':   '#ff4444'
         }
     }
 };
@@ -320,6 +380,8 @@ function _wimiApplyThemeVariables(themeName) {
             root.setProperty('--color-secondary', prefs.secondary_color_hex);
             root.setProperty('--color-secondary-hover', _wimiAdjustColor(prefs.secondary_color_hex, -25));
         }
+
+        _wimiApplyFontFamily(prefs.font_family);
 
         if (prefs.font_size_scale != null && prefs.font_size_scale !== 1.0) {
             root.fontSize = (prefs.font_size_scale * 16) + 'px';

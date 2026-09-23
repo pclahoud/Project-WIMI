@@ -200,8 +200,11 @@ function getSourceTypeLabel(type) {
 // =========================================================================
 
 function renderPreviousSessionCard(session) {
-    const completionPercent = session.total_incorrect > 0 
-        ? Math.round((session.entries_completed / session.total_incorrect) * 100) 
+    // A student can log more entries than the session first declared (the
+    // add-entries flow exists for exactly that), so clamp: the percentage and
+    // the bar stop at 100 while the raw LOGGED count below stays honest (11/10).
+    const completionPercent = session.total_incorrect > 0
+        ? Math.min(100, Math.round((session.entries_completed / session.total_incorrect) * 100))
         : 100;
     
     const isComplete = completionPercent >= 100 || session.session_status === 'completed';
@@ -1085,7 +1088,16 @@ async function showEntryPicker(sessionId, entriesToRemove) {
         listEl.innerHTML = entries.map(entry => {
             const questionId = entry.question_id || 'No ID';
             const subjects = (entry.subjects || []).map(s => s.subject_name || s.name || '').filter(Boolean).join(', ');
-            const notes = entry.notes_preview || entry.notes || '';
+            // The legacy notes column holds rich-text HTML, so strip it to
+            // plain text BEFORE truncating (#34): escaping it whole showed
+            // the tags as literal text, and an 80-character window spent on
+            // markup cut off the words the student actually wrote. The
+            // reduction lives in WimiTextPreview (js/text_preview.js) --
+            // the same inert parse the entry-browser cards use (#41). The
+            // result is still escaped on the way into this template.
+            const notes = window.WimiTextPreview.htmlToPreviewText(
+                entry.notes_preview || entry.notes || ''
+            );
             return `
                 <label class="entry-picker-item" data-entry-id="${entry.id}">
                     <input type="checkbox" value="${entry.id}" data-testid="session-entry-${entry.id}" onchange="updateEntryPickerCount()">

@@ -15,7 +15,13 @@ const EntryState = {
     entries: [],
     currentEntry: null,
     isDirty: false,
+    // "The form is still markup." Cleared by markEntryFormReady(), which is
+    // also what removes `inert` from .entry-page -- one flag, one gate, so the
+    // flag can never say ready while the page still refuses input (#114).
     isLoading: true,
+    // Latch so markEntryFormReady() is idempotent; it is called from more than
+    // one place and polls itself while the editors mount.
+    isFormReady: false,
     isNavigating: false, // Mutex to prevent auto-save during navigation
     autoSaveTimer: null,
     autoSaveInterval: 30000, // 30 seconds
@@ -190,165 +196,6 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
-}
-
-// =========================================================================
-// Section Collapse/Expand
-// =========================================================================
-
-// Order of sections for navigation
-const SECTION_ORDER = [
-    'section-question-info',
-    'section-subjects',
-    'section-tags',
-    'section-reflection',
-    'section-explanation',
-    'section-notes'
-];
-
-function toggleSection(sectionId, focusFirstInput = false) {
-    const section = document.getElementById(sectionId);
-    if (!section) return;
-
-    const wasExpanded = section.classList.contains('expanded');
-    const header = section.querySelector('.entry-section-header');
-
-    // If clicking already-expanded section, just collapse it
-    if (wasExpanded) {
-        section.classList.remove('expanded');
-        if (header) header.setAttribute('aria-expanded', 'false');
-        return;
-    }
-
-    // Collapse OTHER sections only (not target)
-    document.querySelectorAll('.entry-section').forEach(s => {
-        if (s.id !== sectionId) {
-            s.classList.remove('expanded');
-            const h = s.querySelector('.entry-section-header');
-            if (h) h.setAttribute('aria-expanded', 'false');
-        }
-    });
-
-    // Expand target section
-    section.classList.add('expanded');
-    if (header) header.setAttribute('aria-expanded', 'true');
-
-    if (focusFirstInput) {
-        setTimeout(() => {
-            const firstInput = section.querySelector('input:not([type="hidden"]), textarea, select, .ql-editor');
-            if (firstInput) firstInput.focus();
-        }, 150);
-    }
-}
-
-function expandSection(sectionId, focusFirstInput = false) {
-    const section = document.getElementById(sectionId);
-    if (section && !section.classList.contains('expanded')) {
-        toggleSection(sectionId, focusFirstInput);
-    }
-}
-
-function handleSectionKeydown(event, sectionId) {
-    // Handle Enter or Space to toggle section
-    if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        toggleSection(sectionId, true);
-    }
-}
-
-function getNextSection(currentSectionId) {
-    const currentIndex = SECTION_ORDER.indexOf(currentSectionId);
-    if (currentIndex < SECTION_ORDER.length - 1) {
-        return SECTION_ORDER[currentIndex + 1];
-    }
-    return null;
-}
-
-function getPrevSection(currentSectionId) {
-    const currentIndex = SECTION_ORDER.indexOf(currentSectionId);
-    if (currentIndex > 0) {
-        return SECTION_ORDER[currentIndex - 1];
-    }
-    return null;
-}
-
-// Handle Tab key to navigate between sections
-function initSectionTabNavigation() {
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Tab') return;
-        
-        const activeElement = document.activeElement;
-        if (!activeElement) return;
-        
-        // Check if we're in a form field within a section
-        const currentSection = activeElement.closest('.entry-section');
-        if (!currentSection) return;
-        
-        const sectionId = currentSection.id;
-        const isLastInSection = activeElement.dataset.lastInSection === 'true';
-        
-        // If tabbing forward from the last field in a section
-        if (!e.shiftKey && isLastInSection) {
-            const nextSectionId = getNextSection(sectionId);
-            if (nextSectionId) {
-                e.preventDefault();
-                const nextSection = document.getElementById(nextSectionId);
-                const nextHeader = nextSection?.querySelector('.entry-section-header');
-                if (nextHeader) {
-                    // Expand the next section and focus its header
-                    toggleSection(nextSectionId, false);
-                    nextHeader.focus();
-                }
-            }
-        }
-        
-        // If shift-tabbing from the first field in a section
-        if (e.shiftKey) {
-            const firstInput = currentSection.querySelector('input:not([type="hidden"]), textarea, select');
-            if (activeElement === firstInput) {
-                const prevSectionId = getPrevSection(sectionId);
-                if (prevSectionId) {
-                    e.preventDefault();
-                    const prevSection = document.getElementById(prevSectionId);
-                    const prevHeader = prevSection?.querySelector('.entry-section-header');
-                    if (prevHeader) {
-                        // Focus the previous section's header
-                        prevHeader.focus();
-                    }
-                }
-            }
-        }
-    });
-    
-    // When a section header receives focus via Tab, expand it.
-    //
-    // Use ``:focus-visible`` to gate this on keyboard-induced focus only.
-    // The browser's focus-visible heuristic is already exactly the
-    // signal we need: it matches when focus came from a key (Tab,
-    // Shift+Tab, arrow keys) but not from a mouse/touch click. Mouse
-    // clicks still set ``:focus`` on the element (because the header
-    // is ``tabindex="0"``), but ``:focus-visible`` returns false, so
-    // the focus handler bails and lets the inline ``onclick`` be the
-    // sole toggle path. This replaces a fragile flag-based guard that
-    // raced with the click-vs-focus event order.
-    document.querySelectorAll('.entry-section-header').forEach(header => {
-        header.addEventListener('focus', () => {
-            const section = header.closest('.entry-section');
-            if (!section) return;
-
-            // Mouse-induced focus is ``:focus`` but NOT
-            // ``:focus-visible``. Bail so the click handler alone
-            // drives the toggle.
-            if (!header.matches(':focus-visible')) {
-                return;
-            }
-
-            // Only expand if collapsed (for Tab navigation).
-            if (!section.classList.contains('expanded')) {
-                toggleSection(section.id, false);
-            }
-        });
-    });
 }
 
 // =========================================================================
@@ -734,9 +581,15 @@ function showImageAutoPopulationPrompt(images, subjectName) {
         </div>
     `;
 
-    // Insert in the media upload section
-    const mediaSection = document.getElementById('section-media-content') ||
-                        document.getElementById('media-upload-container')?.closest('.entry-section-content');
+    // Insert in the media upload section.
+    //
+    // This used to look up #section-media-content, falling back to
+    // .closest('.entry-section-content'). The id never existed anywhere in
+    // the markup — the real one is section-notes-content — so the fallback
+    // was the branch that actually ran, and it resolved against an
+    // accordion wrapper that no longer survives. #entry-media-block is a
+    // stable hook on the media form-group itself.
+    const mediaSection = document.getElementById('entry-media-block');
     if (mediaSection) {
         mediaSection.insertBefore(prompt, mediaSection.firstChild);
     }
@@ -1519,6 +1372,15 @@ async function syncTagContextChoices(entryId) {
         const desired = explicit !== undefined
             ? explicit
             : edges[0].parent_id;  // canonical primary default
+        // Skip the round-trip when this entry already carries the
+        // value we would write. This is ONLY safe because
+        // update_question_entry preserves primary_parent_id across its
+        // delete-and-reinsert of the mapping rows -- see
+        // entries.py::update_question_entry. It used to drop the column,
+        // which turned this memo into silent data loss: the row was
+        // reset to NULL server-side while the memo still said "already
+        // synced", so nothing rewrote it from the second save onward.
+        // If that preservation is ever removed, remove this skip too.
         const lastSynced = EntryState.primaryParentSynced[subject.id];
         if (lastSynced === desired) continue;
         try {
@@ -1556,7 +1418,7 @@ function initQuickAddSubject() {
 
     showBtn.addEventListener('click', () => {
         resetQuickAddParentSearch();
-        modal.style.display = 'block';
+        Modal.open('quick-add-subject-modal');
         nameInput?.focus();
     });
 
@@ -1719,7 +1581,7 @@ function resetQuickAddParentSearch() {
 function closeQuickAddModal() {
     const modal = document.getElementById('quick-add-subject-modal');
     if (modal) {
-        modal.style.display = 'none';
+        Modal.close('quick-add-subject-modal');
         document.getElementById('quick-add-name').value = '';
         const aliasField = document.getElementById('quick-add-aliases');
         if (aliasField) aliasField.value = '';
@@ -1917,20 +1779,35 @@ function initTagSearch() {
         }
     };
     
+    // The error-type palette: the same 16 buttons that used to sit
+    // permanently under this field. They ARE the selection control --
+    // toggleTag() writes straight to formData -- so they belong to the
+    // field, shown while it has focus and nothing has been typed. Once
+    // there is a query the search dropdown takes the space instead.
+    const palette = document.getElementById('tag-palette');
+    const showPalette = (show) => {
+        if (palette) palette.hidden = !show;
+    };
+
     input.addEventListener('input', (e) => {
         searchTags(e.target.value);
+        showPalette(e.target.value.length === 0);
     });
-    
+
     input.addEventListener('focus', () => {
         if (input.value.length >= 2) {
             searchTags(input.value);
         }
+        showPalette(input.value.length === 0);
     });
-    
-    // Close dropdown on outside click
+
+    // Close dropdown and palette on outside click
     document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        if (!input.contains(e.target) &&
+            !dropdown.contains(e.target) &&
+            !(palette && palette.contains(e.target))) {
             dropdown.classList.remove('visible');
+            showPalette(false);
         }
     });
     
@@ -2593,7 +2470,7 @@ function validateForm() {
     const isComplete = hasUserAnswer && hasCorrectAnswer && hasPrimarySubject && hasReflection && hasExplanation && allImagesHaveSubjects;
     
     // Determine if this is the last entry
-    const totalEntries = EntryState.session?.total_incorrect || 0;
+    const totalEntries = getEntrySlotCount();
     const currentIndex = EntryState.currentEntryIndex;
     const isLastEntry = totalEntries > 0 && currentIndex >= totalEntries - 1;
     
@@ -2630,44 +2507,52 @@ function validateForm() {
     return isComplete;
 }
 
+/**
+ * Mark one field's wrapper as filled or still-required.
+ *
+ * Resolves the wrapper rather than taking it, so this keeps working as
+ * the layout moves from .form-group to .fact-row. A field with neither
+ * class is simply untouched.
+ */
+function markFieldState(elementId, hasContent) {
+    const el = document.getElementById(elementId);
+    // .fact-line first: the answers share one .fact-row, so marking at row
+    // level would flag the pair as both filled and missing. .write-block is
+    // the two editors' own wrapper -- without it closest() returns null for
+    // the page's two most important required fields and the mark is computed
+    // and then written nowhere (#40). The editors are a different shape from
+    // a fact row, so entry.css gives that wrapper its own cue.
+    const row = el && el.closest('.fact-line, .fact-row, .write-block, .form-group');
+    if (!row) return;
+    row.classList.toggle('field-has-content', hasContent);
+    row.classList.toggle('field-has-error', !hasContent);
+}
+
+/**
+ * Show which required fields are still empty.
+ *
+ * This used to toggle has-content/has-error on the six accordion
+ * sections, which surfaced as a colour on the A-F letter chips. With the
+ * sections gone the signal moves to the fields themselves, which is
+ * strictly more useful: it names the field rather than the group it used
+ * to live in. Nothing else replaces it -- #draft-indicator and the save
+ * button say that SOMETHING is missing, never what.
+ */
 function updateSectionIndicators() {
     const data = EntryState.formData;
-    
-    // Section A: Question Info
-    const sectionA = document.getElementById('section-question-info');
-    if (sectionA) {
-        const hasContent = data.userAnswer || data.correctAnswer;
-        const hasError = !data.userAnswer || !data.correctAnswer;
-        sectionA.classList.toggle('has-content', hasContent && !hasError);
-        sectionA.classList.toggle('has-error', hasError && (data.userAnswer || data.correctAnswer));
-    }
-    
-    // Section B: Subjects
-    const sectionB = document.getElementById('section-subjects');
-    if (sectionB) {
-        sectionB.classList.toggle('has-content', data.primarySubjects.length > 0);
-        sectionB.classList.toggle('has-error', data.primarySubjects.length === 0);
-    }
-    
-    // Section D: Reflection (uses rich text editor)
-    const sectionD = document.getElementById('section-reflection');
-    if (sectionD) {
-        const hasReflection = EntryState.reflectionEditor
-            ? !EntryState.reflectionEditor.isEmpty()
-            : data.reflection.trim().length > 0;
-        sectionD.classList.toggle('has-content', hasReflection);
-        sectionD.classList.toggle('has-error', !hasReflection);
-    }
 
-    // Section E: Explanation (uses rich text editor)
-    const sectionE = document.getElementById('section-explanation');
-    if (sectionE) {
-        const hasExplanation = EntryState.explanationEditor
-            ? !EntryState.explanationEditor.isEmpty()
-            : data.explanation.trim().length > 0;
-        sectionE.classList.toggle('has-content', hasExplanation);
-        sectionE.classList.toggle('has-error', !hasExplanation);
-    }
+    markFieldState('user-answer', Boolean(data.userAnswer));
+    markFieldState('correct-answer', Boolean(data.correctAnswer));
+    markFieldState('primary-subjects-chips', data.primarySubjects.length > 0);
+
+    // The editors report emptiness themselves; the raw string is only a
+    // fallback for the window before TinyMCE has initialised.
+    markFieldState('reflection-editor', EntryState.reflectionEditor
+        ? !EntryState.reflectionEditor.isEmpty()
+        : data.reflection.trim().length > 0);
+    markFieldState('explanation-editor', EntryState.explanationEditor
+        ? !EntryState.explanationEditor.isEmpty()
+        : data.explanation.trim().length > 0);
 }
 
 // =========================================================================
@@ -2677,6 +2562,10 @@ function updateSectionIndicators() {
 function markDirty() {
     EntryState.isDirty = true;
     updateAutoSaveIndicator('unsaved');
+    // Only start pointing at empty required fields once the student has
+    // actually touched the entry. Flagging them on a blank new entry
+    // would mark every required field the moment the page loads.
+    document.getElementById('entry-form')?.classList.add('show-missing');
 }
 
 function markClean() {
@@ -2820,7 +2709,7 @@ async function saveEntryAndNext() {
     }
     
     const saveBtn = document.getElementById('btn-save-next');
-    const totalEntries = EntryState.session?.total_incorrect || 0;
+    const totalEntries = getEntrySlotCount();
     const currentIndex = EntryState.currentEntryIndex;
     const isLastEntry = currentIndex >= totalEntries - 1;
     
@@ -2884,6 +2773,21 @@ async function loadSessionEntries() {
     }
 }
 
+/**
+ * Number of entry slots the header, the pager and the Save & Next bounds all
+ * share. The session's declared incorrect count is only an estimate; a student
+ * who logs one more mistake than first counted must still see and reach that
+ * entry, so widen the count to cover every entry that exists. Entries are keyed
+ * by entry_order (MAX+1 on insert, never renumbered), so use the highest order
+ * rather than the array length or a stray high slot becomes unreachable.
+ */
+function getEntrySlotCount() {
+    const declared = EntryState.session?.total_incorrect || 0;
+    const highestOrder = (EntryState.entries || []).reduce(
+        (max, e) => Math.max(max, e.entry_order || 0), 0);
+    return Math.max(declared, highestOrder);
+}
+
 function renderEntryNavigation(shouldScroll = true) {
     const dotsContainer = document.getElementById('entry-dots');
     const prevBtn = document.getElementById('btn-prev-entry');
@@ -2893,7 +2797,7 @@ function renderEntryNavigation(shouldScroll = true) {
     
     if (!dotsContainer) return;
     
-    const totalEntries = EntryState.session?.total_incorrect || 0;
+    const totalEntries = getEntrySlotCount();
     const currentIndex = EntryState.currentEntryIndex;
     const isLastEntry = totalEntries > 0 && currentIndex >= totalEntries - 1;
     
@@ -2981,7 +2885,7 @@ async function navigateToEntry(index) {
 
 async function navigateToNextEntry() {
     const nextIndex = EntryState.currentEntryIndex + 1;
-    const totalEntries = EntryState.session?.total_incorrect || 0;
+    const totalEntries = getEntrySlotCount();
     
     if (nextIndex < totalEntries) {
         await navigateToEntry(nextIndex);
@@ -3040,6 +2944,10 @@ function populateFormWithEntry(entry) {
     document.getElementById('question-id').value = entry.question_id || '';
     document.getElementById('user-answer').value = entry.user_answer || '';
     document.getElementById('correct-answer').value = entry.correct_answer || '';
+    // Programmatic .value fires no input event, so the answer fields would
+    // load collapsed to one line regardless of how long the answer is.
+    autoGrowTextarea(document.getElementById('user-answer'));
+    autoGrowTextarea(document.getElementById('correct-answer'));
     
     // Difficulty
     setDifficultyRating(entry.perceived_difficulty);
@@ -3168,6 +3076,9 @@ function populateFormWithEntry(entry) {
 
 function resetFormForNewEntry() {
     EntryState.currentEntry = null;
+    // A fresh entry starts unmarked; the missing-field cue reappears as
+    // soon as this one is touched.
+    document.getElementById('entry-form')?.classList.remove('show-missing');
     EntryState.formData = {
         questionId: '',
         userAnswer: '',
@@ -3196,6 +3107,8 @@ function resetFormForNewEntry() {
     document.getElementById('question-id').value = '';
     document.getElementById('user-answer').value = '';
     document.getElementById('correct-answer').value = '';
+    autoGrowTextarea(document.getElementById('user-answer'));
+    autoGrowTextarea(document.getElementById('correct-answer'));
     document.getElementById('time-spent').value = '';
     document.getElementById('time-unit').value = 'minutes';
 
@@ -3222,9 +3135,6 @@ function resetFormForNewEntry() {
     }
 
     validateForm();
-
-    // Expand first section
-    expandSection('section-question-info');
 
     scheduleRefreshAttachCandidates();
 }
@@ -3350,6 +3260,20 @@ async function handleBackButton() {
 // Form Input Handlers
 // =========================================================================
 
+/**
+ * Size a textarea to its content.
+ *
+ * The answer fields start one line tall so a short answer costs one line
+ * in the facts header. A long one still has to be fully readable -- the
+ * alternative, truncating with the text on hover, hides content the
+ * student may want to re-read -- so the field grows instead.
+ */
+function autoGrowTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
+
 function initFormInputHandlers() {
     // Text inputs that trigger dirty state
     // Note: reflection, explanation, and notes are now rich text editors with their own onChange handlers
@@ -3366,6 +3290,13 @@ function initFormInputHandlers() {
                 validateForm();
             });
         }
+    });
+
+    ['user-answer', 'correct-answer'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', () => autoGrowTextarea(el));
+        autoGrowTextarea(el);
     });
 
     // Question ID auto-fill lookup on blur
@@ -3462,6 +3393,10 @@ function showAutofillPrompt(sourceEntry, matchCount) {
     const prompt = document.createElement('div');
     prompt.id = 'autofill-prompt';
     prompt.className = 'autofill-prompt';
+    // Testid so a regression scenario can assert the prompt still mounts.
+    // Without one this is the only prompt in the form that can vanish
+    // silently when its host element changes.
+    prompt.dataset.testid = 'entry-form-autofill-prompt';
     prompt.innerHTML = `
         <div class="autofill-prompt-content">
             <div class="autofill-prompt-icon">💡</div>
@@ -3480,10 +3415,13 @@ function showAutofillPrompt(sourceEntry, matchCount) {
         </div>
     `;
 
-    // Insert after question-id field
-    const questionIdGroup = document.getElementById('question-id')?.closest('.form-group');
-    if (questionIdGroup) {
-        questionIdGroup.appendChild(prompt);
+    // Insert after the question-id field. #entry-prompt-host is a stable
+    // full-width hook; the .form-group fallback is the historical lookup,
+    // which stops resolving once the field leaves that wrapper.
+    const promptHost = document.getElementById('entry-prompt-host') ||
+                       document.getElementById('question-id')?.closest('.form-group');
+    if (promptHost) {
+        promptHost.appendChild(prompt);
     }
 
     // Event listeners
@@ -3611,6 +3549,25 @@ function applyAutofillData(sourceEntry) {
 // Rich Text Editors
 // =========================================================================
 
+/**
+ * Re-run validation once a rich text editor can answer for itself.
+ *
+ * TinyMCE initialises asynchronously, so both editors exist as objects
+ * long before they hold anything. validateForm() asks them
+ * `isEmpty()`, which is true for an editor whose `init` event has not
+ * fired -- and `populateFormWithEntry` only queues a loaded entry's HTML
+ * into the editor's pending-content slot. Without this callback the
+ * verdict computed during load is the last word, so reopening a complete
+ * entry left the footer reading "Draft - missing required fields" and
+ * Save & Next disabled until the student typed something (#32).
+ *
+ * Deliberately not markDirty(): loading an entry is not an edit, and
+ * flagging it would arm the autosave and the missing-field marks.
+ */
+function handleEditorReady() {
+    validateForm();
+}
+
 function initRichTextEditors() {
     // Check if RichEditor class is available
     if (typeof window.RichEditor === 'undefined') {
@@ -3624,11 +3581,15 @@ function initRichTextEditors() {
     const explanationContainer = document.getElementById('explanation-editor');
     if (explanationContainer) {
         EntryState.explanationEditor = new RichEditor('#explanation-editor', {
+            // Also required, but written after the reflection and
+            // re-read less often, so it gets less of the page.
+            height: 260,
             placeholder: 'Explain the reasoning behind the correct answer. What concept or rule makes this the right choice?',
             onChange: () => {
                 markDirty();
                 validateForm();
-            }
+            },
+            onReady: handleEditorReady
         });
         console.log('Explanation editor initialized');
     }
@@ -3637,11 +3598,15 @@ function initRichTextEditors() {
     const reflectionContainer = document.getElementById('reflection-editor');
     if (reflectionContainer) {
         EntryState.reflectionEditor = new RichEditor('#reflection-editor', {
+            // The largest element on the page. This is the point of the
+            // tool, so the layout should look like what it is for.
+            height: 420,
             placeholder: 'Reflect on your thought process. What led you to choose the wrong answer? What did you miss or misunderstand?',
             onChange: () => {
                 markDirty();
                 validateForm();
-            }
+            },
+            onReady: handleEditorReady
         });
         console.log('Reflection editor initialized');
     }
@@ -3730,9 +3695,17 @@ function addNoteCard(noteData = null) {
         }
     });
 
-    // Load content if provided
+    // Load content if provided. content_html is canonical: TinyMCE saves
+    // HTML only, so a note that predates the Quill -> TinyMCE switch keeps
+    // its Quill Delta in content_json (m001 copied notes_json there, and
+    // update_entry_note skips a null content_json) while content_html moves
+    // on with every edit. Loading the Delta first replayed the pre-edit text
+    // and dropped anything Quill could not express, such as tables (#18).
+    // The Delta is only a fallback for rows that never had HTML.
     if (noteData) {
-        if (noteData.content_json) {
+        if (noteData.content_html && noteData.content_html.trim()) {
+            editor.setContent(noteData.content_html);
+        } else if (noteData.content_json) {
             try {
                 const parsed = typeof noteData.content_json === 'string'
                     ? JSON.parse(noteData.content_json) : noteData.content_json;
@@ -3740,8 +3713,6 @@ function addNoteCard(noteData = null) {
             } catch (e) {
                 editor.setContent(noteData.content_html || '');
             }
-        } else if (noteData.content_html) {
-            editor.setContent(noteData.content_html);
         }
     }
 
@@ -4081,11 +4052,50 @@ function clearAllNoteCards() {
     if (container) container.innerHTML = '';
 }
 
+/**
+ * Has this note card been left exactly as "+ Add Note" created it?
+ *
+ * #134: every card in `notesList` was written as its own `entry_notes`
+ * row, so one abandoned click left one blank note behind permanently and
+ * nothing told the student. Only a card that is *both* blank and unsaved
+ * is skipped, and the asymmetry is the whole point:
+ *
+ * - **No id, blank** — never typed into. There is nothing to keep, so skip
+ *   it. The card stays on the page; typing into it later still saves.
+ * - **Has an id, blank** — an existing note the student emptied. That is
+ *   what Clear means, and it is a different intent from never having
+ *   typed anything, so it must still be persisted as blank.
+ * - **Blank but carrying linked subjects** — assigning subjects is a
+ *   deliberate act on the card, so the card is not untouched.
+ *
+ * Emptiness comes from the card's own editor rather than from the
+ * collected HTML: `RichEditor.isEmpty()` counts an image, a table or a
+ * math span as content even when the text is empty (so a note holding
+ * only a screenshot is never silently discarded), and it answers from
+ * queued content while TinyMCE is still mounting. With no editor to ask,
+ * the card is persisted — that is the pre-#134 behaviour and the safe
+ * direction to fail in.
+ *
+ * `attachment_count` deliberately plays no part: `addNoteCard` defaults it
+ * to 1 for a brand-new card, so it says nothing about whether the card has
+ * attachments.
+ */
+function isUntouchedNoteCard(note) {
+    if (note.id) return false;
+    if (note.linked_subject_ids && note.linked_subject_ids.length > 0) return false;
+    const ne = EntryState.noteEditors.find(e => e.tempId === note.tempId);
+    if (!ne || !ne.editor) return false;
+    return ne.editor.isEmpty();
+}
+
 async function syncEntryNotes(entryId) {
     const data = collectFormData();
     if (!data.notesList) return;
 
     for (const note of data.notesList) {
+        // #134: an abandoned "+ Add Note" click must not become a row.
+        if (isUntouchedNoteCard(note)) continue;
+
         const payload = {
             content_html: note.content_html,
             content_json: note.content_json,
@@ -4192,6 +4202,56 @@ function initMediaUpload() {
 // Initialization
 // =========================================================================
 
+// How long markEntryFormReady() will wait for the rich text editors before it
+// hands the form over anyway. A form that stays `inert` forever is a far worse
+// bug than the one this gate exists to fix, so the gate fails open: if TinyMCE
+// never mounts the student gets a form whose reflection box is broken, not a
+// page that refuses every keystroke.
+const FORM_READY_EDITOR_TIMEOUT_MS = 15000;
+const FORM_READY_POLL_MS = 25;
+let _formReadyWaitStartedAt = null;
+
+/**
+ * Hand the form to the student: clear `inert` and drop EntryState.isLoading.
+ *
+ * Until this runs, .entry-page ships `inert`, so a click has nowhere to land
+ * and a keystroke cannot be typed -- which is the point. Everything typed
+ * before resetFormForNewEntry() / populateFormWithEntry() is overwritten, and
+ * the footer buttons have no listeners until the very end of init (#114).
+ *
+ * Gated on the rich text editors as well as the end of the init chain, because
+ * the two are not the same moment. TinyMCE mounts ~130 ms AFTER the init chain
+ * finishes; the reset has by then queued '' into both editors, and the queue is
+ * flushed on `init`. Text typed into an already-editable TinyMCE iframe in that
+ * tail is wiped with isDirty still false and no toast -- the reflection box,
+ * which is the single most valuable field on the page. Clearing on the end of
+ * the chain alone would leave that window wide open.
+ *
+ * isLoading moves here for the same reason: it is the flag the harness waits on
+ * for "form is ready" (#99, #105) and it was going false 127-147 ms early. One
+ * gate now owns both, so the flag cannot disagree with the attribute.
+ */
+function markEntryFormReady() {
+    if (EntryState.isFormReady) return;
+
+    const ready = (ed) => !ed || ed.isInitialized;
+    if (!ready(EntryState.reflectionEditor) || !ready(EntryState.explanationEditor)) {
+        if (_formReadyWaitStartedAt === null) _formReadyWaitStartedAt = Date.now();
+        if (Date.now() - _formReadyWaitStartedAt < FORM_READY_EDITOR_TIMEOUT_MS) {
+            setTimeout(markEntryFormReady, FORM_READY_POLL_MS);
+            return;
+        }
+        console.warn('⚠️ Rich text editors never reported ready; releasing the '
+            + 'form anyway after ' + FORM_READY_EDITOR_TIMEOUT_MS + ' ms (#114)');
+    }
+
+    EntryState.isFormReady = true;
+    EntryState.isLoading = false;
+    const page = document.querySelector('.entry-page');
+    if (page) page.removeAttribute('inert');
+    console.log('✅ Question entry form ready');
+}
+
 async function initializeEntryPage() {
     console.log('🚀 Initializing question entry page...');
     
@@ -4206,6 +4266,10 @@ async function initializeEntryPage() {
         console.error('❌ DEBUG: No session ID found in URL!');
         console.error('❌ DEBUG: Current URL:', window.location.href);
         console.error('❌ DEBUG: Search params:', window.location.search);
+        // Outside the try below, so the finally does not cover it. Release the
+        // form anyway: the page is about to redirect, and leaving it `inert`
+        // would freeze the last frame the student sees (#114).
+        markEntryFormReady();
         Toast.error('Missing Session', 'No session selected. Redirecting...');
         setTimeout(() => {
             window.location.href = 'index.html';
@@ -4308,7 +4372,6 @@ async function initializeEntryPage() {
         initFormInputHandlers();
         initMediaUpload();
         initAddEntries();
-        initSectionTabNavigation();
         await initSessionTimer();
         setupTimerHotkeys();
 
@@ -4325,12 +4388,17 @@ async function initializeEntryPage() {
         // Initial validation
         validateForm();
         
-        EntryState.isLoading = false;
         console.log('✅ Question entry page initialized');
-        
+
     } catch (error) {
         console.error('Error initializing entry page:', error);
         Toast.error('Initialization Failed', error.message);
+    } finally {
+        // Every exit from the try -- the happy path, the "session not found"
+        // early return, and the catch -- lands here, so there is no way to
+        // leave the page permanently `inert` (#114). markEntryFormReady() is
+        // idempotent and does its own waiting for the editors.
+        markEntryFormReady();
     }
 }
 
@@ -4396,8 +4464,91 @@ async function confirmAddEntries() {
     }
 }
 
+/**
+ * Wire the "Open question bank" button beside Add Entries.
+ *
+ * The button stays hidden unless the pane is actually available. That is
+ * the honest state for a page that cannot know whether the feature is
+ * present: getBrowserPaneStatus rejects with "browser pane not
+ * available" when no controller is attached, and a button that reports
+ * an error every time it is pressed is worse than no button.
+ *
+ * It is a toggle rather than a one-way open, because a button that does
+ * nothing visible when the pane is already showing reads as broken. The
+ * label always names what pressing it will do.
+ */
+async function initQuestionBankButton() {
+    const btn = document.getElementById('btn-question-bank');
+    if (!btn) return;
+
+    const setLabel = (isOpen) => {
+        btn.textContent = isOpen ? 'Hide question bank' : 'Open question bank';
+        btn.title = isOpen
+            ? 'Hide the question bank pane (keeps your page and login)'
+            : 'Show your question bank beside this form';
+    };
+
+    let status;
+    try {
+        status = await api.getBrowserPaneStatus();
+    } catch (e) {
+        // No pane in this build. Leave the button hidden and say nothing.
+        return;
+    }
+
+    btn.hidden = false;
+    setLabel(!!(status && status.open));
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+            const isOpen = btn.textContent.startsWith('Hide');
+            // No url: the pane lands wherever the student's "when the
+            // pane opens" setting says, and keeps its page if it has one.
+            const next = isOpen
+                ? await api.closeBrowserPane()
+                : await api.openBrowserPane();
+            setLabel(!!(next && next.open));
+        } catch (e) {
+            Toast.error('Question bank', e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // The pane is also toggled from the View menu (Ctrl+B) and by its own
+    // close button, so the label has to follow state it did not cause.
+    //
+    // Two routes, because the first is not guaranteed. The pane emits
+    // browser:pane_state by injecting JS into this page, which nothing
+    // subscribed to before now and which is NOT observed to arrive here
+    // — so it is treated as a fast path, not the mechanism. Re-reading
+    // on focus is what actually keeps the label honest: every external
+    // toggle happens while the menu or the pane has focus, so coming
+    // back to this form is exactly when a stale label would be seen.
+    const resync = async () => {
+        try {
+            const s = await api.getBrowserPaneStatus();
+            setLabel(!!(s && s.open));
+        } catch (e) {
+            // Pane went away mid-session; leave the label as it is.
+        }
+    };
+
+    if (window.eventBus) {
+        eventBus.on('browser:pane_state', (payload) => {
+            setLabel(!!(payload && payload.open));
+        });
+    }
+    window.addEventListener('focus', resync);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) resync();
+    });
+}
+
 function initAddEntries() {
     document.getElementById('btn-add-entries')?.addEventListener('click', toggleAddEntriesPopover);
+    initQuestionBankButton();
     document.getElementById('add-entries-confirm')?.addEventListener('click', confirmAddEntries);
     document.getElementById('add-entries-cancel')?.addEventListener('click', () => {
         document.getElementById('add-entries-popover').style.display = 'none';
@@ -4907,8 +5058,6 @@ function stopSessionTimer() {
 // Expose Global Functions
 // =========================================================================
 
-window.toggleSection = toggleSection;
-window.handleSectionKeydown = handleSectionKeydown;
 window.selectSubject = selectSubject;
 window.removeSubject = removeSubject;
 window.toggleTag = toggleTag;

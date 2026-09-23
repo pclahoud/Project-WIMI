@@ -73,11 +73,31 @@ class TestPreferencesMigration:
         assert prefs.show_subject_breakdown is True
         assert prefs.show_time_analytics is True
         assert prefs.show_weekend_in_calendar is True
-        assert prefs.anki_integration_enabled is False
         assert prefs.auto_backup_enabled is True
         assert prefs.cloud_sync_enabled is False
         assert prefs.entry_review_default_sort_field == 'answered_incorrectly_date'
         assert prefs.entry_review_default_sort_direction == 'desc'
+
+    def test_anki_defaults_moved_to_device_settings(self, db):
+        """#126: AnkiConnect names a machine, so it is not on preferences.
+
+        ``ankiconnect_host``'s default is ``localhost``, which denotes a
+        different machine on each device. The whole point of m021 is that
+        it cannot ride along in a profile, so it must not be reachable
+        from the object that does.
+        """
+        prefs = db.get_preferences()
+        for moved in ('anki_integration_enabled', 'ankiconnect_host',
+                      'ankiconnect_port', 'mcp_server_enabled',
+                      'mcp_server_port'):
+            assert not hasattr(prefs, moved), moved
+
+        device = db.get_device_settings()
+        assert device.anki_integration_enabled is False
+        assert device.ankiconnect_host == 'localhost'
+        assert device.ankiconnect_port == 8765
+        assert device.mcp_server_enabled is False
+        assert device.mcp_server_port == 8000
 
 
 # ==================== Get Preferences Tests ====================

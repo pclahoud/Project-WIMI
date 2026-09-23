@@ -84,6 +84,15 @@
                 <div class="breakdown-card" id="subjectBreakdownCard" data-testid="analytics-subject-breakdown-card">
                     <div class="card-header">
                         <h3 class="card-title">By Subject</h3>
+                        <!-- The centre counts entries; the segments count
+                             entries per parent, and a shared subject counts
+                             under each of its parents. The two totals differ
+                             on purpose, so the chart has to say so (#6). -->
+                        <span class="sunburst-info-icon" tabindex="0"
+                              data-testid="analytics-sunburst-total-info"
+                              aria-label="Shared subjects count under each parent, so the segments add up to more than the total.">i<span
+                              class="sunburst-info-tooltip"
+                              data-testid="analytics-sunburst-total-tooltip">Shared subjects count under each parent, so the segments add up to more than the total.</span></span>
                         <div class="size-preset-group" data-chart="subject_sunburst">
                             <button class="size-preset-btn" data-size="S" data-testid="analytics-subject-sunburst-size-S">S</button>
                             <button class="size-preset-btn active" data-size="M" data-testid="analytics-subject-sunburst-size-M">M</button>

@@ -424,3 +424,75 @@ class TestLegacyFallback:
         # notes_list should be empty (only migration populates it)
         # but legacy notes field should still be accessible
         assert loaded.notes == "<p>Legacy only</p>"
+
+
+class TestNoteTableMarkup:
+    """Forgejo #18: a ``<table>`` typed into a note must round-trip verbatim.
+
+    Splits the reopen half of the bug: if these pass, the markup is intact
+    in ``entry_notes.content_html`` and any loss happens on the way back
+    into the editor, not in storage.
+    """
+
+    TABLE_HTML = (
+        '<p>Before</p>'
+        '<table border="1" style="border-collapse: collapse; width: 100%;">'
+        '<tbody><tr><td>cell one</td><td>cell two</td></tr></tbody></table>'
+        '<p>After</p>'
+    )
+
+    def test_table_markup_survives_add_and_read(self, db):
+        udb = db['db']
+        entry = db['entry']
+
+        created = udb.add_entry_note(entry.id, content_html=self.TABLE_HTML)
+        assert created.content_html == self.TABLE_HTML
+
+        listed = udb.get_entry_notes_list(entry.id)
+        assert [n.content_html for n in listed] == [self.TABLE_HTML]
+
+        via_entry = udb.get_question_entry(entry.id).notes_list
+        assert via_entry[0].content_html == self.TABLE_HTML
+        assert '<table' in via_entry[0].content_html
+
+    def test_table_markup_survives_update(self, db):
+        udb = db['db']
+        entry = db['entry']
+
+        note = udb.add_entry_note(entry.id, content_html='<p>plain</p>')
+        # Mirrors the form's payload exactly: TinyMCE has no JSON twin, so
+        # the bridge forwards content_json=None alongside the new HTML.
+        updated = udb.update_entry_note(
+            note.id, content_html=self.TABLE_HTML, content_json=None
+        )
+        assert updated.content_html == self.TABLE_HTML
+
+        stored = udb.fetchone(
+            "SELECT content_html FROM entry_notes WHERE id = ?", (note.id,)
+        )
+        assert stored['content_html'] == self.TABLE_HTML
+
+    def test_legacy_note_keeps_stale_quill_delta_after_html_update(self, db):
+        """Documents the storage state behind the reopen symptom.
+
+        Notes migrated from the Quill era carry a Delta in ``content_json``.
+        The form's update sends ``content_json=None`` ("skip"), so after a
+        TinyMCE edit the row holds new HTML next to the OLD Delta. Nothing
+        in storage is lost -- the HTML has the table -- but a reader that
+        trusts ``content_json`` first will show the pre-edit text and no
+        table. The entry form was that reader; the fix makes it prefer
+        ``content_html``. This test pins the storage facts the fix relies on.
+        """
+        udb = db['db']
+        entry = db['entry']
+
+        quill_delta = json.dumps({"ops": [{"insert": "legacy text\n"}]})
+        note = udb.add_entry_note(
+            entry.id, content_html='<p>legacy text</p>', content_json=quill_delta
+        )
+        updated = udb.update_entry_note(
+            note.id, content_html=self.TABLE_HTML, content_json=None
+        )
+
+        assert updated.content_html == self.TABLE_HTML
+        assert updated.content_json == quill_delta

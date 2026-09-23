@@ -641,6 +641,16 @@
     margin-top: var(--space-xs);
 }
 
+/* #150: unticking "keep the images already in this profile" deletes image
+   files with no undo, so that hint has to stop reading like a footnote. */
+.profile-import-mode-hint--warning {
+    color: var(--text-primary);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    padding: var(--space-xs) var(--space-sm);
+}
+
 .profile-import-replace {
     display: flex;
     flex-direction: column;
@@ -837,3 +847,41 @@
         display: none;
     }
 }
+
+/* Get a profile from a sync folder (#151) */
+.profile-sync-install-folder {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    word-break: break-all;
+    color: var(--text-secondary);
+}
+
+.profile-sync-install-found {
+    margin-top: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.profile-sync-install-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.profile-sync-install-row-text {
+    color: var(--text-primary);
+}
+
+.profile-sync-install-row-hint {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+

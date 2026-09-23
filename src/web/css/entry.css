@@ -14,6 +14,29 @@
     background: var(--bg-primary);
 }
 
+/* The pre-ready state (#114). `inert` already refuses the click and the
+   keystroke; this is the part that tells the student why, so the form does not
+   simply feel broken while it wires itself up.
+
+   Animated rather than a flat `opacity`, with a delay longer than a normal
+   load: a warm entry form is ready in ~110 ms and must not flash grey every
+   single time it opens. `both` holds the `from` frame through the delay, so
+   the dim appears only when initialisation actually drags -- which is exactly
+   when there is something to communicate. Removing `inert` drops the rule and
+   the page snaps back to full strength, which reads as "ready".
+
+   Opacity and cursor only: no colour, so both themes are covered by whatever
+   the page already paints underneath. */
+@keyframes entry-page-initialising {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
+.entry-page[inert] {
+    animation: entry-page-initialising 150ms ease 250ms both;
+    cursor: progress;
+}
+
 .entry-header {
     display: flex;
     justify-content: space-between;
@@ -396,128 +419,6 @@
 }
 
 /* =========================================================================
-   Collapsible Sections
-   ========================================================================= */
-
-.entry-section {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    transition: all 0.3s ease;
-}
-
-/* Only hide overflow when collapsed, allow when expanded for dropdowns */
-.entry-section:not(.expanded) {
-    overflow: hidden;
-}
-
-.entry-section:hover {
-    border-color: var(--border-color);
-}
-
-.entry-section.expanded {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.entry-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.25rem;
-    background: var(--bg-secondary);
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.2s;
-}
-
-.entry-section-header:hover {
-    background: var(--bg-tertiary);
-}
-
-.entry-section-header:focus {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-    background: var(--bg-tertiary);
-}
-
-.entry-section-header:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-}
-
-.entry-section-header.required-section {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--color-warning-bg) 100%);
-}
-
-.entry-section.expanded .entry-section-header.required-section {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--color-warning-bg) 100%);
-}
-
-.section-title {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.section-letter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    background: var(--color-primary-bg);
-    border-radius: var(--radius-md);
-}
-
-.section-name {
-    font-size: 1rem;
-}
-
-.section-badge {
-    font-size: 0.75rem;
-    font-weight: 500;
-    padding: 0.125rem 0.5rem;
-    border-radius: 0.625rem;
-}
-
-.section-toggle {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    transition: transform 0.3s;
-}
-
-.entry-section:not(.expanded) .section-toggle {
-    transform: rotate(-90deg);
-}
-
-.entry-section-content {
-    padding: 1.25rem;
-    display: none;
-    animation: slideDown 0.3s ease;
-    overflow: visible; /* Allow dropdowns to overflow */
-}
-
-.entry-section.expanded .entry-section-content {
-    display: block;
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* =========================================================================
    Attach-Existing — header buttons + picker modal
    Lightweight "+ Add existing" action shown beside the Notes / Media
    labels on the entry form. Enables when matching items exist for the
@@ -526,20 +427,9 @@
    entry_media junction (media).
    ========================================================================= */
 
-.form-group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 0.375rem;
-}
 
-.form-group-header > label {
-    margin-bottom: 0;
-}
 
-.section-header-action {
+.attach-action {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
@@ -554,19 +444,19 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.section-header-action:not(:disabled):hover {
+.attach-action:not(:disabled):hover {
     color: var(--color-primary);
     background: var(--color-primary-bg, var(--bg-secondary));
     border-color: var(--color-primary);
 }
 
-.section-header-action:focus-visible {
+.attach-action:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
 }
 
-.section-header-action:disabled,
-.section-header-action[disabled] {
+.attach-action:disabled,
+.attach-action[disabled] {
     color: var(--text-muted);
     background: var(--bg-secondary);
     border-color: var(--border-light);
@@ -574,17 +464,17 @@
     opacity: 0.7;
 }
 
-.section-header-action .btn-label {
+.attach-action .btn-label {
     font-weight: 500;
 }
 
-.section-header-action .btn-count {
+.attach-action .btn-count {
     font-weight: 600;
     color: var(--color-primary);
 }
 
-.section-header-action:disabled .btn-count,
-.section-header-action[disabled] .btn-count {
+.attach-action:disabled .btn-count,
+.attach-action[disabled] .btn-count {
     color: var(--text-muted);
 }
 
@@ -618,7 +508,7 @@
     background: var(--bg-secondary);
 }
 
-.attach-existing-list:empty {
+.attach-existing-list:not(:has(*)) {
     display: none;
 }
 
@@ -738,11 +628,6 @@
    Form Elements
    ========================================================================= */
 
-.form-row {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
-}
 
 .form-group {
     margin-bottom: 1rem;
@@ -807,6 +692,286 @@
 .char-count {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+/* =========================================================================
+   Facts header
+
+   The compact label/value block at the top of the entry. It carries the
+   short, factual fields -- question id, difficulty, the answer pair, time
+   -- so the two rich-text editors below it get the page's vertical space.
+
+   Sized for a ~600px column, because the browser pane is normally open
+   beside this form.
+   ========================================================================= */
+
+.entry-facts {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    /* No overflow:hidden -- the subject/tag dropdowns are positioned
+       against this block and must be free to escape it. */
+}
+
+.fact-row + .fact-row {
+    border-top: 1px solid var(--border-light);
+}
+
+/* The label/value unit. Every row has at least one; the answers row has
+   two, which is what puts them on separate lines without a divider. */
+.fact-line {
+    display: grid;
+    /* 9.25rem fits the longest label -- "Question ID / Reference", 141px at
+       the 13px label size -- on one line. Anything narrower wraps that one
+       row and breaks the block's even rhythm. */
+    grid-template-columns: 9.25rem 1fr;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+}
+
+.fact-row--answers .fact-line + .fact-line {
+    padding-top: 0;
+}
+
+.fact-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0;
+    line-height: 1.35;
+}
+
+.fact-value {
+    min-width: 0;
+}
+
+/* Inputs sit flush in the row: lighter padding than a form-group field,
+   and no full-width stretch for the ones that have a natural size. */
+.fact-value input[type="text"],
+.fact-value input[type="number"],
+.fact-value textarea,
+.fact-value select {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.fact-value input:hover,
+.fact-value textarea:hover,
+.fact-value select:hover {
+    border-color: var(--border-color);
+}
+
+.fact-value input:focus,
+.fact-value textarea:focus,
+.fact-value select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+/* Override .form-group textarea's 5rem floor: these start at one line and
+   grow with their content (see autoGrowTextarea in question_entry.js). */
+.fact-value textarea {
+    min-height: 0;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.5;
+}
+
+/* The answer you picked, struck through -- the only thing in the pair
+   that says which one was wrong. Placeholders are exempt, or an empty
+   field reads as a struck-through hint. */
+#user-answer {
+    text-decoration: line-through;
+    text-decoration-color: var(--color-error);
+    text-decoration-thickness: 1px;
+}
+
+#user-answer:placeholder-shown {
+    text-decoration: none;
+}
+
+.fact-value .time-input-group input {
+    width: 5rem;
+}
+
+.fact-value .time-input-group select {
+    width: 7rem;
+}
+
+.fact-value .difficulty-rating {
+    gap: 0.375rem;
+}
+
+/* ---- chip rows ---------------------------------------------------------
+
+   Chips and their search input share one cell, so there is nothing to open
+   before you can type and the row shows what is already selected. */
+
+.chip-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+}
+
+/* Inside a chip row the chips container is only as tall as its chips: the
+   2rem floor it carries elsewhere reserved a blank strip under every empty
+   field, which is what made the old layout so airy. Kept as a real box
+   rather than display:contents -- the tag context menu positions against
+   its slot inside here, and a box-less ancestor changes what it resolves
+   against. */
+.chip-field .selected-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0;
+    min-height: 0;
+}
+
+.chip-field .selected-chips:not(:has(*)) {
+    display: none;
+}
+
+.chip-field .subject-search,
+.chip-field .tag-search {
+    flex: 1 1 8rem;
+    min-width: 8rem;
+    padding-right: 0.5rem !important;
+}
+
+.chip-field-action {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* ---- the dropdown escape anchor ----------------------------------------
+
+   A full-width, zero-height box rendered after the row. Its children are
+   absolutely positioned, and .subject-dropdown's existing ``top: 100%``
+   resolves to 0 against a zero-height containing block -- so the list
+   drops from its own row while being sized against the whole facts block
+   rather than the ~9.25rem-narrower value column.
+
+   That width is the point: dropdown options render the subject's full
+   path under its name, and with a real content outline the path is often
+   the only thing telling two same-named results apart. */
+.fact-dropdown-anchor {
+    position: relative;
+    height: 0;
+}
+
+/* Above the sticky entry header and footer, both z-index 100. In the old
+   accordion the dropdown opened mid-page and never reached them. */
+.fact-dropdown-anchor .subject-dropdown,
+.fact-dropdown-anchor .tag-dropdown,
+.fact-dropdown-anchor .tag-palette {
+    z-index: 120;
+}
+
+/* ---- the error-type palette --------------------------------------------
+
+   The same 16 buttons that used to sit permanently below the Tags field.
+   They are the selection control, not a browse aid, so they belong to the
+   field -- shown while it has focus and nothing typed. */
+.tag-palette {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 20rem;
+    overflow-y: auto;
+    padding: 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tag-palette .tag-hierarchy {
+    margin-top: 0;
+}
+
+.tag-palette .tag-hierarchy-toolbar {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-light);
+}
+
+/* ---- the writing ------------------------------------------------------
+
+   Everything above is an envelope for these two fields, so they get the
+   page's vertical space. The reflection is deliberately the largest
+   element on the page: it is the point of the tool, and the layout should
+   look like what it is for. */
+
+.entry-writing {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.write-block > label {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.write-block .form-help {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+/* ---- notes and media --------------------------------------------------
+
+   A header row each, with the list inline underneath. Two lists that are
+   usually empty should not cost a section apiece, but an empty list is
+   simply absent -- nothing here is collapsed behind a control. */
+
+.entry-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-light);
+}
+
+.attach-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
+}
+
+.attach-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-right: auto;
+}
+
+/* The dropzone is laid out for a full window; in half of one it is mostly
+   empty space. Compacted here rather than in media.css, which other pages
+   share. */
+.entry-attachments .media-dropzone {
+    padding: 0.75rem;
+}
+
+.entry-attachments #notes-list-container:not(:has(*)) {
+    display: none;
 }
 
 /* Time Input Group */
@@ -997,7 +1162,7 @@
 }
 
 .chip-remove:hover {
-    background: var(--color-danger);
+    background: var(--color-error);
     color: var(--text-inverse, white);
 }
 
@@ -1123,9 +1288,6 @@
    Tag Picker
    ========================================================================= */
 
-.tag-picker-container {
-    position: relative;
-}
 
 .tag-search {
     width: 100%;
@@ -1296,7 +1458,7 @@
 }
 
 .media-thumbnail-btn.delete:hover {
-    background: var(--color-danger);
+    background: var(--color-error);
 }
 
 /* =========================================================================
@@ -1409,19 +1571,20 @@
    Quick Add Subject
    ========================================================================= */
 
-.quick-add-subject {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px dashed var(--border-color);
-}
 
+/* The quick-add panel, now the body of an overlay rather than a block in
+   the form's flow. margin-top and the slideDown animation went with the
+   inline behaviour; the backdrop handles placement. */
 .quick-add-modal {
-    margin-top: 0.75rem;
-    padding: 1rem;
-    background: var(--bg-secondary);
+    width: 32rem;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 1.25rem;
+    background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    animation: slideDown 0.2s ease-out;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
 .quick-add-header {
@@ -1547,9 +1710,6 @@
         padding: 1rem;
     }
 
-    .form-row {
-        grid-template-columns: 1fr;
-    }
 
     .entry-footer {
         flex-direction: column;
@@ -1567,6 +1727,17 @@
     
     .entry-footer-right .btn {
         flex: 1;
+    }
+}
+
+/* The facts block keeps its label column at the ~600px this form has with
+   the browser pane open -- that width is the design target, not an edge
+   case. Only below ~520px does 9.25rem leave too little for the value, and
+   labels stack above their fields. */
+@media (max-width: 520px) {
+    .fact-line {
+        grid-template-columns: 1fr;
+        gap: 0.25rem;
     }
 }
 
@@ -1594,11 +1765,11 @@
 
 .form-group.error input,
 .form-group.error textarea {
-    border-color: var(--color-danger);
+    border-color: var(--color-error);
 }
 
 .form-group.error .form-help {
-    color: var(--color-danger);
+    color: var(--color-error);
 }
 
 .form-group.valid input,
@@ -1606,14 +1777,36 @@
     border-color: var(--color-success);
 }
 
-.entry-section.has-error .section-letter {
-    background: var(--color-error-bg);
-    color: var(--color-danger);
+/* Which required fields are still empty.
+   Replaces the colour that used to sit on the A-F accordion letter chips.
+   Deliberately quiet: a left rule on the field's own row, so it points at
+   the field without competing with the field's own focus state. Only
+   applied once the entry has been touched -- see .entry-form.show-missing
+   -- so a blank new entry is not a wall of red. */
+.entry-form.show-missing .field-has-error {
+    box-shadow: inset 2px 0 0 var(--color-error);
 }
 
-.entry-section.has-content .section-letter {
-    background: var(--color-success-bg);
-    color: var(--color-success);
+.entry-form.show-missing .field-has-error > label {
+    color: var(--color-error);
+}
+
+/* The two editors are a different shape, so they get a different cue.
+   .write-block has no padding for a left rule to sit in, and an inset
+   box-shadow paints under .rich-editor-container's opaque background --
+   on a 260-420px editor the rule above would be invisible for all but
+   the label line, where it would abut the label text. What an editor
+   does have is its own outline: .tox-tinymce drops the oxide border
+   `!important` so the container owns it, which is the surface
+   rich_editor.css already styles for .rich-editor-container.has-error.
+   It yields to :focus-within, so like the rule above the cue points at
+   the field without competing with the field's own focus state. */
+.entry-form.show-missing .write-block.field-has-error {
+    box-shadow: none;
+}
+
+.entry-form.show-missing .write-block.field-has-error .rich-editor-container:not(:focus-within) {
+    border-color: var(--color-error);
 }
 
 /* =========================================================================
@@ -1751,9 +1944,6 @@
 }
 
 /* Tag dropdown enhancements */
-.tag-picker-container {
-    position: relative;
-}
 
 .tag-search {
     width: 100%;
@@ -1996,10 +2186,10 @@
 /* ==================== Phase 9: Note Cards ==================== */
 
 .note-card {
-    border: 1px solid var(--color-border, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     margin-bottom: 0.75rem;
-    background: var(--color-surface, #fff);
+    background: var(--bg-primary);
     overflow: hidden;
 }
 
@@ -2008,8 +2198,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 0.75rem;
-    background: var(--color-bg-subtle, #f8fafc);
-    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
     min-height: 2.25rem;
 }
 
@@ -2052,18 +2242,18 @@
     border: none;
     background: none;
     cursor: pointer;
-    color: var(--color-text-muted, #64748b);
+    color: var(--text-muted);
     border-radius: var(--radius-sm);
 }
 
 .note-card-actions .btn-text:hover {
-    background: var(--color-bg-muted, #f1f5f9);
-    color: var(--color-text, #1e293b);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .note-card-actions .btn-danger-text:hover {
-    background: var(--color-danger-light, #fee2e2);
-    color: var(--color-danger, #dc2626);
+    background: var(--color-error-bg);
+    color: var(--color-error);
 }
 
 .note-card .rich-editor-container {
@@ -2106,7 +2296,7 @@
 }
 
 .note-subject-option:hover {
-    background: var(--bg-hover, #f3f4f6);
+    background: var(--bg-tertiary);
 }
 
 .note-subject-option input[type="checkbox"] {
@@ -2228,8 +2418,8 @@
 }
 
 .manage-tag-delete:hover:not(:disabled) {
-    background: var(--color-danger-light, var(--bg-secondary));
-    border-color: var(--color-danger, #dc2626);
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
 }
 
 .manage-tag-delete:disabled {

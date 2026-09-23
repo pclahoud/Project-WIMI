@@ -679,6 +679,115 @@ class MasterDatabase(BaseDatabase):
         
         return self.get_setting(setting_key)
     
+    # ==================== Device Identity (#126) ====================
+
+    #: ``app_settings`` keys for this installation's identity. They live
+    #: in the MASTER database on purpose: master is per-install and is
+    #: never packed into a ``.wimi`` archive (``build_profile_archive``
+    #: writes the manifest, ``user.db`` and media, and nothing else), so
+    #: an id kept here cannot travel with a profile. That is the whole
+    #: requirement — ``ankiconnect_host = 'localhost'`` denotes a
+    #: different machine on each device, so the thing that names the
+    #: machine must stay behind.
+    DEVICE_ID_SETTING_KEY = 'device.id'
+    DEVICE_NAME_SETTING_KEY = 'device.name'
+
+    def get_device_id(self) -> str:
+        """This installation's device id, minting it on first use.
+
+        Stable across restarts because it is a row in ``users.db``, and
+        absent from every profile archive because ``users.db`` is not in
+        one. Pass it to ``UserDatabase(..., device_id=...)`` so
+        ``device_settings`` has something to key on.
+        """
+        existing = self.get_setting(self.DEVICE_ID_SETTING_KEY)
+        if existing is not None and existing.setting_value:
+            return str(existing.setting_value)
+
+        import uuid as _uuid
+
+        minted = str(_uuid.uuid4())
+        self.set_setting(
+            self.DEVICE_ID_SETTING_KEY,
+            minted,
+            description=(
+                'This installation. Names the machine, never the student '
+                '- it must not travel inside a .wimi archive (#126).'
+            ),
+        )
+        # Re-read rather than trusting the mint: two processes racing on
+        # the same app-data directory must agree on one id, and the
+        # ON CONFLICT upsert means the second write wins the row.
+        row = self.get_setting(self.DEVICE_ID_SETTING_KEY)
+        return str(row.setting_value) if row and row.setting_value else minted
+
+    def get_device_name(self) -> str:
+        """A human-recognisable label for this machine.
+
+        Cosmetic — the id is what keys anything. Falls back to the host
+        name so a fresh install has something better than a UUID to show.
+        """
+        existing = self.get_setting(self.DEVICE_NAME_SETTING_KEY)
+        if existing is not None and existing.setting_value:
+            return str(existing.setting_value)
+        import platform
+        return platform.node() or 'This device'
+
+    def set_device_name(self, name: str) -> str:
+        """Rename this machine. The id is stable; only the label changes."""
+        cleaned = (name or '').strip()
+        if not cleaned:
+            raise ValueError('Device name cannot be blank')
+        self.set_setting(
+            self.DEVICE_NAME_SETTING_KEY,
+            cleaned,
+            description='Human-readable label for this installation.',
+        )
+        return cleaned
+
+    # ==================== Profile Identity (#129) ====================
+
+    def record_profile_uuid(self, user_id: int, profile_uuid: str) -> None:
+        """Mirror a profile's own identifier into the registry.
+
+        The authority is ``profile_identity.profile_uuid`` inside the
+        user database — it travels with the data and so can never be out
+        of step with it. This copy is an index, re-derived every time a
+        profile is opened or installed, so a divergence is always
+        resolved in the user database's favour. Writing it is therefore
+        always an overwrite, never a merge.
+        """
+        if not profile_uuid:
+            return
+        with self.transaction():
+            self.execute(
+                "UPDATE users SET profile_uuid = ? WHERE id = ?",
+                (str(profile_uuid), user_id),
+            )
+
+    def find_users_by_profile_uuid(
+        self, profile_uuid: str, exclude_user_id: Optional[int] = None
+    ) -> List[User]:
+        """Every locally-registered profile carrying this identifier.
+
+        Normally zero or one. **More than one is legitimate**, not a
+        corruption: ``install_profile_as_new()`` forks on a name
+        collision by design, and #22 comment #1454 decided "keep both" is
+        one of the two options a student is offered at first connect. So
+        the column is indexed but not ``UNIQUE``, and callers get a list
+        and decide. Choosing between copies is fork resolution (#124) and
+        is deliberately not done here.
+        """
+        if not profile_uuid:
+            return []
+        sql = "SELECT * FROM users WHERE profile_uuid = ?"
+        params: List[Any] = [str(profile_uuid)]
+        if exclude_user_id is not None:
+            sql += " AND id != ?"
+            params.append(exclude_user_id)
+        sql += " ORDER BY id"
+        return [User.from_db_row(r) for r in self.fetchall(sql, tuple(params))]
+
     # ==================== Validation & Utilities ====================
     
     def _validate_username(self, username: str) -> None:

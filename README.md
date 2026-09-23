@@ -4,9 +4,9 @@
 
 Built for high-stakes standardized exams (USMLE, NBME shelf exams, MCAT, SAT, GRE, LSAT, CPA and more), but works for any exam you can describe as a subject hierarchy.
 
-![Entry browser](docs/testing/images/Midnight_theme_entry_browser_page_view.png)
+![Entry browser](assets/screenshots/entry-browser.png)
 
-![Analytics dashboard](docs/testing/images/Midnight_theme_analytics_dashboard_page_view_1.png)
+![Analytics dashboard](assets/screenshots/analytics-dashboard.png)
 
 ## Why
 
@@ -43,7 +43,7 @@ Development mode gives you F5 reload and F12 dev tools. On first launch WIMI cre
 # Windows → dist/WIMI/WIMI.exe
 build_windows.bat
 
-# macOS universal binary
+# macOS (Apple Silicon)
 chmod +x build_macos.sh && ./build_macos.sh
 ```
 
@@ -83,6 +83,18 @@ Coverage is enforced at 80% on the database layer.
 ## Status
 
 Production-ready for personal use, under active development. See the roadmap for what's next.
+
+## About this repository
+
+This is a **read-only snapshot**. Development happens on a private tracker, and
+each release is published here as a single squashed commit rather than as
+upstream history — so there are no branches to follow, and the commit log will
+not match the work.
+
+Issues and pull requests are not monitored. The code is
+[MIT](LICENSE)-licensed: fork it, use it, take pieces of it. If you have
+found a bug and want to say so, a fork with a note in its README is the
+most reliable way to be seen.
 
 ## License
 

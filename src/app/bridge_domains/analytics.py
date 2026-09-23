@@ -385,18 +385,28 @@ class AnalyticsBridgeMixin:
             # Get hierarchy using exam_name
             root_nodes = self.user_db.get_subject_hierarchy(config.exam_name)
 
-            # Get mistake counts for all subjects
-            mistake_counts = self._get_subject_mistake_counts(exam_context_id)
+            # Mistake counts, split by the parent context the student
+            # chose. A subject with several parents is drawn at several
+            # positions in this tree, and the split is what lets each
+            # position take only the entries that belong to it.
+            mistake_buckets = self._get_subject_mistake_buckets(exam_context_id)
 
-            def node_to_dict_with_mistakes(node, depth=0):
+            def node_to_dict_with_mistakes(node, depth=0, parent_id=None):
                 node_id = node.id
-                direct_count = mistake_counts.get(node_id, 0)
+                # parent_id is the position being drawn, not a property
+                # of the node: the same node recurses again under each of
+                # its other parents with a different value here.
+                direct_count = self._position_mistake_count(
+                    mistake_buckets, node_id, parent_id
+                )
 
                 # Process children first
                 children_data = []
                 if node.children:
                     for child in node.children:
-                        children_data.append(node_to_dict_with_mistakes(child, depth + 1))
+                        children_data.append(
+                            node_to_dict_with_mistakes(child, depth + 1, node_id)
+                        )
 
                 # Calculate total (direct + all descendants)
                 children_total = sum(c.get('value', 0) for c in children_data)
@@ -421,9 +431,26 @@ class AnalyticsBridgeMixin:
                 'children': [node_to_dict_with_mistakes(n) for n in root_nodes]
             }
 
-            # Calculate total
+            # Two totals, deliberately different numbers (issue #6).
+            #
+            # ``value`` is the sum of the arcs. A shared subject counts
+            # under every parent it routes through (§5.4), so three
+            # entries tagged on cross-cutting topics can make this read
+            # 14 where 11 entries exist. That is the OMOP-style honest
+            # non-additivity the rollup already committed to, and the
+            # owner's decision on #6 keeps it: the arcs are unchanged.
             total_mistakes = sum(c.get('value', 0) for c in hierarchy_data.get('children', []))
             hierarchy_data['value'] = total_mistakes
+
+            # ``distinct_entries`` is what the chart's centre renders,
+            # and it is a count of entries rather than a re-sum of the
+            # arcs. It comes from get_analytics_overview on purpose:
+            # that is the same call behind the "Total Entries" card
+            # sitting inches above the chart, so the pair cannot drift
+            # apart, and the chart inherits rather than re-decides the
+            # card's draft policy (issue #12).
+            overview = self.user_db.get_analytics_overview(exam_context_id)
+            hierarchy_data['distinct_entries'] = overview.get('total_entries', 0)
 
             return serialize_response(True, data=hierarchy_data)
 

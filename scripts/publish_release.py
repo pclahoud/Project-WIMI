@@ -1,9 +1,14 @@
 """Publish a snapshot of master to the public GitHub mirror.
 
-Takes the committed tree of ``master`` (never the working directory), scans it
-against a local denylist of sensitive patterns, commits it onto the ``public``
-branch under the public author identity, and pushes to the ``github`` remote.
-The private commit history on ``master`` is never pushed.
+Takes the committed tree of ``master`` (never the working directory), strips
+the paths in ``EXCLUDE_PREFIXES``, scans what is left against a local denylist
+of sensitive patterns, commits it onto the ``public`` branch under the public
+author identity, and pushes to the ``github`` remote. The private commit
+history on ``master`` is never pushed.
+
+The scan runs on the tree that will actually be published, after exclusion --
+not on ``master`` -- so a match inside an excluded directory cannot block a
+publish that would never have exposed it.
 
 The denylist lives in ``.publish_denylist.txt`` at the repo root. It is
 git-ignored on purpose: the patterns describe exactly the information that
@@ -31,6 +36,17 @@ SOURCE_BRANCH = "master"
 PUBLIC_BRANCH = "public"
 REMOTE = "github"
 REMOTE_BRANCH = "main"
+
+#: Path prefixes stripped from the published tree. The mirror is a
+#: read-only showcase, and ``docs/`` is where this project keeps its
+#: internal planning, decision records and handoff notes -- material
+#: written for whoever maintains WIMI, not for a visitor.
+#:
+#: Anything the README points at must NOT live under one of these, or the
+#: published front page renders with broken images and dead links. That is
+#: why the README's screenshots live in ``assets/`` and not in
+#: ``docs/testing/images/`` where the rest of them are.
+EXCLUDE_PREFIXES = ("docs/",)
 
 PUBLIC_NAME = "pclahoud"
 PUBLIC_EMAIL = "14871598+pclahoud@users.noreply.github.com"
@@ -85,17 +101,53 @@ def load_denylist():
     return patterns
 
 
-def scan(patterns):
-    """Grep the committed tree of SOURCE_BRANCH for denylisted patterns."""
+def build_public_tree():
+    """The tree that will actually be published: SOURCE_BRANCH minus EXCLUDE_PREFIXES.
+
+    Built in a scratch index so the working tree and the real index are
+    never touched -- publishing must be safe to run with work in progress.
+    Returns (tree_sha, removed_paths).
+    """
+    source_tree = git("rev-parse", f"{SOURCE_BRANCH}^{{tree}}").stdout.strip()
+    if not EXCLUDE_PREFIXES:
+        return source_tree, []
+
+    import os
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="wimi_publish_") as tmp:
+        env = os.environ.copy()
+        env["GIT_INDEX_FILE"] = str(Path(tmp) / "index")
+        git("read-tree", source_tree, env=env)
+
+        listing = git("ls-files", env=env).stdout.splitlines()
+        removed = [p for p in listing if p.startswith(EXCLUDE_PREFIXES)]
+        if removed:
+            # Batched: one rm per prefix, not per path.
+            git("rm", "--cached", "-q", "-r", "--", *EXCLUDE_PREFIXES, env=env)
+        tree = git("write-tree", env=env).stdout.strip()
+
+    return tree, removed
+
+
+def scan(patterns, tree):
+    """Grep the tree that will be PUBLISHED for denylisted patterns.
+
+    Deliberately the published tree and not ``SOURCE_BRANCH``: scanning
+    the source would abort a publish over a match inside an excluded
+    directory that no visitor will ever see. An over-strict gate that
+    blocks on something harmless is how a denylist ends up being loosened
+    to make it pass, which is worse than the false positive.
+    """
     result = git(
         "grep", "-i", "-E", "-n",
         *[arg for p in patterns for arg in ("-e", p)],
-        SOURCE_BRANCH,
+        tree,
         check=False,
     )
     if result.returncode == 0:
-        print("PII scan FAILED -- denylisted patterns found in the "
-              f"committed tree of {SOURCE_BRANCH}:\n", file=sys.stderr)
+        print("PII scan FAILED -- denylisted patterns found in the tree "
+              "that would be published:\n", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         sys.exit("Aborting. Scrub the matches (and commit) before publishing.")
     if result.returncode != 1:
@@ -123,8 +175,7 @@ def public_env():
     return env
 
 
-def publish(message, dry_run, tag=None):
-    source_tree = git("rev-parse", f"{SOURCE_BRANCH}^{{tree}}").stdout.strip()
+def publish(source_tree, message, dry_run, tag=None):
     public_head = git("rev-parse", PUBLIC_BRANCH).stdout.strip()
     public_tree = git("rev-parse", f"{PUBLIC_BRANCH}^{{tree}}").stdout.strip()
 
@@ -134,7 +185,7 @@ def publish(message, dry_run, tag=None):
         new_head = public_head
     else:
         if dry_run:
-            diff = git("diff", "--stat", PUBLIC_BRANCH, SOURCE_BRANCH)
+            diff = git("diff", "--stat", public_tree, source_tree)
             print(f"Would publish these changes:\n{diff.stdout}")
             print("Dry run -- no commit created, nothing pushed.")
             return
@@ -178,8 +229,13 @@ def main():
     args = parser.parse_args()
 
     preflight()
-    scan(load_denylist())
-    publish(args.message, args.dry_run, args.tag)
+    patterns = load_denylist()
+    source_tree, removed = build_public_tree()
+    if removed:
+        prefixes = ", ".join(EXCLUDE_PREFIXES)
+        print(f"Excluded {len(removed)} path(s) under: {prefixes}")
+    scan(patterns, source_tree)
+    publish(source_tree, args.message, args.dry_run, args.tag)
 
 
 if __name__ == "__main__":

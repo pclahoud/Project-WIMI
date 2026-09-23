@@ -22,3 +22,15 @@ coverage==7.11.0
 # filled by ``playwright`` (Python sync API over CDP); the migration to
 # pychrome is documented in docs/planning/PYCHROME_MIGRATION.md.
 pychrome==0.2.4
+
+# Async test support. tests/wimi_test_mcp/test_facade_smoke.py marks its
+# tests @pytest.mark.asyncio, and pytest.ini runs with --strict-markers,
+# so without this plugin the whole suite fails at collection.
+pytest-asyncio==1.4.0
+
+# tests/test_import_guide_sync.py validates the guide's worked examples
+# against the JSON Schema the guide publishes (#69). jsonschema already
+# arrives transitively with `mcp` in requirements-prod.txt, so this pin
+# only makes the dependency explicit for anyone installing the test
+# requirements alone.
+jsonschema==4.26.0

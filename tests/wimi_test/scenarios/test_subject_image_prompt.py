@@ -45,6 +45,32 @@ from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
 
+
+def _wait_for(
+    wimi_page: WimiPage,
+    js_expression: str,
+    *,
+    timeout_ms: int = 5000,
+    poll_step_ms: int = 100,
+) -> Any:
+    """Poll ``js_expression`` until it returns something truthy.
+
+    Returns the last value seen rather than raising, so the caller's own
+    assertion still reports what it actually found. This replaces a fixed
+    ``wait_for_timeout`` that was "enough on an idle box" and a race under
+    load -- the #84 shape.
+    """
+    elapsed = 0
+    last: Any = None
+    while elapsed < timeout_ms:
+        last = wimi_page.eval_js(js_expression)
+        if last:
+            return last
+        wimi_page.wait_for_timeout(poll_step_ms)
+        elapsed += poll_step_ms
+    return last
+
+
 @pytest.mark.slow
 @pytest.mark.regression
 def test_subject_image_prompt_renders_after_tagging_primary_subject(
@@ -164,17 +190,25 @@ def test_subject_image_prompt_renders_after_tagging_primary_subject(
         "src/web/js/question_entry.js is included by question_entry.html."
     )
 
-    # initializeEntryPage() is async — give it a beat to fetch the
-    # session and render the empty form before we drive the typeahead.
-    wimi_page.wait_for_timeout(500)
-
-    session_loaded = wimi_page.eval_js(
-        "(() => !!(EntryState && EntryState.session "
-        "&& EntryState.session.exam_context_id))()"
+    # initializeEntryPage() is async — wait for it to finish, not for
+    # its first milestone. ``EntryState.session`` (the old predicate
+    # here) is populated by the first await, while
+    # ``resetFormForNewEntry()`` runs several bridge calls later and
+    # replaces ``EntryState.formData`` outright, so a ``selectSubject``
+    # in between is silently erased. ``EntryState.isLoading`` is cleared
+    # by the last statement of init and is the readiness signal (#105).
+    form_ready = _wait_for(
+        wimi_page,
+        "(() => { try { return typeof EntryState !== 'undefined' "
+        "&& EntryState.isLoading === false "
+        "&& !!(EntryState.session && EntryState.session.exam_context_id); } "
+        "catch (e) { return false; } })()",
+        timeout_ms=20000,
     )
-    assert session_loaded, (
-        "EntryState.session was not populated after navigating to "
-        "the entry form. The exam_context_id guard at the top of "
+    assert form_ready, (
+        "initializeEntryPage never finished after navigating to the "
+        "entry form (EntryState.isLoading stayed true, or the session "
+        "never loaded). The exam_context_id guard at the top of "
         "checkSubjectImages would short-circuit the test."
     )
 

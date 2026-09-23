@@ -44,9 +44,12 @@ class GoalWidget {
             const goals = await api.getUserGoals({ examContextId });
             console.log('Goals response:', goals);
             
-            // Find weekly goal (support both new and legacy types)
-            this.currentGoal = goals?.find(g => 
-                g.goal_type === 'weekly_questions' || g.goal_type === 'weekly_entries'
+            // Find the weekly goal. 'weekly_entries' is the only weekly
+            // type there is -- 'weekly_questions' was removed in #71,
+            // where it turned out user_goals' CHECK constraint had always
+            // forbidden it and nothing had ever created one.
+            this.currentGoal = goals?.find(
+                g => g.goal_type === 'weekly_entries'
             ) || null;
             
             // Load history if showing
@@ -90,6 +93,8 @@ class GoalWidget {
         const progressPct = Math.min(100, goal.progress_pct);
         const remaining = Math.max(0, goal.target_value - goal.current_value);
         const daysLeft = this._getDaysUntilWeekEnd();
+        const drafts = this._draftsRemaining();
+        const unit = this._progressUnit();
 
         let html = `
             <div class="goal-widget-full">
@@ -104,7 +109,7 @@ class GoalWidget {
                 </div>
                 
                 <div class="goal-current">
-                    <p class="goal-target-text">Target: <strong>${goal.target_value}</strong> questions this week</p>
+                    <p class="goal-target-text" data-testid="goal-target-text">Target: <strong>${goal.target_value}</strong> ${unit.plural} this week</p>
                     
                     <div class="goal-progress-container">
                         <div class="goal-progress-bar">
@@ -114,9 +119,13 @@ class GoalWidget {
                         <span class="goal-progress-text">${goal.current_value}/${goal.target_value} (${progressPct.toFixed(0)}%)</span>
                     </div>
                     
-                    ${goal.is_complete 
+                    ${goal.is_complete
                         ? '<p class="goal-message success">🎉 Goal achieved!</p>'
-                        : `<p class="goal-message">${remaining} more ${remaining === 1 ? 'question' : 'questions'} to reach your goal!</p>`
+                        : `<p class="goal-message">${remaining} more ${remaining === 1 ? unit.singular : unit.plural} to reach your goal!</p>`
+                    }
+                    ${drafts > 0
+                        ? `<p class="goal-drafts" data-testid="goal-drafts-remaining">📝 ${drafts} ${drafts === 1 ? 'draft' : 'drafts'} remaining — not counted until finished</p>`
+                        : ''
                     }
                     <p class="goal-deadline">📅 Week ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}</p>
                 </div>
@@ -184,7 +193,7 @@ class GoalWidget {
             <div class="goal-widget-empty">
                 <div class="goal-empty-icon">🎯</div>
                 <h3 class="goal-empty-title">Set a Weekly Goal</h3>
-                <p class="goal-empty-text">Track your progress by setting a target for questions per week.</p>
+                <p class="goal-empty-text">Track your progress by setting a target for entries per week.</p>
                 <button class="btn btn-primary" id="setGoalBtn">Set Goal</button>
             </div>
         `;
@@ -213,12 +222,17 @@ class GoalWidget {
 
         const goal = this.currentGoal;
         const progressPct = Math.min(100, goal.progress_pct);
+        const drafts = this._draftsRemaining();
 
         this.container.innerHTML = `
             <div class="goal-compact ${goal.is_complete ? 'complete' : ''}">
                 <span class="goal-compact-icon">${goal.is_complete ? '🎉' : '🎯'}</span>
                 <span class="goal-compact-label">Weekly Goal:</span>
                 <span class="goal-compact-progress">${goal.current_value}/${goal.target_value}</span>
+                ${drafts > 0
+                    ? `<span class="goal-compact-drafts" data-testid="goal-compact-drafts-remaining">· ${drafts} ${drafts === 1 ? 'draft' : 'drafts'} remaining</span>`
+                    : ''
+                }
                 <div class="goal-compact-bar">
                     <div class="goal-compact-fill ${goal.is_complete ? 'complete' : ''}" 
                          style="width: ${progressPct}%"></div>
@@ -237,6 +251,34 @@ class GoalWidget {
                 <button class="btn btn-secondary btn-sm" onclick="window.goalWidget?.load()">Retry</button>
             </div>
         `;
+    }
+
+    /**
+     * Outstanding drafts for the current goal period.
+     *
+     * Issue #12: goals are the one analytics surface that still excludes
+     * draft entries — "log 20 entries this week" means 20 finished ones.
+     * The qualifier exists so that exclusion is visible rather than
+     * silent: a student with three unfinished drafts should not read
+     * their progress as the whole story. Older payloads (and any goal
+     * loaded before the field existed) yield 0, which renders nothing.
+     */
+    _draftsRemaining() {
+        const n = Number(this.currentGoal?.drafts_remaining);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    /**
+     * What the goal's numbers are counting.
+     *
+     * Issue #58: a weekly goal counts entries logged, so the card has to
+     * say "entries". Calling them questions was true of the number the
+     * goal used to read (the session question totals) and is not true of
+     * the one it reads now. Issue #71 removed the other branch of this,
+     * for a goal type the schema forbids and nothing ever created.
+     */
+    _progressUnit() {
+        return { singular: 'entry', plural: 'entries' };
     }
 
     /**
@@ -289,7 +331,7 @@ class GoalWidget {
                     <button class="modal-close" onclick="window.goalWidget?.closeModal()">×</button>
                 </div>
                 <div class="modal-body">
-                    <p class="goal-modal-description">How many questions do you want to answer each week?</p>
+                    <p class="goal-modal-description">How many entries do you want to log each week?</p>
                     
                     <div class="goal-input-group">
                         <button class="goal-adjust-btn" onclick="window.goalWidget?.adjustGoal(-50)">-50</button>

@@ -16,6 +16,7 @@ Manifest schema (format_version 1)::
       "app_version": "<informational>",
       "created_at": "<UTC ISO-8601>",
       "user": {"username", "display_name", "email", "user_types"},
+      "profile": {"uuid"},          # #129 - null for pre-m021 archives
       "db": {"schema_max_version", "applied_versions"},
       "media": {"included", "file_count", "total_bytes"},
       "stats": {"entries", "sessions", "exam_contexts"}
@@ -137,6 +138,72 @@ def _count_rows(conn: sqlite3.Connection, table: str) -> int:
         return 0
 
 
+def _scalar(conn: sqlite3.Connection, sql: str):
+    """One value, or None on any error. Stats must never fail an export."""
+    try:
+        row = conn.execute(sql).fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+
+
+def _profile_stats(conn: sqlite3.Connection) -> Dict[str, Any]:
+    """The figures a student needs to tell two copies of a profile apart (#124).
+
+    Computed from the **snapshot being shipped**, not the live database, so
+    they cannot drift from the bytes they describe. That is why fork
+    resolution may use them directly.
+
+    Counts alone do not answer the question a fork poses -- "a month of
+    independent work" and "a stale copy from before I switched machines" can
+    have identical row counts. The date range is what separates them, and it
+    is the cheapest thing that does.
+
+    Two ranges, because they answer different questions: ``encountered_*`` is
+    when the student actually sat the questions, which is what they remember;
+    ``logged_*`` is when the rows were written, which is what tells you which
+    copy was being used more recently. A profile restored from an old backup
+    has an old ``encountered`` range and a fresh ``logged`` one.
+
+    Subjects are counted ``active`` only -- an archived subject is not
+    something a student is choosing between.
+    """
+    return {
+        "entries": _count_rows(conn, "question_entries"),
+        "sessions": _count_rows(conn, "review_sessions"),
+        "exam_contexts": _count_rows(conn, "exam_contexts"),
+        "subjects": _scalar(
+            conn, "SELECT COUNT(*) FROM subject_nodes WHERE status = 'active'") or 0,
+        "encountered_first": _scalar(
+            conn, "SELECT MIN(date_encountered) FROM review_sessions"),
+        "encountered_last": _scalar(
+            conn, "SELECT MAX(date_encountered) FROM review_sessions"),
+        "logged_first": _scalar(
+            conn, "SELECT MIN(created_at) FROM question_entries"),
+        "logged_last": _scalar(
+            conn, "SELECT MAX(created_at) FROM question_entries"),
+    }
+
+
+def _read_profile_uuid(db_path: Path) -> Optional[str]:
+    """Read a (closed) user database's own profile id (#129).
+
+    ``None`` for an archive built before m021 — which is exactly the
+    signal the caller wants, since such a profile has no identity to
+    recognise and must not be given a synthetic one here.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT profile_uuid FROM profile_identity WHERE id = 1"
+        ).fetchone()
+        return str(row[0]) if row and row[0] else None
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+
+
 def _read_db_info(db_path: Path) -> Dict[str, Any]:
     """Read schema + stats info from a (closed) user database file."""
     conn = sqlite3.connect(str(db_path))
@@ -148,14 +215,18 @@ def _read_db_info(db_path: Path) -> Dict[str, Any]:
             applied = [int(r[0]) for r in rows]
         except sqlite3.Error:
             applied = []
+        try:
+            prof = conn.execute(
+                "SELECT profile_uuid FROM profile_identity WHERE id = 1"
+            ).fetchone()
+            profile_uuid = str(prof[0]) if prof and prof[0] else None
+        except sqlite3.Error:
+            profile_uuid = None
         return {
             "schema_max_version": max(applied) if applied else 0,
             "applied_versions": applied,
-            "stats": {
-                "entries": _count_rows(conn, "question_entries"),
-                "sessions": _count_rows(conn, "review_sessions"),
-                "exam_contexts": _count_rows(conn, "exam_contexts"),
-            },
+            "profile_uuid": profile_uuid,
+            "stats": _profile_stats(conn),
         }
     finally:
         conn.close()
@@ -183,6 +254,21 @@ def _collect_media_files(media_dir: Path) -> List[Tuple[Path, str]]:
                     files.append((legacy, legacy.name))
                     seen.add(legacy.name)
     return files
+
+
+def count_profile_media(
+    master_db: MasterDatabase, user_id: int, username: str
+) -> int:
+    """How many media files a profile holds on this computer.
+
+    Public because the import preview needs it to say what a replace would
+    destroy: ``replace_profile`` with ``keep_existing_media=False`` deletes
+    the whole media directory, legacy ``entry_*`` subdirectories included,
+    so this counts exactly what is at stake (#150).
+    """
+    return len(
+        _collect_media_files(_media_dir_for(master_db, user_id, username))
+    )
 
 
 def _reject_path_traversal(names) -> None:
@@ -272,6 +358,25 @@ def _copy_flat_media(media_src: Path, media_dest: Path) -> int:
     return copied
 
 
+def _merge_flat_media(media_src: Path, media_dest: Path) -> List[Path]:
+    """Add an extracted ``media/`` dir's files to an existing one.
+
+    Never overwrites and never removes: a file already present is left as it
+    is. Media files are named by UUID, so a name match is the same file.
+    Returns the files it added, which is exactly what a rollback may delete.
+    """
+    added: List[Path] = []
+    if not media_src.is_dir():
+        return added
+    media_dest.mkdir(parents=True, exist_ok=True)
+    for item in sorted(media_src.iterdir()):
+        target = media_dest / item.name
+        if item.is_file() and not target.exists():
+            shutil.copy2(str(item), str(target))
+            added.append(target)
+    return added
+
+
 def _local_max_version() -> int:
     return max(m.version for m in USER_MIGRATIONS)
 
@@ -284,6 +389,7 @@ def build_profile_archive(
     dest_path: str | Path,
     include_media: bool = False,
     progress_cb: Optional[Callable[..., None]] = None,
+    sync: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Export a user's profile to a ``.wimi`` archive (plain zip).
@@ -299,6 +405,12 @@ def build_profile_archive(
         dest_path: Destination ``.wimi`` file path (overwritten if present)
         include_media: Also pack the user's media files (flattened)
         progress_cb: Ignored in v1 (reserved for a later async upgrade)
+        sync: Written into the manifest as ``"sync"`` when given. Folder
+            sync passes a per-push nonce: its lineage names generations by
+            the archive's SHA-256 (#148), and two builds of an unchanged
+            profile inside one second are otherwise byte-identical --
+            ``created_at`` has one-second resolution and zip timestamps two
+            -- so a generation would name itself as its own parent.
 
     Returns:
         {"dest_path", "manifest"}
@@ -345,6 +457,15 @@ def build_profile_archive(
                 "email": user.email,
                 "user_types": list(user.user_type or []),
             },
+            # Informational, like everything else in the manifest. The
+            # authority is ``profile_identity`` inside ``user.db``, which
+            # is what import reads — a manifest that disagreed would be
+            # ignored, not obeyed. It is here so a reader (and the folder
+            # sync of #123) can see which profile an archive holds
+            # without unzipping and opening the database.
+            "profile": {
+                "uuid": db_info.get("profile_uuid"),
+            },
             "db": {
                 "schema_max_version": db_info["schema_max_version"],
                 "applied_versions": db_info["applied_versions"],
@@ -356,6 +477,8 @@ def build_profile_archive(
             },
             "stats": db_info["stats"],
         }
+        if sync:
+            manifest["sync"] = dict(sync)
 
         with zipfile.ZipFile(str(dest_path), 'w', zipfile.ZIP_DEFLATED) as zf:
             zf.writestr(MANIFEST_MEMBER, json.dumps(manifest, indent=2))
@@ -637,6 +760,31 @@ def install_profile_as_new(
             display_name or manifest_user.get("display_name") or username
         )
 
+        # The profile carries its own identifier inside user.db (#129),
+        # so install preserves it simply by copying the database — there
+        # is nothing to re-mint and nothing to carry by hand. What the
+        # import path DOES owe the caller is an honest answer when that
+        # identifier is already installed here.
+        #
+        # A duplicate is not an error. ``install_profile_as_new`` forks
+        # on a name collision by design, and #22 comment #1454 decided
+        # "keep both" is one of the two options a student is offered.
+        # Choosing between the copies is fork resolution (#124) and is
+        # deliberately NOT done here: this reports, and stops.
+        incoming_uuid = _read_profile_uuid(db_temp)
+        already_installed = [
+            {"user_id": u.id, "username": u.username,
+             "display_name": u.display_name}
+            for u in master_db.find_users_by_profile_uuid(incoming_uuid)
+        ] if incoming_uuid else []
+        if already_installed:
+            names = ", ".join(u["username"] for u in already_installed)
+            warnings.append(
+                f"This profile is already installed on this device as "
+                f"{names}. Installing it again creates a second, "
+                f"independent copy."
+            )
+
         user = master_db.create_user(
             username=username,
             display_name=resolved_display,
@@ -655,13 +803,18 @@ def install_profile_as_new(
             media_copied = _copy_flat_media(tmp_dir / 'media', media_dest)
 
             # Verify-open: runs pending migrations for older-schema archives.
+            # That upgrade is also what mints a profile id for an archive
+            # built before m021 — inside the new copy, where it belongs.
             verify_db = UserDatabase(
-                db_path=dest_db, user_id=user.id, username=user.username
+                db_path=dest_db, user_id=user.id, username=user.username,
+                device_id=master_db.get_device_id(),
             )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")
             entry_count = int(row['n']) if row else 0
+            installed_uuid = verify_db.get_profile_uuid()
             verify_db.close()
             verify_db = None
+            master_db.record_profile_uuid(user.id, installed_uuid)
 
             expected = (manifest.get("stats") or {}).get("entries")
             if expected is not None and entry_count != expected:
@@ -695,6 +848,11 @@ def install_profile_as_new(
             "schema_verdict": preflight["verdict"],
             "entries": entry_count,
             "media_files_copied": media_copied,
+            # The profile's own id, and every OTHER local profile already
+            # carrying it. Empty is the normal case. A non-empty list is
+            # the fork question (#124) handed to the caller intact.
+            "profile_uuid": installed_uuid,
+            "already_installed_as": already_installed,
         }
     finally:
         shutil.rmtree(str(tmp_dir), ignore_errors=True)
@@ -709,9 +867,17 @@ def replace_profile(
     active_user_id: Optional[int] = None,
     confirm_replace: bool = False,
     progress_cb: Optional[Callable[..., None]] = None,
+    keep_existing_media: bool = False,
 ) -> Dict[str, Any]:
     """
     Replace an existing profile's data with a ``.wimi`` archive's contents.
+
+    ``keep_existing_media=True`` leaves the target's media directory where it
+    is and only **adds** the archive's media to it. Folder sync needs this:
+    its archives are built without media (#125), so the default below --
+    rename the media aside, copy the archive's in, delete the old on success
+    -- would delete every image the student has and put nothing back. That
+    is what fork resolution's ``keep_remote`` did until #148.
 
     Guards: requires ``confirm_replace=True``, and the target must not be
     the currently open profile (``active_user_id``) — switch profiles first.
@@ -777,6 +943,7 @@ def replace_profile(
     moved_media = False
     installed_db = False
     row_updated = False
+    media_added: List[Path] = []
     verify_db: Optional[UserDatabase] = None
     importing = Path(str(target_db) + '.importing')
 
@@ -808,7 +975,7 @@ def replace_profile(
                     counter += 1
                 shutil.copy2(str(target_db), str(backup_db))
 
-            if media_dir.exists():
+            if media_dir.exists() and not keep_existing_media:
                 media_backup = media_dir.with_name(
                     media_dir.name + f".pre_replace_{ts}"
                 )
@@ -831,7 +998,11 @@ def replace_profile(
             installed_db = True
 
             # ---- Media ----
-            media_copied = _copy_flat_media(tmp_dir / 'media', media_dir)
+            if keep_existing_media:
+                media_added = _merge_flat_media(tmp_dir / 'media', media_dir)
+                media_copied = len(media_added)
+            else:
+                media_copied = _copy_flat_media(tmp_dir / 'media', media_dir)
 
             # ---- Row update (keep username/database_filename; they are
             #      structural — baked into the filename and media dir) ----
@@ -857,12 +1028,20 @@ def replace_profile(
 
             # ---- Verify-open (auto-migrates older schemas) ----
             verify_db = UserDatabase(
-                db_path=target_db, user_id=user.id, username=user.username
+                db_path=target_db, user_id=user.id, username=user.username,
+                device_id=master_db.get_device_id(),
             )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")
             entry_count = int(row['n']) if row else 0
+            # The archive's profile id is preserved, and it REPLACES the
+            # target's: "replace" means this slot now holds that
+            # profile's data, and an identifier that named the discarded
+            # data would name nothing. username and database_filename
+            # stay structural; identity follows the bytes.
+            replaced_uuid = verify_db.get_profile_uuid()
             verify_db.close()
             verify_db = None
+            master_db.record_profile_uuid(user.id, replaced_uuid)
 
         except Exception as exc:
             # ---- Rollback: pure file moves back + one row UPDATE ----
@@ -880,7 +1059,16 @@ def replace_profile(
                 _remove_db_artifacts(target_db)
                 if backup_db is not None and backup_db.exists():
                     os.replace(str(backup_db), str(target_db))
-            if moved_media:
+            if keep_existing_media:
+                # The directory was never moved, so it holds the student's
+                # media. Remove only what this call added -- an rmtree here
+                # would be the very deletion keep_existing_media prevents.
+                for added in media_added:
+                    try:
+                        added.unlink()
+                    except OSError:
+                        pass
+            elif moved_media:
                 shutil.rmtree(str(media_dir), ignore_errors=True)
                 if media_backup is not None and media_backup.exists():
                     os.rename(str(media_backup), str(media_dir))
@@ -912,6 +1100,7 @@ def replace_profile(
             "entries": entry_count,
             "media_files_copied": media_copied,
             "backup_db_path": str(backup_db) if backup_db else None,
+            "profile_uuid": replaced_uuid,
         }
     finally:
         shutil.rmtree(str(tmp_dir), ignore_errors=True)

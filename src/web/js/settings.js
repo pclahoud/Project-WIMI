@@ -34,6 +34,9 @@ class SettingsPage {
             show_mistake_patterns: true,
             show_subject_breakdown: true,
             show_time_analytics: true,
+            // #133 -- off means one number plus the Weight Sources card,
+            // which is the full information either way.
+            efficiency_show_confidence_band: false,
             calendar_default_view: 'week',
             calendar_time_slot_minutes: 30,
             show_weekend_in_calendar: true,
@@ -45,7 +48,6 @@ class SettingsPage {
             auto_backup_enabled: true,
             backup_frequency_hours: 24,
             backup_retention_days: 30,
-            cloud_sync_enabled: false,
             realtime_update_delay_ms: 1500,
             mcp_server_enabled: false,
             mcp_server_port: 8000
@@ -54,7 +56,7 @@ class SettingsPage {
         // Visual fields that trigger live preview
         this.VISUAL_FIELDS = [
             'theme_name', 'primary_color_hex', 'secondary_color_hex',
-            'font_size_base_px', 'ui_density', 'show_animations'
+            'font_family', 'font_size_base_px', 'ui_density', 'show_animations'
         ];
 
         // Base px for font scale conversion
@@ -100,7 +102,9 @@ class SettingsPage {
         await this.loadSettings();
         await this.initExamAnalytics();
         await this.initProfileSection();
+        await this.initQuestionBanks();
         await this.initAddons();
+        await this.initFolderSync();
         await this.refreshMcpStatus();
 
         // Handle URL hash navigation (e.g., from gear icon on dashboard)
@@ -435,6 +439,17 @@ class SettingsPage {
 
             // ------ Select / text / number ------
             el.value = value;
+
+            // A <select> handed a value no option carries lands on
+            // selectedIndex -1, which paints an empty control with just the
+            // chevron (issue #9). Degrade to the default the markup declares
+            // instead. Only `option[selected]` counts: selects whose options
+            // are built at runtime (the question bank picker) declare no
+            // default on purpose, so a dangling id still shows blank there.
+            if (el.tagName === 'SELECT' && el.selectedIndex === -1) {
+                const declared = el.querySelector('option[selected]');
+                if (declared) el.value = declared.value;
+            }
         });
     }
 
@@ -492,6 +507,13 @@ class SettingsPage {
         if (prefs.secondary_color_hex) {
             root.setProperty('--color-secondary', prefs.secondary_color_hex);
             root.setProperty('--color-secondary-hover', this._adjustColor(prefs.secondary_color_hex, -25));
+        }
+
+        // --- Font Family ---
+        // Applied by the same helper themes.js runs on every page load, so
+        // the preview and the saved state cannot diverge.
+        if (typeof _wimiApplyFontFamily === 'function') {
+            _wimiApplyFontFamily(prefs.font_family);
         }
 
         // --- Font Size ---
@@ -570,7 +592,8 @@ class SettingsPage {
         root.removeProperty('--color-secondary');
         root.removeProperty('--color-secondary-hover');
 
-        // Font size
+        // Font family and size
+        root.removeProperty('--font-family');
         root.fontSize = '';
 
         // Density spacing
@@ -1122,6 +1145,229 @@ class SettingsPage {
     }
 
     // =========================================================================
+    // Question Banks
+    // =========================================================================
+
+    /**
+     * Load the question-bank rows for the browser pane.
+     *
+     * Two reads, because they answer different questions: getPaneSources()
+     * returns only sources that already have a web address, in the order the
+     * pane shows them (most recently opened first), while getQuestionSources()
+     * returns everything — the difference is exactly the set of rows that need
+     * an invitation to add an address.
+     */
+    async initQuestionBanks() {
+        const container = document.getElementById('questionBankList');
+        if (!container) return;
+
+        // Feature-detect the pane API so this page keeps working standalone.
+        if (typeof api.getPaneSources !== 'function') {
+            const navItem = document.querySelector('.settings-nav-item[data-panel="question_banks"]');
+            if (navItem) navItem.style.display = 'none';
+            return;
+        }
+
+        try {
+            const [paneSources, allSources] = await Promise.all([
+                api.getPaneSources(),
+                api.getQuestionSources()
+            ]);
+            this._questionBanks = this._mergeQuestionBanks(paneSources, allSources);
+        } catch (e) {
+            console.error('Failed to load question banks:', e);
+            this._questionBanks = null;
+            container.innerHTML =
+                '<div class="qbank-empty">Could not load your question banks. Reopen settings to try again.</div>';
+            return;
+        }
+
+        this.renderQuestionBanks();
+    }
+
+    /**
+     * Sources with an address in pane order, then the rest by name.
+     *
+     * @param {Array<object>} paneSources - From getPaneSources().
+     * @param {Array<object>} allSources - From getQuestionSources().
+     * @returns {Array<object>} Rows of {id, name, url, desktopSite}.
+     */
+    _mergeQuestionBanks(paneSources, allSources) {
+        const withUrl = (paneSources || []).map(s => ({
+            id: s.id,
+            name: s.source_name || '',
+            url: s.url || '',
+            desktopSite: !!s.desktop_site
+        }));
+
+        const seen = new Set(withUrl.map(s => s.id));
+        const withoutUrl = (allSources || [])
+            .filter(s => !seen.has(s.id))
+            .map(s => ({
+                id: s.id,
+                name: s.source_name || '',
+                url: '',
+                desktopSite: false
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        return withUrl.concat(withoutUrl);
+    }
+
+    /**
+     * Fill the "which bank" picker.
+     *
+     * Options come from the same list the shortcut rows render, so a
+     * bank can only be nominated once it has an address — nominating one
+     * the pane cannot open would be a setting that silently does
+     * nothing.
+     *
+     * The picker used to be hidden unless the open mode was 'source'.
+     * It is always visible now: the same choice also decides which bank
+     * a new tab lands on, so it applies whatever the open mode is.
+     *
+     * The select carries data-field, so the existing save machinery
+     * persists it; this only supplies the options.
+     *
+     * populateForm runs before this select has any options, so on the
+     * first render its value is empty even when a bank is saved. Fall
+     * back to the saved preference then; a later re-render (a row gained
+     * or lost an address) keeps whatever the select currently shows.
+     */
+    renderPaneOpenMode() {
+        const pick = document.getElementById('pane_default_source_id');
+        if (!pick) return;
+
+        const withUrl = (this._questionBanks || []).filter(b => b.url);
+        const saved = this.currentPreferences
+            ? this.currentPreferences.pane_default_source_id
+            : null;
+        const chosen = pick.value || (saved != null ? String(saved) : '');
+        pick.innerHTML = withUrl.length
+            ? withUrl.map(b =>
+                '<option value="' + b.id + '">' + this._escapeHtml(b.name) + '</option>'
+              ).join('')
+            : '<option value="">Add a web address to a question bank first</option>';
+        if (chosen && withUrl.some(b => String(b.id) === String(chosen))) {
+            pick.value = chosen;
+        }
+    }
+
+    renderQuestionBanks() {
+        this.renderPaneOpenMode();
+        const container = document.getElementById('questionBankList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const banks = this._questionBanks || [];
+        if (banks.length === 0) {
+            container.innerHTML =
+                '<div class="qbank-empty">No question banks yet. Add one when you start a study session.</div>';
+            return;
+        }
+
+        banks.forEach(bank => {
+            const hasUrl = !!bank.url;
+            const row = document.createElement('div');
+            row.className = 'qbank-row';
+            row.dataset.sourceId = String(bank.id);
+            row.setAttribute('data-testid', 'settings-qbank-row-' + bank.id);
+
+            const urlId = 'qbank-url-' + bank.id;
+            const toggleId = 'qbank-desktop-' + bank.id;
+
+            row.innerHTML =
+                '<label class="qbank-row-name" for="' + urlId + '">' + this._escapeHtml(bank.name) + '</label>' +
+                '<input type="url" class="qbank-row-url" id="' + urlId + '"' +
+                    ' data-testid="settings-qbank-url-' + bank.id + '"' +
+                    ' value="' + this._escapeHtml(bank.url) + '"' +
+                    ' placeholder="Add a web address"' +
+                    ' spellcheck="false" autocomplete="off">' +
+                (hasUrl
+                    ? '<label class="qbank-row-desktop" for="' + toggleId + '">' +
+                          '<input type="checkbox" id="' + toggleId + '"' +
+                              ' data-testid="settings-qbank-desktop-' + bank.id + '"' +
+                              (bank.desktopSite ? ' checked' : '') + '>' +
+                          '<span>Desktop site</span>' +
+                      '</label>'
+                    : '<span class="qbank-row-nodesktop" aria-hidden="true">&mdash;</span>');
+
+            container.appendChild(row);
+
+            const urlInput = row.querySelector('.qbank-row-url');
+            if (urlInput) {
+                urlInput.addEventListener('change', () => this.handleQuestionBankUrl(bank, urlInput));
+            }
+
+            const toggle = row.querySelector('input[type="checkbox"]');
+            if (toggle) {
+                toggle.addEventListener('change', () => this.handleQuestionBankDesktopSite(bank, toggle));
+            }
+        });
+    }
+
+    /**
+     * Save an address the student typed, and re-render when the row changes
+     * state — gaining an address is what earns the Desktop site checkbox.
+     */
+    async handleQuestionBankUrl(bank, input) {
+        const url = this._normalizeUrl(input.value);
+        if (url === bank.url) {
+            input.value = url;
+            return;
+        }
+
+        try {
+            await api.updateQuestionSource(bank.id, { url: url });
+        } catch (e) {
+            console.error('Failed to save question bank address:', e);
+            input.value = bank.url;
+            this.showToast('Could not save the address. Try again.', 'error');
+            return;
+        }
+
+        const hadUrl = !!bank.url;
+        bank.url = url;
+        if (!url) bank.desktopSite = false;
+
+        this.showToast(url ? 'Address saved' : 'Address removed', 'success');
+
+        if (hadUrl !== !!url) {
+            this.renderQuestionBanks();
+        } else {
+            input.value = url;
+        }
+    }
+
+    async handleQuestionBankDesktopSite(bank, toggle) {
+        const enabled = toggle.checked;
+        try {
+            await api.setPaneDesktopSite(bank.id, enabled);
+            bank.desktopSite = enabled;
+            this.showToast(
+                'Desktop site ' + (enabled ? 'on' : 'off') + ' for ' + bank.name,
+                'success'
+            );
+        } catch (e) {
+            console.error('Failed to save desktop site setting:', e);
+            toggle.checked = !enabled;
+            this.showToast('Could not change the desktop site setting. Try again.', 'error');
+        }
+    }
+
+    /**
+     * Trim an address and give it a scheme, so a bare "uworld.com" still
+     * opens. The normalized value is written back into the field rather
+     * than saved invisibly.
+     */
+    _normalizeUrl(value) {
+        const trimmed = String(value || '').trim();
+        if (!trimmed) return '';
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
+        return 'https://' + trimmed;
+    }
+
+    // =========================================================================
     // Addons
     // =========================================================================
 
@@ -1480,8 +1726,40 @@ class SettingsPage {
             const status = await api.getMcpServerStatus();
             this._updateMcpStatusUI(status);
         } catch (e) {
-            // MCP API not available (older bridge) — hide panel silently
+            // This used to say "hide panel silently". It hid nothing: the
+            // panel stayed up showing whatever the markup shipped, which was
+            // `Stopped` -- so a bridge that could not answer the question
+            // rendered as a confident answer to it (#90).
+            //
+            // The panel deliberately still does not hide. This catch is not
+            // specific to an older bridge: `_callBridge` throws here for any
+            // failure, including a transient one, and removing a settings
+            // panel on a failed read would take away the only way to try
+            // again. What it must not do is leave a state claim standing, so
+            // say the true thing -- the status could not be read -- which is
+            // a different fact from "the server is stopped" and now looks
+            // like one. Logged rather than swallowed: a real error in the
+            // slot left no trace at all before.
+            console.warn('Could not read MCP server status:', e);
+            this._setMcpStatusUnavailable();
         }
+    }
+
+    /** Render the "we could not find out" state, distinct from "stopped". */
+    _setMcpStatusUnavailable() {
+        const dot = document.getElementById('mcpStatusDot');
+        const text = document.getElementById('mcpStatusText');
+        const urlWrap = document.getElementById('mcpConnectionUrl');
+        const instructions = document.getElementById('mcpConnectInstructions');
+
+        if (!dot || !text) return;
+
+        dot.className = 'mcp-status-dot unknown';
+        text.textContent = 'Status unavailable';
+        // No URL and no connect instructions: both describe a running server,
+        // and we do not know that there is one.
+        if (urlWrap) urlWrap.style.display = 'none';
+        if (instructions) instructions.style.display = 'none';
     }
 
     async _applyMcpServerState(enabled, port) {
@@ -1583,6 +1861,706 @@ class SettingsPage {
             this.showToast('Could not copy to clipboard', 'error');
         });
     }
+    // =========================================================================
+    // Folder Sync (#123)
+    //
+    // The "Enable Cloud Sync" checkbox reflects and toggles THE LINK. No
+    // boolean is stored for it (settled 2026-09-21): `user_preferences.
+    // cloud_sync_enabled` is user-level and so travels inside a .wimi, which
+    // would have a profile arrive on a second machine claiming to sync with
+    // no folder linked there. The control therefore carries no data-field and
+    // never goes through saveSettings() -- this section owns it end to end.
+    //
+    // Nothing here ever draws a tick meaning "in sync". You cannot force a
+    // sync or know when one finished, so "nothing new" and "the other device
+    // has not uploaded yet" are the same observation from the filesystem.
+    // Every line rendered below is something we saw, with when we saw it.
+    // =========================================================================
+
+    async initFolderSync() {
+        const checkbox = document.getElementById('cloud_sync_enabled');
+        if (!checkbox) return;
+
+        this.folderSyncProviders = [];
+        try {
+            this.folderSyncProviders = await api.getFolderSyncProviders();
+        } catch (e) {
+            // Providers are static data; failing to read them is not a reason
+            // to hide the feature, only to offer the generic folder.
+            console.warn('folder sync: could not read providers', e);
+        }
+
+        const select = document.getElementById('folder-sync-provider');
+        if (select) {
+            select.innerHTML = this.folderSyncProviders
+                .map(p => `<option value="${this._escapeHtml(p.id)}">${this._escapeHtml(p.name)}</option>`)
+                .join('');
+            select.addEventListener('change', () => this.relinkFolderSync());
+        }
+
+        checkbox.addEventListener('change', () => this.toggleFolderSync(checkbox.checked));
+        this.bindClick('folder-sync-change-folder', () => this.chooseFolderSyncFolder());
+        this.bindClick('folder-sync-refresh', () => this.refreshFolderSyncStatus());
+        this.bindClick('folder-sync-push', () => this.pushFolderSync());
+        this.bindClick('folder-sync-fetch', () => this.fetchFolderSync());
+        this.bindClick('folder-sync-keep-both', () => this.resolveFolderSyncFork('keep_both'));
+        this.bindClick('folder-sync-keep-local', () => this.resolveFolderSyncFork('keep_local'));
+        this.bindClick('folder-sync-keep-remote', () => this.resolveFolderSyncFork('keep_remote'));
+        this.bindClick('folder-sync-take-newer', () => this.takeNewerFolderSyncCopy());
+        this.bindClick('folder-sync-send-first', () => this.pushFolderSync());
+
+        await this.renderFolderSyncLink();
+        this.showFolderSyncFlash();
+    }
+
+    /** A message left by a resolution that reloaded the page (see resolveFolderSyncFork). */
+    showFolderSyncFlash() {
+        let flash = null;
+        try {
+            flash = sessionStorage.getItem('wimi.folderSync.flash');
+            sessionStorage.removeItem('wimi.folderSync.flash');
+        } catch (e) { return; }
+        if (flash) this.showToast(flash, 'success');
+    }
+
+    bindClick(id, handler) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', handler);
+    }
+
+    /** Read the link and paint the control from it. Cheap; never touches the folder. */
+    async renderFolderSyncLink() {
+        const checkbox = document.getElementById('cloud_sync_enabled');
+        const details = document.getElementById('folder-sync-details');
+        if (!checkbox || !details) return;
+
+        let link = {linked: false};
+        try {
+            link = await api.getFolderSyncLink();
+        } catch (e) {
+            // No master database yet, or the feature is unavailable. Treat it
+            // as "not present" rather than surfacing an error the student
+            // cannot act on.
+            checkbox.disabled = true;
+            details.hidden = true;
+            return;
+        }
+
+        this.folderSyncLink = link;
+        checkbox.checked = !!link.linked;
+        details.hidden = !link.linked;
+        if (!link.linked) return;
+
+        const folderEl = document.getElementById('folder-sync-folder');
+        if (folderEl) folderEl.textContent = link.folder;
+
+        const select = document.getElementById('folder-sync-provider');
+        if (select && link.provider_id) select.value = link.provider_id;
+
+        const pin = document.getElementById('folder-sync-pin-hint');
+        if (pin) {
+            const p = pin.querySelector('.field-description');
+            if (link.pin_hint) {
+                // The single most useful sentence this panel says. An
+                // immutable-file design is the worst case for a streaming
+                // client's cache policy: our files are written once and never
+                // modified, which is exactly the condition Box evicts on.
+                p.innerHTML = 'Pin this folder in ' + this._escapeHtml(link.provider_name || 'your cloud client')
+                    + ' so its files stay on this computer - the setting is called <strong>'
+                    + this._escapeHtml(link.pin_hint) + '</strong>.';
+                pin.hidden = false;
+            } else {
+                pin.hidden = true;
+            }
+        }
+
+        this.renderFolderSyncObservations(link);
+        this.renderFolderSyncPending(link.pending || null, null);
+    }
+
+    /**
+     * A choice made on this computer and not yet sent (#148).
+     *
+     * Two things must be clear, and they are different: what has ALREADY
+     * happened here (keep_remote replaced this copy; keep_both installed a
+     * second profile -- neither waits for anything), and what is WAITING
+     * for the send (the other computer being told). A panel that blurred
+     * them would let a student think an overwrite could still be called off.
+     *
+     * @param {object|null} pending the link's pending choice.
+     * @param {string|null} state 'ready', 'folder_moved', or null when no
+     *     folder look has come back yet.
+     */
+    renderFolderSyncPending(pending, state, unseen) {
+        const box = document.getElementById('folder-sync-pending');
+        const text = document.getElementById('folder-sync-pending-text');
+        const push = document.getElementById('folder-sync-push');
+        if (!box || !text) return;
+        if (!pending) {
+            box.hidden = true;
+            text.innerHTML = '';
+            if (push) push.textContent = "Send this device's copy";
+            return;
+        }
+        const when = pending.resolved_at ? ' on ' + this.formatSyncTime(pending.resolved_at) : '';
+        const already = {
+            keep_local: "This computer's copy was kept - nothing on this computer changed.",
+            keep_remote: "This computer now holds the other computer's copy. That has "
+                + 'already happened and is not undone by leaving it unsent; the '
+                + 'previous copy is in the backup.',
+            keep_both: 'The other copy is already on this computer as a separate '
+                + 'profile. This profile is the one that stays synced.',
+        }[pending.choice] || '';
+        const lines = [
+            `<p class="field-description"><strong>You chose which copy to keep${when}, `
+            + 'but have not sent it yet.</strong> ' + already + '</p>',
+        ];
+        if (state === 'folder_moved') {
+            const who = (unseen || []).map(u => this._escapeHtml(u.device_name || 'another computer')
+                + ' (generation ' + u.generation + ')').join(', ');
+            lines.push('<p class="field-description folder-sync-problem">The folder has '
+                + 'changed since you chose' + (who ? ': ' + who + ' sent a copy' : '')
+                + '. Nothing will be sent until you look at the copies again and choose.</p>');
+        } else {
+            const others = (pending.set_aside_devices || [])
+                .map(d => this._escapeHtml(d || 'the other computer')).join(', ');
+            lines.push('<p class="field-description">Until you send, '
+                + (others || 'the other computer') + ' still sees two copies. '
+                + 'Sending tells it which one you kept.</p>');
+        }
+        text.innerHTML = lines.join('');
+        box.hidden = false;
+        if (push) push.textContent = state === 'folder_moved' ? "Send this device's copy" : 'Send your choice';
+    }
+
+    /**
+     * What we saw, and when. Never a claim about what is true now.
+     */
+    renderFolderSyncObservations(state) {
+        const mount = document.getElementById('folder-sync-observations');
+        if (!mount) return;
+
+        const lines = [];
+        const seen = state.last_seen_generation;
+        if (seen !== undefined && seen !== null && seen > 0) {
+            lines.push(`Newest copy seen in the folder: <strong>generation ${seen}</strong>`
+                + (state.head_device ? ` from ${this._escapeHtml(state.head_device)}` : '')
+                + (state.last_seen_at ? `, when we looked at ${this.formatSyncTime(state.last_seen_at)}` : ''));
+            // #147: we read the small manifest, not the archive. Checking the
+            // archive means downloading it, which on a streaming client is the
+            // whole file - so say plainly that we have not, rather than let
+            // "seen" be read as "verified".
+            if (state.head_verified === false) {
+                lines.push('That copy is still in the cloud, so its contents have not '
+                    + 'been checked yet - WIMI would have had to download it to do that. '
+                    + 'It is checked when you bring it over.');
+            }
+        } else {
+            lines.push('No copy seen in this folder yet. If the other computer has '
+                + 'just sent one, its cloud client may still be uploading.');
+        }
+
+        const pushed = state.last_pushed_generation;
+        if (pushed !== undefined && pushed !== null && pushed > 0) {
+            lines.push(`This computer last sent <strong>generation ${pushed}</strong>`
+                + (state.last_pushed_at ? ` at ${this.formatSyncTime(state.last_pushed_at)}` : '')
+                + '. Whether the cloud client has finished uploading it is not '
+                + 'something WIMI can see.');
+        }
+
+        if (state.rejected && state.rejected.length) {
+            lines.push(state.rejected
+                .map(r => `Ignored generation ${r.generation}: ${this._escapeHtml(r.reason)}`)
+                .join('<br>'));
+        }
+
+        // Where this computer's copy stands (#148). "superseded" is the one
+        // the owner required be said out loud: another computer chose its
+        // own copy over this one's.
+        const rel = state.relation_detail || {};
+        if (state.base_relation === 'superseded') {
+            lines.push('<strong>This computer\u2019s copy was not the one kept.</strong> '
+                + this._escapeHtml(rel.device_name || 'Another computer')
+                + (rel.created_at ? ' chose its own copy on ' + this.formatSyncTime(rel.created_at) : ' chose its own copy')
+                + '. Nothing has been removed from this computer - choose below what you want.');
+        } else if (state.base_relation === 'behind') {
+            lines.push('The folder has a newer copy from '
+                + this._escapeHtml(rel.device_name || 'another computer')
+                + (rel.generation ? ` (generation ${rel.generation})` : '')
+                + ' that builds on this computer\u2019s - see below.');
+        }
+
+        const openForks = (state.forks || []).filter(f => !f.resolved_here && !f.set_aside);
+        if (openForks.length) {
+            lines.push('<strong>Two computers changed this profile independently.</strong> '
+                + 'Compare them below and choose which to keep.');
+        }
+
+        if (state.conflict_copies && state.conflict_copies.length) {
+            lines.push(`Your cloud client left ${state.conflict_copies.length} conflict `
+                + 'copy/copies in this folder. They may hold work that never arrived '
+                + 'under its own name.');
+        }
+
+        mount.innerHTML = lines.map(l => `<p class="field-description">${l}</p>`).join('');
+    }
+
+    formatSyncTime(iso) {
+        try {
+            return new Date(iso).toLocaleString();
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    /** Ticking the box links; unticking unlinks. That is all the state there is. */
+    async toggleFolderSync(wanted) {
+        if (!wanted) {
+            try {
+                await api.unlinkFolderSync();
+                this.showToast('Cloud sync turned off. Nothing in the folder was changed.', 'success');
+            } catch (e) {
+                this.showToast('Could not turn off cloud sync: ' + e.message, 'error');
+            }
+            await this.renderFolderSyncLink();
+            return;
+        }
+        const linked = await this.chooseFolderSyncFolder();
+        if (!linked) {
+            // Cancelled or refused: the box must not stay ticked claiming a
+            // link that does not exist.
+            await this.renderFolderSyncLink();
+        }
+    }
+
+    async chooseFolderSyncFolder() {
+        let picked;
+        try {
+            picked = await api.pickFolderSyncFolder();
+        } catch (e) {
+            this.showToast('Could not open the folder picker: ' + e.message, 'error');
+            return false;
+        }
+        if (!picked || !picked.folder) return false;
+
+        const select = document.getElementById('folder-sync-provider');
+        const providerId = (select && select.value) || 'generic';
+
+        // Say what is already there BEFORE linking. #129 recorded that no
+        // "this profile is already linked here" check existed anywhere and
+        // that linking was "a manual act of faith"; the folder segment is the
+        // profile uuid now, so it need not be.
+        try {
+            const found = await api.discoverFolderSync(picked.folder, providerId);
+            const mine = found.filter(f => (f.local_profiles || []).length);
+            if (found.length && !mine.length) {
+                this.showToast(
+                    `That folder already holds ${found.length} other WIMI profile(s). `
+                    + 'Yours will sit alongside them, not merge with them.', 'info');
+            }
+        } catch (e) {
+            // Discovery is advisory. A folder we cannot enumerate may still be
+            // linkable, and the link's own preflight is what decides.
+            console.warn('folder sync: discovery failed', e);
+        }
+
+        try {
+            await api.linkFolderSync(picked.folder, providerId);
+            this.showToast('Cloud sync folder set.', 'success');
+        } catch (e) {
+            this.showToast('Could not use that folder: ' + e.message, 'error');
+            await this.renderFolderSyncLink();
+            return false;
+        }
+        await this.renderFolderSyncLink();
+        await this.refreshFolderSyncStatus();
+        return true;
+    }
+
+    async relinkFolderSync() {
+        // Changing the client for an already-linked folder re-links in place;
+        // the folder and the profile's segment are unchanged.
+        if (!this.folderSyncLink || !this.folderSyncLink.linked) return;
+        const select = document.getElementById('folder-sync-provider');
+        try {
+            await api.linkFolderSync(this.folderSyncLink.folder, select.value);
+        } catch (e) {
+            this.showToast('Could not change the cloud client: ' + e.message, 'error');
+        }
+        await this.renderFolderSyncLink();
+    }
+
+    async withFolderSyncBusy(buttonId, label, work) {
+        const btn = document.getElementById(buttonId);
+        const original = btn ? btn.textContent : null;
+        if (btn) { btn.disabled = true; btn.textContent = label; }
+        try {
+            return await work();
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = original; }
+        }
+    }
+
+    async refreshFolderSyncStatus() {
+        try {
+            const status = await this.withFolderSyncBusy(
+                'folder-sync-refresh', 'Checking...', () => api.getFolderSyncStatus());
+            if (!status.linked) { await this.renderFolderSyncLink(); return; }
+            this.renderFolderSyncObservations(status);
+            this.renderFolderSyncProblems(status.problems || []);
+            this.renderFolderSyncPending(status.pending || null, status.pending_state || null,
+                status.pending ? status.pending.unseen : null);
+            this.renderFolderSyncCatchup(status);
+            // status already told us whether there are forks; only build the
+            // full report (which downloads both sides) when there is one --
+            // and not when it was already chosen here and only awaits a send.
+            // Asking the same question twice is how a student ends up
+            // answering it differently the second time.
+            const open = (status.forks || []).filter(f => !f.resolved_here);
+            if (open.length) {
+                await this.refreshFolderSyncFork();
+            } else {
+                const panel = document.getElementById('folder-sync-fork');
+                if (panel) panel.hidden = true;
+            }
+        } catch (e) {
+            this.showToast('Could not read the folder: ' + e.message, 'error');
+        }
+    }
+
+    renderFolderSyncProblems(problems) {
+        const mount = document.getElementById('folder-sync-problems');
+        if (!mount) return;
+        if (!problems.length) { mount.hidden = true; mount.innerHTML = ''; return; }
+        mount.hidden = false;
+        mount.innerHTML = problems
+            .map(p => `<p class="field-description folder-sync-problem">${this._escapeHtml(p)}</p>`)
+            .join('');
+    }
+
+    async pushFolderSync() {
+        try {
+            const result = await this.withFolderSyncBusy(
+                'folder-sync-push', 'Sending...', () => api.pushFolderSync());
+            // Deliberately not "synced". The file is written; whether the
+            // cloud client has uploaded it is not observable from here, and
+            // Box destroys a failed upload on logout without saying so.
+            const carried = this.folderSyncLink && this.folderSyncLink.pending;
+            this.showToast(
+                (carried ? 'Your choice was sent. ' : '')
+                + `Generation ${result.generation} written to the folder. Your cloud `
+                + 'client uploads it on its own schedule.', 'success');
+            await this.renderFolderSyncLink();
+            await this.refreshFolderSyncStatus();
+        } catch (e) {
+            this.showToast('Could not send this copy: ' + e.message, 'error');
+        }
+    }
+
+    /**
+     * "Look for a newer copy": look at the folder and say what is there.
+     *
+     * Taking the copy is the catch-up block's job (#151), which appears when
+     * there is one -- so this looks, rather than downloading an archive
+     * nobody has asked to install yet.
+     */
+    async fetchFolderSync() {
+        let status;
+        try {
+            status = await this.withFolderSyncBusy(
+                'folder-sync-fetch', 'Looking...', () => api.getFolderSyncStatus());
+        } catch (e) {
+            this.showToast('Could not read the folder: ' + e.message, 'error');
+            return;
+        }
+        if (!status.linked) { await this.renderFolderSyncLink(); return; }
+        await this.refreshFolderSyncStatus();
+        const open = (status.forks || []).filter(f => !f.resolved_here);
+        if (open.length) {
+            this.showToast('Two copies need choosing between - see below.', 'info');
+        } else if (status.base_relation === 'behind') {
+            this.showToast('A newer copy is in the folder - see below.', 'info');
+        } else if (status.base_relation === 'current') {
+            // "Shows", not "has": a copy the other computer has not finished
+            // uploading is invisible from here.
+            this.showToast(`This computer has the newest copy the folder shows `
+                + `(generation ${status.head_generation}).`, 'success');
+        }
+    }
+
+    /**
+     * Another computer built on this one's copy (#151).
+     *
+     * Shown only when that is the whole story: no unresolved fork (the fork
+     * panel owns that) and no unsent choice (the pending block does).
+     * The owner's rule: say exactly what was checked about work on this
+     * computer, and offer both ways forward when there is any.
+     */
+    renderFolderSyncCatchup(status) {
+        const box = document.getElementById('folder-sync-catchup');
+        const text = document.getElementById('folder-sync-catchup-text');
+        const take = document.getElementById('folder-sync-take-newer');
+        const sendFirst = document.getElementById('folder-sync-send-first');
+        if (!box || !text || !take || !sendFirst) return;
+
+        const open = (status.forks || []).filter(f => !f.resolved_here);
+        const newer = status.relation_detail;
+        if (status.base_relation !== 'behind' || open.length || status.pending || !newer) {
+            box.hidden = true;
+            this.folderSyncNewer = null;
+            return;
+        }
+        this.folderSyncNewer = newer;
+
+        const lines = [
+            '<p class="field-description"><strong>'
+            + this._escapeHtml(newer.device_name || 'Another computer') + '</strong> sent generation '
+            + newer.generation
+            + (newer.created_at ? ' on ' + this.formatSyncTime(newer.created_at) : '')
+            + ', built on this computer\u2019s copy'
+            + (newer.entries !== null && newer.entries !== undefined ? ` (${newer.entries} entries)` : '')
+            + '.</p>',
+        ];
+        const changes = status.local_changes || {};
+        const differs = changes.differs || [];
+        let anyway = false;
+        if (changes.checked && differs.length) {
+            anyway = true;
+            const list = differs.map(d => `${this._escapeHtml(d.label)}: ${this._escapeHtml(String(d.here))} `
+                + `here, ${this._escapeHtml(String(d.then))} when it last synced`).join('; ');
+            lines.push('<p class="field-description"><strong>This computer has changed since it last '
+                + 'synced</strong> - ' + list + '. Using the newer copy replaces those changes; '
+                + 'they are kept in the backup WIMI takes first. <strong>Send mine first</strong> '
+                + 'keeps both, and you then choose between the two copies.</p>');
+        } else if (changes.checked) {
+            lines.push('<p class="field-description">No changes found on this computer since it last '
+                + 'synced. WIMI compares counts and dates, so an edit to an existing entry would '
+                + 'not show here - WIMI takes a backup of this computer\u2019s copy first either way.</p>');
+        } else {
+            anyway = true;
+            lines.push('<p class="field-description">WIMI cannot tell whether this computer has changes '
+                + 'the newer copy lacks' + (changes.reason ? ' (' + this._escapeHtml(changes.reason) + ')' : '')
+                + '. Using the newer copy replaces this computer\u2019s; it is kept in the backup '
+                + 'WIMI takes first.</p>');
+        }
+        text.innerHTML = lines.join('');
+        take.textContent = anyway ? 'Use the newer copy anyway' : 'Use the newer copy';
+        sendFirst.hidden = !anyway;
+        box.hidden = false;
+    }
+
+    /** Catch up: keep_remote onto the newer copy. Needs no send; reopens the profile. */
+    async takeNewerFolderSyncCopy() {
+        const newer = this.folderSyncNewer;
+        if (!newer || !newer.blob_name) {
+            this.showToast('Look at the folder again first - WIMI no longer knows which copy is newer.', 'error');
+            return;
+        }
+        try {
+            const result = await this.withFolderSyncBusy(
+                'folder-sync-take-newer', 'Working...',
+                () => api.resolveFolderSyncFork('keep_remote', newer.blob_name));
+            const lines = ['This computer now has the newer copy.'];
+            const backup = result.safety_export && result.safety_export.path;
+            if (backup) lines.push('Its previous copy is backed up at ' + backup);
+            if (result.replaced_local) {
+                // The profile was closed, replaced and reopened under this page.
+                try {
+                    sessionStorage.setItem('wimi.folderSync.flash', lines.join(' '));
+                } catch (e) { /* the status block will say it anyway */ }
+                window.location.reload();
+                return;
+            }
+            this.showToast(lines.join(' '), 'success');
+            await this.renderFolderSyncLink();
+            await this.refreshFolderSyncStatus();
+        } catch (e) {
+            this.showToast('Could not take the newer copy: ' + e.message, 'error');
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Fork resolution (#124)
+    //
+    // "The report is the feature." A dialog that says "there is a conflict,
+    // choose one" without numbers is a coin flip with extra steps, so the
+    // four figures per side are the point and the buttons are incidental.
+    //
+    // Two states that must never be rendered alike:
+    //   report === null        -> no fork. Panel stays hidden.
+    //   report.compared false  -> there IS a fork but a side could not be
+    //                             read, so the empty "only on this side"
+    //                             lists mean NOBODY LOOKED. Saying "no
+    //                             differences" there is a comforting lie.
+    // ---------------------------------------------------------------------
+
+    async refreshFolderSyncFork() {
+        const panel = document.getElementById('folder-sync-fork');
+        if (!panel) return;
+        let report = null;
+        try {
+            report = await api.getFolderSyncForkReport();
+        } catch (e) {
+            // Looking for a fork failed. That is not the same as there being
+            // none, so say so rather than hiding the panel.
+            this.renderFolderSyncProblems(['Could not check for conflicting copies: ' + e.message]);
+            panel.hidden = true;
+            return;
+        }
+        this.folderSyncFork = report;
+        if (!report) { panel.hidden = true; return; }
+
+        panel.hidden = false;
+        this.renderForkFraming(report);
+        const mount = document.getElementById('folder-sync-fork-sides');
+        mount.innerHTML = report.sides.map(s => this.renderForkSide(s, report)).join('');
+
+        const note = document.getElementById('folder-sync-fork-note');
+        if (report.notes && report.notes.length) {
+            note.hidden = false;
+            note.innerHTML = report.notes.map(n => this._escapeHtml(n)).join('<br>');
+        } else {
+            note.hidden = true;
+        }
+    }
+
+    /**
+     * The same three choices at three moments (#124, #148), framed for each.
+     * The question is always "which copy do I want"; what differs is why
+     * the student is being asked.
+     */
+    renderForkFraming(report) {
+        const title = document.getElementById('folder-sync-fork-title');
+        const intro = document.getElementById('folder-sync-fork-intro');
+        if (!title || !intro) return;
+        if (report.set_aside) {
+            title.textContent = 'Another computer kept a different copy';
+            intro.innerHTML = 'Another of your computers chose to keep its own copy of '
+                + 'this profile instead of this one. <strong>Nothing has been removed from '
+                + 'this computer.</strong> Take the kept copy, or keep this one - WIMI saves '
+                + 'a backup of this computer\u2019s copy before doing anything.';
+        } else if (report.first_connect) {
+            title.textContent = 'Two copies that have never synced';
+            intro.innerHTML = 'This folder already holds a copy of this profile that was '
+                + 'never synced with this computer\u2019s. <strong>Nothing is lost</strong> - '
+                + 'WIMI saves a backup of this computer\u2019s copy first. '
+                + '<strong>WIMI will not merge them</strong>; you choose which to keep.';
+        } else {
+            title.textContent = 'Two copies have gone their own way';
+            intro.innerHTML = 'Two of your computers both changed this profile without '
+                + 'seeing each other\u2019s work. <strong>Nothing is lost</strong> - both '
+                + 'copies are safe in the folder, and WIMI saves a backup of this '
+                + 'computer\u2019s copy before doing anything at all. '
+                + '<strong>WIMI will not merge them</strong>; you choose which to keep.';
+        }
+    }
+
+    renderForkSide(side, report) {
+        const rows = [];
+        rows.push(`<strong>${this._escapeHtml(side.device_name || 'Unknown computer')}</strong>`
+            + (side.is_local ? ' <em>(this computer\u2019s copy)</em>' : ''));
+        if (side.entries !== null && side.entries !== undefined) {
+            rows.push(`${side.entries} entries`);
+        }
+        // The date range is what separates "a month of work" from "a stale
+        // copy" -- two copies can have identical counts.
+        if (side.encountered_first && side.encountered_last) {
+            rows.push('questions sat ' + this._escapeHtml(side.encountered_first)
+                + ' to ' + this._escapeHtml(side.encountered_last));
+        }
+        if (side.logged_last) {
+            rows.push('last added to ' + this._escapeHtml(String(side.logged_last).slice(0, 16)));
+        }
+        if (side.created_at) {
+            rows.push('sent to the folder ' + this.formatSyncTime(side.created_at));
+        }
+
+        let unique;
+        if (!report.compared) {
+            unique = '<em>Could not compare subjects - see the note below.</em>';
+        } else if (side.subjects_only_here_count === 0) {
+            unique = 'No subjects that the other copy lacks.';
+        } else {
+            const named = side.subjects_only_here_named.map(s => this._escapeHtml(s)).join(', ');
+            const extra = side.subjects_only_here_count - side.subjects_only_here_named.length;
+            unique = `<strong>Only here:</strong> ${named}`
+                + (extra > 0 ? ` and ${extra} more` : '');
+        }
+
+        return '<div class="folder-sync-fork-side" data-blob="'
+            + this._escapeHtml(side.blob_name || '') + '">'
+            + '<p class="field-description">' + rows.join(' &middot; ') + '</p>'
+            + '<p class="field-description">' + unique + '</p>'
+            + '</div>';
+    }
+
+    /**
+     * Which side is not this computer's, by device id rather than name.
+     *
+     * Names are hostnames and two machines can share one; the device id
+     * cannot. Picking by name here would be the same class of bug that let
+     * two devices write one file.
+     */
+    otherForkSide() {
+        const report = this.folderSyncFork;
+        if (!report || !report.sides || report.sides.length !== 2) return null;
+        // The service knows which side this computer's copy is -- by what
+        // it descends from, which a device id cannot say once a copy has
+        // been installed from another computer (#148).
+        const local = report.sides.filter(s => s.is_local);
+        if (local.length === 1) return report.sides.find(s => !s.is_local);
+        // No side is known to be this computer's copy. Refuse rather than
+        // guess -- in particular not by device id: a computer that published
+        // a side and then took the other one holds the OTHER one's rows, so
+        // "the side I published" is a coin flip between the copy the student
+        // chose and the one they rejected.
+        return null;
+    }
+
+    async resolveFolderSyncFork(choice) {
+        const other = this.otherForkSide();
+        if (!other || !other.blob_name) {
+            this.showToast('WIMI cannot tell which of these copies this computer holds, '
+                + 'so it will not choose between them from here.', 'error');
+            return;
+        }
+        const buttonId = {
+            keep_both: 'folder-sync-keep-both',
+            keep_local: 'folder-sync-keep-local',
+            keep_remote: 'folder-sync-keep-remote',
+        }[choice];
+
+        try {
+            const result = await this.withFolderSyncBusy(
+                buttonId, 'Working...',
+                () => api.resolveFolderSyncFork(choice, other.blob_name));
+
+            // Always lead with the backup. It is the reassurance that makes
+            // the choice safe to make, and the student should not have to
+            // hunt for whether one was taken.
+            const backup = result.safety_export && result.safety_export.path;
+            const lines = (result.notes || []).slice();
+            if (backup) lines.push('A backup of this computer’s copy is at ' + backup);
+            this.showToast(lines.join(' '), 'success');
+
+            if (result.replaced_local) {
+                // The profile was closed, replaced and reopened underneath
+                // this page. Everything on it describes a database that no
+                // longer exists, so start again from the new one -- carrying
+                // the message across, since it names the backup.
+                try {
+                    sessionStorage.setItem('wimi.folderSync.flash', lines.join(' '));
+                } catch (e) { /* storage unavailable: the pending block still says it */ }
+                window.location.reload();
+                return;
+            }
+            await this.renderFolderSyncLink();
+            await this.refreshFolderSyncStatus();
+        } catch (e) {
+            this.showToast('Could not resolve: ' + e.message, 'error');
+        }
+    }
+
 }
 
 // =========================================================================

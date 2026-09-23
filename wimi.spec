@@ -14,6 +14,24 @@ block_cipher = None
 project_root = Path(SPECPATH)
 src_dir = project_root / 'src'
 
+# ---------------------------------------------------------------- build variant
+# Release or test (#144). Decided at BUILD time and baked into the bundle:
+# the test variant adds one runtime hook that marks the bundle as a test
+# build, which is the only thing that lets a frozen WIMI accept --test-mode
+# (see src/app/cli.py). A release bundle has no hook, so nothing at runtime
+# can turn test mode on. Everything else is identical, on purpose -- the
+# binary the suite drives should differ from the one users get by as
+# little as possible. build_windows.bat / build_macos.sh set this; `test`
+# as their first argument selects the test variant.
+import os
+BUILD_VARIANT = os.environ.get('WIMI_BUILD_VARIANT', 'release')
+if BUILD_VARIANT not in ('release', 'test'):
+    raise SystemExit(f"WIMI_BUILD_VARIANT must be 'release' or 'test', not {BUILD_VARIANT!r}")
+TEST_BUILD = BUILD_VARIANT == 'test'
+runtime_hooks = [str(project_root / 'packaging' / 'rthook_test_build.py')] if TEST_BUILD else []
+# The folder name is what tells the two apart on disk: dist/WIMI vs dist/WIMI-test.
+DIST_NAME = 'WIMI-test' if TEST_BUILD else 'WIMI'
+
 # Collect all web assets (HTML, CSS, JS, libraries, data)
 web_datas = [
     (str(src_dir / 'web' / 'html'), 'web/html'),
@@ -95,7 +113,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=runtime_hooks,
     excludes=[
         # Exclude dev/test dependencies
         'pytest',
@@ -131,7 +149,28 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,  # Set to False for release builds
+    # A console-subsystem binary whose console window hides itself (#142).
+    #
+    # The obvious fix for "a terminal opens beside the GUI" is console=False,
+    # and it is the wrong one here. A windowed Windows build has no standard
+    # streams of its own, so `print()` diagnostics become no-ops -- and the
+    # harness reads `TEST_MODE_READY:port=N` off stdout to know WIMI is up
+    # (#138). hide_console keeps the streams real and only hides the WINDOW,
+    # and only when this process owns it: double-clicked from Explorer, the
+    # window is hidden; launched from an existing terminal, that terminal is
+    # left alone and still receives the output. Redirected stdout (the
+    # harness, `> log.txt`) is unaffected either way.
+    #
+    # 'hide-early' hides as soon as the bootloader finds the PKG archive, so
+    # the one failure that happens before that -- a missing or corrupt
+    # archive, i.e. "the exe will not start at all" -- still prints where
+    # somebody can read it.
+    #
+    # This applies to BOTH variants on purpose: a test build that differed
+    # from the release build in subsystem would stop being evidence about
+    # it, which is the whole point of #144's one-hook difference.
+    console=True,
+    hide_console='hide-early',
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -148,5 +187,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='WIMI',
+    name=DIST_NAME,
 )

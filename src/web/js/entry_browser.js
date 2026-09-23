@@ -483,7 +483,11 @@ class EntryBrowser {
     
     async loadStatistics() {
         try {
-            const stats = await api.getEntryStatistics(this.examContextId || -1);
+            // No exam selected means "all exams", the same scope loadEntries
+            // uses. A null id becomes '' on the wire, which the bridge reads
+            // as no filter; a sentinel like -1 is taken as a real exam id and
+            // matches nothing (#2).
+            const stats = await api.getEntryStatistics(this.examContextId);
             this.elements.totalEntries.textContent = stats.total || 0;
             this.elements.draftCount.textContent = stats.drafts || 0;
         } catch (error) {
@@ -617,9 +621,15 @@ class EntryBrowser {
         // Difficulty badge
         const difficultyBadge = card.querySelector('.difficulty-badge');
         if (entry.perceived_difficulty) {
-            difficultyBadge.dataset.difficulty = entry.perceived_difficulty;
-            const difficultyLabels = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
-            difficultyBadge.textContent = difficultyLabels[entry.perceived_difficulty] || '';
+            // perceived_difficulty accepts 1-5. The word, the data attribute
+            // the swatch is keyed off, and the level class all come from
+            // WimiDifficulty (js/difficulty.js) -- the same definition the
+            // entry detail page renders from, carrying the entry form's own
+            // button tooltips. Issue #46: a literal map here disagreed both
+            // with the detail page and with the buttons the student clicked.
+            window.WimiDifficulty.applyToBadge(
+                difficultyBadge, entry.perceived_difficulty
+            );
         } else {
             difficultyBadge.style.display = 'none';
         }
@@ -641,10 +651,15 @@ class EntryBrowser {
         card.querySelector('.your-answer').textContent = entry.user_answer || '—';
         card.querySelector('.correct-answer').textContent = entry.correct_answer || '—';
         
-        // Reflection preview
+        // Reflection preview. Reflections are stored as TinyMCE HTML, so
+        // reduce them to plain text for the two-line clamp (#3): assigning
+        // the raw string to textContent showed the tags as literal text.
+        // The reduction lives in WimiTextPreview (js/text_preview.js) --
+        // the same inert parse the session-setup entry picker uses (#41).
         const reflectionPreview = card.querySelector('.reflection-preview');
-        if (entry.reflection) {
-            reflectionPreview.textContent = entry.reflection;
+        const reflectionText = window.WimiTextPreview.htmlToPreviewText(entry.reflection);
+        if (reflectionText) {
+            reflectionPreview.textContent = reflectionText;
         } else {
             reflectionPreview.textContent = 'No reflection added';
             reflectionPreview.style.fontStyle = 'italic';
@@ -1493,16 +1508,25 @@ class EntryBrowser {
     // Utility methods
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
+        // Bridge dates are bare ISO days ("2026-09-11"). new Date() would
+        // parse that as UTC midnight and render the previous day anywhere
+        // west of Greenwich, so build a local date from the components.
+        const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+        if (!y || !m || !d) return dateStr;
+        const date = new Date(y, m - 1, d);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
         });
     }
     
     formatDateISO(date) {
-        return date.toISOString().split('T')[0];
+        // Local calendar day, not toISOString() (UTC): after 20:00 in
+        // UTC-4 the latter names tomorrow, and the "Today" preset filters
+        // on a day that has no entries yet.
+        const pad = n => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
     }
     
     lightenColor(hex, amount) {

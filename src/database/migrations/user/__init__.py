@@ -31,6 +31,19 @@ from . import m007_exam_length_triple
 from . import m009_entry_note_attachments
 from . import m010_default_tag_definitions
 
+# v11-v14 are skipped: they belong to the AI capture feature (a paused
+# feature branch, feature/ai-capture -- #145). Databases that ran its
+# builds already have those versions stamped, and the runner treats a
+# stamped version as applied. See m015's docstring.
+from . import m015_browser_pane_source_fields
+from . import m016_browser_pane_state
+from . import m017_pane_shortcut_opens
+from . import m018_subject_delete_batches
+from . import m019_subject_relations
+from . import m020_subject_import_id
+from . import m021_device_local_settings
+from . import m022_efficiency_confidence_band
+
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
     build_migration(m002_phase6_goals),
@@ -41,4 +54,12 @@ MIGRATIONS: list[Migration] = [
     build_migration(m007_exam_length_triple),
     build_migration(m009_entry_note_attachments),
     build_migration(m010_default_tag_definitions),
+    build_migration(m015_browser_pane_source_fields),
+    build_migration(m016_browser_pane_state),
+    build_migration(m017_pane_shortcut_opens),
+    build_migration(m018_subject_delete_batches),
+    build_migration(m019_subject_relations),
+    build_migration(m020_subject_import_id),
+    build_migration(m021_device_local_settings),
+    build_migration(m022_efficiency_confidence_band),
 ]

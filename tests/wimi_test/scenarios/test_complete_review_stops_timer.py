@@ -76,6 +76,32 @@ from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
 
+
+def _wait_for(
+    wimi_page: WimiPage,
+    js_expression: str,
+    *,
+    timeout_ms: int = 5000,
+    poll_step_ms: int = 100,
+) -> Any:
+    """Poll ``js_expression`` until it returns something truthy.
+
+    Returns the last value seen rather than raising, so the caller's own
+    assertion still reports what it actually found. This replaces a fixed
+    ``wait_for_timeout`` that was "enough on an idle box" and a race under
+    load -- the #84 shape.
+    """
+    elapsed = 0
+    last: Any = None
+    while elapsed < timeout_ms:
+        last = wimi_page.eval_js(js_expression)
+        if last:
+            return last
+        wimi_page.wait_for_timeout(poll_step_ms)
+        elapsed += poll_step_ms
+    return last
+
+
 @pytest.mark.slow
 @pytest.mark.regression
 def test_complete_review_button_stops_active_timer(
@@ -200,10 +226,27 @@ def test_complete_review_button_stops_active_timer(
         "document.getElementById('complete-review').click()"
     )
 
-    # Give the async chain time to run:
-    # ``autoSuspendTimerForNavigation()`` -> ``updateReviewSession``
-    # -> bridge -> SQLite write -> commit.
-    wimi_page.wait_for_timeout(1500)
+    # The async chain is ``autoSuspendTimerForNavigation()`` ->
+    # ``updateReviewSession`` -> bridge -> SQLite write -> commit. Poll
+    # for the timer to actually stop rather than guessing how long that
+    # takes (#84); a still-running timer polls out the full budget and
+    # fails the assertion below with its real state.
+    _wait_for(
+        wimi_page,
+        """
+        (() => {
+            const el = document.getElementById('session-timer');
+            if (!el) return false;
+            const cs = window.getComputedStyle(el);
+            const visible =
+                cs.display !== 'none' && cs.visibility !== 'hidden';
+            const running = visible
+                && !el.className.includes('timer-paused')
+                && !el.className.includes('timer-expired');
+            return !running;
+        })()
+        """,
+    )
 
     # ---- Assert: DOM ------------------------------------------------
     # Probe the timer element via eval_js because the assertion is

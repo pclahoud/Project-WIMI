@@ -615,15 +615,25 @@ class ExamContextBridgeMixin:
             try:
                 subjects = self.user_db.get_subject_hierarchy(config.exam_name)
 
-                def count_nodes(nodes):
-                    count = 0
-                    for node in nodes:
-                        count += 1
-                        if hasattr(node, 'children') and node.children:
-                            count += count_nodes(node.children)
-                    return count
+                # ``get_subject_hierarchy`` is polyhierarchy-aware: a
+                # subject with several parents appears once under EACH of
+                # them, so walking the tree and adding 1 per visit counts
+                # tree *positions*, not subjects. Collect ids into a set
+                # instead — that is exactly what the tree editor does when
+                # it flattens the same payload into ``TreeState.flatNodes``
+                # (a Map keyed by node id), so the dashboard card and the
+                # tree editor header now report the same number. See
+                # Forgejo issue #7.
+                seen_ids: set = set()
 
-                subject_count = count_nodes(subjects)
+                def collect_ids(nodes) -> None:
+                    for node in nodes:
+                        seen_ids.add(node.id)
+                        if getattr(node, 'children', None):
+                            collect_ids(node.children)
+
+                collect_ids(subjects)
+                subject_count = len(seen_ids)
 
                 questions = self.user_db.get_recent_questions(
                     exam_context=config.exam_name,

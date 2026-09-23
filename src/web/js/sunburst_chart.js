@@ -39,6 +39,14 @@ class SunburstChart {
         this.arc = null;
         this.colorScale = null;
         this.totalMistakes = 0;
+        // Number of distinct entries behind the whole chart, when the
+        // payload carries one. The arcs are per-parent rollups and a
+        // shared subject counts under each of its parents, so their sum
+        // is larger than this by design (issue #6) — the centre says how
+        // many entries there are, not how many arc-slots they occupy.
+        // Null means "the payload didn't say", and the centre falls back
+        // to the summed value the chart draws.
+        this.distinctTotal = null;
         
         this._init();
     }
@@ -92,6 +100,9 @@ class SunburstChart {
         
         // Compute total mistakes
         this.totalMistakes = data.value || 0;
+        this.distinctTotal = Number.isFinite(data.distinct_entries)
+            ? data.distinct_entries
+            : null;
         
         // Create hierarchy
         this.root = d3.hierarchy(data)
@@ -340,13 +351,32 @@ class SunburstChart {
         const centerText = document.getElementById(this.options.centerTextId);
         
         if (centerNumber) {
-            centerNumber.textContent = node.value || 0;
+            centerNumber.textContent = this._centerValueFor(node);
         }
         
         if (centerText) {
             const name = node.data ? node.data.name : 'Total';
             centerText.textContent = name === this.root?.data?.name ? 'Total' : name;
         }
+    }
+    
+    /**
+     * The number to print in the centre for `node`.
+     *
+     * Only the whole chart's root gets the distinct entry count: it is
+     * the one place the centre means "all of this data", and the one
+     * place it is read side by side with the "Total Entries" card. A
+     * hovered arc, or a subject the user has zoomed into, still shows
+     * its own rollup — that IS the number that arc draws.
+     */
+    _centerValueFor(node) {
+        if (!node) return 0;
+        const isWholeChartRoot = this.root &&
+            (node === this.root || node.data === this.root.data);
+        if (isWholeChartRoot && this.distinctTotal !== null) {
+            return this.distinctTotal;
+        }
+        return node.value || 0;
     }
     
     _updateBreadcrumb(node) {
@@ -410,6 +440,7 @@ class SunburstChart {
     }
     
     _renderEmptyState() {
+        this.distinctTotal = null;
         const _cs = getComputedStyle(document.documentElement);
         const { width, height } = this.options;
         const radius = Math.min(width, height) / 2;

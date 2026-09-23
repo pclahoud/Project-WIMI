@@ -81,7 +81,7 @@ class DimensionsMixin:
         if hasattr(self, 'error_logger') and self.error_logger:
             self.error_logger.debug(
                 f"Created dimension '{name}' (ID: {dimension_id}) for exam {exam_id}",
-                category='DATABASE'
+                category=ErrorCategory.DATABASE
             )
 
         return dimension_id
@@ -266,7 +266,7 @@ class DimensionsMixin:
         if cursor.rowcount > 0 and hasattr(self, 'error_logger') and self.error_logger:
             self.error_logger.info(
                 f"Deleted dimension {dimension_id} and its tags",
-                category='DATABASE'
+                category=ErrorCategory.DATABASE
             )
 
         return cursor.rowcount
@@ -598,7 +598,8 @@ class DimensionsMixin:
     def _aggregate_hierarchy_counts(
         self,
         nodes_with_direct_counts: List[Dict[str, Any]],
-        count_field: str = 'direct_count'
+        count_field: str = 'direct_count',
+        context_buckets: Optional[Dict[int, Dict[Any, int]]] = None
     ) -> Dict[int, int]:
         """
         Aggregate direct counts up through the hierarchy using bottom-up traversal.
@@ -615,6 +616,24 @@ class DimensionsMixin:
         documented in §5.3 of the plan. The legacy fallback uses the
         per-row ``parent_id`` field if ``subject_edges`` doesn't exist.
 
+        ``context_buckets`` opts into POLYHIERARCHY_MIGRATION §5.4. Without
+        it this method does §5.3 only: a node's whole count reaches every
+        parent, which is right for entries the student never disambiguated
+        and wrong for the ones they did.
+
+        Pass ``{node_id: {primary_parent_id_or_None: count}}`` and a node
+        contributes *upward* only what belongs to each parent -- the
+        ``None`` bucket to all of them, a pinned bucket to that parent
+        alone. The node's own displayed total still includes every entry
+        tagged on it, because those are all its mistakes regardless of
+        which branch they roll into.
+
+        Apportionment happens only at the node carrying the entry. Above
+        it the subtree flows normally: §5.4 pins the immediate parent the
+        student chose, not the whole chain above it. That is why the
+        per-node "what reaches my parents from below" term does not depend
+        on which parent is asking.
+
         Args:
             nodes_with_direct_counts: List of dicts, each containing:
                 - 'id': node ID (int)
@@ -622,6 +641,8 @@ class DimensionsMixin:
                   — used as a legacy fallback only.
                 - count_field: the direct count for this node (int)
             count_field: Name of the field containing direct counts (default: 'direct_count')
+            context_buckets: Optional §5.4 split, as above. When omitted
+                the method behaves exactly as it always has.
 
         Returns:
             Dict mapping node_id -> total_count (including all descendants)
@@ -733,14 +754,45 @@ class DimensionsMixin:
         # "honest non-additivity" pattern (sums of siblings may exceed
         # the parent because shared descendants count once per parent).
         totals: Dict[int, int] = {}
+
+        if context_buckets is None:
+            for node_id in sorted(node_ids, key=lambda x: -depth_memo.get(x, 0)):
+                direct = nodes[node_id].get(count_field, 0) or 0
+                # Distinct child set under this parent (a child can technically
+                # appear twice in `children[parent]` if duplicate edges exist;
+                # dedup defensively).
+                distinct_children = set(children.get(node_id, []))
+                child_sum = sum(totals.get(cid, 0) for cid in distinct_children)
+                totals[node_id] = direct + child_sum
+
+            return totals
+
+        # §5.4 pass. ``below[n]`` is what reaches n from its subtree --
+        # one number per node, not per (node, parent), because a child
+        # only ever apportions against its own immediate parents.
+        def own(node_id, parent_id):
+            by_parent = context_buckets.get(node_id, {})
+            count = by_parent.get(None, 0)
+            # None keys the undisambiguated bucket AND is parent_id at a
+            # root; without the guard a root counts that bucket twice.
+            if parent_id is not None:
+                count += by_parent.get(parent_id, 0)
+            return count
+
+        below: Dict[int, int] = {}
         for node_id in sorted(node_ids, key=lambda x: -depth_memo.get(x, 0)):
-            direct = nodes[node_id].get(count_field, 0) or 0
-            # Distinct child set under this parent (a child can technically
-            # appear twice in `children[parent]` if duplicate edges exist;
-            # dedup defensively).
             distinct_children = set(children.get(node_id, []))
-            child_sum = sum(totals.get(cid, 0) for cid in distinct_children)
-            totals[node_id] = direct + child_sum
+            below[node_id] = sum(
+                own(cid, node_id) + below.get(cid, 0)
+                for cid in distinct_children
+            )
+
+        for node_id in node_ids:
+            # Everything tagged on this node is this node's mistake, so
+            # its own total is context-blind; only what it sends upward
+            # is apportioned.
+            own_all = sum(context_buckets.get(node_id, {}).values())
+            totals[node_id] = own_all + below[node_id]
 
         return totals
 
@@ -774,41 +826,88 @@ class DimensionsMixin:
         if not dimension:
             return {'dimension_name': '', 'nodes': [], 'total': 0}
 
-        # Get nodes in this dimension with their DIRECT entry counts
-        # Also fetch parent_id for hierarchy aggregation
+        # Nodes in this dimension with their DIRECT entry counts.
+        #
+        # The mapping join carries three conditions that used to be
+        # missing, all of which let entries in that should not have been
+        # counted:
+        #   * mapping_type = 'primary' -- secondary "also tested" tags are
+        #     not mistakes in that subject, and every other surface
+        #     filters them out;
+        #   * the review_sessions join -- there was none at all, so an
+        #     entry counted regardless of which exam's session (or which
+        #     user's) it belonged to;
+        # They sit in the JOIN rather than the WHERE so a node with no
+        # entries still produces a row with zero.
         cursor = self.conn.execute("""
             SELECT
                 sn.id as hierarchy_id,
                 sn.name,
-                sn.parent_id,
                 COUNT(DISTINCT esm.question_entry_id) as direct_entries,
                 ROUND(AVG(qe.perceived_difficulty), 2) as avg_difficulty
             FROM subject_nodes sn
-            LEFT JOIN entry_subject_mappings esm ON esm.subject_node_id = sn.id
-            LEFT JOIN question_entries qe ON qe.id = esm.question_entry_id
+            LEFT JOIN entry_subject_mappings esm
+                ON esm.subject_node_id = sn.id
+                AND esm.mapping_type = 'primary'
+            LEFT JOIN question_entries qe
+                ON qe.id = esm.question_entry_id
+            LEFT JOIN review_sessions rs
+                ON rs.id = qe.review_session_id
+                AND rs.exam_context_id = ?
+                AND rs.user_id = ?
             WHERE sn.exam_context = (
                 SELECT exam_name FROM exam_contexts WHERE id = ?
             )
             AND sn.dimension_id = ?
             AND sn.status = 'active'
-            GROUP BY sn.id, sn.name, sn.parent_id
+            AND (rs.id IS NOT NULL OR qe.id IS NULL)
+            GROUP BY sn.id, sn.name
             ORDER BY direct_entries DESC
-        """, (exam_context_id, dimension_id))
+        """, (exam_context_id, self.user_id, exam_context_id, dimension_id))
 
-        # Build node list with direct counts
+        # No 'parent_id': _aggregate_hierarchy_counts sources parents from
+        # subject_edges and only falls back to that legacy column for
+        # nodes with no edges at all, which m004's backfill rules out.
         nodes_data = []
         for row in cursor.fetchall():
             nodes_data.append({
                 'id': row[0],
-                'parent_id': row[2],
-                'direct_count': row[3] or 0,
+                'direct_count': row[2] or 0,
                 'name': row[1],
-                'avg_difficulty': row[4] or 0
+                'avg_difficulty': row[3] or 0
             })
 
         # Aggregate counts up through hierarchy if requested
         if include_children and nodes_data:
-            totals = self._aggregate_hierarchy_counts(nodes_data, count_field='direct_count')
+            # Split by the parent the student chose, so a pinned entry
+            # rolls up through that branch only (§5.4). Without this a
+            # mistake on a subject with two parents inside the dimension
+            # reached both.
+            node_ids = [n['id'] for n in nodes_data]
+            placeholders = ','.join(['?'] * len(node_ids))
+            bucket_rows = self.fetchall(f"""
+                SELECT esm.subject_node_id AS sid,
+                       esm.primary_parent_id AS ppid,
+                       COUNT(DISTINCT qe.id) AS n
+                FROM entry_subject_mappings esm
+                JOIN question_entries qe ON qe.id = esm.question_entry_id
+                JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE esm.mapping_type = 'primary'
+                  AND rs.exam_context_id = ?
+                  AND rs.user_id = ?
+                  AND esm.subject_node_id IN ({placeholders})
+                GROUP BY esm.subject_node_id, esm.primary_parent_id
+            """, tuple([exam_context_id, self.user_id] + node_ids))
+
+            context_buckets = {}
+            for brow in bucket_rows:
+                context_buckets.setdefault(brow['sid'], {})[brow['ppid']] = brow['n']
+
+            totals = self._aggregate_hierarchy_counts(
+                nodes_data,
+                count_field='direct_count',
+                context_buckets=context_buckets,
+            )
         else:
             totals = {n['id']: n['direct_count'] for n in nodes_data}
 
@@ -865,55 +964,109 @@ class DimensionsMixin:
         if not dimension:
             return {'name': 'Root', 'children': [], 'value': 0}
 
-        # Get all nodes in this dimension
-        # Uses entry_subject_mappings which links entries to subjects
-        cursor = self.conn.execute("""
-            SELECT
-                sn.id,
-                sn.name,
-                sn.parent_id,
-                COUNT(DISTINCT esm.question_entry_id) as direct_mistakes
+        # Nodes in this dimension. The tree is assembled from
+        # ``subject_edges`` below, not from ``sn.parent_id``: a subject
+        # with two parents inside this dimension is drawn under each of
+        # them, the same way the subject sunburst does. The legacy column
+        # gave every node exactly one home, so a mistake the student had
+        # scoped to one parent still rolled up under the other.
+        node_rows = self.fetchall("""
+            SELECT sn.id, sn.name
             FROM subject_nodes sn
-            LEFT JOIN entry_subject_mappings esm ON esm.subject_node_id = sn.id
             WHERE sn.exam_context = (
                 SELECT exam_name FROM exam_contexts WHERE id = ?
             )
             AND sn.dimension_id = ?
             AND sn.status = 'active'
-            GROUP BY sn.id
             ORDER BY sn.sort_order, sn.name
         """, (exam_context_id, dimension_id))
 
-        nodes = {}
-        for row in cursor.fetchall():
-            nodes[row[0]] = {
-                'id': row[0],
-                'name': row[1],
-                'parent_id': row[2],
-                'direct_mistakes': row[3] or 0,
-                'children': []
+        if not node_rows:
+            return {'name': dimension['name'], 'children': [], 'value': 0}
+
+        node_ids = [r['id'] for r in node_rows]
+        names = {r['id']: r['name'] for r in node_rows}
+        rank = {r['id']: i for i, r in enumerate(node_rows)}
+        placeholders = ','.join(['?'] * len(node_ids))
+
+        # Mistakes split by the parent context the student chose, so each
+        # position can take only what belongs to it (POLYHIERARCHY §5.4).
+        # Filtered to 'primary' to agree with the subject sunburst, Top
+        # Subjects and the weight quadrant -- this query used to count
+        # secondary "also tested" tags as mistakes too.
+        bucket_rows = self.fetchall(f"""
+            SELECT esm.subject_node_id AS sid,
+                   esm.primary_parent_id AS ppid,
+                   COUNT(DISTINCT qe.id) AS n
+            FROM entry_subject_mappings esm
+            JOIN question_entries qe ON qe.id = esm.question_entry_id
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            WHERE esm.mapping_type = 'primary'
+              AND rs.exam_context_id = ?
+              AND rs.user_id = ?
+              AND esm.subject_node_id IN ({placeholders})
+            GROUP BY esm.subject_node_id, esm.primary_parent_id
+        """, tuple([exam_context_id, self.user_id] + node_ids))
+
+        buckets: Dict[int, Dict[Any, int]] = {}
+        for row in bucket_rows:
+            buckets.setdefault(row['sid'], {})[row['ppid']] = row['n']
+
+        # Edges whose BOTH ends are in this dimension. An edge reaching
+        # out of the dimension is not a position inside this view.
+        edge_rows = self.fetchall(f"""
+            SELECT parent_id, child_id FROM subject_edges
+            WHERE parent_id IN ({placeholders})
+              AND child_id IN ({placeholders})
+        """, tuple(node_ids + node_ids))
+
+        children_of: Dict[int, List[int]] = {}
+        has_parent = set()
+        for row in edge_rows:
+            children_of.setdefault(row['parent_id'], []).append(row['child_id'])
+            has_parent.add(row['child_id'])
+
+        root_ids = [nid for nid in node_ids if nid not in has_parent]
+
+        def render(node_id, parent_id, ancestors):
+            """Build one *position*, not one node.
+
+            ``parent_id`` is where this copy is being drawn; the same
+            node renders again under each of its other in-dimension
+            parents with a different value here. A position draws the
+            undisambiguated bucket, which belongs everywhere, plus the
+            bucket the student pinned to this parent.
+            """
+            by_parent = buckets.get(node_id, {})
+            # The None key means "never disambiguated" and belongs at
+            # every position -- but None is also parent_id at a root, so
+            # without the guard a root counts that bucket twice.
+            direct = by_parent.get(None, 0)
+            if parent_id is not None:
+                direct += by_parent.get(parent_id, 0)
+
+            kids = []
+            for child_id in sorted(children_of.get(node_id, []),
+                                   key=lambda c: rank.get(c, 0)):
+                # add_edge rejects cycles, so this guard should never
+                # fire -- but a cycle here would be unbounded recursion
+                # rather than a wrong number, so it is cheap insurance.
+                if child_id in ancestors:
+                    continue
+                kids.append(render(child_id, node_id,
+                                   ancestors | {child_id}))
+
+            return {
+                'id': node_id,
+                'name': names[node_id],
+                'parent_id': parent_id,
+                'direct_mistakes': direct,
+                'children': kids,
+                'value': direct + sum(k['value'] for k in kids),
             }
 
-        # Build tree structure
-        root_nodes = []
-        for node_id, node in nodes.items():
-            parent_id = node['parent_id']
-            if parent_id and parent_id in nodes:
-                nodes[parent_id]['children'].append(node)
-            else:
-                root_nodes.append(node)
-
-        def calculate_value(node):
-            """Calculate total value including children"""
-            total = node['direct_mistakes']
-            for child in node['children']:
-                total += calculate_value(child)
-            node['value'] = total
-            return total
-
-        total_value = 0
-        for root in root_nodes:
-            total_value += calculate_value(root)
+        root_nodes = [render(nid, None, {nid}) for nid in root_ids]
+        total_value = sum(n['value'] for n in root_nodes)
 
         return {
             'name': dimension['name'],
@@ -963,6 +1116,7 @@ class DimensionsMixin:
 
         if include_children:
             cursor = self._cross_dimension_query_with_children(
+                exam_context_id,
                 dimension_a_id, dimension_b_id,
                 level_type_a, level_type_b,
                 parent_node_a_id, parent_node_b_id,
@@ -970,6 +1124,7 @@ class DimensionsMixin:
             )
         else:
             cursor = self._cross_dimension_query_direct(
+                exam_context_id,
                 dimension_a_id, dimension_b_id,
                 level_type_a, level_type_b,
                 parent_node_a_id, parent_node_b_id,
@@ -1021,6 +1176,7 @@ class DimensionsMixin:
 
     def _cross_dimension_query_direct(
         self,
+        exam_context_id: int,
         dimension_a_id: int,
         dimension_b_id: int,
         level_type_a: Optional[str],
@@ -1029,7 +1185,31 @@ class DimensionsMixin:
         parent_node_b_id: Optional[int],
         min_entries: int
     ):
-        """Direct-mapping cross-dimension query (no descendant aggregation)."""
+        """Direct-mapping cross-dimension query (no descendant aggregation).
+
+        **This query does NOT aggregate up a hierarchy.** It joins
+        ``sn_a.id = esm_a.subject_node_id`` and groups by
+        ``esm_a.subject_node_id``, so every cell is a direct per-node
+        count with no ancestor walk. POLYHIERARCHY_MIGRATION §5.4 is
+        therefore definitionally inapplicable here: an entry tagged on
+        node N is N's mistake whichever parent it rolls through, and no
+        ``primary_parent_id`` value can change this output. Its sibling
+        ``_cross_dimension_query_with_children`` *does* aggregate and
+        does honour §5.4.
+
+        What it was missing, and now has:
+
+        * ``mapping_type = 'primary'`` on **both** axes. Without it a
+          secondary "also tested" tag counted as a mistake, and because
+          the filter was missing on both sides the error was
+          multiplicative across the matrix.
+        * A ``review_sessions`` join scoped to this exam *and* this user.
+          There was no session join at all, so every other user's and
+          every other exam's entries landed in the heatmap.
+        * Drill-down by parent now reads ``subject_edges`` instead of the
+          legacy ``subject_nodes.parent_id``, so a node attached to the
+          drill-down parent only by an edge is no longer missing.
+        """
         where_a_parts = ["sn_a.dimension_id = ?"]
         where_b_parts = ["sn_b.dimension_id = ?"]
         params_a = [dimension_a_id]
@@ -1043,13 +1223,21 @@ class DimensionsMixin:
             params_b.append(level_type_b)
 
         if parent_node_a_id is not None:
-            where_a_parts.append("sn_a.parent_id = ?")
+            where_a_parts.append(
+                "sn_a.id IN (SELECT child_id FROM subject_edges WHERE parent_id = ?)"
+            )
             params_a.append(parent_node_a_id)
         if parent_node_b_id is not None:
-            where_b_parts.append("sn_b.parent_id = ?")
+            where_b_parts.append(
+                "sn_b.id IN (SELECT child_id FROM subject_edges WHERE parent_id = ?)"
+            )
             params_b.append(parent_node_b_id)
 
-        params = params_a + params_b + [min_entries]
+        # Param order follows placeholder order in the SQL below:
+        # sn_a join, sn_b join, the session scope, then HAVING.
+        params = params_a + params_b + [
+            exam_context_id, self.user_id, min_entries
+        ]
         where_a_clause = " AND ".join(where_a_parts)
         where_b_clause = " AND ".join(where_b_parts)
 
@@ -1066,13 +1254,19 @@ class DimensionsMixin:
             INNER JOIN subject_nodes sn_a ON sn_a.id = esm_a.subject_node_id AND {where_a_clause}
             INNER JOIN subject_nodes sn_b ON sn_b.id = esm_b.subject_node_id AND {where_b_clause}
             INNER JOIN question_entries qe ON qe.id = esm_a.question_entry_id
+            INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
             WHERE sn_a.status = 'active' AND sn_b.status = 'active'
+            AND esm_a.mapping_type = 'primary'
+            AND esm_b.mapping_type = 'primary'
+            AND rs.exam_context_id = ?
+            AND rs.user_id = ?
             GROUP BY esm_a.subject_node_id, esm_b.subject_node_id
             HAVING COUNT(DISTINCT esm_a.question_entry_id) >= ?
         """, tuple(params))
 
     def _cross_dimension_query_with_children(
         self,
+        exam_context_id: int,
         dimension_a_id: int,
         dimension_b_id: int,
         level_type_a: Optional[str],
@@ -1081,7 +1275,46 @@ class DimensionsMixin:
         parent_node_b_id: Optional[int],
         min_entries: int
     ):
-        """Cross-dimension query with recursive descendant aggregation."""
+        """Cross-dimension query with recursive descendant aggregation.
+
+        **This query DOES aggregate up a hierarchy.** ``dim_a_tree`` and
+        ``dim_b_tree`` are recursive CTEs walking ``subject_edges`` from
+        each display-level root down to every descendant, and the outer
+        SELECT groups by ``root_id`` — so an entry tagged on a leaf is
+        counted in its ancestor's cell. That is the discriminator that
+        makes POLYHIERARCHY_MIGRATION §5.4 applicable here (and
+        inapplicable to the non-aggregating
+        ``_cross_dimension_query_direct``).
+
+        Four defects, all fixed here:
+
+        1. **§5.4 ignored.** A leaf with two parents inside the dimension
+           rolled up into both roots even when the student had said which
+           parent they meant. ``a_hits``/``b_hits`` now apply the
+           two-branch rule per root: an entry reaches a root when its
+           ``primary_parent_id`` is NULL (OMOP §5.3, all ancestors), when
+           the root *is* the tagged node (a node's own tags are its own
+           mistakes regardless of context — same rule
+           ``_aggregate_hierarchy_counts`` uses), or when the chosen
+           parent is itself inside that root's subtree.
+        2. **No ``mapping_type`` filter** on either axis, so secondary
+           "also tested" tags counted as mistakes — multiplicatively,
+           since both axes were unfiltered.
+        3. **No scoping at all.** The function contained zero references
+           to ``review_sessions``, so every other user's and every other
+           exam's entries leaked into the heatmap — and from there into
+           ``detect_interaction_effects`` and
+           ``get_weighted_study_recommendations``.
+        4. **Legacy ``sn.parent_id``** in the drill-down seeds; now
+           ``subject_edges``.
+
+        UNION (not UNION ALL) is kept as cycle defence, and DISTINCT in
+        ``matched_entries`` still collapses a leaf reachable through
+        several paths to one count per (root_a, root_b) bucket.
+        Cross-dimensional polyhierarchy remains OUT OF SCOPE (§2 plan):
+        the dual-CTE shape and the seed's ``dimension_id`` filter are
+        unchanged.
+        """
         # Build seed WHERE clauses for each dimension's CTE
         seed_a_parts = ["sn.dimension_id = ?", "sn.status = 'active'"]
         seed_b_parts = ["sn.dimension_id = ?", "sn.status = 'active'"]
@@ -1096,28 +1329,25 @@ class DimensionsMixin:
             params_b.append(level_type_b)
 
         if parent_node_a_id is not None:
-            seed_a_parts.append("sn.parent_id = ?")
+            seed_a_parts.append(
+                "sn.id IN (SELECT child_id FROM subject_edges WHERE parent_id = ?)"
+            )
             params_a.append(parent_node_a_id)
         if parent_node_b_id is not None:
-            seed_b_parts.append("sn.parent_id = ?")
+            seed_b_parts.append(
+                "sn.id IN (SELECT child_id FROM subject_edges WHERE parent_id = ?)"
+            )
             params_b.append(parent_node_b_id)
 
         seed_a_clause = " AND ".join(seed_a_parts)
         seed_b_clause = " AND ".join(seed_b_parts)
 
-        # Params order: seed_a params, seed_b params, min_entries
-        params = params_a + params_b + [min_entries]
+        # Params order follows placeholder order in the SQL below:
+        # seed_a, seed_b, the session scope in matched_entries, HAVING.
+        params = params_a + params_b + [
+            exam_context_id, self.user_id, min_entries
+        ]
 
-        # Polyhierarchy migration: traverse via subject_edges (junction
-        # table) instead of subject_nodes.parent_id. Use UNION (not
-        # UNION ALL) defensively to prevent infinite loops on accidental
-        # data cycles. Cross-dimensional polyhierarchy is OUT OF SCOPE
-        # for this migration (§2 plan); the dual-CTE shape and
-        # dimension_id filter on the seed are preserved unchanged. The
-        # outer aggregation deduplicates entries via DISTINCT in
-        # matched_entries so a leaf reachable through multiple paths
-        # within a single dimension only counts once per (root_a, root_b)
-        # bucket.
         return self.conn.execute(f"""
             WITH RECURSIVE
             dim_a_tree AS (
@@ -1142,14 +1372,44 @@ class DimensionsMixin:
                 JOIN subject_nodes child ON child.id = se.child_id
                 WHERE child.status = 'active'
             ),
+            -- §5.4 per root: which entries may this root draw? The LEFT
+            -- JOIN asks "is the parent the student chose inside this
+            -- root's own subtree?" without a correlated sub-select.
+            a_hits AS (
+                SELECT DISTINCT ta.root_id AS root_id,
+                                esm.question_entry_id AS entry_id
+                FROM entry_subject_mappings esm
+                INNER JOIN dim_a_tree ta ON ta.descendant_id = esm.subject_node_id
+                LEFT JOIN dim_a_tree tp
+                    ON tp.root_id = ta.root_id
+                   AND tp.descendant_id = esm.primary_parent_id
+                WHERE esm.mapping_type = 'primary'
+                  AND (esm.primary_parent_id IS NULL
+                       OR esm.subject_node_id = ta.root_id
+                       OR tp.root_id IS NOT NULL)
+            ),
+            b_hits AS (
+                SELECT DISTINCT tb.root_id AS root_id,
+                                esm.question_entry_id AS entry_id
+                FROM entry_subject_mappings esm
+                INNER JOIN dim_b_tree tb ON tb.descendant_id = esm.subject_node_id
+                LEFT JOIN dim_b_tree tp
+                    ON tp.root_id = tb.root_id
+                   AND tp.descendant_id = esm.primary_parent_id
+                WHERE esm.mapping_type = 'primary'
+                  AND (esm.primary_parent_id IS NULL
+                       OR esm.subject_node_id = tb.root_id
+                       OR tp.root_id IS NOT NULL)
+            ),
             matched_entries AS (
-                SELECT DISTINCT ta.root_id as root_a, tb.root_id as root_b,
-                                esm_a.question_entry_id as entry_id
-                FROM entry_subject_mappings esm_a
-                INNER JOIN dim_a_tree ta ON esm_a.subject_node_id = ta.descendant_id
-                INNER JOIN entry_subject_mappings esm_b
-                    ON esm_a.question_entry_id = esm_b.question_entry_id
-                INNER JOIN dim_b_tree tb ON esm_b.subject_node_id = tb.descendant_id
+                SELECT DISTINCT ah.root_id as root_a, bh.root_id as root_b,
+                                ah.entry_id as entry_id
+                FROM a_hits ah
+                INNER JOIN b_hits bh ON bh.entry_id = ah.entry_id
+                INNER JOIN question_entries qe ON qe.id = ah.entry_id
+                INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE rs.exam_context_id = ?
+                  AND rs.user_id = ?
             )
             SELECT
                 me.root_a as dim_a_hierarchy_id, sn_a.name as dim_a_value,
@@ -1186,6 +1446,17 @@ class DimensionsMixin:
 
         Returns:
             List of filtered subject node dicts
+
+        This builds the *axes* of the cross-dimension heatmap (and the
+        scope dropdown). It counts nothing and aggregates nothing, so
+        §5.4 does not apply — but ``parent_node_id`` used to filter on
+        the legacy ``subject_nodes.parent_id``, which gave each node
+        exactly one parent. A node attached to the drill-down parent only
+        through ``subject_edges`` was simply absent from that axis, so
+        its cells could never render. Now sourced from ``subject_edges``.
+
+        The returned ``parent_id`` column is the legacy one and is kept
+        only for payload compatibility; nothing in the heatmap reads it.
         """
         where_parts = [
             "exam_context = (SELECT exam_name FROM exam_contexts WHERE id = ?)",
@@ -1199,7 +1470,9 @@ class DimensionsMixin:
             params.append(level_type)
 
         if parent_node_id is not None:
-            where_parts.append("parent_id = ?")
+            where_parts.append(
+                "id IN (SELECT child_id FROM subject_edges WHERE parent_id = ?)"
+            )
             params.append(parent_node_id)
 
         where_clause = " AND ".join(where_parts)
@@ -1305,8 +1578,33 @@ class DimensionsMixin:
         """
         Get entries at specific dimension intersection for drill-down.
 
-        Graph-primary (P2.5): uses graph for entry ID retrieval, then fetches
-        full entry content from SQLite.
+        **SQLite is authoritative. Do not re-add a graph-first read
+        here.** This used to call ``_graph_get_intersection_entries``
+        first (the "P2.5 graph-primary" optimisation) and return its
+        answer whenever it was non-empty. Three independent reasons that
+        was wrong, the same ones that removed the shortcut from
+        ``_get_descendant_node_ids``:
+
+        * The graph's ``HAS_CHILD`` edges are built by
+          ``GraphMixin._etl_subjects`` exclusively from the legacy
+          ``subject_nodes.parent_id`` column, and ``EdgesMixin`` performs
+          no graph dual-write — so a parent added through
+          ``add_parent``/``add_edge`` never reaches the graph.
+        * The truthiness guard only caught a *totally* empty answer. A
+          **partial** one is truthy and was trusted: a subject reachable
+          through ``parent_id`` but not through its edge-only parent
+          yields a non-empty, incomplete set, and the function returned
+          it.
+        * The graph has no ``mapping_type`` concept and no
+          ``primary_parent_id`` property on ``TAGGED_TO``, so the
+          mapping-type filter and §5.4 below are not merely skipped on
+          that path — they are unrepresentable on it.
+
+        Since ``_graph_read_ready`` is True by default, the shortcut
+        firing would have silently reverted every fix in this function.
+        Re-enabling it requires rebuilding the ETL on ``subject_edges``,
+        adding graph dual-writes to ``EdgesMixin``, and carrying
+        ``mapping_type``/``primary_parent_id`` onto ``TAGGED_TO`` first.
 
         Args:
             exam_context_id: ID of the exam context
@@ -1319,43 +1617,33 @@ class DimensionsMixin:
 
         Returns:
             List of entry dicts at this intersection
-        """
-        # Try graph first for entry ID retrieval (P2.5)
-        # Only trust non-empty results — empty could mean unpopulated graph edges
-        if getattr(self, '_graph_read_ready', False):
-            try:
-                graph_ids = self._graph_get_intersection_entries(
-                    hierarchy_a_id, hierarchy_b_id, include_children,
-                )
-                if graph_ids:
-                    # Fetch full entry content from SQLite using graph-provided IDs
-                    placeholders = ','.join(['?'] * len(graph_ids))
-                    cursor = self.conn.execute(f"""
-                        SELECT DISTINCT
-                            qe.id,
-                            qe.user_answer,
-                            qe.correct_answer,
-                            qe.reflection,
-                            qe.perceived_difficulty,
-                            qe.created_at,
-                            rs.session_name
-                        FROM question_entries qe
-                        LEFT JOIN review_sessions rs ON rs.id = qe.review_session_id
-                        WHERE qe.id IN ({placeholders})
-                        ORDER BY qe.created_at DESC
-                        LIMIT ?
-                    """, tuple(graph_ids) + (limit,))
-                    columns = [desc[0] for desc in cursor.description]
-                    return [dict(zip(columns, row)) for row in cursor.fetchall()]
-            except Exception as e:
-                logger.warning("Graph read failed for get_intersection_entries, falling back to SQLite: %s", e)
 
-        # SQLite fallback
+        The ``include_children`` branch **aggregates** (two recursive CTEs
+        over ``subject_edges``), so POLYHIERARCHY_MIGRATION §5.4 applies —
+        and it was absent, which §8.1 of the plan names explicitly as an
+        outstanding item. The ``include_children=False`` branch matches
+        ``esm.subject_node_id`` exactly and does **not** aggregate, so
+        §5.4 is inapplicable there.
+
+        Both branches also lacked a ``mapping_type`` filter (secondary
+        "also tested" tags were returned as mistakes) and, although they
+        joined ``review_sessions``, they did so only to SELECT
+        ``rs.session_name`` — there was no ``rs.user_id`` or
+        ``rs.exam_context_id`` predicate, so another user's or another
+        exam's entries could be listed.
+        """
         if include_children:
             # Polyhierarchy migration: descend via subject_edges with
             # UNION dedup. Both inner CTEs walk the junction table; the
             # outer SELECT keeps DISTINCT on qe.id so a leaf reachable
             # through multiple paths still only counts once.
+            #
+            # §5.4, per axis: an entry in the subtree is listed when the
+            # student never disambiguated it (NULL — every ancestor),
+            # when it is tagged on the intersection node itself (its own
+            # tags are its own mistakes whichever branch they roll
+            # through), or when the parent they chose is inside this
+            # subtree.
             query = f"""
                 WITH RECURSIVE descendants_a AS (
                     SELECT id FROM subject_nodes WHERE id = ? AND status = 'active'
@@ -1386,15 +1674,28 @@ class DimensionsMixin:
                 INNER JOIN entry_subject_mappings esm_b ON esm_b.question_entry_id = qe.id
                 INNER JOIN subject_nodes sn_a ON sn_a.id = esm_a.subject_node_id AND sn_a.dimension_id = ?
                 INNER JOIN subject_nodes sn_b ON sn_b.id = esm_b.subject_node_id AND sn_b.dimension_id = ?
-                LEFT JOIN review_sessions rs ON rs.id = qe.review_session_id
-                WHERE esm_a.subject_node_id IN (SELECT id FROM descendants_a)
+                INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE esm_a.mapping_type = 'primary'
+                AND esm_b.mapping_type = 'primary'
+                AND esm_a.subject_node_id IN (SELECT id FROM descendants_a)
+                AND (esm_a.primary_parent_id IS NULL
+                     OR esm_a.subject_node_id = ?
+                     OR esm_a.primary_parent_id IN (SELECT id FROM descendants_a))
                 AND esm_b.subject_node_id IN (SELECT id FROM descendants_b)
+                AND (esm_b.primary_parent_id IS NULL
+                     OR esm_b.subject_node_id = ?
+                     OR esm_b.primary_parent_id IN (SELECT id FROM descendants_b))
+                AND rs.exam_context_id = ?
+                AND rs.user_id = ?
                 ORDER BY qe.created_at DESC
                 LIMIT ?
             """
             cursor = self.conn.execute(
                 query,
-                (hierarchy_a_id, hierarchy_b_id, dimension_a_id, dimension_b_id, limit)
+                (hierarchy_a_id, hierarchy_b_id,
+                 dimension_a_id, dimension_b_id,
+                 hierarchy_a_id, hierarchy_b_id,
+                 exam_context_id, self.user_id, limit)
             )
         else:
             cursor = self.conn.execute("""
@@ -1411,12 +1712,17 @@ class DimensionsMixin:
                 INNER JOIN entry_subject_mappings esm_b ON esm_b.question_entry_id = qe.id
                 INNER JOIN subject_nodes sn_a ON sn_a.id = esm_a.subject_node_id AND sn_a.dimension_id = ?
                 INNER JOIN subject_nodes sn_b ON sn_b.id = esm_b.subject_node_id AND sn_b.dimension_id = ?
-                LEFT JOIN review_sessions rs ON rs.id = qe.review_session_id
-                WHERE esm_a.subject_node_id = ?
+                INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE esm_a.mapping_type = 'primary'
+                AND esm_b.mapping_type = 'primary'
+                AND esm_a.subject_node_id = ?
                 AND esm_b.subject_node_id = ?
+                AND rs.exam_context_id = ?
+                AND rs.user_id = ?
                 ORDER BY qe.created_at DESC
                 LIMIT ?
-            """, (dimension_a_id, dimension_b_id, hierarchy_a_id, hierarchy_b_id, limit))
+            """, (dimension_a_id, dimension_b_id, hierarchy_a_id, hierarchy_b_id,
+                  exam_context_id, self.user_id, limit))
 
         columns = [desc[0] for desc in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -1447,6 +1753,18 @@ class DimensionsMixin:
 
         Returns:
             List of 3-way combinations ranked by count (highest first)
+
+        **This query does NOT aggregate up a hierarchy** — it says so in
+        the note above, and the SQL confirms it: three direct
+        ``sn.id = esm.subject_node_id`` joins and a GROUP BY on the three
+        ``subject_node_id`` columns, with no ancestor walk. §5.4 is
+        therefore inapplicable; ``primary_parent_id`` cannot change a
+        direct per-node count.
+
+        It was missing ``mapping_type = 'primary'`` on all three axes
+        (secondary "also tested" tags counted, multiplicatively) and had
+        no ``review_sessions`` join at all, so another user's or another
+        exam's entries counted. Both fixed.
         """
         # Uses entry_subject_mappings to find entries with subjects in all three dimensions
         cursor = self.conn.execute("""
@@ -1466,11 +1784,18 @@ class DimensionsMixin:
             INNER JOIN subject_nodes sn_b ON sn_b.id = esm_b.subject_node_id AND sn_b.dimension_id = ?
             INNER JOIN subject_nodes sn_c ON sn_c.id = esm_c.subject_node_id AND sn_c.dimension_id = ?
             INNER JOIN question_entries qe ON qe.id = esm_a.question_entry_id
+            INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
+            WHERE esm_a.mapping_type = 'primary'
+            AND esm_b.mapping_type = 'primary'
+            AND esm_c.mapping_type = 'primary'
+            AND rs.exam_context_id = ?
+            AND rs.user_id = ?
             GROUP BY esm_a.subject_node_id, esm_b.subject_node_id, esm_c.subject_node_id
             HAVING COUNT(DISTINCT esm_a.question_entry_id) >= ?
             ORDER BY count DESC
             LIMIT ?
-        """, (dim_a_id, dim_b_id, dim_c_id, min_entries, limit))
+        """, (dim_a_id, dim_b_id, dim_c_id, exam_context_id, self.user_id,
+              min_entries, limit))
 
         results = []
         for row in cursor.fetchall():
@@ -1518,14 +1843,22 @@ class DimensionsMixin:
         if not dim_a_perf['nodes'] or not dim_b_perf['nodes']:
             return []
 
-        # Create lookup for marginal rates
+        # Create lookup for marginal rates.
+        #
+        # The denominator is a flat COUNT over question_entries with no
+        # ancestor walk, so §5.4 is inapplicable to it (the marginals it
+        # divides come from get_dimension_performance, which does
+        # aggregate and does honour §5.4). It filtered exam_context_id
+        # but not user_id, so on a shared database every other user's
+        # entries inflated the denominator and shrank every interaction.
         total_entries = 0
         cursor = self.conn.execute("""
             SELECT COUNT(DISTINCT id) FROM question_entries
             WHERE review_session_id IN (
-                SELECT id FROM review_sessions WHERE exam_context_id = ?
+                SELECT id FROM review_sessions
+                WHERE exam_context_id = ? AND user_id = ?
             )
-        """, (exam_context_id,))
+        """, (exam_context_id, self.user_id))
         row = cursor.fetchone()
         total_entries = row[0] if row else 0
 
@@ -1588,6 +1921,17 @@ class DimensionsMixin:
 
         Returns:
             Dict with dimension values and their mistake type distributions
+
+        **This query does NOT aggregate up a hierarchy** — one direct
+        ``sn.id = esm.subject_node_id`` join, GROUP BY ``sn.id, t.id``, no
+        recursion and no ancestor walk. §5.4 is inapplicable: the count
+        of mistake types on node N does not depend on which parent N's
+        entries roll through.
+
+        It was missing ``mapping_type = 'primary'`` (secondary tags
+        counted) and had no ``review_sessions`` join at all, so entries
+        from other users and other exams appeared in the bars. Both
+        fixed.
         """
         dimension = self.get_dimension(dimension_id)
         if not dimension:
@@ -1606,10 +1950,15 @@ class DimensionsMixin:
             INNER JOIN subject_nodes sn ON sn.id = esm.subject_node_id AND sn.dimension_id = ?
             INNER JOIN entry_tags et ON et.question_entry_id = esm.question_entry_id
             INNER JOIN tags t ON t.id = et.tag_id
+            INNER JOIN question_entries qe ON qe.id = esm.question_entry_id
+            INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
             WHERE t.tag_category = 'mistake_type'
+            AND esm.mapping_type = 'primary'
+            AND rs.exam_context_id = ?
+            AND rs.user_id = ?
             GROUP BY sn.id, t.id
             ORDER BY sn.name, count DESC
-        """, (dimension_id,))
+        """, (dimension_id, exam_context_id, self.user_id))
 
         # Organize data by dimension value
         values_data = {}
@@ -1758,10 +2107,35 @@ class DimensionsMixin:
 
         Returns:
             Dict with weekly data points and trend info
+
+        **Neither query aggregates up a hierarchy** — ``hierarchy_id``
+        matches ``esm.subject_node_id`` exactly, and the unfiltered form
+        just takes every node in the dimension. No recursion, no ancestor
+        walk, so §5.4 is inapplicable: which parent an entry rolls
+        through cannot change the week it was created in or whether its
+        own subject is in this dimension.
+
+        Both were missing ``mapping_type = 'primary'`` and had no
+        ``review_sessions`` join at all, so the trend line mixed in other
+        users' and other exams' entries. Both fixed.
+
+        **Separate pre-existing defect, also fixed here:** the window was
+        built as ``date('now', '-{weeks} weeks')``. SQLite has no
+        ``weeks`` modifier — its date modifiers are days, hours, minutes,
+        seconds, months and years — so that expression evaluated to
+        **NULL**, ``qe.created_at >= NULL`` was NULL, and *both* queries
+        returned zero rows unconditionally. This surface has always
+        returned ``{'data': [], 'total': 0, 'trend': 'stable'}`` for every
+        input. It had to be fixed to make any other filter here
+        observable: a query that returns nothing cannot be shown to
+        return the wrong thing. Converted to days.
         """
         dimension = self.get_dimension(dimension_id)
         if not dimension:
             return {'dimension_name': '', 'data': [], 'trend': 'stable'}
+
+        # SQLite understands 'days', not 'weeks' (see docstring).
+        window = f'-{int(weeks) * 7} days'
 
         # Build query based on whether specific hierarchy is requested
         # Uses entry_subject_mappings to link entries to dimension subjects
@@ -1774,11 +2148,16 @@ class DimensionsMixin:
                 FROM question_entries qe
                 INNER JOIN entry_subject_mappings esm ON esm.question_entry_id = qe.id
                 INNER JOIN subject_nodes sn ON sn.id = esm.subject_node_id AND sn.dimension_id = ?
+                INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
                 WHERE esm.subject_node_id = ?
+                AND esm.mapping_type = 'primary'
+                AND rs.exam_context_id = ?
+                AND rs.user_id = ?
                 AND qe.created_at >= date('now', ?)
                 GROUP BY week
                 ORDER BY week
-            """, (dimension_id, hierarchy_id, f'-{weeks} weeks'))
+            """, (dimension_id, hierarchy_id, exam_context_id, self.user_id,
+                  window))
         else:
             cursor = self.conn.execute("""
                 SELECT
@@ -1788,10 +2167,14 @@ class DimensionsMixin:
                 FROM question_entries qe
                 INNER JOIN entry_subject_mappings esm ON esm.question_entry_id = qe.id
                 INNER JOIN subject_nodes sn ON sn.id = esm.subject_node_id AND sn.dimension_id = ?
-                WHERE qe.created_at >= date('now', ?)
+                INNER JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE esm.mapping_type = 'primary'
+                AND rs.exam_context_id = ?
+                AND rs.user_id = ?
+                AND qe.created_at >= date('now', ?)
                 GROUP BY week
                 ORDER BY week
-            """, (dimension_id, f'-{weeks} weeks'))
+            """, (dimension_id, exam_context_id, self.user_id, window))
 
         data = []
         counts = []

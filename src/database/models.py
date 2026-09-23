@@ -25,6 +25,13 @@ class User:
     created_at: datetime
     soft_deleted_at: Optional[datetime]
     deletion_confirmed: bool
+    #: Mirror of the profile's own identifier (#129). The authority is
+    #: ``profile_identity.profile_uuid`` inside the user database, which
+    #: is what travels in a ``.wimi``; this copy exists so the registry
+    #: can answer "do I already have this profile?" without opening every
+    #: profile in turn, and is re-derived on every open. ``None`` until
+    #: the profile has been opened once since master m002.
+    profile_uuid: Optional[str] = None
     registered_devices: List[str] = field(default_factory=list)
     notification_tokens: List[str] = field(default_factory=list)
     database_encryption_enabled: bool = False
@@ -51,6 +58,7 @@ class User:
             is_primary_admin=bool(row['is_primary_admin']),
             cloud_sync_enabled=bool(row['cloud_sync_enabled']),
             cloud_user_id=row.get('cloud_user_id'),
+            profile_uuid=row.get('profile_uuid'),
             last_active_at=datetime.fromisoformat(row['last_active_at']) if row.get('last_active_at') else datetime.now(),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else datetime.now(),
             soft_deleted_at=datetime.fromisoformat(row['soft_deleted_at']) if row.get('soft_deleted_at') else None,
@@ -183,6 +191,14 @@ class UserPreferences:
     show_mistake_patterns: bool = True
     show_subject_breakdown: bool = True
     show_time_analytics: bool = True
+    # How the study-efficiency score shows its uncertainty (#133).
+    # Off: one number, plus the "Weight Sources" breakdown card. On: a
+    # band, widened by how much of the exam's weight mass did not come
+    # from a published blueprint. It is a stated display preference and
+    # means the same thing on any machine, so it stays user-level and
+    # travels in a ``.wimi`` -- contrast ``ankiconnect_host``, whose
+    # identical string denotes a different machine.
+    efficiency_show_confidence_band: bool = False
     # Calendar
     calendar_default_view: str = 'week'
     calendar_time_slot_minutes: int = 30
@@ -191,9 +207,6 @@ class UserPreferences:
     entry_review_items_per_page: int = 25
     entry_review_default_sort_field: str = 'answered_incorrectly_date'
     entry_review_default_sort_direction: str = 'desc'
-    # AnkiConnect Integration
-    anki_integration_enabled: bool = False
-    ankiconnect_port: int = 8765
     # Data Management
     auto_backup_enabled: bool = True
     backup_frequency_hours: int = 24
@@ -201,9 +214,19 @@ class UserPreferences:
     cloud_sync_enabled: bool = False
     # Performance
     realtime_update_delay_ms: int = 1500
-    # MCP Server
-    mcp_server_enabled: bool = False
-    mcp_server_port: int = 8000
+    # Browser pane. Both of these are stated preferences with a control
+    # in Settings, and both mean the same thing on any machine, so they
+    # follow the student. The pane's *remembered state* -- zoom, split
+    # and last URL -- moved to ``DeviceSettings`` in m021 (#126), along
+    # with AnkiConnect and the MCP server, because those name a machine.
+    pane_open_mode: str = 'last'
+    pane_shortcut_opens: str = 'current'
+    # Which question bank ``pane_open_mode = 'source'`` opens. It stays
+    # user-level on purpose: it references a ``question_sources`` row,
+    # and that row travels inside the same snapshot, so the id means the
+    # same thing on the other machine. Contrast ``ankiconnect_host``,
+    # whose identical string denotes a different machine.
+    pane_default_source_id: Optional[int] = None
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -238,23 +261,83 @@ class UserPreferences:
             show_mistake_patterns=bool(row.get('show_mistake_patterns', True)),
             show_subject_breakdown=bool(row.get('show_subject_breakdown', True)),
             show_time_analytics=bool(row.get('show_time_analytics', True)),
+            efficiency_show_confidence_band=bool(
+                row.get('efficiency_show_confidence_band', False)
+            ),
             calendar_default_view=row.get('calendar_default_view', 'week'),
             calendar_time_slot_minutes=row.get('calendar_time_slot_minutes', 30),
             show_weekend_in_calendar=bool(row.get('show_weekend_in_calendar', True)),
             entry_review_items_per_page=row.get('entry_review_items_per_page', 25),
             entry_review_default_sort_field=row.get('entry_review_default_sort_field', 'answered_incorrectly_date'),
             entry_review_default_sort_direction=row.get('entry_review_default_sort_direction', 'desc'),
-            anki_integration_enabled=bool(row.get('anki_integration_enabled', False)),
-            ankiconnect_port=row.get('ankiconnect_port', 8765),
             auto_backup_enabled=bool(row.get('auto_backup_enabled', True)),
             backup_frequency_hours=row.get('backup_frequency_hours', 24),
             backup_retention_days=row.get('backup_retention_days', 30),
             cloud_sync_enabled=bool(row.get('cloud_sync_enabled', False)),
             realtime_update_delay_ms=row.get('realtime_update_delay_ms', 1500),
-            mcp_server_enabled=bool(row.get('mcp_server_enabled', False)),
-            mcp_server_port=row.get('mcp_server_port', 8000),
+            pane_open_mode=row.get('pane_open_mode') or 'last',
+            pane_shortcut_opens=row.get('pane_shortcut_opens') or 'current',
+            pane_default_source_id=row.get('pane_default_source_id'),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
+        )
+
+
+@dataclass
+class DeviceSettings:
+    """Settings that belong to one machine, not to the student (#126).
+
+    These moved out of ``UserPreferences`` in m021 because they are
+    *wrong* on another machine rather than merely different there.
+    ``ankiconnect_host`` is the clearest case: its default ``localhost``
+    denotes a different machine on each device, so copying it is
+    semantically wrong even when the two values are byte-identical. The
+    same argument covers the MCP server, which binds a TCP port on this
+    machine and is auto-started at launch, and the pane's remembered
+    geometry, which describes this machine's window.
+
+    Rows are keyed by the device id from the master database, which is
+    per-install and never packed into a ``.wimi``. A profile opened on a
+    machine that has never seen it finds no row and takes these
+    defaults.
+    """
+    id: int
+    device_id: str
+    # Browser pane, remembered per machine
+    pane_last_url: Optional[str] = None
+    pane_split_app_pct: Optional[int] = None
+    pane_zoom_pct: int = 100
+    # AnkiConnect
+    ankiconnect_enabled: bool = False
+    anki_integration_enabled: bool = False
+    ankiconnect_host: str = 'localhost'
+    ankiconnect_port: int = 8765
+    # MCP server
+    mcp_server_enabled: bool = False
+    mcp_server_port: int = 8000
+    # Timestamps
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> 'DeviceSettings':
+        """Create DeviceSettings from database row"""
+        if not row:
+            return None
+        return cls(
+            id=row['id'],
+            device_id=row['device_id'],
+            pane_last_url=row.get('pane_last_url'),
+            pane_split_app_pct=row.get('pane_split_app_pct'),
+            pane_zoom_pct=row.get('pane_zoom_pct') or 100,
+            ankiconnect_enabled=bool(row.get('ankiconnect_enabled', False)),
+            anki_integration_enabled=bool(row.get('anki_integration_enabled', False)),
+            ankiconnect_host=row.get('ankiconnect_host') or 'localhost',
+            ankiconnect_port=row.get('ankiconnect_port') or 8765,
+            mcp_server_enabled=bool(row.get('mcp_server_enabled', False)),
+            mcp_server_port=row.get('mcp_server_port') or 8000,
+            created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
+            updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None,
         )
 
 
@@ -359,6 +442,14 @@ class SubjectNode:
     updated_at: Optional[datetime] = None
     children: List['SubjectNode'] = field(default_factory=list)
 
+    # Issue #67: the stable id the import file gave this subject, or None
+    # for anything created in the tree editor or imported before the
+    # field existed. Re-import matches on it, which is what lets a rename
+    # in the file be understood as a rename rather than a delete plus a
+    # create. Export writes it back out as ``id`` so a round trip keeps
+    # the tree matchable.
+    import_id: Optional[str] = None
+
     # Polyhierarchy: TRUE when this is a non-primary appearance of a node
     # that has multiple parent edges. The same canonical row appears once
     # under its primary parent (with alias=False) and once per non-primary
@@ -392,9 +483,10 @@ class SubjectNode:
             outline_type=row.get('outline_type', 'content'),
             status=row.get('status', 'active'),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else datetime.now(),
-            updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else datetime.now()
+            updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else datetime.now(),
+            import_id=row.get('import_id')
         )
-    
+
     @property
     def has_absolute_weight(self) -> bool:
         """Check if node has absolute weight defined"""
@@ -1124,10 +1216,15 @@ class ReviewSession:
     
     @property
     def completion_percentage(self) -> float:
-        """Calculate completion percentage"""
+        """Calculate completion percentage, capped at 100.
+
+        More entries can be logged than the session declared (total_incorrect
+        is the student's first estimate); the raw counts stay honest but no
+        derived progress figure should read past 100.
+        """
         if self.total_incorrect == 0:
             return 100.0
-        return round(self.entries_completed / self.total_incorrect * 100, 1)
+        return min(100.0, round(self.entries_completed / self.total_incorrect * 100, 1))
     
     @property
     def remaining_entries(self) -> int:

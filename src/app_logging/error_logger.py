@@ -3,6 +3,7 @@ Error Logging Manager for PyQt6 WebEngine Student App
 Provides asynchronous, multi-environment error logging with automatic recovery
 """
 
+import atexit
 import os
 import json
 import time
@@ -138,6 +139,13 @@ class ErrorLogger(QObject):
     Handles asynchronous logging with automatic recovery
     """
     
+    # Top-level package loggers whose records are captured into the log
+    # files. Modules log through logging.getLogger(__name__), so these
+    # roots cover 'app.model_runtime', 'app.bridge',
+    # 'database.base_db', 'wimi.graph', and anything added under them.
+    # Add a new root here if a new top-level package starts logging.
+    CAPTURED_LOGGER_ROOTS = ('app', 'database', 'wimi', 'wimi_test')
+
     # Qt signals for UI updates
     error_logged = pyqtSignal(dict)  # Emit when error is logged
     recovery_attempted = pyqtSignal(dict)  # Emit when recovery is attempted
@@ -200,10 +208,26 @@ class ErrorLogger(QObject):
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='ErrorLogger')
         self.flush_timer = None
         self.running = True
-        
+        # Guards the file handle: the flush ticker thread and the caller's
+        # thread can both reach flush().
+        self._flush_lock = threading.RLock()
+        self._cleaned_up = False
+
         # Initialize
         self._initialize_logging()
         self._start_flush_timer()
+
+        # Last-resort drain. The Qt aboutToQuit hook covers a normal app
+        # exit, but nothing covered a headless run, a test, or an exit
+        # that bypasses the event loop -- and an undrained queue means a
+        # 0-byte log file, which is exactly how this failure hid.
+        #
+        # wait=False is load-bearing: joining the executor from an atexit
+        # handler races concurrent.futures' own atexit hook and hangs the
+        # interpreter. That stranded every WIMI subprocess the regression
+        # harness spawned, so the whole scenario suite failed while each
+        # scenario passed alone.
+        atexit.register(self._atexit_drain)
     
     def _generate_session_id(self) -> str:
         """Generate unique session ID"""
@@ -211,12 +235,38 @@ class ErrorLogger(QObject):
     
     def _initialize_logging(self):
         """Initialize the logging system"""
-        # Setup Python's built-in logging to redirect here
-        self.python_logger = logging.getLogger(self.app_name)
+        # Redirect Python's built-in logging here.
+        #
+        # Attached to the app's PACKAGE roots, not logging.getLogger(app_name):
+        # every module uses logging.getLogger(__name__) — 'app.model_runtime',
+        # 'app.bridge', 'database.base_db', 'wimi.graph' — and none
+        # of those are descendants of 'StudentApp', so a handler on that name
+        # received nothing and all stdlib logging was invisible in the files.
+        #
+        # Package roots rather than the root logger: root would also capture
+        # every third-party library at DEBUG and bury the app's own records.
+        level = logging.DEBUG if self.mode == 'development' else logging.WARNING
         handler = self.PythonLoggingHandler(self)
-        handler.setLevel(logging.DEBUG if self.mode == 'development' else logging.WARNING)
-        self.python_logger.addHandler(handler)
-        
+        handler.setLevel(level)
+
+        self.python_loggers = []
+        for name in self.CAPTURED_LOGGER_ROOTS:
+            captured = logging.getLogger(name)
+            # A second ErrorLogger in the same process must not
+            # double-attach and write every record twice.
+            for existing in list(captured.handlers):
+                if isinstance(existing, self.PythonLoggingHandler):
+                    captured.removeHandler(existing)
+            captured.addHandler(handler)
+            # The default level for a fresh logger is NOTSET, which
+            # inherits root's WARNING — that alone dropped every INFO
+            # record before it reached the handler.
+            captured.setLevel(level)
+            self.python_loggers.append(captured)
+
+        # Back-compat: code that reached for .python_logger still works.
+        self.python_logger = self.python_loggers[0]
+
         # Open initial log file
         self._rotate_log_file()
     
@@ -243,14 +293,46 @@ class ErrorLogger(QObject):
                 except Exception:
                     pass
     
+    class _FlushTicker:
+        """Daemon-thread periodic flush.
+
+        Replaces a ``QTimer``. ``main.py`` constructs the ErrorLogger
+        *before* ``QApplication`` exists, and a QTimer created without an
+        event loop never fires — verified: 8 s of event loop afterwards
+        still produced a 0-byte log file. That is why every
+        ``StudentApp_*.log`` was empty: records queued, nothing drained
+        them, and only an explicit ``cleanup()`` ever wrote.
+
+        A plain daemon thread has no such ordering requirement and works
+        headlessly (tests, MCP server) where no QApplication exists at
+        all.
+        """
+
+        def __init__(self, interval, flush):
+            self._interval = max(0.05, float(interval))
+            self._flush = flush
+            self._stop = threading.Event()
+            self._thread = threading.Thread(
+                target=self._run, name='wimi-log-flush', daemon=True,
+            )
+            self._thread.start()
+
+        def _run(self):
+            while not self._stop.wait(self._interval):
+                try:
+                    self._flush()
+                except Exception:  # noqa: BLE001 — a logging thread must
+                    pass           # never take the app down
+
+        def stop(self):
+            self._stop.set()
+
     def _start_flush_timer(self):
-        """Start timer for periodic flushing"""
+        """Start periodic flushing (see :class:`_FlushTicker`)."""
         if self.flush_timer:
             self.flush_timer.stop()
-        
-        self.flush_timer = QTimer()
-        self.flush_timer.timeout.connect(self.flush)
-        self.flush_timer.start(int(self.flush_interval * 1000))
+
+        self.flush_timer = self._FlushTicker(self.flush_interval, self.flush)
     
     def set_user_context(self, user_id: int, username: str, database: str = 'master'):
         """Set the current user context for error tracking"""
@@ -343,7 +425,25 @@ class ErrorLogger(QObject):
         return hashlib.md5(content.encode()).hexdigest()
     
     def _should_deduplicate(self, entry: ErrorLogEntry) -> bool:
-        """Check if error should be deduplicated"""
+        """Check if a record should be collapsed into an earlier identical one.
+
+        Deduplication exists to stop a failing code path from filling the
+        log with thousands of identical stack traces. It must NOT apply
+        to routine events: an INFO record states that something
+        happened, and a second occurrence is the information, not noise.
+
+        Collapsing them destroyed the audit trail outright. Any path
+        that logs one low-entropy line per occurrence -- "Connected to
+        database: ...", a per-session commit line -- produced a single
+        entry for N events, and the survivor still read ``count: 1``,
+        because the increment below mutates the cached object in memory
+        and never rewrites what is already on disk. The repeat left no
+        trace at all, which is exactly the silent-logging failure this
+        module has a history of.
+        """
+        if entry.level < ErrorLevel.WARNING:
+            return False
+
         if entry.error_hash in self.error_cache:
             cached = self.error_cache[entry.error_hash]
             if time.time() - cached.last_seen < self.dedup_window:
@@ -455,18 +555,25 @@ class ErrorLogger(QObject):
         self.stats_updated.emit(dict(self.stats[hour_key]))
     
     def flush(self):
-        """Flush queued errors to disk"""
-        processed = 0
-        while not self.error_queue.empty() and processed < 100:
-            try:
-                entry = self.error_queue.get_nowait()
-                self._process_error(entry)
-                processed += 1
-            except queue.Empty:
-                break
-        
-        if self.log_file_handle:
-            self.log_file_handle.flush()
+        """Flush queued errors to disk.
+
+        Serialized: the periodic ticker runs on a daemon thread while
+        cleanup() and ERROR-level self-flushes run on the caller's, so
+        without the lock two threads can interleave writes into the same
+        file handle.
+        """
+        with self._flush_lock:
+            processed = 0
+            while not self.error_queue.empty() and processed < 100:
+                try:
+                    entry = self.error_queue.get_nowait()
+                    self._process_error(entry)
+                    processed += 1
+                except queue.Empty:
+                    break
+
+            if self.log_file_handle:
+                self.log_file_handle.flush()
     
     def get_recent_errors(self, 
                          count: int = 100,
@@ -556,19 +663,59 @@ class ErrorLogger(QObject):
         
         return stats
     
-    def cleanup(self):
-        """Cleanup resources on shutdown"""
+    def _atexit_drain(self):
+        """Non-blocking drain for interpreter shutdown."""
+        self.cleanup(wait=False)
+
+    def cleanup(self, wait: bool = True):
+        """Cleanup resources on shutdown.
+
+        Idempotent: reachable from the Qt aboutToQuit hook, the atexit
+        hook, and tests. A second call must not raise on an already-closed
+        handle, or the atexit pass would print a spurious traceback after
+        a normal shutdown.
+        """
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
         self.running = False
-        
+
         if self.flush_timer:
-            self.flush_timer.stop()
-        
-        self.flush()
-        
+            try:
+                self.flush_timer.stop()
+            except Exception:  # noqa: BLE001 — never block shutdown
+                pass
+
+        try:
+            self.flush()
+        except Exception:  # noqa: BLE001
+            pass
+
         if self.log_file_handle:
-            self.log_file_handle.close()
-        
-        self.executor.shutdown(wait=True)
+            try:
+                self.log_file_handle.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+        # Detach from the package loggers BEFORE the executor dies.
+        # The handler is installed on process-global logging state
+        # (logging.getLogger('database') and friends) but its lifetime was
+        # tied to nothing: cleanup() shut the executor down and left the
+        # handler attached, so the next module to log an ERROR under any
+        # captured root -- code with no ErrorLogger of its own, a
+        # MasterDatabase built with error_logger=None -- routed into a
+        # dead instance and raised "cannot schedule new futures after
+        # shutdown" from inside an unrelated test.
+        for captured in getattr(self, 'python_loggers', []):
+            for existing in list(captured.handlers):
+                if isinstance(existing, self.PythonLoggingHandler) and                         existing.error_logger is self:
+                    try:
+                        captured.removeHandler(existing)
+                    except Exception:  # noqa: BLE001 - never block shutdown
+                        pass
+        self.python_loggers = []
+
+        self.executor.shutdown(wait=wait)
     
     # Convenience methods for different error levels
     def trace(self, message: str, **kwargs):
@@ -609,10 +756,23 @@ class ErrorLogger(QObject):
             }
             
             level = level_map.get(record.levelno, ErrorLevel.INFO)
-            
-            self.error_logger.log(
-                level=level,
-                message=record.getMessage(),
-                category=ErrorCategory.SYSTEM,
-                stack_trace=self.format(record) if record.exc_info else None
-            )
+
+            # Belt and braces for the detach in cleanup(). A handler can
+            # still outlive its logger by a route cleanup() never sees:
+            # the ErrorLogger is a QObject, so Qt can destroy the C++ side
+            # while this Python wrapper survives, and any call into it
+            # then raises "wrapped C/C++ object ... has been deleted".
+            # A logging handler must never take down the code that logged.
+            if getattr(self.error_logger, '_cleaned_up', False):
+                return
+            try:
+                self.error_logger.log(
+                    level=level,
+                    message=record.getMessage(),
+                    category=ErrorCategory.SYSTEM,
+                    stack_trace=self.format(record) if record.exc_info else None
+                )
+            except RuntimeError:
+                # Dead executor or deleted QObject: drop the record.
+                # Reporting it through logging would recurse into here.
+                pass

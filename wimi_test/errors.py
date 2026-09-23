@@ -30,6 +30,8 @@ __all__ = [
     "ProcessSpawnError",
     "AttachTimeout",
     "LocatorAmbiguous",
+    "BridgeCallTimeout",
+    "BridgeCallsUnavailable",
     "AssertionFailureWithCapture",
 ]
 
@@ -104,6 +106,49 @@ class LocatorAmbiguous(WimiTestError):
         super().__init__(message)
         self.strategy: str = strategy
         self.matches: list[str] = matches
+
+
+class BridgeCallsUnavailable(WimiTestError):
+    """Raised when the WIMI-side bridge-call buffer cannot be read at all.
+
+    `WimiPage.wait_for_bridge_call` polls
+    ``window.api.getTestModeBridgeCalls(since_ts)``. That slot answers
+    ``'[]'`` (an honest "nothing recorded yet") whenever it is reachable,
+    so a *missing* slot — the JS probe returning ``null`` — means the
+    instrumentation is not installed, not that the call under test never
+    happened. Conflating the two would make the helper a wait that can
+    never succeed, which is the exact failure mode it was written to
+    remove, so the two are separate exception types.
+
+    The usual cause is a WIMI launched without ``--test-mode``:
+    ``@instrumented_slot`` evaluates ``test_mode.is_active()`` at
+    *decoration* time, so a production import records nothing.
+    """
+
+
+class BridgeCallTimeout(WimiTestError):
+    """Raised when a named bridge call is not observed before the deadline.
+
+    `method` is the slot name that was awaited, `timeout_ms` the budget
+    it was given, and `observed` the *other* slot names that were
+    recorded in the same window — the single most useful diagnostic,
+    because "these eleven calls happened and yours was not among them"
+    distinguishes "the action never fired" from "the action fired and
+    was slow".
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        method: str,
+        timeout_ms: int,
+        observed: list[str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.method: str = method
+        self.timeout_ms: int = timeout_ms
+        self.observed: list[str] = list(observed) if observed else []
 
 
 class AssertionFailureWithCapture(WimiTestError, AssertionError):

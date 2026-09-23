@@ -7,9 +7,11 @@ They share state through ``self.*`` and must NOT import each other.
 from ._base import SharedHelpersMixin
 from .schema_migrations import SchemaMigrationMixin
 from .preferences import PreferencesMixin
+from .device_settings import DeviceSettingsMixin
 from .exam_contexts import ExamContextMixin
 from .hierarchy import HierarchyMixin
 from .edges import EdgesMixin
+from .relations import RelationsMixin
 from .tags import TagsMixin
 from .sessions import SessionsMixin
 from .timer import TimerMixin
@@ -23,6 +25,7 @@ from .goals import GoalsMixin
 from .dimensions import DimensionsMixin
 from .aliases import AliasesMixin
 from .import_export import ImportExportMixin
+from .subject_import import SubjectImportMixin
 from .plugin_data import PluginDataMixin
 from .graph import GraphMixin
 
@@ -30,9 +33,11 @@ __all__ = [
     'SharedHelpersMixin',
     'SchemaMigrationMixin',
     'PreferencesMixin',
+    'DeviceSettingsMixin',
     'ExamContextMixin',
     'HierarchyMixin',
     'EdgesMixin',
+    'RelationsMixin',
     'TagsMixin',
     'SessionsMixin',
     'TimerMixin',
@@ -46,6 +51,7 @@ __all__ = [
     'DimensionsMixin',
     'AliasesMixin',
     'ImportExportMixin',
+    'SubjectImportMixin',
     'PluginDataMixin',
     'GraphMixin',
 ]

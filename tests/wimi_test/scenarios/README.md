@@ -86,10 +86,37 @@ order:
    geometry, computed style, or other browser-side facts that no
    selector can return.
 
-Never use `time.sleep()`. The Phase 2 escape hatch
-`wimi_page.pw_page.wait_for_timeout(N)` is acceptable until T3.6 ships
-`wait_for_bridge_call`. When you use the escape hatch, leave a
-`# TODO(Phase 3 / T3.6):` comment with the eventual replacement.
+Never use `time.sleep()`. `wimi_page.wait_for_timeout(N)` is a settle
+wait, not a readiness wait: it decides the answer instead of waiting
+for it, and it cannot tell "slow" from "never happened". Three tools
+replace it, in this order of preference:
+
+1. **`wimi_page.wait_for_bridge_call("slotName", since_ts=mark)`** —
+   for anything that crosses the bridge. Take `mark =
+   wimi_page.mark_bridge_calls()` *before* the action, or a fast call
+   can land in the gap. It reads WIMI's own `@instrumented_slot` ring
+   buffer, so a call that never happened fails as exactly that, listing
+   the calls the page *did* make. This is the T3.6 helper the old
+   `# TODO(Phase 3 / T3.6)` comments pointed at (#99, #105).
+2. **A bounded poll on the DOM** for what the page renders *after* the
+   data arrives. Poll for "it rendered", not for the number you expect
+   — a poll that waits for the expected value cannot report a wrong one.
+3. A fixed wait only where neither applies. Say why in a comment.
+
+**On the entry form specifically**: `goto` returns when `window.api`
+exists, which is about a second before `initializeEntryPage` finishes.
+A real user cannot fill a field or click a button before then — since
+#114 the form ships `inert` and stays that way until
+`markEntryFormReady()` releases it — but `el.value = 'x'` and
+`el.click()` still work on an inert subtree, so a scenario that reaches
+past the gate will still have its input discarded in silence.
+Wait for `EntryState.isLoading === false` (equivalently
+`EntryState.isFormReady === true`): since #114 both are set by
+`markEntryFormReady()`, which also waits for the rich text editors to
+mount, so the flag no longer goes false ~130 ms before TinyMCE is ready.
+`EntryState.session` is **not** a substitute: it goes truthy at the
+first await, several bridge calls too early, and has produced two
+tracked flakes (#99, #105) by looking like a readiness signal.
 
 ### DB-side assertions
 

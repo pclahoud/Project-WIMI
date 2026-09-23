@@ -9,6 +9,7 @@
         'exam_contexts.js',
         'hierarchy.js',
         'edges.js',
+        'relations.js',
         'weights.js',
         'sessions.js',
         'timer.js',
@@ -27,6 +28,8 @@
         'profiles.js',
         'profile_transfer.js',
         'mcp_server.js',
+        'browser_pane.js',
+        'foldersync.js',
         'utility.js',
         'plugins.js'
     ];

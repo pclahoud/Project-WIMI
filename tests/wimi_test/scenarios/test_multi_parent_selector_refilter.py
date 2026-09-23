@@ -39,6 +39,32 @@ from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
 
+
+def _wait_for(
+    wimi_page: WimiPage,
+    js_expression: str,
+    *,
+    timeout_ms: int = 5000,
+    poll_step_ms: int = 100,
+) -> Any:
+    """Poll ``js_expression`` until it returns something truthy.
+
+    Returns the last value seen rather than raising, so the caller's own
+    assertion still reports what it actually found. This replaces a fixed
+    ``wait_for_timeout`` that was "enough on an idle box" and a race under
+    load -- the #84 shape.
+    """
+    elapsed = 0
+    last: Any = None
+    while elapsed < timeout_ms:
+        last = wimi_page.eval_js(js_expression)
+        if last:
+            return last
+        wimi_page.wait_for_timeout(poll_step_ms)
+        elapsed += poll_step_ms
+    return last
+
+
 @pytest.mark.slow
 @pytest.mark.regression
 def test_multi_parent_selector_refilter_triggers_refetch(
@@ -157,14 +183,13 @@ def test_multi_parent_selector_refilter_triggers_refetch(
         "Check that src/web/js/api/analytics.js loaded via _loader.js."
     )
 
-    # The page's init() races with our probe; give it a beat to finish
-    # the initial load (parent edges + deep dive in parallel) and
-    # render the selector. The settle wait is bounded — we re-probe
-    # for the selector below as the real readiness signal.
-    wimi_page.wait_for_timeout(500)
-
-    selector_present = wimi_page.eval_js(
-        "!!document.querySelector('[data-testid=\"multi-parent-selector-control\"]')"
+    # The page's init() races with our probe, so poll for the selector
+    # itself as the readiness signal. The comment here used to claim a
+    # re-probe below did that job; there was none -- the assertion fired
+    # immediately after a fixed 500 ms (#84).
+    selector_present = _wait_for(
+        wimi_page,
+        "!!document.querySelector('[data-testid=\"multi-parent-selector-control\"]')",
     )
     assert selector_present, (
         "Multi-parent selector did not render. Hypertension has 2 "
@@ -213,8 +238,11 @@ def test_multi_parent_selector_refilter_triggers_refetch(
         f"Could not dispatch change on the selector: {change_result!r}"
     )
 
-    # The refetch is async; give it time to land and re-render.
-    wimi_page.wait_for_timeout(500)
+    # The refetch is async; poll for the spy to record it (#84).
+    _wait_for(
+        wimi_page,
+        "(window._capturedDeepDiveCalls || []).length >= 1",
+    )
 
     # ---- Assert ------------------------------------------------------
     captured = wimi_page.eval_js("window._capturedDeepDiveCalls")

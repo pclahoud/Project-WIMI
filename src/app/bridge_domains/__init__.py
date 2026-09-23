@@ -8,6 +8,8 @@ from ._serializers import SerializerMixin
 from .preferences import PreferencesBridgeMixin
 from .profiles import ProfileBridgeMixin
 from .profile_transfer import ProfileTransferBridgeMixin
+from .browser_pane import BrowserPaneBridgeMixin
+from .foldersync import FolderSyncBridgeMixin
 from .utility import UtilityBridgeMixin
 from .tags import TagBridgeMixin
 from .timer import TimerBridgeMixin
@@ -20,6 +22,7 @@ from .entries import EntryBridgeMixin
 from .media import MediaBridgeMixin
 from .hierarchy import HierarchyBridgeMixin
 from .edges import EdgesBridgeMixin
+from .relations import RelationsBridgeMixin
 from .hierarchy_tags import HierarchyTagBridgeMixin
 from .exam_contexts import ExamContextBridgeMixin
 from .weights import WeightBridgeMixin
@@ -36,6 +39,8 @@ __all__ = [
     'PreferencesBridgeMixin',
     'ProfileBridgeMixin',
     'ProfileTransferBridgeMixin',
+    'BrowserPaneBridgeMixin',
+    'FolderSyncBridgeMixin',
     'UtilityBridgeMixin',
     'TagBridgeMixin',
     'TimerBridgeMixin',
@@ -48,6 +53,7 @@ __all__ = [
     'MediaBridgeMixin',
     'HierarchyBridgeMixin',
     'EdgesBridgeMixin',
+    'RelationsBridgeMixin',
     'HierarchyTagBridgeMixin',
     'ExamContextBridgeMixin',
     'WeightBridgeMixin',

@@ -5,8 +5,10 @@ Stage 9 makes the analytics layer ``weight_source``-aware:
 * ``get_subject_exam_weight_analysis`` now reads ``weight_source`` from
   ``subject_edges`` (the polyhierarchy-canonical column) and picks the
   *dominant* edge for each node when the node has multiple parents.
-* ``_calculate_efficiency_score`` blends a per-source confidence
-  multiplier into the existing range-derived confidence.
+* ``_calculate_efficiency_score`` did too, via a per-source confidence
+  multiplier — **deleted in #133**, because it multiplied a *penalty*
+  and so raised the score for weights WIMI could not vouch for. The
+  class below is now the regression guard for that, not a test of it.
 * A new helper ``get_weight_source_breakdown`` returns per-source
   subject counts for the dashboard's "Confidence breakdown" card.
 
@@ -310,67 +312,64 @@ class TestWeightSourceBreakdown:
         )
 
 
-class TestEfficiencyScoreSourceFactor:
-    """_calculate_efficiency_score honors the source confidence factor."""
+class TestEfficiencyScoreIgnoresSource:
+    """``weight_source`` must not move ``_calculate_efficiency_score`` (#133).
 
-    def test_efficiency_score_uses_source_multiplier(
+    This class used to assert the opposite — that ``user_estimate``
+    scored *higher* than ``official`` for the same deviation, and that
+    the two "must NOT be equal". That was the bug, written down as a
+    contract: the multiplier scaled a penalty, so less confidence meant
+    a smaller penalty and a better score, and the best-provenance input
+    scored worst.
+
+    #133 took provenance out of the arithmetic in both directions rather
+    than inverting it, because inverting lowers a student's score for a
+    data problem that is not theirs. The per-decision suite lives in
+    ``tests/database/test_efficiency_score_confidence.py``; what is kept
+    here is the inversion of the two tests that stood in this file, so a
+    reader following the Stage 9 history lands on the correction.
+    """
+
+    def test_efficiency_score_is_identical_across_sources(
         self, user_db: UserDatabase
     ):
-        """``official`` source → different efficiency than ``user_estimate``.
+        """Same range, same mistake percentage, every ``weight_source``.
 
-        Both subjects have the same range and the same mistake
-        percentage, so the *range*-derived confidence is identical.
-        Only the ``weight_source`` differs. The penalty term uses
-        ``min(range_conf, source_conf)``, so ``user_estimate`` (0.4)
-        should produce a *lower* penalty than ``official`` (1.0) for
-        the same deviation — meaning the ``user_estimate`` score is
-        actually *higher* numerically.
+        Only the provenance differs, so only a provenance multiplier
+        could make these differ — which is exactly what must not exist.
         """
-        # Sanity: build two synthetic subject rows and feed them
-        # straight to the score helper to avoid the DB query path.
-        # The helper is a pure function over the list shape.
-        subjects_official = [{
-            'subject_id': 1,
-            'subject_name': 'Cardio',
-            'mistake_percentage': 50.0,
-            'exam_weight': 20.0,
-            'exam_weight_low': 15.0,
-            'exam_weight_high': 25.0,
-            'weight_source': 'official',
-        }]
-        subjects_user_estimate = [{
-            'subject_id': 1,
-            'subject_name': 'Cardio',
-            'mistake_percentage': 50.0,
-            'exam_weight': 20.0,
-            'exam_weight_low': 15.0,
-            'exam_weight_high': 25.0,
-            'weight_source': 'user_estimate',
-        }]
+        def row(source):
+            base = {
+                'subject_id': 1,
+                'subject_name': 'Cardio',
+                'mistake_percentage': 50.0,
+                'exam_weight': 20.0,
+                'exam_weight_low': 15.0,
+                'exam_weight_high': 25.0,
+            }
+            if source is not None:
+                base['weight_source'] = source
+            return [base]
 
-        score_official = user_db._calculate_efficiency_score(subjects_official)
-        score_estimate = user_db._calculate_efficiency_score(subjects_user_estimate)
+        scores = {
+            source: user_db._calculate_efficiency_score(row(source))
+            for source in (
+                None, 'official', 'user_explicit', 'user_defined',
+                'derived', 'user_estimate',
+            )
+        }
+        assert len(set(scores.values())) == 1, scores
+        # deviation 25 from the high bound, weight_factor 0.20 -> 5.0
+        assert scores['official'] == 95.0
 
-        # The official source has 1.0 confidence (capped against the
-        # 0.5 range-confidence), so the penalty is bigger and the
-        # score is lower. user_estimate has 0.4 confidence, so its
-        # penalty is smaller and the score is higher. The two must
-        # NOT be equal — that would mean the source factor was ignored.
-        assert score_official != score_estimate, (
-            f"Efficiency scores must differ when only weight_source "
-            f"differs. official={score_official}, "
-            f"user_estimate={score_estimate}"
-        )
-        assert score_estimate > score_official, (
-            f"user_estimate's lower confidence should produce a smaller "
-            f"penalty (higher score) than official. "
-            f"official={score_official}, user_estimate={score_estimate}"
-        )
-
-    def test_efficiency_score_unknown_source_uses_default(
+    def test_efficiency_score_unknown_source_needs_no_default(
         self, user_db: UserDatabase
     ):
-        """Subjects missing a weight_source fall back to the default."""
+        """A missing ``weight_source`` is not a value the score needs.
+
+        There is no ``_WEIGHT_SOURCE_DEFAULT_CONFIDENCE`` to fall back
+        to any more, and nothing to fall back *for*.
+        """
         subjects_no_source = [{
             'subject_id': 1,
             'subject_name': 'Cardio',
@@ -378,14 +377,10 @@ class TestEfficiencyScoreSourceFactor:
             'exam_weight': 20.0,
             'exam_weight_low': 15.0,
             'exam_weight_high': 25.0,
-            # No 'weight_source' key — should fall back to the default.
         }]
 
-        # Should not raise — defaulting is the contract.
         score = user_db._calculate_efficiency_score(subjects_no_source)
-        assert 0 <= score <= 100, (
-            f"Efficiency score must be in [0, 100]; got {score}"
-        )
+        assert score == 95.0
 
 
 class TestAnalysisIncludesDistribution:
@@ -423,6 +418,49 @@ class TestAnalysisIncludesDistribution:
         assert dist['total'] == sum(
             v for k, v in dist.items() if k != 'total'
         )
+
+    def test_analysis_response_includes_the_efficiency_band(
+        self, user_db: UserDatabase
+    ):
+        """#133 — the band rides in the payload whether or not it is drawn.
+
+        The student's ``efficiency_show_confidence_band`` preference is
+        a rendering choice made in ``weight_analysis.js``; the backend
+        does not branch on it, so "off" cannot become a path that stops
+        computing something.
+        """
+        exam = _seed_minimal_exam(user_db, name='Stage 9 Band Exam')
+        parent = _make_subject(
+            user_db, exam.exam_name, 'Root',
+            level_type='System', exam_weight_low=100, exam_weight_high=100,
+        )
+        child = _make_subject(
+            user_db, exam.exam_name, 'Child',
+            parent_id=parent.id, level_type='Topic',
+            exam_weight_low=20, exam_weight_high=30,
+        )
+        _set_edge_source(
+            user_db, _edge_id(user_db, parent.id, child.id), 'official', 100.0
+        )
+        _add_minimal_mistake(user_db, exam, child.id)
+
+        band = user_db.get_subject_exam_weight_analysis(exam.id)['efficiency_band']
+        for key in (
+            'low', 'high', 'half_width',
+            'unverified_weight_pct', 'unverified_share',
+        ):
+            assert key in band, f"Missing key {key!r} in efficiency_band: {band}"
+        assert band['low'] <= band['high']
+
+    def test_empty_exam_returns_a_zeroed_band(self, user_db: UserDatabase):
+        """Same reason the distribution is zeroed rather than absent:
+        the renderer should not have to null-check a whole branch."""
+        exam = _seed_minimal_exam(user_db, name='Stage 9 Empty Band Exam')
+        band = user_db.get_subject_exam_weight_analysis(exam.id)['efficiency_band']
+        assert band == {
+            'low': 0.0, 'high': 0.0, 'half_width': 0.0,
+            'unverified_weight_pct': 0.0, 'unverified_share': 0.0,
+        }
 
     def test_empty_exam_returns_zeroed_distribution(
         self, user_db: UserDatabase

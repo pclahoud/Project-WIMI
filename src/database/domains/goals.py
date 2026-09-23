@@ -18,6 +18,20 @@ class GoalsMixin:
         """
         Get user's active goals with current period progress.
 
+        Progress is **counted from the entries every time**, never read
+        back from ``goal_periods.achieved_value`` (issue #70). The stored
+        value was stamped by :meth:`_ensure_goal_period` at the moment
+        the goal was created and nothing ever refreshed it, so a goal
+        froze for the whole of the week it was set in -- the week a
+        student is most likely to be watching it. Recomputing here means
+        no write path has to remember to notify anything, which is what
+        makes that staleness structurally impossible rather than merely
+        fixed. See :meth:`_ensure_goal_period` for what the table is for
+        now.
+
+        This stays a pure read: the read-only ``wimi-db`` MCP server
+        calls it (``src/mcp_server.py``).
+
         Args:
             exam_context_id: Optional exam context filter
 
@@ -41,18 +55,11 @@ class GoalsMixin:
                 ug.target_value,
                 ug.exam_context_id,
                 ug.is_active,
-                ug.created_at,
-                gp.id as period_id,
-                gp.period_start,
-                gp.period_end,
-                gp.achieved_value,
-                gp.is_complete
+                ug.created_at
             FROM user_goals ug
-            LEFT JOIN goal_periods gp ON ug.id = gp.goal_id
-                AND gp.period_start = ?
             WHERE ug.user_id = ? AND ug.is_active = TRUE
         """
-        params = [week_start.isoformat(), self.user_id]
+        params = [self.user_id]
 
         if exam_context_id:
             query += " AND (ug.exam_context_id = ? OR ug.exam_context_id IS NULL)"
@@ -62,22 +69,10 @@ class GoalsMixin:
 
         goals = []
         for row in results:
-            # Calculate current progress if period doesn't exist
-            if row['period_id'] is None:
-                # Weekly goals now track questions answered (sum of total_questions from sessions)
-                if row['goal_type'] in ('weekly_questions', 'weekly_entries'):
-                    current_value = self._count_questions_in_period(
-                        week_start, week_end,
-                        row['exam_context_id']
-                    )
-                else:
-                    # Other goal types may use different counting
-                    current_value = self._count_entries_in_period(
-                        week_start, week_end,
-                        row['exam_context_id']
-                    )
-            else:
-                current_value = row['achieved_value'] or 0
+            current_value = self._count_goal_progress_in_period(
+                row['goal_type'], week_start, week_end,
+                row['exam_context_id']
+            )
 
             target = row['target_value']
             progress_pct = (current_value / target * 100) if target > 0 else 0
@@ -92,7 +87,16 @@ class GoalsMixin:
                 'period_end': week_end.isoformat(),
                 'progress_pct': round(progress_pct, 1),
                 'is_complete': is_complete,
-                'exam_context_id': row['exam_context_id']
+                'exam_context_id': row['exam_context_id'],
+                # Issue #12: goals are the one surface that still
+                # excludes drafts -- "log 20 entries this week" means 20
+                # finished ones. That exclusion is only honest if the
+                # student can see what it left out, so the outstanding
+                # drafts ride alongside the progress and the widget
+                # renders them as "N drafts remaining".
+                'drafts_remaining': self._count_drafts_in_period(
+                    week_start, week_end, row['exam_context_id']
+                ),
             })
 
         return goals
@@ -103,10 +107,16 @@ class GoalsMixin:
         exam_context_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Set or update weekly questions goal.
+        Set or update the weekly goal.
+
+        The goal it creates is a ``weekly_entries`` goal: a target number
+        of entries logged in the week, counted by
+        :meth:`_count_entries_in_period` (issue #58). The parameter keeps
+        its historical ``target_questions`` name so existing callers --
+        the bridge slot, the plugin API -- are unaffected.
 
         Args:
-            target_questions: Target number of questions to answer per week
+            target_questions: Target number of entries to log per week
             exam_context_id: Optional exam context for goal
 
         Returns:
@@ -122,10 +132,10 @@ class GoalsMixin:
         week_start = today - timedelta(days=days_since_monday)
         week_end = week_start + timedelta(days=6)
 
-        # Check if goal already exists (check both new and legacy types)
+        # Check if this exam context already has a weekly goal
         existing_query = """
             SELECT id, target_value, goal_type FROM user_goals
-            WHERE user_id = ? AND goal_type IN ('weekly_questions', 'weekly_entries') AND is_active = TRUE
+            WHERE user_id = ? AND goal_type = 'weekly_entries' AND is_active = TRUE
         """
         params = [self.user_id]
 
@@ -146,7 +156,8 @@ class GoalsMixin:
             goal_id = existing['id']
             message = 'Goal updated successfully'
         else:
-            # Create new goal (use 'weekly_entries' type for backward compatibility)
+            # Create new goal. 'weekly_entries' is the only weekly type
+            # there is: see _count_goal_progress_in_period (issue #71).
             cursor = self.execute(
                 """
                 INSERT INTO user_goals (user_id, goal_type, target_value, exam_context_id)
@@ -176,6 +187,12 @@ class GoalsMixin:
         """
         Get history of goal completion.
 
+        Like :meth:`get_user_goals`, every week's ``achieved`` is counted
+        from the entries rather than read from
+        ``goal_periods.achieved_value`` (issue #70). The stored row is
+        consulted only for ``target_value`` -- the target the student had
+        set in that week, which nothing else records.
+
         Args:
             exam_context_id: Optional exam context filter
             weeks: Number of weeks to include
@@ -189,10 +206,10 @@ class GoalsMixin:
         days_since_monday = today.weekday()
         current_week_start = today - timedelta(days=days_since_monday)
 
-        # Get the active goal (support both new and legacy types)
+        # Get the active weekly goal
         goal_query = """
             SELECT id, target_value, goal_type FROM user_goals
-            WHERE user_id = ? AND goal_type IN ('weekly_questions', 'weekly_entries') AND is_active = TRUE
+            WHERE user_id = ? AND goal_type = 'weekly_entries' AND is_active = TRUE
         """
         params = [self.user_id]
 
@@ -207,18 +224,13 @@ class GoalsMixin:
         if not goal:
             return []
 
-        # Determine counting method based on goal type
-        # Weekly goals now track questions answered
-        use_questions_counting = goal['goal_type'] in ('weekly_questions', 'weekly_entries')
-
-        # Get historical periods
+        # Get historical periods. ``target_value`` is the only column
+        # read: achievement is recounted below (issue #70).
         history_query = """
             SELECT
                 period_start,
                 period_end,
-                target_value,
-                achieved_value,
-                is_complete
+                target_value
             FROM goal_periods
             WHERE goal_id = ?
             ORDER BY period_start DESC
@@ -240,21 +252,10 @@ class GoalsMixin:
                     period_data = p
                     break
 
-            if period_data:
-                achieved = period_data['achieved_value']
-                target = period_data['target_value']
-            else:
-                # Calculate using appropriate method
-                if use_questions_counting:
-                    achieved = self._count_questions_in_period(
-                        week_start, week_end, exam_context_id
-                    )
-                else:
-                    # Legacy: count entries
-                    achieved = self._count_entries_in_period(
-                        week_start, week_end, exam_context_id
-                    )
-                target = goal['target_value']
+            achieved = self._count_goal_progress_in_period(
+                goal['goal_type'], week_start, week_end, exam_context_id
+            )
+            target = period_data['target_value'] if period_data else goal['target_value']
 
             completion_pct = (achieved / target * 100) if target > 0 else 0
 
@@ -269,6 +270,51 @@ class GoalsMixin:
 
         return history
 
+    def _count_goal_progress_in_period(
+        self,
+        goal_type: Optional[str],
+        start_date: date,
+        end_date: date,
+        exam_context_id: Optional[int] = None
+    ) -> int:
+        """
+        Progress for one goal type over a period.
+
+        The single place that decides which counter a goal type reads.
+        Every progress path -- :meth:`get_user_goals` and
+        :meth:`get_goal_history` -- comes through here. Both are reads,
+        which is the point of issue #70: progress is counted when it is
+        displayed, so there is no stored number to go stale and no write
+        path that has to remember to refresh one.
+
+        There is **one weekly goal type**: ``weekly_entries``, entries
+        logged (issue #71, decided 2026-09-15). This used to fork on
+        ``weekly_questions``, which counted ``review_sessions``' question
+        totals instead -- a type ``user_goals``' CHECK constraint forbids
+        and nothing has ever created, so the branch was unreachable code
+        that read as live. That is the same shape as the bug #58 fixed, a
+        type name and its behaviour disagreeing for months, so it is
+        gone. Bringing questions-based goals back means a migration
+        widening the constraint and a way to create the type, not a
+        resurrection of the branch.
+
+        ``goal_type`` stays in the signature because this is the funnel:
+        before #58 four callers each dispatched for themselves and all
+        four were wrong. A second type plugs in here, and nowhere else.
+
+        Args:
+            goal_type: The goal's ``goal_type`` column
+            start_date: Start of the period (inclusive)
+            end_date: End of the period (inclusive)
+            exam_context_id: Optional exam context filter
+
+        Returns:
+            The progress value for that goal type over the period
+        """
+        return self._count_entries_in_period(
+            start_date, end_date, exam_context_id
+        )
+
     def _count_entries_in_period(
         self,
         start_date: date,
@@ -276,8 +322,19 @@ class GoalsMixin:
         exam_context_id: Optional[int] = None
     ) -> int:
         """
-        Count entries in a date range.
-        DEPRECATED: Use _count_questions_in_period for weekly_questions goals.
+        Count entries logged in a date range.
+
+        The counter behind every weekly goal since issue #58, and the
+        only one since #71. It spent a while marked deprecated while
+        every dispatch site sent ``weekly_entries`` to a question counter
+        instead, which is how a goal named after entries came to count
+        the question totals of review sessions.
+
+        Keeps ``is_draft = FALSE``. Goals are the deliberate exception to
+        issue #12's "drafts count everywhere" policy: "log 20 entries
+        this week" means 20 *finished* entries, so an unfinished one is
+        not progress. The drafts it skips are reported separately by
+        :meth:`_count_drafts_in_period`.
         """
         query = """
             SELECT COUNT(DISTINCT qe.id) as count
@@ -297,17 +354,23 @@ class GoalsMixin:
         result = self.fetchone(query, tuple(params))
         return result['count'] if result else 0
 
-    def _count_questions_in_period(
+    def _count_drafts_in_period(
         self,
         start_date: date,
         end_date: date,
         exam_context_id: Optional[int] = None
     ) -> int:
         """
-        Count total questions answered in a date range.
+        Count unfinished (draft) entries started in a date range.
 
-        Questions are counted from the total_questions field in review_sessions,
-        summed for all sessions where date_encountered falls within the period.
+        The exact complement of :meth:`_count_entries_in_period` -- same
+        window, same date column, same exam scope, opposite ``is_draft``
+        -- so "N drafts remaining" names entries the student started in
+        this goal's own period and has not finished.
+
+        Issue #12: goals keep excluding drafts, but a goal that silently
+        ignores three drafts is the same information gap the issue is
+        about, just moved. This is what closes it.
 
         Args:
             start_date: Start of date range (inclusive)
@@ -315,14 +378,16 @@ class GoalsMixin:
             exam_context_id: Optional exam context filter
 
         Returns:
-            Total number of questions answered in the period
+            Number of draft entries created in the period
         """
         query = """
-            SELECT COALESCE(SUM(rs.total_questions), 0) as total
-            FROM review_sessions rs
+            SELECT COUNT(DISTINCT qe.id) as count
+            FROM question_entries qe
+            JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE rs.user_id = ?
-                AND DATE(rs.date_encountered) >= ?
-                AND DATE(rs.date_encountered) <= ?
+                AND DATE(qe.created_at) >= ?
+                AND DATE(qe.created_at) <= ?
+                AND qe.is_draft = TRUE
         """
         params = [self.user_id, start_date.isoformat(), end_date.isoformat()]
 
@@ -331,7 +396,7 @@ class GoalsMixin:
             params.append(exam_context_id)
 
         result = self.fetchone(query, tuple(params))
-        return result['total'] if result and result['total'] else 0
+        return result['count'] if result else 0
 
     def _ensure_goal_period(
         self,
@@ -342,6 +407,21 @@ class GoalsMixin:
     ) -> int:
         """
         Ensure a goal period exists for the given dates.
+
+        The row records **the target the student had set for that week**
+        and nothing else. Achievement is not stamped here and is not
+        stored: both read paths recount it from the entries every time
+        (issue #70), so ``goal_periods.achieved_value`` is legacy -- it
+        still holds numbers written before that fix, and nothing reads
+        them. The week's target is genuine history because nothing else
+        records it: raising the goal today must not rewrite what last
+        week was measured against.
+
+        Stamping achievement here is what froze goals for the week they
+        were created in. The existing-period branch updated the target
+        and left the stamp alone, so even re-saving the goal did not
+        refresh it, and ``update_goal_progress`` -- the notifier that was
+        supposed to -- had no callers anywhere in the repo.
         """
         # Check if period exists
         existing = self.fetchone(
@@ -356,91 +436,13 @@ class GoalsMixin:
                 (target_value, existing['id'])
             )
             return existing['id']
-        else:
-            # Calculate current achievement based on goal type
-            goal = self.fetchone(
-                "SELECT exam_context_id, goal_type FROM user_goals WHERE id = ?",
-                (goal_id,)
-            )
 
-            # Use appropriate counting method
-            # Weekly goals now track questions answered
-            if goal and goal['goal_type'] in ('weekly_questions', 'weekly_entries'):
-                achieved = self._count_questions_in_period(
-                    period_start, period_end,
-                    goal['exam_context_id'] if goal else None
-                )
-            else:
-                # Other goal types use entry count
-                achieved = self._count_entries_in_period(
-                    period_start, period_end,
-                    goal['exam_context_id'] if goal else None
-                )
-
-            cursor = self.execute(
-                """
-                INSERT INTO goal_periods (goal_id, period_start, period_end, target_value, achieved_value, is_complete)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (goal_id, period_start.isoformat(), period_end.isoformat(),
-                 target_value, achieved, achieved >= target_value)
-            )
-            return cursor.lastrowid
-
-    def update_goal_progress(self, exam_context_id: Optional[int] = None) -> None:
-        """
-        Update goal progress for current period.
-        Called when a new entry is created or review session is completed.
-        """
-        from datetime import timedelta
-
-        today = datetime.now().date()
-        days_since_monday = today.weekday()
-        week_start = today - timedelta(days=days_since_monday)
-        week_end = week_start + timedelta(days=6)
-
-        # Get active goals with goal_type
-        query = """
-            SELECT ug.id, ug.target_value, ug.exam_context_id, ug.goal_type, gp.id as period_id
-            FROM user_goals ug
-            LEFT JOIN goal_periods gp ON ug.id = gp.goal_id AND gp.period_start = ?
-            WHERE ug.user_id = ? AND ug.is_active = TRUE
-        """
-        goals = self.fetchall(query, (week_start.isoformat(), self.user_id))
-
-        for goal in goals:
-            # Check if this goal applies to this exam context
-            if goal['exam_context_id'] and goal['exam_context_id'] != exam_context_id:
-                continue
-
-            # Count using appropriate method based on goal type
-            # Weekly goals now track questions answered
-            if goal['goal_type'] in ('weekly_questions', 'weekly_entries'):
-                achieved = self._count_questions_in_period(
-                    week_start, week_end, goal['exam_context_id']
-                )
-            else:
-                # Other goal types use entry count
-                achieved = self._count_entries_in_period(
-                    week_start, week_end, goal['exam_context_id']
-                )
-
-            if goal['period_id']:
-                # Update existing period
-                is_complete = achieved >= goal['target_value']
-                self.execute(
-                    """
-                    UPDATE goal_periods
-                    SET achieved_value = ?, is_complete = ?,
-                        completed_at = CASE WHEN ? AND completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE completed_at END
-                    WHERE id = ?
-                    """,
-                    (achieved, is_complete, is_complete, goal['period_id'])
-                )
-            else:
-                # Create period record
-                self._ensure_goal_period(
-                    goal['id'], week_start, week_end, goal['target_value']
-                )
-
-        self.conn.commit()
+        cursor = self.execute(
+            """
+            INSERT INTO goal_periods (goal_id, period_start, period_end, target_value)
+            VALUES (?, ?, ?, ?)
+            """,
+            (goal_id, period_start.isoformat(), period_end.isoformat(),
+             target_value)
+        )
+        return cursor.lastrowid

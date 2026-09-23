@@ -33,6 +33,7 @@ modules it depends on at runtime.
 from __future__ import annotations
 
 import base64
+import json
 import time
 from pathlib import Path
 from typing import Mapping, Optional
@@ -40,11 +41,47 @@ from urllib.parse import urlencode
 
 from wimi_test._internal.cdp_client import WimiTab
 from wimi_test.config import TestConfig
-from wimi_test.errors import WimiTestError
+from wimi_test.errors import (
+    BridgeCallsUnavailable,
+    BridgeCallTimeout,
+    WimiTestError,
+)
 from wimi_test.locator import WimiLocator, build_locator
 from wimi_test.routes import resolve as resolve_route
 
 __all__ = ["WimiPage"]
+
+
+# JS expression used to read WIMI's bridge-call ring buffer. Mirrors the
+# template in :mod:`wimi_test.capture.bridge` on purpose rather than
+# importing it: the two are independent consumers of the same slot and
+# the capture module must stay free to change its polling shape (it runs
+# on a daemon thread with its own cursor) without silently changing what
+# a scenario's ``wait_for_bridge_call`` observes.
+#
+# Wrapped in an async IIFE because ``api.getTestModeBridgeCalls`` is an
+# async wrapper over a QWebChannel slot, which always returns a Promise;
+# callers pass ``await_promise=True`` so CDP resolves it for us. Returns
+# ``null`` -- not ``'[]'`` -- when the slot is absent, so the caller can
+# tell "not instrumented" from "instrumented, nothing recorded".
+#
+# The global probed is ``window.api`` (the long-lived public name set by
+# ``_loader.js``), not ``window._wimiApi`` (the bootstrap-only name the
+# loader deletes on completion).
+#
+# Worlds note (TEST_INFRASTRUCTURE.md 12a): this is safe to evaluate
+# over CDP even though the buffer lives on the Qt side. Nothing here
+# reads a global written by ``QWebEnginePage.runJavaScript`` -- it calls
+# a QWebChannel slot proxy installed by the page's own scripts, and the
+# buffer itself is marshalled back as a JSON string over the channel.
+_BRIDGE_CALLS_JS_TEMPLATE = (
+    "(async () => {{ "
+    "if (window.api && typeof window.api.getTestModeBridgeCalls === 'function') {{ "
+    "  return await window.api.getTestModeBridgeCalls({since_ts}); "
+    "}} "
+    "return null; "
+    "}})()"
+)
 
 
 class WimiPage:
@@ -259,6 +296,15 @@ class WimiPage:
             should pass a tight value (e.g. 10s) so a stalled CDP
             response doesn't hang the test runner indefinitely.
         """
+        # If this ever hangs rather than returning, suspect the target
+        # before suspecting the command. ``captureScreenshot`` waits on a
+        # compositor frame, and a ``QWebEnginePage`` with no view
+        # attached never produces one -- it is listed by Qt's CDP
+        # endpoint like any other page and answers every other command
+        # normally, so the session looks healthy right up until you ask
+        # it for pixels. :meth:`WimiBrowser.primary_tab` now refuses a
+        # target that reports ``document.visibilityState !== "visible"``
+        # for exactly this reason.
         kwargs = {"format": "png"}
         if timeout_ms is not None:
             kwargs["_timeout"] = timeout_ms / 1000.0
@@ -316,37 +362,211 @@ class WimiPage:
         # exceptionDetails, so we just forward the result.
         return self._tab.evaluate(expression, await_promise=await_promise)
 
+    # ------------------------------------------------------------------
+    # Bridge-call synchronization
+    # ------------------------------------------------------------------
+
+    def mark_bridge_calls(self) -> float:
+        """Return a cursor to hand to :meth:`wait_for_bridge_call`.
+
+        Capture this **before** triggering the action, then pass it as
+        ``since_ts``::
+
+            mark = page.mark_bridge_calls()
+            save_button.click()
+            page.wait_for_bridge_call("createQuestionEntry", since_ts=mark)
+
+        Doing it in that order is what makes the wait un-racy: a call
+        that completes between the click and the wait is still matched,
+        because the cursor predates the click. Taking the cursor inside
+        :meth:`wait_for_bridge_call` (what happens when ``since_ts`` is
+        omitted) leaves a window in which a very fast call can be missed.
+
+        The cursor is simply :func:`time.time` on the driver side. WIMI
+        stamps each buffered call with its own :func:`time.time`, and
+        the driver and the app under test are the same process tree on
+        the same host reading the same system clock, so the two are
+        directly comparable. ``tests/wimi_test/scenarios`` never runs
+        against a remote WIMI; if that ever changes, this is the seam
+        to change with it.
+        """
+        return time.time()
+
+    def get_bridge_calls(self, *, since_ts: float = 0.0) -> list[dict]:
+        """Fetch buffered WIMI-side bridge calls recorded after ``since_ts``.
+
+        Returns the raw dict shape produced by
+        ``app.bridge_test_instrumentation.get_test_mode_bridge_calls``
+        (``timestamp`` / ``method`` / ``args_summary`` /
+        ``result_summary`` / ``duration_ms`` / ``error``), oldest first.
+
+        This is a *direct* read of the WIMI-side ring buffer through the
+        ``getTestModeBridgeCalls`` slot, not a read of
+        :class:`~wimi_test.capture.bridge.BridgeCapture`'s mirror. The
+        two are independent consumers of the same buffer -- the producer
+        filters by the ``since_ts`` each caller passes and never drains
+        anything -- so polling here does not disturb the capture stream
+        feeding failure reports.
+
+        Raises
+        ------
+        BridgeCallsUnavailable
+            If ``window.api.getTestModeBridgeCalls`` is not exposed on
+            the page (the JS probe returns ``null``).
+        WimiTestError
+            If the evaluation itself fails, or the slot returns
+            something other than a JSON list.
+        """
+        js = _BRIDGE_CALLS_JS_TEMPLATE.format(since_ts=float(since_ts))
+        result = self._tab.evaluate(js, await_promise=True)
+
+        if result is None:
+            raise BridgeCallsUnavailable(
+                "window.api.getTestModeBridgeCalls is not exposed on this "
+                "page, so no bridge call can ever be observed. WIMI records "
+                "slot calls only when it was launched with --test-mode "
+                "(@instrumented_slot checks test_mode.is_active() at "
+                "decoration time), and the slot only appears once "
+                "window.api is built by src/web/js/api/_loader.js."
+            )
+
+        if isinstance(result, str):
+            try:
+                entries = json.loads(result)
+            except json.JSONDecodeError as exc:
+                raise WimiTestError(
+                    "getTestModeBridgeCalls returned a non-JSON string: "
+                    f"{result[:200]!r}"
+                ) from exc
+        else:
+            # Tolerated for the same reason BridgeCapture tolerates it:
+            # a returnByValue round trip could hand back the decoded list.
+            entries = result
+
+        if not isinstance(entries, list):
+            raise WimiTestError(
+                "getTestModeBridgeCalls returned an unexpected payload "
+                f"type {type(entries).__name__!r}; expected a JSON list."
+            )
+        return [e for e in entries if isinstance(e, dict)]
+
     def wait_for_bridge_call(
         self,
         method: str,
         *,
         timeout_ms: int = 5000,
-    ) -> object:
-        """Wait for a named bridge method invocation to complete.
+        since_ts: float | None = None,
+        poll_interval_ms: int = 50,
+    ) -> dict:
+        """Wait until WIMI records a completed call to the slot ``method``.
 
         Used when JS-side code defers a database write through the
         bridge and the test needs to synchronize on its completion
-        before asserting on the resulting state.
+        before asserting on the resulting state. It replaces the fixed
+        ``wait_for_timeout`` that scenarios used to sit behind such a
+        write: a sleep guesses how long the round trip takes and cannot
+        tell "slow" from "never happened", while this observes the call
+        itself.
 
-        Not implemented yet: although the JS-side ``BridgeCapture``
-        polls ``getTestModeBridgeCalls`` (the original T3.6 blocker is
-        unblocked), the WIMI-side ``@pyqtSlot`` for
-        ``get_test_mode_bridge_calls`` is **still pending**. This
-        method therefore continues to raise :class:`NotImplementedError`
-        until that slot is wired up.
+        What counts as "recorded" is precise: ``@instrumented_slot``
+        appends its buffer entry **after** the wrapped slot returns, so
+        a match means the Python side of the call has finished, not
+        merely that JS dispatched it. A slot that raised is recorded too
+        (with ``error: True``) and matches -- the call *did* happen, and
+        a caller that cares can inspect the returned record.
+
+        Parameters
+        ----------
+        method:
+            Exact slot name as PyQt sees it, e.g.
+            ``"createQuestionEntry"`` (not the ``api.*`` JS wrapper
+            name, though for WIMI they are spelled the same).
+        timeout_ms:
+            Budget for the whole wait.
+        since_ts:
+            Only calls recorded strictly after this cursor match. Pass
+            the value of a :meth:`mark_bridge_calls` taken *before* the
+            triggering action. When omitted, the cursor is taken now,
+            which is only safe when the action has not been dispatched
+            yet (e.g. a wait armed before a later step) -- otherwise a
+            fast call can land in the gap and never be seen.
+        poll_interval_ms:
+            Gap between polls of the WIMI-side buffer.
+
+        Returns
+        -------
+        dict
+            The matched call record. Keys are ``timestamp``,
+            ``method``, ``args_summary``, ``result_summary``,
+            ``duration_ms`` and ``error``.
 
         Raises
         ------
-        NotImplementedError
-            Always, until the WIMI-side bridge slot for
-            ``get_test_mode_bridge_calls`` is wired up.
+        BridgeCallTimeout
+            If no matching call is recorded within ``timeout_ms``. The
+            message lists the slot names that *were* recorded in the
+            same window, which is what tells a reader whether the action
+            fired at all.
+        BridgeCallsUnavailable
+            If the WIMI-side instrumentation is not reachable. This is
+            deliberately **not** a timeout: a helper that cannot see any
+            call must say so rather than report the awaited one as
+            missing.
         """
-        # TODO(T3.6 / Phase 3): implement once the WIMI-side
-        # @pyqtSlot for get_test_mode_bridge_calls exists. The
-        # JS-side BridgeCapture polling is already in place; this
-        # method is now blocked on the slot wiring rather than on the
-        # capture module.
-        raise NotImplementedError(
-            "wait_for_bridge_call is blocked on the WIMI-side @pyqtSlot "
-            "for get_test_mode_bridge_calls (T3.6 / Phase 3)"
+        cursor = self.mark_bridge_calls() if since_ts is None else float(since_ts)
+        deadline = time.time() + (timeout_ms / 1000.0)
+        observed: list[str] = []
+        seen_ts: float = cursor
+
+        while True:
+            # ``get_bridge_calls`` raises BridgeCallsUnavailable, which
+            # we let through untouched -- see the docstring.
+            for entry in self.get_bridge_calls(since_ts=seen_ts):
+                name = entry.get("method")
+                try:
+                    ts = float(entry.get("timestamp", 0.0))
+                except (TypeError, ValueError):
+                    ts = 0.0
+                if ts > seen_ts:
+                    seen_ts = ts
+                if name == method:
+                    return entry
+                if isinstance(name, str):
+                    observed.append(name)
+
+            if time.time() >= deadline:
+                break
+            # Sleep no longer than the remaining budget so the wait
+            # never overshoots ``timeout_ms`` by a whole poll interval.
+            time.sleep(min(poll_interval_ms / 1000.0, max(deadline - time.time(), 0.0)))
+
+        if observed:
+            # Preserve order of first appearance while de-duplicating, so
+            # a chatty page does not bury the signal under repeats.
+            unique: list[str] = []
+            for name in observed:
+                if name not in unique:
+                    unique.append(name)
+            seen = ", ".join(unique[:15])
+            if len(unique) > 15:
+                seen += f", ... (+{len(unique) - 15} more)"
+            detail = (
+                f"{len(observed)} other bridge call(s) were recorded in the "
+                f"same window: {seen}. The page was alive and talking to the "
+                f"bridge, so the action that should have issued {method!r} "
+                f"either never ran or was rejected before reaching the bridge."
+            )
+        else:
+            detail = (
+                "No bridge calls at all were recorded in that window. Either "
+                "the page is idle (the triggering action never ran) or it "
+                "never finished loading."
+            )
+
+        raise BridgeCallTimeout(
+            f"Bridge call {method!r} was never recorded within {timeout_ms} ms. "
+            + detail,
+            method=method,
+            timeout_ms=timeout_ms,
+            observed=observed,
         )

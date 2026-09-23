@@ -126,7 +126,7 @@ def cmd_status(db_path: Path, scope: str | None) -> int:
         records = runner.applied_records()
         registry_by_version = {m.version: m for m in registry}
 
-        print(f"WIMI migration status — {db_path} (scope: {scope_label})")
+        print(f"WIMI migration status - {db_path} (scope: {scope_label})")
         print(
             f"schema_migrations table: present "
             f"({len(records)} row{'s' if len(records) != 1 else ''})"
@@ -278,6 +278,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    # Before the first print. This CLI's whole output is a report on
+    # stdout, and on Windows a redirected stdout encodes with the console
+    # codepage — a character it cannot represent raises
+    # UnicodeEncodeError from inside print() rather than degrading (#137).
+    # ``console_encoding`` is a leaf module at the root of ``src`` and
+    # imports nothing, so this is not a database -> app dependency.
+    from console_encoding import configure_stdio
+    configure_stdio()
+
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 

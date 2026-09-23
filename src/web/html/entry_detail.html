@@ -6,6 +6,7 @@
     <title>Entry Detail - WIMI</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/detail.css">
+    <link rel="stylesheet" href="../css/difficulty.css">
     <link rel="stylesheet" href="../css/rich_content.css">
     <link rel="stylesheet" href="../css/toast.css">
     <link rel="stylesheet" href="../css/export_dialog.css">
@@ -36,7 +37,7 @@
                         <span class="nav-arrow">←</span>
                         <span class="nav-text">Previous</span>
                     </button>
-                    <span id="position-indicator" class="position-indicator">1 of 10</span>
+                    <span id="position-indicator" class="position-indicator"></span>
                     <button id="next-entry-btn" class="nav-btn" title="Next entry (Right Arrow)" data-testid="detail-next-entry-button">
                         <span class="nav-text">Next</span>
                         <span class="nav-arrow">→</span>
@@ -83,29 +84,29 @@
                         <!-- Subject breadcrumb will be inserted here -->
                     </div>
                     <div class="difficulty-badge-container">
-                        <span class="difficulty-badge" id="difficulty-badge" data-testid="detail-difficulty-badge">Hard</span>
+                        <span class="difficulty-badge" id="difficulty-badge" data-testid="detail-difficulty-badge"></span>
                     </div>
                 </div>
 
                 <div class="entry-meta-row">
                     <span class="meta-item" id="source-name" data-testid="detail-meta-source">
                         <span class="meta-icon">📚</span>
-                        <span class="meta-text">UWorld Block 5</span>
+                        <span class="meta-text"></span>
                     </span>
                     <span class="meta-separator">•</span>
                     <span class="meta-item" id="entry-date" data-testid="detail-meta-date">
                         <span class="meta-icon">📅</span>
-                        <span class="meta-text">Dec 27, 2025</span>
+                        <span class="meta-text"></span>
                     </span>
                     <span class="meta-separator">•</span>
                     <span class="meta-item" id="question-id" data-testid="detail-meta-question-id">
                         <span class="meta-icon">📝</span>
-                        <span class="meta-text">Q #142</span>
+                        <span class="meta-text"></span>
                     </span>
                     <span class="meta-separator" id="time-separator">•</span>
                     <span class="meta-item" id="time-spent" data-testid="detail-meta-time-spent">
                         <span class="meta-icon">⏱️</span>
-                        <span class="meta-text">2m 30s</span>
+                        <span class="meta-text"></span>
                     </span>
                 </div>
 
@@ -121,9 +122,7 @@
                         <span class="answer-icon">✗</span>
                         YOUR ANSWER
                     </div>
-                    <div class="answer-text" id="user-answer">
-                        B. Angiotensin receptor blocker
-                    </div>
+                    <div class="answer-text" id="user-answer"></div>
                 </div>
 
                 <div class="answer-card answer-correct" data-testid="detail-correct-answer-card">
@@ -131,26 +130,20 @@
                         <span class="answer-icon">✓</span>
                         CORRECT ANSWER
                     </div>
-                    <div class="answer-text" id="correct-answer">
-                        A. ACE inhibitor
-                    </div>
+                    <div class="answer-text" id="correct-answer"></div>
                 </div>
             </section>
 
             <!-- Reflection Section -->
             <section class="content-section">
                 <h3 class="section-title">REFLECTION</h3>
-                <div class="section-content" id="reflection-content" data-testid="detail-reflection-content">
-                    I confused the mechanism of action between ACE inhibitors and ARBs. I knew that both affect the renin-angiotensin system, but I mixed up which one blocks the receptor vs. which one inhibits the enzyme. I need to create a clear mental model distinguishing these two drug classes.
-                </div>
+                <div class="section-content" id="reflection-content" data-testid="detail-reflection-content"></div>
             </section>
 
             <!-- Explanation Section -->
             <section class="content-section">
                 <h3 class="section-title">EXPLANATION</h3>
-                <div class="section-content" id="explanation-content" data-testid="detail-explanation-content">
-                    ACE inhibitors (like lisinopril) block angiotensin-converting enzyme, preventing conversion of angiotensin I to angiotensin II. ARBs (like losartan) block the AT1 receptor where angiotensin II acts. Key mnemonic: ACE = Enzyme, ARB = Receptor Blocker. Both reduce BP but via different mechanisms.
-                </div>
+                <div class="section-content" id="explanation-content" data-testid="detail-explanation-content"></div>
             </section>
 
             <!-- Attachments and Notes Row -->
@@ -211,6 +204,7 @@
 
     <script src="../js/toast.js"></script>
     <script src="../js/rich_content_renderer.js"></script>
+    <script src="../js/difficulty.js"></script>
     <script src="../js/entry_detail.js"></script>
 </body>
 </html>

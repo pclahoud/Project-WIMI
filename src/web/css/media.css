@@ -23,7 +23,7 @@
 
 .media-dropzone:hover {
     border-color: var(--color-primary, #3b82f6);
-    background: var(--bg-hover, #f3f4f6);
+    background: var(--bg-tertiary);
 }
 
 .media-dropzone.dragover {
@@ -369,7 +369,7 @@
 
 .media-delete-options .btn-secondary:hover {
     background: var(--bg-tertiary, #e5e7eb);
-    border-color: var(--border-hover, #9ca3af);
+    border-color: var(--border-dark);
 }
 
 .media-delete-options .btn-danger {
@@ -789,7 +789,7 @@
 }
 
 .media-subject-checkbox:hover {
-    background: var(--bg-hover, #f3f4f6);
+    background: var(--bg-tertiary);
 }
 
 .media-subject-checkbox input[type="checkbox"] {

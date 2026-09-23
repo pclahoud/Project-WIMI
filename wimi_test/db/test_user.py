@@ -169,10 +169,16 @@ class TestUser:
                 f"Failed to ensure user database for {self._username!r}"
             ) from exc
 
+        # Same device id the spawned app will use (#126). Without it the
+        # harness writes device_settings under UNKNOWN_DEVICE_ID while
+        # the app reads the real machine's row, and a scenario that seeds
+        # pane state would see the app ignore it — silently, since both
+        # rows are valid.
         self._db = UserDatabase(
             db_path=db_path,
             user_id=self._user.id,
             username=self._username,
+            device_id=self.master.get_device_id(),
         )
         return self._db
 

@@ -348,14 +348,60 @@ class WimiBrowser:
 
         Iterates every page-type tab Qt's CDP exposes and picks the
         first one whose document has scripts loaded AND whose title
-        contains ``"WIMI"``. Tabs that are inspected but rejected are
-        stopped again so we don't leak websocket connections.
+        contains ``"WIMI"`` AND which is actually on screen. Tabs that
+        are inspected but rejected are stopped again so we don't leak
+        websocket connections.
+
+        The on-screen check is the one that earns its keep. Qt lists a
+        target for every live ``QWebEnginePage``, including pages with no
+        view attached, and such a page can carry a perfectly convincing
+        WIMI title. Driving one of those is silent and total: navigation
+        succeeds, ``document.title`` updates, bridge calls return -- and
+        the window shows something else entirely, because the window is
+        on a different page. ``document.visibilityState`` is how a page
+        says whether anyone can see it, so it is the right question to
+        ask.
+
+        If nothing reports visible, fall back to the first
+        scripts+title match rather than failing outright: a platform
+        that reports every page hidden (an offscreen CI run, say) should
+        degrade to the old behaviour instead of refusing to start.
+
+        The scan is retried for a few seconds because the app's page may
+        still be loading when the ready signal arrives -- it has a title
+        and its scripts only once ``index.html`` is parsed. That race
+        existed before and was simply never visible: the detached page
+        this method used to pick had loaded earlier, so there was always
+        an immediate match to hand back.
 
         Raises
         ------
         WimiTestError
             If no tab in the listing matches the WIMI signature.
         """
+        deadline = time.monotonic() + 20.0
+        while True:
+            try:
+                return self._scan_for_tab(allow_hidden=False)
+            except WimiTestError:
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.5)
+        # Nothing claimed to be visible for the whole window. Take a
+        # hidden match rather than refuse to start -- but only now, after
+        # the retries. Accepting one on the first pass would defeat the
+        # retry entirely: a detached page that finished loading first
+        # would always win the race against the real one, which is
+        # exactly the bug this screening exists to prevent.
+        logger.warning(
+            "WimiBrowser.primary_tab: no WIMI tab reported itself visible "
+            "within the retry window; accepting a hidden one. Captures from "
+            "this session may not reflect what the window shows."
+        )
+        return self._scan_for_tab(allow_hidden=True)
+
+    def _scan_for_tab(self, *, allow_hidden: bool) -> WimiTab:
+        """One pass of the tab search. See :meth:`primary_tab`."""
         candidates = self._client.list_tab()
         rejected: list[pychrome.Tab] = []
 
@@ -383,7 +429,20 @@ class WimiBrowser:
                 title = title_resp.get("result", {}).get("value") or ""
 
                 if has_scripts and "WIMI" in title:
-                    return WimiTab(tab)
+                    vis_resp = tab.Runtime.evaluate(
+                        expression="document.visibilityState",
+                        returnByValue=True,
+                    )
+                    visible = (
+                        vis_resp.get("result", {}).get("value") == "visible"
+                    )
+                    if visible or allow_hidden:
+                        return WimiTab(tab)
+                    logger.debug(
+                        "WimiBrowser.primary_tab: tab %s matches WIMI but "
+                        "reports visibilityState != visible; skipping",
+                        getattr(tab, "id", "<unknown>"),
+                    )
             except Exception as exc:  # noqa: BLE001 — keep iterating on probe failure
                 logger.debug(
                     "WimiBrowser.primary_tab: probe failed for tab %s: %s",

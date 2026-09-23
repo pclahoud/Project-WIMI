@@ -90,6 +90,48 @@ _DEEP_PATH_LEAF: str = "Carcinoma of the penis"
 _LEAF_ALIAS: str = "Penile cancer"
 
 
+# Polling budget for the dropdown row. Each attempt dispatches one
+# ``input`` event and then watches quietly for ``_POLL_STEPS`` * 100 ms.
+#
+# The inner window must comfortably exceed the 300 ms debounce in
+# ``question_entry.js`` plus a bridge round trip, and the dispatches must
+# be spaced *wider* than that debounce: re-dispatching on every poll
+# would reset the 300 ms timer every time and the debounced path would
+# never fire at all.
+_DISPATCH_ATTEMPTS: int = 8
+_POLL_STEPS: int = 9
+_POLL_INTERVAL_MS: int = 100
+
+
+def _dispatch_subject_input(page: WimiPage) -> None:
+    """Fire an ``input`` event at the primary subject search box."""
+    page.eval_js(
+        "document.getElementById('primary-subject-search')"
+        ".dispatchEvent(new Event('input', { bubbles: true }))"
+    )
+
+
+def _alias_row_present(page: WimiPage) -> bool:
+    """True once the dropdown has rendered a row carrying ``.alias-match``."""
+    return bool(
+        page.eval_js(
+            "!!document.querySelector("
+            "'#primary-subject-dropdown .subject-option:has(.alias-match)')"
+        )
+    )
+
+
+def _wait_for_alias_row(page: WimiPage) -> bool:
+    """Dispatch + poll until the alias-match row renders, or budget runs out."""
+    for _ in range(_DISPATCH_ATTEMPTS):
+        _dispatch_subject_input(page)
+        for _ in range(_POLL_STEPS):
+            page.wait_for_timeout(_POLL_INTERVAL_MS)
+            if _alias_row_present(page):
+                return True
+    return False
+
+
 @pytest.mark.slow
 @pytest.mark.regression
 def test_alias_match_visible_in_subject_dropdown(
@@ -185,40 +227,21 @@ def test_alias_match_visible_in_subject_dropdown(
     # ---- Act ---------------------------------------------------------
     wimi_page.goto("entry-form", query={"session_id": review_session.id})
 
-    # The Subjects section starts collapsed by default; CSS hides the
-    # content via ``.entry-section:not(.expanded) .entry-section-content
-    # { display: none; }`` (see entry.css:498-506), so the search input
-    # inside has zero rect and the locator can't click it. Add the
-    # ``expanded`` class directly — calling ``toggleSection()`` is
-    # unreliable in tests because page-side init logic that runs on
-    # initializeEntryPage() can re-collapse non-current sections in
-    # response to focus/blur or required-field validation.
-    wimi_page.eval_js(
-        "document.getElementById('section-subjects').classList.add('expanded')"
-    )
+    # The form is flat: every field is rendered and visible on load, so
+    # the search input has a non-zero rect with no expanding step. This
+    # used to force ``.expanded`` onto #section-subjects, which no longer
+    # exists.
 
     # The primary subject search input has data-testid
     # 'entry-form-subject-primary-search' (UI_AUDIT.md §question_entry).
     search_input = wimi_page.locator(testid="entry-form-subject-primary-search")
     search_input.fill(_LEAF_ALIAS)
 
-    # The page's input event listener is attached inside
-    # ``initSubjectSearchField`` which runs late in ``initializeEntryPage``
-    # (after the awaited ``loadAllSubjectsForFuzzySearch``). When the test
-    # navigates and fills quickly, ``fill()``'s synthetic ``input`` event
-    # can fire BEFORE the page-side listener is attached, leaving the
-    # dropdown empty. Re-dispatching the event after a short wait gives
-    # the listener time to attach and then triggers it. This is purely
-    # a timing escape hatch; the bug under test is the layout overflow,
-    # not the search wiring, so dispatching twice is acceptable.
-    # TODO(Phase 3 / T3.6): replace with
-    #     wimi_page.wait_for_bridge_call("searchSubjectsFuzzy")
-    wimi_page.wait_for_timeout(500)
-    wimi_page.eval_js(
-        "document.getElementById('primary-subject-search')"
-        ".dispatchEvent(new Event('input', { bubbles: true }))"
-    )
-    wimi_page.wait_for_timeout(300)
+    # Poll for the rendered row rather than sleeping a fixed interval.
+    # Two independent races made the old fixed waits unreliable; see the
+    # "Why this polls" note at the bottom of this module for the full
+    # reasoning (issues #84 and #91).
+    alias_row_rendered = _wait_for_alias_row(wimi_page)
 
     # ---- Assert ------------------------------------------------------
     # Compute alias-span clipping in the page so we don't have to handle
@@ -252,10 +275,14 @@ def test_alias_match_visible_in_subject_dropdown(
         """
     )
 
-    assert layout_check["found"], (
+    assert alias_row_rendered and layout_check["found"], (
         "No dropdown row with class 'alias-match' rendered for query "
-        f"{_LEAF_ALIAS!r}. The alias seed or the search wiring regressed "
-        "before the layout assertion could fire."
+        f"{_LEAF_ALIAS!r} within "
+        f"{_DISPATCH_ATTEMPTS * _POLL_STEPS * _POLL_INTERVAL_MS} ms across "
+        f"{_DISPATCH_ATTEMPTS} dispatches. Both search paths have had time "
+        "to render by now, so this is a real regression in the alias seed "
+        "or the search wiring - not the timing race that was issues #84 "
+        "and #91."
     )
 
     # Width sanity-check first: a zero-width alias span is invisible even
@@ -274,3 +301,57 @@ def test_alias_match_visible_in_subject_dropdown(
         f"alias.right={layout_check['aliasRight']}, "
         f"alias text={layout_check['aliasText']!r}"
     )
+
+
+# ---------------------------------------------------------------------
+# Why this polls (issues #84 and #91)
+# ---------------------------------------------------------------------
+#
+# The Act block used to be three statements: wait 500 ms, dispatch an
+# ``input`` event, wait 300 ms, assert. Both waits were races.
+#
+# #84 - the 500 ms readiness wait. The listener this test drives is
+# attached inside ``initSubjectSearchField``, which runs late in
+# ``initializeEntryPage`` after an awaited
+# ``loadAllSubjectsForFuzzySearch``. ``fill()``'s synthetic ``input``
+# event can therefore land before anything is listening. 500 ms is
+# enough for the listener to attach on an idle box and not enough under
+# load, so the assertion fired against an empty dropdown.
+#
+# #91 - the 300 ms settle wait. ``searchSubjects`` in
+# ``src/web/js/question_entry.js`` (~318-337) has two paths::
+#
+#     if (typeof fuzzySearch !== 'undefined' && fuzzySearch.isReady()) {
+#         const results = fuzzySearch.searchSubjects(query, 10);  // sync
+#         renderSubjectDropdown(dropdown, results, type, query);
+#     } else {
+#         searchSubjectsViaAPI(query, dropdown, type);            // debounced
+#     }
+#
+# and that fallback is debounced by *exactly* 300 ms before it even
+# begins awaiting the bridge. When Fuse was ready the sync path rendered
+# well inside the wait and the test passed; when it was not, the
+# debounced path could not possibly have rendered by the time the wait
+# expired. A dead heat by construction, decided by a startup race the
+# test does not control. Measured on 808a196: 3 passes in 6 runs.
+#
+# Deliberately NOT ``wait_for_bridge_call``, which the old TODO here
+# proposed, for three separate reasons:
+#
+#   1. It still raises ``NotImplementedError`` (``wimi_test/page.py``).
+#      Its docstring says it is blocked on a WIMI-side ``@pyqtSlot`` for
+#      ``get_test_mode_bridge_calls``; that slot does now exist, in
+#      ``src/app/bridge_domains/utility.py``, so the docstring is stale -
+#      but the method is still a stub.
+#   2. It named ``searchSubjectsFuzzy``, which exists nowhere in the
+#      repo. The fallback calls the ``searchSubjects`` slot.
+#   3. Most importantly, on the Fuse-ready path there is **no bridge
+#      call at all** - the search is a synchronous in-page Fuse query.
+#      Waiting for a bridge call would hang on exactly the path that
+#      used to pass.
+#
+# Polling the rendered outcome is the only wait that covers both paths,
+# and it is what ``tests/wimi_test/scenarios/README.md`` asks for. The
+# layout assertions below are untouched: the point of this scenario is
+# still the overflow geometry, and polling only ensures there is
+# something to measure when they run.
