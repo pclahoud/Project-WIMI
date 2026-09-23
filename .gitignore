@@ -133,6 +133,12 @@ dmypy.json
 *.swo
 *~
 
+# Claude Code local settings (machine-specific paths + tool permissions)
+.claude/settings.local.json
+
+# Conference posters, abstracts, and handouts (large binaries, kept locally)
+presentations/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -202,3 +208,16 @@ coverage.xml
 # Error logs and debug files
 *.stackdump
 /core.[0-9]*
+
+# Prebuilt llama.cpp binaries, staged for a local-model feature that has not
+# been decided yet (FUTURE_VISION.md, "AI/ML integration approach?"). 44MB of
+# Windows x86-64 DLLs that nothing in the tree references, and which
+# publish_release.py would carry to the public mirror once committed. Keep
+# them on disk, out of the history.
+/vendor/
+
+# Agent worktrees and scratch output. Full repo copies and run artifacts
+# that nothing references; `git add -A` would otherwise commit them, and
+# publish_release.py snapshots the committed tree to the public mirror.
+/.claude/worktrees/
+/artifacts/

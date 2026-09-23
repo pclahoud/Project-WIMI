@@ -21,30 +21,27 @@ class SharedHelpersMixin:
     def _build_subject_path(self, node_id: int) -> str:
         """Build full path string for a subject node.
 
-        Graph-primary (P2.5): tries LadybugDB first, falls back to SQLite.
-
         Polyhierarchy migration: walks UPWARD via ``subject_edges``
         following only ``is_primary=TRUE`` edges — this yields the
         canonical breadcrumb path. Non-primary alternate paths are
         available via :meth:`EdgesMixin.get_paths_to_root`. Falls back
         to ``subject_nodes.parent_id`` if the ``subject_edges`` table
         doesn't exist (very old DBs predating m004).
-        """
-        # Try graph first — verify node exists in graph before trusting result
-        if getattr(self, '_graph_read_ready', False):
-            try:
-                graph_node = self._graph_get_subject_node(node_id)
-                if graph_node:
-                    graph_path = self._graph_build_subject_path(node_id)
-                    if graph_path:
-                        return graph_path
-            except Exception as e:
-                logger.warning("Graph read failed for _build_subject_path, falling back to SQLite: %s", e)
 
-        # SQLite fallback — walk upward via primary edges first;
-        # fall back to subject_nodes.parent_id when no primary edge
-        # exists (legacy nodes / tests that seed parent_id but not
-        # subject_edges).
+        SQLite is authoritative here — see the note on
+        :meth:`_get_descendant_node_ids` for why the former
+        "graph-primary (P2.5)" shortcut was removed. Same defect, same
+        cause: the graph's ``HAS_CHILD`` edges and its cached
+        ``full_path`` property are both derived from
+        ``subject_nodes.parent_id`` by ``GraphMixin._etl_subjects``, a
+        column the polyhierarchy migration deprecated. A node whose
+        primary edge no longer matches its legacy ``parent_id`` (or whose
+        ``parent_id`` is NULL because it was only ever attached via
+        ``subject_edges``) got a stale path, or just its own bare name.
+        """
+        # Walk upward via primary edges first; fall back to
+        # subject_nodes.parent_id when no primary edge exists (legacy
+        # nodes / tests that seed parent_id but not subject_edges).
         parts: List[str] = []
         seen: set = set()
         current_id = node_id
@@ -90,27 +87,38 @@ class SharedHelpersMixin:
     def _get_descendant_node_ids(self, parent_id: int) -> List[int]:
         """Get all descendant node IDs recursively (excluding ``parent_id`` itself).
 
-        Graph-primary (P2.5): tries LadybugDB first, falls back to SQLite.
-
         Polyhierarchy migration: descends via the ``subject_edges``
         junction table so a node reachable through multiple parents is
         still only included once (``UNION`` dedup in the recursive CTE).
         Falls back to ``subject_nodes.parent_id`` if ``subject_edges``
         doesn't exist (legacy DBs predating m004).
-        """
-        # Try graph first — verify parent node exists in graph before trusting result
-        if getattr(self, '_graph_read_ready', False):
-            try:
-                graph_node = self._graph_get_subject_node(parent_id)
-                if graph_node:
-                    graph_ids = self._graph_get_descendant_ids(parent_id)
-                    if graph_ids is not None:
-                        return graph_ids
-            except Exception as e:
-                logger.warning("Graph read failed for _get_descendant_node_ids, falling back to SQLite: %s", e)
 
-        # SQLite fallback. Use UNION (not UNION ALL) so an accidental
-        # data cycle does not produce infinite recursion.
+        **SQLite is authoritative. Do not re-add a graph-first read
+        here.** This used to consult LadybugDB first (the "P2.5
+        graph-primary" optimisation) and return its answer whenever the
+        parent node existed in the graph. The graph's ``HAS_CHILD``
+        edges are built by ``GraphMixin._etl_subjects`` exclusively from
+        ``subject_nodes.parent_id`` — the legacy single-parent column the
+        polyhierarchy migration deprecated — and ``EdgesMixin`` performs
+        no graph dual-write at all. So a second parent added through
+        ``add_parent``/``add_edge`` never reached the graph, and asking
+        that parent for its descendants returned an **empty list**: the
+        graph knew the node, so the shortcut fired, and the node simply
+        had no outgoing ``HAS_CHILD``.
+
+        That silently reverted polyhierarchy behaviour everywhere
+        downstream, because callers derive query scope from this helper
+        (e.g. ``get_entries_paginated``'s subject filter, whose SQL is
+        correct but was being fed a wrong id set). Reading
+        ``subject_edges`` directly is the only source of truth; the cost
+        is one recursive CTE, which is not worth a wrong answer.
+        Re-enabling the shortcut requires rebuilding the ETL on
+        ``subject_edges`` *and* adding graph dual-writes to
+        ``EdgesMixin`` first.
+
+        Uses UNION (not UNION ALL) so an accidental data cycle does not
+        produce infinite recursion.
+        """
         edges_available = self.fetchone(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='subject_edges'"
         ) is not None
@@ -190,6 +198,130 @@ class SharedHelpersMixin:
                 WHERE sn.status = 'active'
             )
         """
+
+    def _primary_parent_scope_sql(
+        self,
+        scope_node_ids,
+        alias: str = 'esm',
+    ) -> tuple:
+        """Predicate: does a mapping row roll up into ``scope_node_ids``?
+
+        Implements ``POLYHIERARCHY_MIGRATION.md`` §5.4, which is a
+        conditional and is easy to half-implement:
+
+        * ``primary_parent_id IS NULL`` — the student never disambiguated
+          this tag, so the entry rolls up through **every** ancestor
+          reachable from the leaf. Match on the subject itself being in
+          scope. This is the OMOP "honest non-additivity" behaviour of
+          §5.3.
+        * ``primary_parent_id`` set — the student said which parent they
+          meant, so the entry rolls up through **only** that parent's
+          ancestors. Match on the chosen parent being in scope, and
+          ignore the subject entirely: the leaf is shared, the context is
+          not.
+
+        Implementing only the first branch is the bug this helper exists
+        to prevent. It counts a disambiguated entry under parents the
+        student explicitly excluded, and inflates totals in proportion to
+        how many parents a subject has — worst on exactly the
+        cross-cutting, high-yield topics.
+
+        This is the **counting** predicate. A surface that retrieves
+        entries rather than totalling them wants
+        :meth:`_subject_filter_scope_sql`, which wraps this one — see
+        that docstring, and "Counting vs finding" in CLAUDE.md.
+
+        Args:
+            scope_node_ids: the target subtree — typically a node plus
+                its descendants, from ``_get_descendant_node_ids``.
+            alias: table alias for ``entry_subject_mappings`` in the
+                caller's query.
+
+        Returns:
+            ``(sql, params)``. ``sql`` is a parenthesised boolean
+            expression safe to AND into a WHERE clause; ``params`` are
+            the bind values in order. An empty ``scope_node_ids`` yields
+            ``('(0)', [])`` — matches nothing, rather than an invalid
+            ``IN ()``.
+        """
+        ids = list(scope_node_ids)
+        if not ids:
+            return '(0)', []
+        placeholders = ','.join(['?'] * len(ids))
+        sql = (
+            f"(({alias}.primary_parent_id IS NULL"
+            f"   AND {alias}.subject_node_id IN ({placeholders}))"
+            f" OR ({alias}.primary_parent_id IS NOT NULL"
+            f"   AND {alias}.primary_parent_id IN ({placeholders})))"
+        )
+        return sql, ids + ids
+
+    def _subject_filter_scope_sql(
+        self,
+        direct_node_ids,
+        scope_node_ids,
+        alias: str = 'esm',
+    ) -> tuple:
+        """Predicate for a *finding* surface: "is this entry about S?"
+
+        **Counting is primary-only; finding is all tags** (CLAUDE.md,
+        settled on Forgejo #13). This is the finding half's scope rule,
+        and it is deliberately more permissive than
+        :meth:`_primary_parent_scope_sql`. Filtering by subject S means
+        the union of:
+
+        * entries tagged S **directly**, whatever parent context they
+          carry — ``subject_node_id IN direct_node_ids``, unconditional;
+        * entries that roll up into S's subtree under §5.4 — the
+          conditional from :meth:`_primary_parent_scope_sql` over
+          ``scope_node_ids``.
+
+        The first clause is the fix for #13. A student tagged a question
+        with shared leaf D, said "the Pregnancy one", and could then no
+        longer find it by filtering for D: the §5.4 predicate asks
+        whether the *chosen parent* is in scope, and filtering by the
+        leaf alone means it is not. §5.4 governs rollup *through
+        ancestors*; the leaf is not an ancestor, it is the subject the
+        entry actually carries, so a parent context narrows which chain
+        an entry rolls up through without making it stop being about D.
+
+        **The two id sets are not interchangeable.** ``direct_node_ids``
+        is what the user named; ``scope_node_ids`` is that plus its
+        descendants. Widening the unconditional clause to the whole
+        descendant set would return an entry on a shared leaf pinned to
+        one parent under *every* parent of that leaf — the §5.4 defect
+        this codebase already fixed once. Pinned by
+        ``test_entry_filter_rolls_descendants_up_through_the_chosen_parent``.
+
+        Do not use this for anything that totals mistakes. Top Subjects,
+        both sunbursts and the weight quadrant stay on the strict §5.4
+        predicate and on ``mapping_type = 'primary'``.
+
+        Args:
+            direct_node_ids: the subjects the caller actually named.
+            scope_node_ids: the rollup scope — typically those nodes plus
+                their descendants, from ``_get_descendant_node_ids``.
+            alias: table alias for ``entry_subject_mappings`` in the
+                caller's query.
+
+        Returns:
+            ``(sql, params)``, ``sql`` a parenthesised boolean expression
+            safe to AND into a WHERE clause. Empty inputs degrade the way
+            :meth:`_primary_parent_scope_sql` does — ``('(0)', [])``
+            matches nothing rather than emitting an invalid ``IN ()``.
+        """
+        scope_sql, scope_params = self._primary_parent_scope_sql(
+            scope_node_ids, alias=alias
+        )
+        direct = list(direct_node_ids)
+        if not direct:
+            return scope_sql, scope_params
+        placeholders = ','.join(['?'] * len(direct))
+        sql = (
+            f"(({alias}.subject_node_id IN ({placeholders}))"
+            f" OR {scope_sql})"
+        )
+        return sql, direct + scope_params
 
     # ------------------------------------------------------------------
     # Entry relation helpers (used by entries, media, notes, analytics)

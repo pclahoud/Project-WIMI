@@ -901,7 +901,7 @@
     border: 1px solid var(--border-light);
 }
 
-.template-status-bar:empty,
+.template-status-bar:not(:has(*)),
 .template-status-bar:has(.hidden:only-child) {
     display: none;
 }

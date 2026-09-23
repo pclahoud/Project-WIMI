@@ -195,7 +195,6 @@ class AnalyticsMixin:
         subject_query = f"""
             SELECT
                 sn.id as subject_id,
-                sn.parent_id,
                 sn.name as subject_name,
                 (COALESCE(sn.exam_weight_low, 0) + COALESCE(sn.exam_weight_high, sn.exam_weight_low, 0)) / 2.0 as exam_weight,
                 COALESCE(sn.exam_weight_low, 0) as exam_weight_low,
@@ -208,22 +207,53 @@ class AnalyticsMixin:
             JOIN question_entries qe ON esm.question_entry_id = qe.id
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE {where_clause} AND esm.mapping_type = 'primary'
-            GROUP BY sn.id, sn.parent_id, sn.name, sn.exam_weight_low, sn.exam_weight_high
+            GROUP BY sn.id, sn.name, sn.exam_weight_low, sn.exam_weight_high
         """
         subject_rows = self.fetchall(subject_query, tuple(params))
 
         # If include_children, aggregate counts up through hierarchy
         if include_children and subject_rows:
-            # Build nodes list for aggregation
+            # Split each subject's mistakes by the parent context the
+            # student chose, so the rollup can honour §5.4: an entry
+            # pinned to one parent must not also inflate the others.
+            # Without this a mistake on a subject with N parents reached
+            # all N of them.
+            subject_ids = [row['subject_id'] for row in subject_rows]
+            bucket_placeholders = ','.join(['?'] * len(subject_ids))
+            bucket_rows = self.fetchall(f"""
+                SELECT esm.subject_node_id AS sid,
+                       esm.primary_parent_id AS ppid,
+                       COUNT(DISTINCT qe.id) AS n
+                FROM entry_subject_mappings esm
+                JOIN question_entries qe ON qe.id = esm.question_entry_id
+                JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE {where_clause}
+                  AND esm.mapping_type = 'primary'
+                  AND esm.subject_node_id IN ({bucket_placeholders})
+                GROUP BY esm.subject_node_id, esm.primary_parent_id
+            """, tuple(list(params) + subject_ids))
+
+            context_buckets = {}
+            for brow in bucket_rows:
+                context_buckets.setdefault(brow['sid'], {})[brow['ppid']] = brow['n']
+
+            # No 'parent_id' key: the helper sources parents from
+            # subject_edges and only falls back to that legacy column for
+            # nodes with no edges at all. m004 backfilled one edge per
+            # existing parent_id, so omitting it costs nothing here and
+            # keeps this query off the column CLAUDE.md says not to read.
             nodes_for_aggregation = [
                 {
                     'id': row['subject_id'],
-                    'parent_id': row['parent_id'],
                     'direct_count': row['mistake_count']
                 }
                 for row in subject_rows
             ]
-            totals = self._aggregate_hierarchy_counts(nodes_for_aggregation, count_field='direct_count')
+            totals = self._aggregate_hierarchy_counts(
+                nodes_for_aggregation,
+                count_field='direct_count',
+                context_buckets=context_buckets,
+            )
         else:
             totals = {row['subject_id']: row['mistake_count'] for row in subject_rows}
 
@@ -264,12 +294,24 @@ class AnalyticsMixin:
             # Get full path
             full_path = self._build_subject_path(subject_id)
 
-            # Calculate trend (based on direct counts for this node)
+            # Calculate trend (based on direct counts for this node).
+            #
+            # Both halves filter esm.mapping_type = 'primary' to match the
+            # main subject query and the §5.4 bucket query above. Without it
+            # a secondary ("also tested") tag moved the arrow, so a subject
+            # could show a rising trend on the strength of entries that the
+            # count beside the arrow does not include.
+            #
+            # These are direct per-node counts (esm.subject_node_id = ?) with
+            # no descendant CTE and no ancestor walk, so they do NOT
+            # aggregate and §5.4 / primary_parent_id is inapplicable: the
+            # only criterion here is mapping_type.
             recent_query = f"""
                 SELECT COUNT(*) as count
                 FROM question_entries qe
                 JOIN review_sessions rs ON qe.review_session_id = rs.id
                 JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
+                    AND esm.mapping_type = 'primary'
                 WHERE {where_clause}
                     AND esm.subject_node_id = ?
                     AND rs.date_encountered >= ?
@@ -281,6 +323,7 @@ class AnalyticsMixin:
                 FROM question_entries qe
                 JOIN review_sessions rs ON qe.review_session_id = rs.id
                 JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
+                    AND esm.mapping_type = 'primary'
                 WHERE {where_clause}
                     AND esm.subject_node_id = ?
                     AND rs.date_encountered >= ?
@@ -346,7 +389,23 @@ class AnalyticsMixin:
             where_conditions.append("rs.exam_context_id = ?")
             params.append(exam_context_id)
 
-        # Filter to entries that have a subject mapping in the specified dimension
+        # Filter to entries that have a subject mapping in the specified dimension.
+        #
+        # Deliberately NOT filtered to mapping_type = 'primary' — reviewed
+        # 2026-09-11 and concluded not to be a defect. This is an *inclusion*
+        # test ("did this entry touch the dimension at all?"), not a count
+        # attributed to a subject: membership is `qe.id IN (...)`, so each
+        # entry is admitted at most once and nothing inflates. An entry whose
+        # only link to the dimension is a secondary "also tested" tag did
+        # genuinely touch that dimension, and its tags are part of that
+        # dimension's mistake-type picture.
+        #
+        # It does leave the page slightly asymmetric — the dimension-scoped
+        # subject counts are primary-only while this card's denominator is
+        # not — which is an `is_draft`-style cross-surface consistency
+        # question, not a wrong number here. Do not "fix" it without deciding
+        # that question; narrowing it to primary would silently drop entries
+        # from the tag distribution.
         if dimension_id:
             where_conditions.append("""
                 qe.id IN (

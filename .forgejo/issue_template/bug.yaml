@@ -1,0 +1,101 @@
+name: Bug report
+about: Something in WIMI behaves wrongly
+title: "[bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two fields here exist because of specific things that have gone wrong
+        in this repo, and they are the two worth filling in carefully.
+
+        **Surface** — several counts are computed by more than one query, and
+        the same subject legitimately shows different numbers on different
+        pages (the deep dive deliberately diverges from the §5.4 rollup). A
+        count that looks wrong is only diagnosable if we know which page it
+        was read from.
+
+        **How it was confirmed** — a screenshot is not proof. A whole
+        walkthrough once captured thirteen screenshots of the same page while
+        reporting thirteen different titles. Say whether the DOM or the
+        database was actually checked.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      description: Where the behaviour was seen.
+      options:
+        - Dashboard (index.html)
+        - Analytics dashboard
+        - Entry browser
+        - Entry form (question_entry)
+        - Entry detail
+        - Tree editor
+        - Subject deep dive
+        - Session setup
+        - Settings
+        - Exam wizard
+        - Profile picker
+        - Browser pane
+        - Test harness (wimi_test)
+        - Database / bridge (no UI)
+        - Other / several
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The observed behaviour. Exact numbers and exact strings.
+      placeholder: |
+        The entry browser header reads "0 entries - 0 drafts" while 11 entry
+        cards are rendered below it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confirmation
+    attributes:
+      label: How it was confirmed
+      options:
+        - Read back from the DOM or the database
+        - A test reproduces it
+        - Seen in a screenshot only
+        - Reported by a user, not yet reproduced
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: >
+        The seed matters as much as the steps. Multi-parent subjects,
+        NULL primary_parent_id and entry counts that exceed the session's
+        total_incorrect all change what the surfaces show.
+      placeholder: |
+        1. Seed an exam with a 2-parent leaf (hypertension under both
+           Cardiovascular and Pregnancy)
+        2. Create 6 entries on it: 3 with primary_parent_id=Cardiovascular,
+           2 with Pregnancy, 1 left NULL
+        3. Open the entry browser
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and starting points
+      description: >
+        File paths, `file.py:123` references, screenshots, failing test
+        names. Anything that saves the next person the search.
+    validations:
+      required: false

@@ -7,6 +7,19 @@
 PyQt6==6.9.1
 PyQt6-WebEngine==6.9.0
 
+# The Qt and Chromium binaries themselves. These are TRANSITIVE dependencies of
+# the two bindings above, and they are what actually gets bundled into the
+# frozen build -- PyQt6 and PyQt6-WebEngine are thin wrappers. Pinning only the
+# bindings leaves the shipped Chromium free to float inside the binding's
+# allowed range, which is the hole the #135 drift went through: the Windows
+# build shipped Chromium 134 while every test ran 130, and QtWebEngine 6.10
+# had stopped re-invalidating `:empty` (#134, #136).
+#
+# 6.9.2 provides Chromium 130. `scripts/check_build_env.py` verifies that from
+# the loaded library, not from this file.
+PyQt6-Qt6==6.9.2
+PyQt6-WebEngine-Qt6==6.9.2
+
 # Image processing
 Pillow==11.3.0
 
@@ -20,3 +33,10 @@ mcp==1.27.0
 
 # Build tool (only needed for compiling)
 pyinstaller==6.19.0
+
+# PyInstaller's hook collection, a transitive of the above. Pinned for the same
+# reason as the -Qt6 wheels: it is a build-time code generator, it decides what
+# ends up in the bundle, and an unpinned transitive is exactly how #135 shipped
+# a Chromium nobody had tested. It moved 2025.11 -> 2026.7 as a side effect of
+# a PyInstaller bump and nothing noticed.
+pyinstaller-hooks-contrib==2026.7

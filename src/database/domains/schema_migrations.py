@@ -581,7 +581,7 @@ class SchemaMigrationMixin:
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.warning(
                         f"Phase 7 schema file not found: {schema_path}",
-                        category='DATABASE'
+                        category=ErrorCategory.DATABASE
                     )
                 # Create tables directly if schema file doesn't exist
                 self._create_phase7_tables_directly()
@@ -597,13 +597,13 @@ class SchemaMigrationMixin:
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.info(
                         f"Phase 7 schema initialized for user {getattr(self, 'username', 'unknown')}",
-                        category='DATABASE'
+                        category=ErrorCategory.DATABASE
                     )
             except Exception as e:
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.error(
                         f"Failed to initialize Phase 7 schema: {e}",
-                        category='DATABASE',
+                        category=ErrorCategory.DATABASE,
                         error=e
                     )
                 raise
@@ -699,13 +699,13 @@ class SchemaMigrationMixin:
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.info(
                         "Added dimension_id column to subject_nodes",
-                        category='DATABASE'
+                        category=ErrorCategory.DATABASE
                     )
             except Exception as e:
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.error(
                         f"Failed to add dimension_id column: {e}",
-                        category='DATABASE',
+                        category=ErrorCategory.DATABASE,
                         error=e
                     )
                 # Don't raise - allow app to continue with limited functionality

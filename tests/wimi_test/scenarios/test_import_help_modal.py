@@ -19,10 +19,38 @@ because ``_loader.js`` aliases then deletes the source handle.
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
+
+
+
+def _wait_for(
+    wimi_page: WimiPage,
+    js_expression: str,
+    *,
+    timeout_ms: int = 5000,
+    poll_step_ms: int = 100,
+) -> Any:
+    """Poll ``js_expression`` until it returns something truthy.
+
+    Returns the last value seen rather than raising, so the caller's own
+    assertion still reports what it actually found. This replaces a fixed
+    ``wait_for_timeout`` that was "enough on an idle box" and a race under
+    load -- the #84 shape.
+    """
+    elapsed = 0
+    last: Any = None
+    while elapsed < timeout_ms:
+        last = wimi_page.eval_js(js_expression)
+        if last:
+            return last
+        wimi_page.wait_for_timeout(poll_step_ms)
+        elapsed += poll_step_ms
+    return last
 
 
 @pytest.mark.slow
@@ -34,8 +62,13 @@ def test_import_help_modal_renders_embedded_guide(
     """Open the help modal and assert the embedded guide renders."""
     wimi_page.goto("tree-editor")
 
-    # Page init is async — give it a beat before poking the DOM.
-    wimi_page.wait_for_timeout(500)
+    # Page init is async. Poll for the embedded block rather than
+    # sleeping a fixed interval (#84).
+    _wait_for(
+        wimi_page,
+        "(() => { const s = document.getElementById('import-help-source');"
+        " return !!s && s.textContent.trim().length > 1000; })()",
+    )
 
     # The embedded markdown source block must ship with the page.
     source_len = wimi_page.eval_js(
@@ -55,12 +88,12 @@ def test_import_help_modal_renders_embedded_guide(
     )
     assert clicked, "#btn-import-help not found on tree_editor.html"
 
-    # Rendering is synchronous now (no bridge fetch), but allow a beat.
-    wimi_page.wait_for_timeout(200)
-
-    modal_active = wimi_page.eval_js(
+    # Rendering is synchronous now (no bridge fetch), but the class flip
+    # still has to reach the DOM. Poll instead of sleeping (#84).
+    modal_active = _wait_for(
+        wimi_page,
         "document.getElementById('import-help-modal')"
-        ".classList.contains('active')"
+        ".classList.contains('active')",
     )
     assert modal_active, "Import help modal did not open on button click"
 

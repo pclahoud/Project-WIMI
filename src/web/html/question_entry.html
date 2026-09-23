@@ -33,7 +33,20 @@
     <script src="../js/rich_editor.js"></script>
 </head>
 <body>
-    <div class="entry-page">
+    <!--
+      Ships `inert`. Until initializeEntryPage() has wired it, this page is
+      markup and nothing else: resetFormForNewEntry() / populateFormWithEntry()
+      overwrite every field, the footer buttons have no listeners yet, and the
+      rich text editors flush a queued '' over whatever was typed when TinyMCE
+      mounts. Everything a student does in that window is discarded without a
+      toast, a console error or even isDirty going true (#114).
+
+      The attribute is in the markup rather than set from JS so there is no gap
+      before the first script runs. markEntryFormReady() removes it -- see the
+      comment there for why that is gated on the editors and not just on the end
+      of the init chain.
+    -->
+    <div class="entry-page" inert data-testid="entry-form-page">
         <!-- Header -->
         <header class="entry-header">
             <div class="entry-header-left">
@@ -45,7 +58,7 @@
                     <h1 id="session-name" data-testid="entry-form-session-name">Loading...</h1>
                     <div class="entry-header-meta">
                         <span class="badge badge-primary" id="exam-badge" data-testid="entry-form-exam-badge">Exam</span>
-                        <span class="entry-counter" id="entry-counter" data-testid="entry-form-entry-counter">Entry 1 of 0</span>
+                        <span class="entry-counter" id="entry-counter" data-testid="entry-form-entry-counter"></span>
                     </div>
                 </div>
             </div>
@@ -62,6 +75,11 @@
                 </div>
                 <button type="button" class="btn btn-sm btn-outline add-entries-btn" id="btn-add-entries" title="Add more entry slots" data-testid="entry-form-add-entries-button">
                     + Add Entries
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" id="btn-question-bank"
+                        title="Show your question bank beside this form"
+                        data-testid="entry-form-question-bank-button" hidden>
+                    Open question bank
                 </button>
                 <div class="auto-save-indicator" id="auto-save-indicator" data-testid="entry-form-auto-save-indicator">
                     <span class="auto-save-icon">💾</span>
@@ -88,30 +106,27 @@
             <div data-plugin-slot="entry-before-form"></div>
             <form id="entry-form" class="entry-form">
 
-                <!-- Section A: Question Information -->
-                <section class="entry-section expanded" id="section-question-info" data-section="A">
-                    <div class="entry-section-header" tabindex="0" role="button"
-                         aria-expanded="true" aria-controls="section-question-info-content"
-                         onclick="toggleSection('section-question-info')"
-                         onkeydown="handleSectionKeydown(event, 'section-question-info')"
-                         data-testid="entry-form-section-a-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">A</span>
-                            <span class="section-name">Question Information</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="entry-section-content" id="section-question-info-content" data-testid="entry-form-section-a-content">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="question-id">Question ID / Reference</label>
+                <!-- Question information.
+
+                     A label/value block rather than stacked form groups.
+                     Every label is the one this form has always used; what
+                     changes is that four short facts cost four compact rows
+                     instead of three form-rows of full-height inputs. -->
+                <div class="entry-facts">
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <label class="fact-label" for="question-id">Question ID / Reference</label>
+                            <div class="fact-value">
                                 <input type="text" id="question-id" placeholder="e.g., Q15, Page 42, etc."
-                                       data-section="section-question-info"
                                        data-testid="entry-form-question-id-input">
-                                <p class="form-help">Optional identifier for this question</p>
                             </div>
-                            <div class="form-group">
-                                <label>Perceived Difficulty</label>
+                        </div>
+                    </div>
+
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <span class="fact-label">Perceived Difficulty</span>
+                            <div class="fact-value">
                                 <div class="difficulty-rating" id="difficulty-rating">
                                     <button type="button" class="difficulty-dot" data-value="1" title="Very Easy">1</button>
                                     <button type="button" class="difficulty-dot" data-value="2" title="Easy">2</button>
@@ -122,30 +137,37 @@
                                 <input type="hidden" id="perceived-difficulty" value="">
                             </div>
                         </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="user-answer">Your Answer <span class="required">*</span></label>
-                                <textarea id="user-answer" rows="2" placeholder="What answer did you select?"
-                                          data-section="section-question-info"
+                    </div>
+
+                    <!-- Two lines, one row: the answers are only ever read as
+                         a pair, so no divider separates them. Each keeps its
+                         own label, and each is marked independently when
+                         still empty. -->
+                    <div class="fact-row fact-row--answers">
+                        <div class="fact-line">
+                            <label class="fact-label" for="user-answer">Your Answer <span class="required">*</span></label>
+                            <div class="fact-value">
+                                <textarea id="user-answer" rows="1" placeholder="What answer did you select?"
                                           data-testid="entry-form-user-answer-textarea"></textarea>
                             </div>
-                            <div class="form-group">
-                                <label for="correct-answer">Correct Answer <span class="required">*</span></label>
-                                <textarea id="correct-answer" rows="2" placeholder="What was the correct answer?"
-                                          data-section="section-question-info"
+                        </div>
+                        <div class="fact-line">
+                            <label class="fact-label" for="correct-answer">Correct Answer <span class="required">*</span></label>
+                            <div class="fact-value">
+                                <textarea id="correct-answer" rows="1" placeholder="What was the correct answer?"
                                           data-testid="entry-form-correct-answer-textarea"></textarea>
                             </div>
                         </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group form-group-sm">
-                                <label for="time-spent">Time Spent</label>
+                    </div>
+
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <label class="fact-label" for="time-spent">Time Spent</label>
+                            <div class="fact-value">
                                 <div class="time-input-group">
                                     <input type="number" id="time-spent" min="0" max="999" placeholder="0"
-                                           data-section="section-question-info" data-last-in-section="true"
                                            data-testid="entry-form-time-spent-input">
-                                    <select id="time-unit" data-section="section-question-info"
+                                    <select id="time-unit"
                                             data-testid="entry-form-time-unit-select">
                                         <option value="minutes">minutes</option>
                                         <option value="seconds">seconds</option>
@@ -154,263 +176,158 @@
                             </div>
                         </div>
                     </div>
-                </section>
 
-                <!-- Section B: Subject Mapping -->
-                <section class="entry-section" id="section-subjects" data-section="B">
-                    <div class="entry-section-header" tabindex="0" role="button"
-                         aria-expanded="false" aria-controls="section-subjects-content"
-                         onclick="toggleSection('section-subjects')"
-                         onkeydown="handleSectionKeydown(event, 'section-subjects')"
-                         data-testid="entry-form-section-b-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">B</span>
-                            <span class="section-name">Subject Mapping</span>
-                            <span class="required">*</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="entry-section-content" id="section-subjects-content" data-testid="entry-form-section-b-content">
-                        <div class="form-group">
-                            <label>Primary Subject(s) <span class="required">*</span></label>
-                            <div class="subject-search-container">
-                                <input type="text" id="primary-subject-search" class="subject-search"
-                                       placeholder="Search subjects..." autocomplete="off"
-                                       data-section="section-subjects"
-                                       data-testid="entry-form-subject-primary-search">
-                                <div class="subject-dropdown" id="primary-subject-dropdown"></div>
-                            </div>
-                            <div class="selected-chips" id="primary-subjects-chips">
-                                <!-- Selected primary subjects will appear here -->
-                            </div>
-                            <p class="form-help">The main topic(s) this question tests</p>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Secondary Subject(s)</label>
-                            <div class="subject-search-container">
-                                <input type="text" id="secondary-subject-search" class="subject-search"
-                                       placeholder="Search subjects..." autocomplete="off"
-                                       data-section="section-subjects" data-last-in-section="true"
-                                       data-testid="entry-form-subject-secondary-search">
-                                <div class="subject-dropdown" id="secondary-subject-dropdown"></div>
-                            </div>
-                            <div class="selected-chips" id="secondary-subjects-chips">
-                                <!-- Selected secondary subjects will appear here -->
-                            </div>
-                            <p class="form-help">Related topics also tested by this question</p>
-                        </div>
-
-                        <!-- Quick Add Subject -->
-                        <div class="quick-add-subject">
-                            <button type="button" class="btn btn-sm btn-ghost" id="btn-quick-add-subject" data-testid="entry-form-subject-add-quick-button">
-                                + Add New Subject
-                            </button>
-                        </div>
-
-                        <!-- Quick Add Subject Modal (inline) -->
-                        <div class="quick-add-modal" id="quick-add-subject-modal" style="display: none;" data-testid="entry-form-quick-add-modal">
-                            <div class="quick-add-header">
-                                <h4>Quick Add Subject</h4>
-                                <button type="button" class="quick-add-close" id="quick-add-close" data-testid="entry-form-quick-add-close-button">&times;</button>
-                            </div>
-                            <div class="quick-add-body">
-                                <div class="form-group">
-                                    <label for="quick-add-name">Subject Name <span class="required">*</span></label>
-                                    <input type="text" id="quick-add-name" class="form-input" placeholder="e.g., Cardiology" data-testid="entry-form-quick-add-name-input">
-                                </div>
-                                <div class="form-group">
-                                    <label for="quick-add-parent-search">Parent Subject</label>
-                                    <div class="subject-search-container">
-                                        <input type="text" id="quick-add-parent-search"
-                                               class="subject-search"
-                                               placeholder="Search or leave empty for Root..."
-                                               autocomplete="off"
-                                               data-testid="entry-form-quick-add-parent-search">
-                                        <div class="subject-dropdown" id="quick-add-parent-dropdown"></div>
+                    <!-- Chip rows. The search input lives in the row beside
+                         the chips, so there is nothing to open before you can
+                         type. Each row's dropdown escapes into a full-width
+                         anchor below it -- see .fact-dropdown-anchor. -->
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <label class="fact-label" for="primary-subject-search">Primary Subject(s) <span class="required">*</span></label>
+                            <div class="fact-value">
+                                <div class="chip-field">
+                                    <div class="selected-chips" id="primary-subjects-chips">
+                                        <!-- Selected primary subjects will appear here -->
                                     </div>
-                                    <input type="hidden" id="quick-add-parent" value="">
+                                    <input type="text" id="primary-subject-search" class="subject-search"
+                                           placeholder="Search the main topic(s) this question tests..." autocomplete="off"
+                                           data-testid="entry-form-subject-primary-search">
                                 </div>
-                                <div class="form-group">
-                                    <label for="quick-add-aliases">Aliases (Optional)</label>
-                                    <input type="text" id="quick-add-aliases" class="form-input"
-                                           placeholder="e.g., MI, Heart Attack (comma-separated)"
-                                           data-testid="entry-form-quick-add-aliases-input">
-                                    <p class="form-help">Alternative names for better searchability</p>
-                                </div>
-                                <div class="form-group" id="quick-add-alias-type-group" style="display: none;">
-                                    <label for="quick-add-alias-type">Alias Type</label>
-                                    <select id="quick-add-alias-type" class="form-input" data-testid="entry-form-quick-add-alias-type-select">
-                                        <option value="alternate_name">Alternate Name</option>
-                                        <option value="eponym">Eponym</option>
-                                        <option value="acronym">Acronym/Abbreviation</option>
-                                        <option value="colloquial">Common/Slang</option>
-                                    </select>
-                                    <p class="form-help">Applied to all aliases entered above</p>
-                                </div>
-                            </div>
-                            <div class="quick-add-footer">
-                                <button type="button" class="btn btn-sm btn-secondary" id="quick-add-cancel" data-testid="entry-form-quick-add-cancel-button">Cancel</button>
-                                <button type="button" class="btn btn-sm btn-primary" id="quick-add-save" data-testid="entry-form-quick-add-save-button">Create & Select</button>
                             </div>
                         </div>
+                        <div class="fact-dropdown-anchor">
+                            <div class="subject-dropdown" id="primary-subject-dropdown"></div>
+                        </div>
                     </div>
-                </section>
 
-                <!-- Section C: Tags -->
-                <section class="entry-section" id="section-tags" data-section="C">
-                    <div class="entry-section-header" tabindex="0" role="button"
-                         aria-expanded="false" aria-controls="section-tags-content"
-                         onclick="toggleSection('section-tags')"
-                         onkeydown="handleSectionKeydown(event, 'section-tags')"
-                         data-testid="entry-form-section-c-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">C</span>
-                            <span class="section-name">Mistake Categories</span>
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <label class="fact-label" for="secondary-subject-search">Secondary Subject(s)</label>
+                            <div class="fact-value">
+                                <div class="chip-field">
+                                    <div class="selected-chips" id="secondary-subjects-chips">
+                                        <!-- Selected secondary subjects will appear here -->
+                                    </div>
+                                    <input type="text" id="secondary-subject-search" class="subject-search"
+                                           placeholder="Search related topics also tested..." autocomplete="off"
+                                           data-testid="entry-form-subject-secondary-search">
+                                    <button type="button" class="btn btn-sm btn-ghost chip-field-action"
+                                            id="btn-quick-add-subject"
+                                            data-testid="entry-form-subject-add-quick-button">
+                                        + Add New Subject
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <span class="section-toggle">▼</span>
+                        <div class="fact-dropdown-anchor">
+                            <div class="subject-dropdown" id="secondary-subject-dropdown"></div>
+                        </div>
                     </div>
-                    <div class="entry-section-content" id="section-tags-content" data-testid="entry-form-section-c-content">
-                        <div class="form-group">
-                            <label>Tags</label>
-                            <div class="tag-picker-container">
-                                <input type="text" id="tag-search" class="tag-search"
-                                       placeholder="Search tags..." autocomplete="off"
-                                       data-section="section-tags"
-                                       data-testid="entry-form-tags-search-input">
-                                <div class="tag-dropdown" id="tag-dropdown"></div>
+
+                    <!-- Tags. The error-type palette drops into the same
+                         anchor the subject dropdowns use: its buttons ARE the
+                         selection control, so it is the field's own picker
+                         rather than a second copy of it sitting on the page. -->
+                    <div class="fact-row">
+                        <div class="fact-line">
+                            <label class="fact-label" for="tag-search">Tags</label>
+                            <div class="fact-value">
+                                <div class="chip-field">
+                                    <div class="selected-chips" id="tags-chips">
+                                        <!-- Selected tags will appear here -->
+                                    </div>
+                                    <input type="text" id="tag-search" class="tag-search"
+                                           placeholder="Search why you got this wrong..." autocomplete="off"
+                                           data-testid="entry-form-tags-search-input">
+                                </div>
                             </div>
-                            <div class="selected-chips" id="tags-chips">
-                                <!-- Selected tags will appear here -->
-                            </div>
-                            <p class="form-help">Categorize why you got this wrong (optional)</p>
                         </div>
-                        
-                        <!-- Tag hierarchy display -->
-                        <div class="tag-hierarchy-toolbar">
-                            <button type="button" class="btn btn-sm btn-ghost" id="btn-manage-tags"
-                                    onclick="openManageTagsModal()"
-                                    title="Edit definitions or delete error types"
-                                    data-testid="entry-form-manage-tags-button">
-                                ⚙️ Manage error types
+                        <div class="fact-dropdown-anchor">
+                            <div class="tag-dropdown" id="tag-dropdown"></div>
+                            <div class="tag-palette" id="tag-palette" hidden>
+                                <div class="tag-hierarchy" id="tag-hierarchy">
+                                    <!-- Tag groups will be rendered here -->
+                                </div>
+                                <div class="tag-hierarchy-toolbar">
+                                    <button type="button" class="btn btn-sm btn-ghost" id="btn-manage-tags"
+                                            onclick="openManageTagsModal()"
+                                            title="Edit definitions or delete error types"
+                                            data-testid="entry-form-manage-tags-button">
+                                        &#9881;&#65039; Manage error types
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full-width host for the Question ID auto-fill prompt. A
+                     stable hook so the prompt does not depend on the
+                     surrounding row structure. -->
+                <div id="entry-prompt-host"></div>
+
+                <!-- The writing. This is what the entry is for, so the
+                     reflection is the largest thing on the page. -->
+                <div class="entry-writing">
+                    <div class="write-block">
+                        <label for="reflection-editor">Why did you get this wrong? <span class="required">*</span></label>
+                        <p class="form-help">This is the core of metacognitive learning - understanding WHY you got it wrong</p>
+                        <div id="reflection-editor" class="rich-editor-container"
+                             data-testid="entry-form-reflection-editor"></div>
+                    </div>
+
+                    <div class="write-block">
+                        <label for="explanation-editor">Why is the correct answer correct? <span class="required">*</span></label>
+                        <div id="explanation-editor" class="rich-editor-container"
+                             data-testid="entry-form-explanation-editor"></div>
+                    </div>
+                </div>
+
+                <!-- Notes and media. A header row each, with their lists
+                     inline underneath at natural size. Both are usually
+                     empty, and an empty list is simply absent rather than
+                     collapsed behind something to open. -->
+                <div class="entry-attachments">
+                    <div class="attach-block">
+                        <div class="attach-header">
+                            <span class="attach-label">Notes</span>
+                            <button type="button"
+                                    class="btn btn-sm btn-ghost attach-action"
+                                    id="btn-attach-existing-notes"
+                                    data-testid="entry-form-notes-attach-existing-button"
+                                    disabled
+                                    title="No matching notes found for this entry's subjects yet"
+                                    onclick="openAttachExistingPicker('notes')">
+                                <span class="btn-label">+ Add existing</span>
+                                <span class="btn-count" id="btn-attach-existing-notes-count" hidden></span>
                             </button>
-                        </div>
-                        <div class="tag-hierarchy" id="tag-hierarchy" data-last-in-section="true">
-                            <!-- Tag groups will be rendered here -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Section D: Reflection (Required) -->
-                <section class="entry-section" id="section-reflection" data-section="D">
-                    <div class="entry-section-header required-section" tabindex="0" role="button"
-                         aria-expanded="false" aria-controls="section-reflection-content"
-                         onclick="toggleSection('section-reflection')"
-                         onkeydown="handleSectionKeydown(event, 'section-reflection')"
-                         data-testid="entry-form-section-d-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">D</span>
-                            <span class="section-name">Reflection</span>
-                            <span class="required">*</span>
-                            <span class="section-badge badge-warning">Required</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="entry-section-content" id="section-reflection-content" data-testid="entry-form-section-d-content">
-                        <div class="form-group">
-                            <label for="reflection-editor">Why did you get this wrong? <span class="required">*</span></label>
-                            <div id="reflection-editor" class="rich-editor-container"
-                                 data-section="section-reflection" data-last-in-section="true"
-                                 data-testid="entry-form-reflection-editor"></div>
-                            <p class="form-help">This is the core of metacognitive learning - understanding WHY you got it wrong</p>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Section E: Explanation (Required) -->
-                <section class="entry-section" id="section-explanation" data-section="E">
-                    <div class="entry-section-header required-section" tabindex="0" role="button"
-                         aria-expanded="false" aria-controls="section-explanation-content"
-                         onclick="toggleSection('section-explanation')"
-                         onkeydown="handleSectionKeydown(event, 'section-explanation')"
-                         data-testid="entry-form-section-e-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">E</span>
-                            <span class="section-name">Explanation</span>
-                            <span class="required">*</span>
-                            <span class="section-badge badge-warning">Required</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="entry-section-content" id="section-explanation-content" data-testid="entry-form-section-e-content">
-                        <div class="form-group">
-                            <label for="explanation-editor">Why is the correct answer correct? <span class="required">*</span></label>
-                            <div id="explanation-editor" class="rich-editor-container"
-                                 data-section="section-explanation" data-last-in-section="true"
-                                 data-testid="entry-form-explanation-editor"></div>
-                            <p class="form-help">Document the correct reasoning for future review</p>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Section F: Notes & Media -->
-                <section class="entry-section" id="section-notes" data-section="F">
-                    <div class="entry-section-header" tabindex="0" role="button"
-                         aria-expanded="false" aria-controls="section-notes-content"
-                         onclick="toggleSection('section-notes')"
-                         onkeydown="handleSectionKeydown(event, 'section-notes')"
-                         data-testid="entry-form-section-f-toggle">
-                        <div class="section-title">
-                            <span class="section-letter">F</span>
-                            <span class="section-name">Notes & Media</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="entry-section-content" id="section-notes-content" data-testid="entry-form-section-f-content">
-                        <div class="form-group">
-                            <div class="form-group-header">
-                                <label>Notes</label>
-                                <button type="button"
-                                        class="btn btn-sm btn-ghost section-header-action"
-                                        id="btn-attach-existing-notes"
-                                        data-testid="entry-form-notes-attach-existing-button"
-                                        disabled
-                                        title="No matching notes found for this entry's subjects yet"
-                                        onclick="openAttachExistingPicker('notes')">
-                                    <span class="btn-label">+ Add existing</span>
-                                    <span class="btn-count" id="btn-attach-existing-notes-count" hidden></span>
-                                </button>
-                            </div>
-                            <div id="notes-list-container" data-testid="entry-form-notes-list"></div>
-                            <button type="button" id="btn-add-note" class="btn btn-outline btn-sm" style="margin-top: 8px;" data-testid="entry-form-notes-add-button">
+                            <button type="button" id="btn-add-note" class="btn btn-sm btn-outline" data-testid="entry-form-notes-add-button">
                                 + Add Note
                             </button>
                         </div>
+                        <div id="notes-list-container" data-testid="entry-form-notes-list"></div>
+                    </div>
 
-                        <div class="form-group">
-                            <div class="form-group-header">
-                                <label>Media Attachments</label>
-                                <button type="button"
-                                        class="btn btn-sm btn-ghost section-header-action"
-                                        id="btn-attach-existing-media"
-                                        data-testid="entry-form-media-attach-existing-button"
-                                        disabled
-                                        title="No matching images found for this entry's subjects yet"
-                                        onclick="openAttachExistingPicker('media')">
-                                    <span class="btn-label">+ Add existing</span>
-                                    <span class="btn-count" id="btn-attach-existing-media-count" hidden></span>
-                                </button>
-                            </div>
-                            <div id="media-upload-container"
-                                 data-section="section-notes" data-last-in-section="true"
-                                 data-testid="entry-form-media-upload">
-                                <!-- MediaUpload component will be initialized here -->
-                            </div>
-                            <p class="form-help">Attach screenshots or images of the question (optional)</p>
+                    <div class="attach-block" id="entry-media-block">
+                        <div class="attach-header">
+                            <span class="attach-label">Media Attachments</span>
+                            <button type="button"
+                                    class="btn btn-sm btn-ghost attach-action"
+                                    id="btn-attach-existing-media"
+                                    data-testid="entry-form-media-attach-existing-button"
+                                    disabled
+                                    title="No matching images found for this entry's subjects yet"
+                                    onclick="openAttachExistingPicker('media')">
+                                <span class="btn-label">+ Add existing</span>
+                                <span class="btn-count" id="btn-attach-existing-media-count" hidden></span>
+                            </button>
+                        </div>
+                        <div id="media-upload-container"
+                             data-testid="entry-form-media-upload">
+                            <!-- MediaUpload component will be initialized here -->
                         </div>
                     </div>
-                </section>
-
+                </div>
             </form>
             <div data-plugin-slot="entry-after-form"></div>
         </main>
@@ -435,6 +352,62 @@
     </div>
 
     <!-- Unsaved Changes Modal -->
+    <!-- Quick Add Subject.
+
+         An overlay rather than the inline panel this used to be: in the
+         old accordion the panel was contained by its section, but on a
+         flat page a ~350px expander between the subject rows and the
+         reflection editor pushes the writing off screen every time it
+         opens. -->
+    <div class="modal-backdrop quick-add-modal-backdrop" id="quick-add-subject-modal"
+         data-testid="entry-form-quick-add-modal">
+            <div class="quick-add-modal">
+                <div class="quick-add-header">
+                    <h4>Quick Add Subject</h4>
+                    <button type="button" class="quick-add-close" id="quick-add-close" data-testid="entry-form-quick-add-close-button">&times;</button>
+                </div>
+                <div class="quick-add-body">
+                    <div class="form-group">
+                        <label for="quick-add-name">Subject Name <span class="required">*</span></label>
+                        <input type="text" id="quick-add-name" class="form-input" placeholder="e.g., Cardiology" data-testid="entry-form-quick-add-name-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="quick-add-parent-search">Parent Subject</label>
+                        <div class="subject-search-container">
+                            <input type="text" id="quick-add-parent-search"
+                                   class="subject-search"
+                                   placeholder="Search or leave empty for Root..."
+                                   autocomplete="off"
+                                   data-testid="entry-form-quick-add-parent-search">
+                            <div class="subject-dropdown" id="quick-add-parent-dropdown"></div>
+                        </div>
+                        <input type="hidden" id="quick-add-parent" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="quick-add-aliases">Aliases (Optional)</label>
+                        <input type="text" id="quick-add-aliases" class="form-input"
+                               placeholder="e.g., MI, Heart Attack (comma-separated)"
+                               data-testid="entry-form-quick-add-aliases-input">
+                        <p class="form-help">Alternative names for better searchability</p>
+                    </div>
+                    <div class="form-group" id="quick-add-alias-type-group" style="display: none;">
+                        <label for="quick-add-alias-type">Alias Type</label>
+                        <select id="quick-add-alias-type" class="form-input" data-testid="entry-form-quick-add-alias-type-select">
+                            <option value="alternate_name">Alternate Name</option>
+                            <option value="eponym">Eponym</option>
+                            <option value="acronym">Acronym/Abbreviation</option>
+                            <option value="colloquial">Common/Slang</option>
+                        </select>
+                        <p class="form-help">Applied to all aliases entered above</p>
+                    </div>
+                </div>
+                <div class="quick-add-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" id="quick-add-cancel" data-testid="entry-form-quick-add-cancel-button">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="quick-add-save" data-testid="entry-form-quick-add-save-button">Create & Select</button>
+                </div>
+            </div>
+    </div>
+
     <div class="modal-backdrop" id="unsaved-modal" data-testid="entry-form-unsaved-modal">
         <div class="modal">
             <div class="modal-icon">⚠️</div>

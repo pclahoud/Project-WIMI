@@ -86,7 +86,12 @@ def _get_user_db(user_id: int = None):
     if not db_path.exists():
         return None
 
-    _db_instance = UserDatabase(db_path, user.id, user.username)
+    # Read-only inspection server: it never writes device settings, but
+    # passing the real device id keeps what it reports identical to what
+    # the app sees on this machine rather than the UNKNOWN_DEVICE_ID row.
+    _db_instance = UserDatabase(
+        db_path, user.id, user.username, device_id=master.get_device_id()
+    )
     return _db_instance
 
 

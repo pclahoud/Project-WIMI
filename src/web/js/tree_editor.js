@@ -196,12 +196,44 @@ async function loadExamContext() {
 
 async function loadHierarchyLevels() {
     TreeState.hierarchyLevels = await api.getHierarchyLevels(TreeState.examContextId);
-    
-    // Populate level dropdown in modal
+    renderLevelOptions();
+}
+
+/**
+ * Fill the Add Subject modal's "Level Type" dropdown (issue #82).
+ *
+ * ``extraLevelName`` is appended when a node already in the tree carries
+ * a level name the exam's configured list does not have — an imported
+ * outline that brought its own vocabulary (the in-app SAT example uses
+ * Section / Domain / Skill), or a level renamed through
+ * ``update_hierarchy_level`` without back-filling
+ * ``subject_nodes.level_type``. Per the decision on #82, that name is
+ * offered rather than silently replaced with one of the app's own.
+ *
+ * The appended option exists for this modal instance ONLY, because a
+ * node in the tree already carries it. It is never written to
+ * ``hierarchy_level_definitions`` — the dropdown is rebuilt on every
+ * open, so it disappears again the moment it is no longer relevant.
+ *
+ * Options are built with the DOM API rather than an innerHTML template
+ * because ``extraLevelName`` is user data straight out of the database.
+ */
+function renderLevelOptions(extraLevelName) {
     const levelSelect = document.getElementById('modal-node-level');
-    levelSelect.innerHTML = TreeState.hierarchyLevels
-        .map(level => `<option value="${level.level_name}">${level.level_name}</option>`)
-        .join('');
+    if (!levelSelect) return;
+
+    const names = TreeState.hierarchyLevels.map(level => level.level_name);
+    if (extraLevelName && !names.includes(extraLevelName)) {
+        names.push(extraLevelName);
+    }
+
+    levelSelect.innerHTML = '';
+    names.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        levelSelect.appendChild(option);
+    });
 }
 
 async function loadHierarchy() {
@@ -737,8 +769,11 @@ function renderNode(node, level) {
     
     const weightClass = weight >= 30 ? 'high' : weight >= 10 ? 'medium' : 'low';
     const icon = hasChildren ? '📁' : '📄';
-    const levelName = TreeState.hierarchyLevels[level - 1]?.level_name || `Level ${level}`;
-    
+    // ``level`` here is the render depth of THIS appearance, so a
+    // multi-parent subject used to get a different chip under each parent.
+    // The chip now echoes the node's own level_type (#49).
+    const levelName = getNodeLevelName(node, level);
+
     // Lock and confidence indicators
     const lockIcon = isLocked ? '🔒' : '';
     const confidenceClass = weightSource === 'official' ? 'confidence-high' : 
@@ -916,6 +951,16 @@ async function updateWeightConfigBadge() {
             badgeText.textContent = 'User Defined';
             badge.title = 'No official weights imported';
         }
+
+        // Reveal only now. The badge ships `hidden` because it names the
+        // exam's weight source and, unlike the rest of this page's deferred
+        // chrome, it sits in the toolbar with nothing above it hiding it --
+        // so whatever it shipped was on screen for the whole of this round
+        // trip. It used to ship "User Defined", which is a real answer, and
+        // therefore told every student with imported official weights the
+        // opposite of the truth until the await resolved (#89). Left hidden
+        // on failure below: "we could not find out" is not "user defined".
+        badge.classList.remove('hidden');
     } catch (error) {
         console.warn('Could not update weight config badge:', error);
     }
@@ -966,11 +1011,25 @@ function showExamOverview() {
     const totalRootWeight = rootNodes.reduce((sum, n) => sum + (n.weight || n.exam_weight_low || 0), 0);
     
     // Count nodes by level
+    // Group by the node's stored level_type, not by tree depth (#49).
+    // flatNodes holds one entry per distinct subject id, so a shared child
+    // is counted once no matter how many parents it appears under.
     const levelCounts = {};
     TreeState.flatNodes.forEach((node) => {
-        const level = getNodeLevel(node);
-        const levelName = TreeState.hierarchyLevels[level - 1]?.level_name || `Level ${level}`;
+        const levelName = getNodeLevelName(node);
         levelCounts[levelName] = (levelCounts[levelName] || 0) + 1;
+    });
+
+    // Order the buckets by the exam's configured level order so the section
+    // reads top-down. level_type values that aren't a configured level name
+    // (imported outlines use their own vocabulary) sort after, alphabetically.
+    const levelOrder = new Map(
+        TreeState.hierarchyLevels.map((l, i) => [l.level_name, i])
+    );
+    const orderedLevelCounts = Object.entries(levelCounts).sort((a, b) => {
+        const ai = levelOrder.has(a[0]) ? levelOrder.get(a[0]) : Infinity;
+        const bi = levelOrder.has(b[0]) ? levelOrder.get(b[0]) : Infinity;
+        return ai !== bi ? ai - bi : a[0].localeCompare(b[0]);
     });
     
     // Generate pie chart SVG for root nodes
@@ -999,7 +1058,7 @@ function showExamOverview() {
             <div class="overview-section">
                 <h4 class="overview-section-title">Subjects by Level</h4>
                 <div class="level-counts">
-                    ${Object.entries(levelCounts).map(([level, count]) => `
+                    ${orderedLevelCounts.map(([level, count]) => `
                         <div class="level-count-item">
                             <span class="level-count-name">${level}</span>
                             <span class="level-count-value">${count}</span>
@@ -1118,9 +1177,9 @@ function showNodeDetails(nodeId) {
     placeholder.classList.add('hidden');
     content.classList.remove('hidden');
 
-    // Basic info
-    const level = getNodeLevel(node);
-    const levelName = TreeState.hierarchyLevels[level - 1]?.level_name || `Level ${level}`;
+    // Basic info. The level shown must be the node's own level_type (#49)
+    // — anything else contradicts the Level Type dropdown that wrote it.
+    const levelName = getNodeLevelName(node);
 
     document.getElementById('detail-name').textContent = node.name;
     document.getElementById('detail-level').textContent = levelName;
@@ -1299,9 +1358,7 @@ function renderDetailSubtitle(nodeId, parentCount) {
         subtitle.innerHTML = '';
         return;
     }
-    const level = getNodeLevel(node);
-    const levelName =
-        TreeState.hierarchyLevels[level - 1]?.level_name || `Level ${level}`;
+    const levelName = getNodeLevelName(node);
 
     const parts = [
         `<span class="details-subtitle-level"
@@ -1722,6 +1779,88 @@ function getNodeLevel(node) {
     return level;
 }
 
+/**
+ * The display label for a node's hierarchy level (issue #49).
+ *
+ * Reads the node's own stored ``level_type`` — the value the "Level Type"
+ * dropdown writes on create, the one the import format carries, and the one
+ * the analytics drilldown groups by. It deliberately does NOT derive the
+ * label from tree depth.
+ *
+ * Depth is not merely the wrong source here, it is an unsound one: in a
+ * polyhierarchy a node has no single depth. A subject with two parents at
+ * different levels sits at two depths at once, and ``buildFlatNodeMap`` says
+ * itself that ``_parent`` "is set to the parent of whichever appearance was
+ * visited last and is best-effort". So a depth-derived label is ambiguous
+ * (which appearance won the flat-map race?) and inconsistent (the same
+ * subject wore two different level names in one tree — "Subsystem" under one
+ * parent, "Topic" under another). ``level_type`` is stored per node and has
+ * neither problem.
+ *
+ * ``fallbackDepth`` is only consulted for rows carrying no ``level_type`` at
+ * all. The column is NOT NULL in the schema, so this is belt-and-braces for
+ * payloads that predate a field or omit it.
+ */
+function getNodeLevelName(node, fallbackDepth) {
+    const stored = node && node.level_type;
+    if (typeof stored === 'string' && stored.trim()) {
+        return stored.trim();
+    }
+    const depth = fallbackDepth || (node ? getNodeLevel(node) : 1);
+    return TreeState.hierarchyLevels[depth - 1]?.level_name || `Level ${depth}`;
+}
+
+/**
+ * Where ``levelName`` sits in the exam's configured levels, or -1.
+ *
+ * The inverse of ``getNodeLevelName``: that turns a node into the level
+ * name it stores, this turns a level name into its position in
+ * ``TreeState.hierarchyLevels`` so the next one along can be found.
+ * -1 means the name is not configured for this exam — see
+ * ``suggestChildLevelName`` for what that means.
+ */
+function getLevelIndex(levelName) {
+    if (typeof levelName !== 'string' || !levelName.trim()) return -1;
+    const wanted = levelName.trim();
+    return TreeState.hierarchyLevels.findIndex(
+        level => level.level_name === wanted
+    );
+}
+
+/**
+ * The level to pre-select for a new child of ``parentNode`` (issue #82).
+ *
+ * Reads the parent's **stored** ``level_type`` and takes the next
+ * configured level along. It must not use ``getNodeLevel`` — that is
+ * tree depth, and depth is both wrong and unsound here:
+ *
+ * - A parent stored as 'System' can sit at depth 2 (nothing forces the
+ *   two to agree), and pre-#82 the modal suggested
+ *   ``hierarchyLevels[2]`` = 'Topic', skipping 'Subsystem'. Most users
+ *   accept the pre-filled default, so the wrong name was what landed in
+ *   ``subject_nodes.level_type``. This is a WRITE path, which is why it
+ *   was split out of #49's four display sites.
+ * - In a polyhierarchy a node has no single depth. ``buildFlatNodeMap``
+ *   sets ``_parent`` to "whichever appearance was visited last" and says
+ *   so, making a depth-derived suggestion depend on flat-map traversal
+ *   order. ``level_type`` is per node and has no such ambiguity.
+ *
+ * Two cases repeat the parent's own level rather than inventing one:
+ * the bottom of the list (no next level exists), and a level name the
+ * exam's configured list does not contain (there is no derivable "one
+ * below Domain"). The caller passes the result to
+ * ``renderLevelOptions`` so an unconfigured name is still selectable.
+ * The same fall-throughs live in ``createSubjectNode``
+ * (``src/app/bridge_domains/hierarchy.py``) for callers that omit the
+ * field entirely; keep the two in step.
+ */
+function suggestChildLevelName(parentNode) {
+    const parentLevelName = getNodeLevelName(parentNode);
+    const index = getLevelIndex(parentLevelName);
+    if (index === -1) return parentLevelName;
+    return TreeState.hierarchyLevels[index + 1]?.level_name || parentLevelName;
+}
+
 function renderSiblingsChart(node) {
     const chart = document.getElementById('siblings-chart');
     const totalEl = document.getElementById('siblings-total');
@@ -1927,17 +2066,23 @@ function showAddNodeModal(parentId = null) {
 
     if (parentId === null) {
         title.textContent = 'Add Root Subject';
+        // Rebuild from the configured levels, dropping any name a
+        // previous open appended for an unconfigured parent (#82).
+        renderLevelOptions();
         levelSelect.value = TreeState.hierarchyLevels[0]?.level_name || 'System';
         updateWeightModeForModal('absolute');
     } else {
         parentNode = TreeState.flatNodes.get(parentId);
-        const parentLevel = getNodeLevel(parentNode);
         title.textContent = `Add Child to "${parentNode.name}"`;
 
-        // Set level to one below parent
-        if (TreeState.hierarchyLevels[parentLevel]) {
-            levelSelect.value = TreeState.hierarchyLevels[parentLevel].level_name;
-        }
+        // Set level to one below the parent's STORED level_type — never
+        // its tree depth (#82). ``suggestChildLevelName`` may return a
+        // name outside the configured list, which is why the dropdown is
+        // rebuilt with it before the value is assigned: a value that is
+        // not one of the options silently does not stick.
+        const suggestedLevel = suggestChildLevelName(parentNode);
+        renderLevelOptions(suggestedLevel);
+        levelSelect.value = suggestedLevel;
 
         // If parent has official weight, child should use relative weight
         if (parentNode.weight_source === 'official' || parentNode.weight_source === 'derived') {
@@ -2144,36 +2289,149 @@ function addChild(parentId) {
 // =========================================================================
 
 let deleteNodeTarget = null;
+// Both outcomes of the pending delete, from api.getSubjectDeletePreview.
+// Cached so toggling the promote checkbox re-renders without a round trip.
+let deleteNodePreview = null;
 
-function confirmDeleteNode(nodeId) {
+/**
+ * Open the delete confirmation modal for a subject.
+ *
+ * Issue #15: the old warning counted `node.children`, i.e. the *rendered*
+ * children, which come from `subject_edges`, while the backend walked the
+ * legacy `subject_nodes.parent_id` column — so the modal promised to
+ * delete a set the delete did not touch. The counts now come from the
+ * backend's own plan for this delete, so the modal and the mutation
+ * cannot disagree.
+ */
+async function confirmDeleteNode(nodeId) {
     const node = TreeState.flatNodes.get(nodeId);
     if (!node) return;
-    
+
     deleteNodeTarget = node;
-    
+    deleteNodePreview = null;
+
     document.getElementById('delete-node-name').textContent = node.name;
-    
-    const warning = document.getElementById('delete-children-warning');
-    if (node.children && node.children.length > 0) {
-        warning.textContent = `This will also delete ${node.children.length} child subject${node.children.length > 1 ? 's' : ''}!`;
-        warning.classList.remove('hidden');
-    } else {
-        warning.classList.add('hidden');
-    }
-    
+
+    const promoteRow = document.getElementById('delete-promote-row');
+    const promoteToggle = document.getElementById('delete-promote-children');
+    promoteToggle.checked = false;
+    promoteRow.classList.add('hidden');
+
+    const previewEl = document.getElementById('delete-preview');
+    previewEl.textContent = 'Checking what this will affect…';
+
     document.getElementById('delete-node-modal').classList.add('active');
+
+    try {
+        const preview = await api.getSubjectDeletePreview(nodeId);
+        // The user may have cancelled or moved on while we were waiting.
+        if (!deleteNodeTarget || deleteNodeTarget.id !== nodeId) return;
+        deleteNodePreview = preview;
+
+        const exclusive = preview.exclusive_direct_children || [];
+        const label = document.getElementById('delete-promote-label');
+        label.textContent = exclusive.length === 1
+            ? `Keep "${exclusive[0].name}" — move it to the top level`
+            : `Keep the ${exclusive.length} direct children — move them to the top level`;
+        promoteRow.classList.toggle('hidden', exclusive.length === 0);
+
+        renderDeletePreview();
+    } catch (error) {
+        previewEl.textContent =
+            `Could not work out what this delete affects: ${error.message}`;
+    }
+}
+
+/** Render the cached preview for whichever mode the checkbox is on. */
+function renderDeletePreview() {
+    const previewEl = document.getElementById('delete-preview');
+    if (!deleteNodePreview) return;
+
+    const promote = document.getElementById('delete-promote-children').checked;
+    const plan = promote
+        ? deleteNodePreview.modes.promote
+        : deleteNodePreview.modes.delete;
+
+    // The target itself is always the first entry in `archived`; the rest
+    // are the subjects that have no other parent to fall back on.
+    const alsoArchived = (plan.archived || []).slice(1);
+    const detached = plan.detached || [];
+    const promoted = plan.promoted || [];
+    const promotedIds = new Set(promoted.map(p => p.id));
+    // A promoted child is already described by its own bullet.
+    const reparented = detached.filter(d => !promotedIds.has(d.child_id));
+
+    const lines = [];
+    if (alsoArchived.length) {
+        lines.push(
+            `<li class="delete-preview-danger">${alsoArchived.length} other ` +
+            `subject${alsoArchived.length === 1 ? '' : 's'} will be deleted too ` +
+            `(nothing else holds ${alsoArchived.length === 1 ? 'it' : 'them'}): ` +
+            `${formatDeletePreviewNames(alsoArchived.map(n => n.name))}</li>`
+        );
+    }
+    if (promoted.length) {
+        lines.push(
+            `<li>${promoted.length} subject${promoted.length === 1 ? '' : 's'} ` +
+            `will move to the top level: ` +
+            `${formatDeletePreviewNames(promoted.map(n => n.name))}</li>`
+        );
+    }
+    if (reparented.length) {
+        lines.push(
+            `<li>${reparented.length} shared subject` +
+            `${reparented.length === 1 ? '' : 's'} will be kept and stay under ` +
+            `${reparented.length === 1 ? 'its' : 'their'} other parent: ` +
+            `${formatDeletePreviewNames(reparented.map(n => n.child_name))}</li>`
+        );
+    }
+    if (plan.entries_unscoped) {
+        lines.push(
+            `<li>${plan.entries_unscoped} entr` +
+            `${plan.entries_unscoped === 1 ? 'y' : 'ies'} pinned to this subject ` +
+            `will go back to counting under every parent of their topic.</li>`
+        );
+    }
+
+    if (!lines.length) {
+        previewEl.innerHTML =
+            `<span data-testid="tree-delete-preview-summary">Only ` +
+            `"${escapeHtml(deleteNodePreview.node_name)}" will be deleted. ` +
+            `Nothing else is affected.</span>`;
+        return;
+    }
+
+    previewEl.innerHTML =
+        `<span data-testid="tree-delete-preview-summary">Deleting ` +
+        `"${escapeHtml(deleteNodePreview.node_name)}" will also:</span>` +
+        `<ul>${lines.join('')}</ul>` +
+        `<span class="delete-preview-note">Deleted subjects are archived, ` +
+        `not erased.</span>`;
+}
+
+/** "A, B and 3 more" — keeps a wide subtree from overflowing the modal. */
+function formatDeletePreviewNames(names, limit = 3) {
+    const shown = names.slice(0, limit).map(escapeHtml);
+    const rest = names.length - shown.length;
+    if (rest > 0) shown.push(`${rest} more`);
+    if (shown.length === 1) return shown[0];
+    return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
 function hideDeleteModal() {
     document.getElementById('delete-node-modal').classList.remove('active');
     deleteNodeTarget = null;
+    deleteNodePreview = null;
 }
 
 async function executeDeleteNode() {
     if (!deleteNodeTarget) return;
 
+    const promoteChildren =
+        document.getElementById('delete-promote-children').checked;
+
     try {
-        await api.deleteSubjectNode(deleteNodeTarget.id);
+        await api.deleteSubjectNode(deleteNodeTarget.id, promoteChildren);
 
         Toast.success('Deleted', `Removed "${deleteNodeTarget.name}"`);
 
@@ -2298,13 +2556,33 @@ async function handleImportFile(event) {
         const text = await file.text();
         const data = JSON.parse(text);
         
-        if (!data.root_nodes || !Array.isArray(data.root_nodes)) {
-            throw new Error('Invalid file format: missing root_nodes array');
+        // Issue #61: accept both documented spellings of the top-level
+        // array. api.getImportRootNodes is the single shared reader;
+        // importSubjectHierarchy accepts both keys too, so the file is
+        // handed to the bridge exactly as it was written.
+        const { nodes: rootNodes } = api.getImportRootNodes(data);
+        if (!Array.isArray(rootNodes)) {
+            throw new Error(
+                'Invalid file format: missing "root_nodes" (or "subjects") array'
+            );
         }
-        
-        // Confirm import
-        const count = countNodes(data.root_nodes);
-        if (!confirm(`Import ${count} subjects from "${file.name}"?\n\nThis will add to your existing hierarchy.`)) {
+
+        // Confirm import.
+        //
+        // This handler is the fallback: import_export.js overrides
+        // `handleImportFile` with the preview-modal version at load
+        // time, and that is what the file input reaches. It is still
+        // wrong for this one to claim the import only adds — issue #67
+        // made import a merge, so a subject this file no longer lists is
+        // removed unless entries are tagged to it. If this path is ever
+        // the live one again, it must not promise otherwise.
+        const count = countNodes(rootNodes);
+        if (!confirm(
+            `Import ${count} subjects from "${file.name}"?\n\n` +
+            `Your hierarchy is merged with this file: subjects it lists are ` +
+            `added or updated, and subjects it no longer lists are removed ` +
+            `unless your entries are tagged to them.`
+        )) {
             return;
         }
         
@@ -2314,9 +2592,20 @@ async function handleImportFile(event) {
             importData.dimension_id = TreeState.currentDimensionId;
         }
 
-        await api.importSubjectHierarchy(TreeState.examContextId, JSON.stringify(importData));
+        const result = await api.importSubjectHierarchy(
+            TreeState.examContextId, JSON.stringify(importData)
+        );
 
-        Toast.success('Imported', `Added ${count} subjects`);
+        const counts = (result && result.counts) || {};
+        const parts = [];
+        if (counts.added) parts.push(`${counts.added} added`);
+        if (counts.updated) parts.push(`${counts.updated} updated`);
+        if (counts.removed) parts.push(`${counts.removed} removed`);
+        if (counts.kept_in_use) parts.push(`${counts.kept_in_use} kept in use`);
+        Toast.success(
+            'Imported',
+            parts.length ? parts.join(', ') : 'No changes — already matches this file'
+        );
 
         // Invalidate dimension cache before reload
         if (TreeState.usesDimensions && TreeState.currentDimensionId) {
@@ -2521,6 +2810,9 @@ function setupEventListeners() {
     // Delete modal
     document.getElementById('delete-node-cancel').onclick = hideDeleteModal;
     document.getElementById('delete-node-confirm').onclick = executeDeleteNode;
+    // Both outcomes arrive in one preview call, so the choice re-renders
+    // locally rather than making the user wait mid-decision.
+    document.getElementById('delete-promote-children').onchange = renderDeletePreview;
     document.getElementById('delete-node-modal').onclick = (e) => {
         if (e.target.id === 'delete-node-modal') hideDeleteModal();
     };

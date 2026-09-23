@@ -66,7 +66,12 @@
     line-height: 1.4;
 }
 
-/* Toast types */
+/* Toast types.
+   The three coloured variants override the background only; their text keeps
+   coming from .toast's var(--color-white), which inverts between themes. That
+   is why the background is a themed token and not a literal -- see the
+   --color-success-dark comment in styles.css for what "-dark" actually means
+   here, which is not "darker" in every theme (#110). */
 .toast-info {
     background: var(--color-gray-800, #1e293b);
 }
@@ -77,7 +82,7 @@
 }
 
 .toast-success {
-    background: var(--color-success-dark, #166534);
+    background: var(--color-success-dark);
 }
 
 .toast-success .toast-icon {
@@ -86,7 +91,7 @@
 }
 
 .toast-warning {
-    background: var(--color-warning-dark, #92400e);
+    background: var(--color-warning-dark);
 }
 
 .toast-warning .toast-icon {
@@ -95,7 +100,7 @@
 }
 
 .toast-error {
-    background: var(--color-error-dark, #991b1b);
+    background: var(--color-error-dark);
 }
 
 .toast-error .toast-icon {

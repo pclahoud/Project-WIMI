@@ -19,7 +19,15 @@ const ImportExportState = {
     importMode: 'merge', // 'merge' or 'replace'
     validationErrors: [],
     validationWarnings: [],
-    isProcessing: false
+    isProcessing: false,
+    // Issue #67: the backend's plan for this file — what the import will
+    // add, update, rename, remove and keep. Fetched when the preview
+    // modal opens and produced by the same planner the import itself
+    // runs, so the modal cannot promise something the import won't do.
+    // `mergePlanToken` guards against a second file being chosen while
+    // the first plan is still in flight.
+    mergePlan: null,
+    mergePlanToken: 0
 };
 
 // =========================================================================
@@ -155,6 +163,16 @@ function cleanNodesForExport(nodes, includeWeights = true, aliasMap = new Map())
             level_type: node.level_type
         };
 
+        // Issue #67: the file's stable id, when this subject has one.
+        // NOT `node.id` — that is the database row id, which means
+        // nothing in another profile and would claim to identify
+        // subjects that were never imported. Only an id the file gave
+        // us goes back out, so a round trip keeps renames matchable and
+        // an export of a hand-built tree stays id-free.
+        if (node.import_id) {
+            cleanNode.id = node.import_id;
+        }
+
         if (includeWeights) {
             const low = node.exam_weight_low ?? node.weight ?? 0;
             const high = node.exam_weight_high ?? low;
@@ -246,11 +264,15 @@ async function handleImportFileEnhanced(event) {
             return;
         }
         
-        // Store pending import data
+        // Store pending import data. `rootNodes` is kept alongside the
+        // untouched file so the preview and the count don't have to
+        // guess which key it used (issue #61).
+        const rootNodes = api.getImportRootNodes(data).nodes || [];
         ImportExportState.pendingImport = {
             filename: file.name,
             data: data,
-            nodeCount: countNodesInHierarchy(data.root_nodes || []),
+            rootNodes: rootNodes,
+            nodeCount: countNodesInHierarchy(rootNodes),
             metadata: data._metadata || null
         };
         
@@ -276,10 +298,14 @@ function validateImportData(data) {
     const warnings = [];
     let validNodeCount = 0;
     
-    // Check for root_nodes OR subjects array (support both formats)
-    const rootNodes = data.root_nodes || data.subjects;
-    
-    if (!rootNodes) {
+    // Issue #61: root_nodes (what export writes) and subjects (what the
+    // import spec documents) are both accepted. api.getImportRootNodes
+    // is the single shared reader — the tree editor's own handler uses
+    // it too, and importSubjectHierarchy accepts either key, so nothing
+    // here rewrites the caller's file.
+    const { nodes: rootNodes, key: usedKey } = api.getImportRootNodes(data);
+
+    if (usedKey === null) {
         errors.push({
             type: 'structure',
             message: 'Missing "root_nodes" or "subjects" array',
@@ -288,28 +314,26 @@ function validateImportData(data) {
         });
         return { errors, warnings, hasValidNodes: false };
     }
-    
+
     if (!Array.isArray(rootNodes)) {
         errors.push({
             type: 'structure',
             message: '"root_nodes" (or "subjects") must be an array',
-            path: 'root_nodes',
+            path: usedKey,
             severity: 'error'
         });
         return { errors, warnings, hasValidNodes: false };
     }
-    
-    // Normalize data structure if "subjects" was used
-    if (data.subjects && !data.root_nodes) {
-        data.root_nodes = data.subjects;
+
+    if (usedKey === 'subjects') {
         warnings.push({
             type: 'format',
-            message: 'File uses "subjects" key instead of "root_nodes" - auto-converted',
+            message: 'File uses the "subjects" key; "root_nodes" is what export writes',
             path: 'root',
             severity: 'info'
         });
     }
-    
+
     if (rootNodes.length === 0) {
         warnings.push({
             type: 'empty',
@@ -340,16 +364,41 @@ function validateImportData(data) {
             validNodeCount++;
         }
         
-        // Check weight (optional but validate if present)
+        // Check weight (optional but validate if present).
+        //
+        // Issue #69: this used to read `low` and `high` directly, so the
+        // two single-value forms the guide documents — `{value: 50}` and
+        // `{low: 50}` with `high` defaulting to it — both warned "weight
+        // range has non-numeric values, will default to 0" about a file
+        // that was written exactly as recommended, and then imported
+        // perfectly. Resolve the object the way `_import_weight_bounds`
+        // does in subject_import.py so the warning and the import agree.
         if (node.weight !== undefined) {
             if (typeof node.weight === 'object' && node.weight !== null) {
-                // Weight range format: {low, high}
-                const low = node.weight.low;
-                const high = node.weight.high;
+                let low;
+                let high;
+                if ('value' in node.weight) {
+                    low = node.weight.value;
+                    high = node.weight.value;
+                } else {
+                    low = node.weight.low !== undefined ? node.weight.low : 0;
+                    high = node.weight.high !== undefined ? node.weight.high : low;
+                }
                 if (typeof low !== 'number' || typeof high !== 'number') {
                     warnings.push({
                         type: 'field',
-                        message: `Weight range has non-numeric values, will default to 0`,
+                        message: `Weight has non-numeric values, will default to 0`,
+                        path: path,
+                        severity: 'warning'
+                    });
+                } else if (low > high) {
+                    // A warning, never a rejection (issue #64): a real
+                    // blueprint transcribed by hand can transpose a pair,
+                    // and losing the other 2,210 subjects over it helps
+                    // nobody. The importer says the same thing.
+                    warnings.push({
+                        type: 'range',
+                        message: `Weight low ${low}% is above high ${high}%; imported as written`,
                         path: path,
                         severity: 'warning'
                     });
@@ -438,8 +487,8 @@ function validateImportData(data) {
         }
     }
     
-    data.root_nodes.forEach((node, i) => {
-        validateNode(node, `root_nodes[${i}]`);
+    rootNodes.forEach((node, i) => {
+        validateNode(node, `${usedKey}[${i}]`);
     });
     
     // Check sibling weight totals
@@ -467,7 +516,7 @@ function validateImportData(data) {
         });
     }
     
-    checkWeightTotals(data.root_nodes, 'root_nodes');
+    checkWeightTotals(rootNodes, usedKey);
     
     return {
         errors,
@@ -533,7 +582,7 @@ function showImportPreviewModal() {
     
     // Show preview tree
     const previewContainer = document.getElementById('import-preview-tree');
-    previewContainer.innerHTML = renderImportPreviewTree(pending.data.root_nodes || [], 0, 3);
+    previewContainer.innerHTML = renderImportPreviewTree(pending.rootNodes || [], 0, 3);
     
     // Show warnings if any
     const warningsEl = document.getElementById('import-warnings');
@@ -570,9 +619,224 @@ function showImportPreviewModal() {
     
     // Show/hide merge warning based on mode and existing nodes
     updateImportModeInfo();
-    
+
     // Show modal
     document.getElementById('import-preview-modal').classList.add('active');
+
+    // Issue #67: ask the backend what this file would actually do. Fired
+    // after the modal is up so the file preview is never held hostage to
+    // a round trip over a 2,000-subject outline; the section renders a
+    // "working it out" line until the plan lands.
+    loadImportMergePlan();
+}
+
+/**
+ * Build the JSON the import slots will be given.
+ *
+ * The preview and the import must be handed the *same* bytes or the plan
+ * shown is not the plan that runs — so both go through here rather than
+ * each assembling their own payload.
+ *
+ * @returns {string|null} JSON string, or null with no pending import.
+ */
+function buildImportPayload() {
+    const pending = ImportExportState.pendingImport;
+    if (!pending) return null;
+    const importData = { ...pending.data };
+    if (TreeState.usesDimensions && TreeState.currentDimensionId) {
+        importData.dimension_id = TreeState.currentDimensionId;
+    }
+    return JSON.stringify(importData);
+}
+
+/**
+ * Fetch and render the merge plan for the pending import (issue #67).
+ */
+async function loadImportMergePlan() {
+    const container = document.getElementById('import-merge-plan');
+    if (!container) return;
+
+    const payload = buildImportPayload();
+    if (payload === null) return;
+
+    const token = ++ImportExportState.mergePlanToken;
+    ImportExportState.mergePlan = null;
+    container.innerHTML =
+        '<div class="import-plan-pending">Working out what this file changes…</div>';
+
+    try {
+        const plan = await api.previewSubjectHierarchyImport(
+            TreeState.examContextId, payload
+        );
+        if (token !== ImportExportState.mergePlanToken) return;
+        ImportExportState.mergePlan = plan;
+        container.innerHTML = renderImportMergePlan(plan);
+    } catch (error) {
+        if (token !== ImportExportState.mergePlanToken) return;
+        console.error('Import preview failed:', error);
+        // A plan that could not be computed must not read as "nothing
+        // will change" — the student is about to approve a destructive
+        // operation on the strength of this box.
+        container.innerHTML = `
+            <div class="import-plan-error">
+                <span class="info-icon">⚠️</span>
+                <span>Could not work out what this import will change
+                (${escapeHtml(error.message || String(error))}).
+                Importing anyway is not recommended.</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Render the merge plan (issue #67).
+ *
+ * Four numbers and the two things that need sentences: subjects kept
+ * because entries point at them, and the warning that a file with no ids
+ * cannot express a rename.
+ *
+ * @param {Object} plan Payload from `previewSubjectHierarchyImport`.
+ * @returns {string} HTML string.
+ */
+function renderImportMergePlan(plan) {
+    const c = plan.counts || {};
+    const stat = (n, label, cls) => `
+        <div class="import-plan-stat ${n ? cls : 'is-zero'}">
+            <span class="import-plan-number">${n || 0}</span>
+            <span class="import-plan-label">${label}</span>
+        </div>
+    `;
+
+    const detail = [];
+    if (c.renamed) detail.push(`${c.renamed} renamed`);
+    if (c.moved) detail.push(`${c.moved} moved`);
+
+    let notes = '';
+
+    if (plan.empty_file) {
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">⚠️</span>
+                <span>This file lists no subjects, so importing it does
+                nothing. It is <strong>not</strong> read as "remove every
+                subject" — a file that lost its <code>root_nodes</code> key,
+                or downloaded half-way, looks exactly like this.</span>
+            </div>
+        `;
+    }
+
+    if (plan.file_exam_matches === false && plan.file_exam_name) {
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">ℹ️</span>
+                <span>This file was written for
+                <strong>${escapeHtml(String(plan.file_exam_name))}</strong>;
+                you are importing it into
+                <strong>${escapeHtml(String(plan.exam_name))}</strong>.</span>
+            </div>
+        `;
+    }
+
+    if (plan.rename_blind) {
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">⚠️</span>
+                <span>This file gives no <code>id</code> for its subjects, so a
+                subject you renamed in the file cannot be recognised as the same
+                subject: it will be <strong>removed and added back</strong>,
+                and anything attached to the old one stays with the old one.
+                Add an <code>id</code> to each subject to keep renames
+                connected.</span>
+            </div>
+        `;
+    }
+
+    if (c.kept_in_use) {
+        const links = (plan.kept_in_use || []).map(item => `
+            <li>
+                <a class="import-plan-link"
+                   href="entry_browser.html?exam=${encodeURIComponent(plan.exam_context_id)}&subject=${encodeURIComponent(item.id)}">
+                    ${escapeHtml(item.name)}</a>
+                <span class="import-plan-count">${item.entry_count}
+                    ${item.entry_count === 1 ? 'entry' : 'entries'}</span>
+            </li>
+        `).join('');
+        const more = plan.kept_in_use_total > (plan.kept_in_use || []).length
+            ? `<li class="import-plan-more">and ${
+                plan.kept_in_use_total - plan.kept_in_use.length} more</li>`
+            : '';
+        notes += `
+            <div class="import-plan-note kept">
+                <span class="info-icon">📌</span>
+                <div>
+                    <p><strong>${c.kept_in_use}
+                    ${c.kept_in_use === 1 ? 'subject is' : 'subjects are'} kept
+                    because your entries are tagged to
+                    ${c.kept_in_use === 1 ? 'it' : 'them'}</strong>, even though
+                    this file no longer lists
+                    ${c.kept_in_use === 1 ? 'it' : 'them'}. Your history wins.
+                    ${plan.entries_affected}
+                    ${plan.entries_affected === 1 ? 'entry' : 'entries'}
+                    ${plan.entries_affected === 1 ? 'is' : 'are'} affected — open
+                    ${c.kept_in_use === 1 ? 'it' : 'them'} to re-tag, then the
+                    subject can be deleted normally.</p>
+                    <ul class="import-plan-kept-list">${links}${more}</ul>
+                </div>
+            </div>
+        `;
+    }
+
+    if (c.kept_as_ancestor) {
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">📌</span>
+                <span>${c.kept_as_ancestor} parent
+                ${c.kept_as_ancestor === 1 ? 'subject is' : 'subjects are'} also
+                kept, because a subject in use sits beneath
+                ${c.kept_as_ancestor === 1 ? 'it' : 'them'}.</span>
+            </div>
+        `;
+    }
+
+    if (plan.entry_contexts_cleared) {
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">ℹ️</span>
+                <span>${plan.entry_contexts_cleared}
+                ${plan.entry_contexts_cleared === 1 ? 'entry' : 'entries'} chose a
+                parent subject that is being removed; that choice is cleared and
+                the ${plan.entry_contexts_cleared === 1 ? 'entry rolls' : 'entries roll'}
+                up through every parent again.</span>
+            </div>
+        `;
+    }
+
+    if ((plan.errors || []).length) {
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">⚠️</span>
+                <div>
+                    <p><strong>This file cannot be imported as it stands:</strong></p>
+                    <ul>${plan.errors.map(
+                        e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="import-plan-stats">
+            ${stat(c.added, 'added', 'is-added')}
+            ${stat(c.updated, 'updated', 'is-updated')}
+            ${stat(c.removed, 'removed', 'is-removed')}
+            ${stat(c.unchanged, 'unchanged', 'is-unchanged')}
+        </div>
+        ${detail.length
+            ? `<p class="import-plan-detail">Of the updated subjects,
+               ${detail.join(' and ')}.</p>`
+            : ''}
+        ${notes}
+    `;
 }
 
 /**
@@ -667,41 +931,39 @@ async function executeImport() {
     const pending = ImportExportState.pendingImport;
     if (!pending) return;
     
-    const mode = ImportExportState.importMode;
-    
     try {
         ImportExportState.isProcessing = true;
-        
+
         // Update button state
         const confirmBtn = document.getElementById('import-confirm-btn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Importing...';
         }
-        
-        // If replace mode, we need to delete existing nodes first
-        if (mode === 'replace' && TreeState.rootNodes.length > 0) {
-            // Delete all existing root nodes (cascade deletes children)
-            for (const node of TreeState.rootNodes) {
-                await api.deleteSubjectNode(node.id);
-            }
-        }
-        
-        // Include dimension_id in import data when in dimension mode
-        const importData = { ...pending.data };
-        if (TreeState.usesDimensions && TreeState.currentDimensionId) {
-            importData.dimension_id = TreeState.currentDimensionId;
-        }
 
-        // Import the new hierarchy
-        await api.importSubjectHierarchy(
-            TreeState.examContextId,
-            JSON.stringify(importData)
+        // Issue #67: the same bytes the preview was planned from.
+        const payload = buildImportPayload();
+
+        const result = await api.importSubjectHierarchy(
+            TreeState.examContextId, payload
         );
 
-        // Success
-        const actionText = mode === 'replace' ? 'Replaced with' : 'Added';
-        Toast.success('Import Complete', `${actionText} ${pending.nodeCount} subjects`);
+        // Success — report what happened, not how many lines the file
+        // had. "Added 2,211 subjects" after a re-import that changed
+        // four of them is the message that hid this bug for so long.
+        const counts = (result && result.counts) || {};
+        const parts = [];
+        if (counts.added) parts.push(`${counts.added} added`);
+        if (counts.updated) parts.push(`${counts.updated} updated`);
+        if (counts.removed) parts.push(`${counts.removed} removed`);
+        if (counts.kept_in_use) parts.push(`${counts.kept_in_use} kept in use`);
+        Toast.success(
+            'Import Complete',
+            parts.length ? parts.join(', ') : 'No changes — your tree already matches this file'
+        );
+        (result?.warnings || []).forEach(
+            warning => Toast.error('Import warning', warning)
+        );
 
         // Invalidate dimension cache before reload
         if (TreeState.usesDimensions && TreeState.currentDimensionId) {
@@ -815,34 +1077,28 @@ function createImportPreviewModal() {
                     </div>
                 </div>
                 
-                <!-- Import Mode -->
+                <!-- What this import will do (issue #67).
+                     There used to be a Merge / Replace choice here.
+                     "Merge" meant *append*, which is the bug: it
+                     duplicated whatever had been renamed. Import is now
+                     a merge against your existing tree in every case, so
+                     the only thing "Replace" still did that this does
+                     not was delete subjects your entries are tagged to —
+                     which #67 decision 3 forbids an import from doing.
+                     A control whose one remaining effect is forbidden is
+                     not a choice, so the section states the outcome
+                     instead of offering a mode. -->
                 <div class="import-mode-section">
-                    <h4 class="section-title">Import Mode</h4>
-                    <div class="import-mode-options">
-                        <label class="import-mode-option">
-                            <input type="radio" name="import-mode" value="merge" checked onchange="updateImportModeInfo()">
-                            <div class="mode-content">
-                                <span class="mode-title">➕ Merge</span>
-                                <span class="mode-desc">Add to existing subjects</span>
-                            </div>
-                        </label>
-                        <label class="import-mode-option">
-                            <input type="radio" name="import-mode" value="replace" onchange="updateImportModeInfo()">
-                            <div class="mode-content">
-                                <span class="mode-title">🔄 Replace</span>
-                                <span class="mode-desc">Remove existing, import new</span>
-                            </div>
-                        </label>
+                    <h4 class="section-title">What this import will do</h4>
+                    <div class="import-merge-plan" id="import-merge-plan">
+                        <!-- Filled by loadImportMergePlan() -->
                     </div>
-                    
                     <div class="import-mode-info" id="import-merge-info">
                         <span class="info-icon">ℹ️</span>
-                        <span>Will add to your existing <strong id="import-existing-count">0</strong> subjects</span>
-                    </div>
-                    
-                    <div class="import-mode-info warning hidden" id="import-replace-info">
-                        <span class="info-icon">⚠️</span>
-                        <span>This will <strong>delete all existing subjects</strong> and replace them with the imported ones</span>
+                        <span>Merged into your existing
+                        <strong id="import-existing-count">0</strong> subjects.
+                        Subjects your entries are tagged to are never
+                        removed by an import.</span>
                     </div>
                 </div>
             </div>
@@ -1177,6 +1433,9 @@ window.handleImportFileEnhanced = handleImportFileEnhanced;
 window.showImportPreviewModal = showImportPreviewModal;
 window.hideImportPreviewModal = hideImportPreviewModal;
 window.executeImport = executeImport;
+window.buildImportPayload = buildImportPayload;
+window.loadImportMergePlan = loadImportMergePlan;
+window.renderImportMergePlan = renderImportMergePlan;
 window.toggleImportWarnings = toggleImportWarnings;
 window.updateImportModeInfo = updateImportModeInfo;
 window.hideImportErrorModal = hideImportErrorModal;

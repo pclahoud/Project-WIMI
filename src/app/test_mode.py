@@ -226,6 +226,23 @@ def install_on_view(view: QWebEngineView) -> TestModeQWebEnginePage:
     Returns the newly installed page so callers can hold a reference to
     its buffer (for example, to expose it via a bridge slot).
 
+    **The page being replaced is destroyed**, and that matters more than
+    it looks. ``setPage`` does not take ownership away from whoever
+    created the old page, and ``MainWindow`` parents it to the view, so
+    without an explicit delete it stays alive -- viewless, but alive. By
+    this point it has already been handed ``index.html`` by
+    ``MainWindow.__init__``, which means it holds a loaded document with
+    a "WIMI - ..." title and therefore its own entry in Qt's CDP target
+    listing, indistinguishable at a glance from the real one.
+
+    ``wimi_test`` picks its target by title, and picked that one. Every
+    symptom followed from there: navigation appeared to work (the
+    detached document really did navigate, so ``document.title`` and
+    ``location`` updated) while the window never changed, because the
+    window was showing the other page all along. A page with no view is
+    never composited either, which is why ``Page.captureScreenshot``
+    hung waiting for a frame and why CSS transitions never advanced.
+
     Only meaningful while ``IS_ACTIVE`` is ``True``; calling this when
     test mode is inactive almost certainly indicates a logic error.
 
@@ -237,9 +254,15 @@ def install_on_view(view: QWebEngineView) -> TestModeQWebEnginePage:
             "install_on_view() called while test mode is inactive; "
             "call set_active(True, ...) first"
         )
-    profile = view.page().profile()
+    old_page = view.page()
+    profile = old_page.profile()
     new_page = TestModeQWebEnginePage(profile, view)
     view.setPage(new_page)
+    if old_page is not None:
+        # Unparent first: deleteLater on a child the view still owns can
+        # leave the view holding a dangling pointer during teardown.
+        old_page.setParent(None)
+        old_page.deleteLater()
     return new_page
 
 

@@ -10,6 +10,11 @@ class WeightAnalysis {
         this.container = document.getElementById(containerId);
         this.api = api;
         this.data = null;
+        // #133 -- student preference: draw the efficiency score as a
+        // band instead of a single number. Default off, and off is not a
+        // degraded mode: the "Weight Sources" card carries the same
+        // provenance information either way.
+        this.showConfidenceBand = false;
 
         if (!this.container) {
             console.error(`Container #${containerId} not found`);
@@ -119,6 +124,21 @@ class WeightAnalysis {
             
             console.log('[WeightAnalysis] Data received:', data);
 
+            // #133. A failure here must not cost the student the whole
+            // analysis, so the band simply stays off.
+            try {
+                const prefs = await this.api.getUserPreferences();
+                this.showConfidenceBand = !!(
+                    prefs && prefs.efficiency_show_confidence_band
+                );
+            } catch (prefError) {
+                console.warn(
+                    '[WeightAnalysis] Could not read the efficiency band ' +
+                    'preference; showing a single number.', prefError
+                );
+                this.showConfidenceBand = false;
+            }
+
             if (!data || typeof data !== 'object') {
                 console.error('[WeightAnalysis] Invalid data received:', data);
                 this.renderError('Invalid data received from server');
@@ -152,11 +172,13 @@ class WeightAnalysis {
                 <!-- Efficiency Score Header -->
                 <div class="efficiency-header">
                     <div class="efficiency-score-display">
-                        <span class="efficiency-label">EFFICIENCY SCORE</span>
-                        <span class="efficiency-value ${this.getScoreClass(this.data.efficiency_score)}">
-                            ${Math.round(this.data.efficiency_score)}/100
+                        <span class="efficiency-label">EFFICIENCY SCORE${this.renderEfficiencyInfoIcon()}</span>
+                        <span class="efficiency-value ${this.getScoreClass(this.data.efficiency_score)}"
+                              data-testid="efficiency-score-value">
+                            ${this.renderEfficiencyValue()}
                         </span>
                         <span class="efficiency-rating">${this.data.efficiency_rating}</span>
+                        ${this.renderEfficiencyBandNote()}
                     </div>
                 </div>
 
@@ -373,6 +395,81 @@ class WeightAnalysis {
 
         // Limit to top 5 recommendations
         return recommendations.slice(0, 5);
+    }
+
+    /**
+     * The score, as one number or as a band (#133).
+     *
+     * Provenance is not part of the score's arithmetic in either
+     * direction -- Stage 9's confidence multiplier scaled a *penalty*,
+     * so a weight WIMI could not vouch for produced a higher score, and
+     * it was deleted. What remains is a presentation choice the student
+     * owns: one number, or the range the unverified weight mass allows.
+     * Both describe the same score.
+     *
+     * @returns {string} e.g. ``76/100`` or ``69-83/100``.
+     */
+    renderEfficiencyValue() {
+        const score = Math.round(this.data.efficiency_score);
+        const band = this.data.efficiency_band;
+        if (!this.showConfidenceBand || !band || !(band.half_width > 0)) {
+            return `${score}/100`;
+        }
+        // En dash, not a hyphen: the low bound can be a bare number and
+        // "69-83" reads as a subtraction at 2.6rem.
+        return `${Math.round(band.low)}\u2013${Math.round(band.high)}/100`;
+    }
+
+    /**
+     * One line saying where the band's width came from (#133).
+     *
+     * Only rendered with the band, because without it the sentence has
+     * nothing to explain. The number it quotes is the share of the
+     * exam's weight whose source is anything other than the published
+     * blueprint.
+     *
+     * @returns {string} HTML, or '' when the band is not shown.
+     */
+    renderEfficiencyBandNote() {
+        const band = this.data.efficiency_band;
+        if (!this.showConfidenceBand || !band || !(band.half_width > 0)) {
+            return '';
+        }
+        const pct = Math.round(band.unverified_weight_pct);
+        return (
+            `<span class="efficiency-band-note" ` +
+            `data-testid="efficiency-band-note">` +
+            `Weights covering about ${pct}% of this exam were typed or ` +
+            `derived rather than taken from a blueprint, so the score is ` +
+            `shown as a range.</span>`
+        );
+    }
+
+    /**
+     * The card's info affordance, mirroring the sunburst's (#6, #133).
+     *
+     * Same shape as ``analytics_dashboard.html``'s non-additive-arcs
+     * tooltip: markup text rather than a CSS ``::after`` so it is
+     * readable, and ``tabindex`` so it is reachable without a pointer.
+     * The short form lives here; the full explanation is at the setting.
+     *
+     * @returns {string} HTML for the icon and its tooltip.
+     */
+    renderEfficiencyInfoIcon() {
+        const text = this.showConfidenceBand
+            ? 'The range widens with how much of this exam\'s weight was '
+              + 'typed or derived rather than taken from the official '
+              + 'blueprint. The score is the same either way.'
+            : 'Some subject weights come from the official blueprint and '
+              + 'others were typed or derived. The score treats them '
+              + 'alike. Settings \u2192 Dashboard & Analytics can show it '
+              + 'as a range instead.';
+        return (
+            `<span class="efficiency-info-icon" tabindex="0" ` +
+            `data-testid="efficiency-confidence-info" ` +
+            `aria-label="${text}">i<span class="efficiency-info-tooltip" ` +
+            `data-testid="efficiency-confidence-tooltip">${text}</span></span>`
+        );
     }
 
     /**

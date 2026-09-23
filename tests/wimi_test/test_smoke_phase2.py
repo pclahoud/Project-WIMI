@@ -41,6 +41,7 @@ real WIMI subprocess (~3-8s startup on a warm disk).
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Callable
 
 import pytest
@@ -54,6 +55,50 @@ from wimi_test.session import WimiTestSession
 # signature is enough to confirm Playwright returned a real PNG and not,
 # e.g., an empty buffer or an HTML error page.
 _PNG_MAGIC: bytes = b"\x89PNG\r\n\x1a\n"
+
+
+def _wait_for_entry_form_ready(page: WimiPage, *, timeout_ms: int = 20_000) -> None:
+    """Block until ``initializeEntryPage`` has finished wiring the form.
+
+    ``goto`` returns as soon as ``window.api`` exists, which on the entry
+    form is roughly a second too early: ``initializeEntryPage`` then
+    loads the session, the exam context, the entries, the tag hierarchy
+    and the subject index, calls ``resetFormForNewEntry()`` — which
+    *clears every field* — and only at the very end attaches the click
+    handlers for ``#btn-save-draft`` and friends.
+
+    Driving the form in that window loses silently in both directions: a
+    field filled before the reset is wiped, and a click landing before
+    the listener is attached hits a button that is present, enabled, and
+    inert. That is Forgejo #99 — the save never happened, and the test
+    reported "got 0 entries" as though the *write* had failed.
+
+    ``EntryState.isLoading`` is the right predicate because it is
+    assigned ``false`` as the last statement of the try block, after the
+    handlers are bound; nothing else in ``question_entry.js`` writes it.
+    A page whose init *threw* leaves it ``true``, so this times out
+    loudly instead of proceeding into an unwired form — which is the
+    behaviour we want, since the alternative is the silent failure above.
+    """
+    deadline_polls = max(1, timeout_ms // 100)
+    for _ in range(deadline_polls):
+        ready = page.eval_js(
+            "(() => { try { return typeof EntryState !== 'undefined' "
+            "&& EntryState.isLoading === false "
+            "&& !!document.getElementById('btn-save-draft'); } "
+            "catch (e) { return false; } })()"
+        )
+        if ready:
+            return
+        page.wait_for_timeout(100)
+    raise AssertionError(
+        "The entry form never finished initialising (EntryState.isLoading "
+        f"stayed true for {timeout_ms} ms). initializeEntryPage either "
+        "threw — look for an 'Initialization Failed' toast and the console "
+        "capture — or one of its awaited bridge calls never resolved. "
+        "Filling or clicking the form before this point is #99: the writes "
+        "are discarded without an error."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +182,35 @@ def test_create_entry_and_assert_db_row(
     # actual DB writes from the bridge land on wimi_session.user.db.
     _seeded = seeded_user("minimal")  # noqa: F841 -- exercised for side effects
 
-    wimi_page.goto("entry-form")
+    # The entry form refuses to initialise without a session:
+    # question_entry.js toasts "Missing Session" and redirects to
+    # index.html after 1.5s when session_id is absent. Navigating bare
+    # therefore filled a form that was already on its way out, and no
+    # entry could be written -- which is what this test then asserted on.
+    # It was invisible because the screenshot test above used to hang,
+    # aborting the file before this one reported.
+    db = wimi_session.user.db
+    exam = db.create_exam_context(
+        exam_name="Smoke Exam",
+        exam_description="Minimal context so the entry form will load",
+    )
+    review = db.create_review_session(
+        exam_context_id=exam.id,
+        total_questions=1,
+        total_incorrect=1,
+        session_name="Smoke session",
+        date_encountered=date.today(),
+    )
+
+    wimi_page.goto("entry-form", query={"session_id": review.id})
+    # #99: the form discards anything typed or clicked before this
+    # returns. See the helper for why goto's own wait is not enough.
+    _wait_for_entry_form_ready(wimi_page)
+
+    # Cursor for the save-happened check below. Taken before the click,
+    # so a write that completes while the driver is still travelling is
+    # still matched.
+    mark = wimi_page.mark_bridge_calls()
 
     # Role+name resolves textareas via their <label for="..."> binding.
     # The label text in question_entry.html includes the literal "*"
@@ -156,17 +229,34 @@ def test_create_entry_and_assert_db_row(
     save_button = wimi_page.locator(role="button", name="Save as Draft")
     save_button.click()
 
-    # Wait for the bridge write to land. The proper signal is the
-    # auto-save indicator changing state, but that wiring is part of
-    # Phase 3's BridgeCapture; for now a small fixed wait is the
-    # documented Phase 2 escape hatch (T2.9 spec, scenario 2).
-    # TODO(Phase 3 / T3.6): replace with wimi_page.wait_for_bridge_call(
-    #     "createQuestionEntry", timeout_ms=2000) once BridgeCapture lands.
-    wimi_page.pw_page.wait_for_timeout(500)
+    # Wait for the bridge write to land — by watching for it, not by
+    # guessing how long it takes. This is the T3.6 replacement the old
+    # TODO here pointed at. A click that produced no call now fails as
+    # "createQuestionEntry was never recorded", listing the calls the
+    # page *did* make, instead of as a phantom zero-row assertion.
+    wimi_page.wait_for_bridge_call(
+        "createQuestionEntry", since_ts=mark, timeout_ms=10_000
+    )
 
     # DB-side verification. ``wimi_session.user.db`` is the database the
     # running WIMI instance writes to, NOT seeded_user's DB.
     assert_entry_count(wimi_session.user.db, expected=1)
+
+    # The row must carry what was typed. Before #99 this test asserted
+    # only the count, and the count was reachable with both fields
+    # blank: the fills raced resetFormForNewEntry() and lost, so a
+    # "passing" run routinely wrote user_answer=''. A save of an empty
+    # form is not what the scenario claims to exercise.
+    row = wimi_session.user.db.fetchone(
+        "SELECT user_answer, correct_answer FROM question_entries"
+    )
+    assert row is not None, "assert_entry_count saw a row that fetchone cannot"
+    assert (row["user_answer"], row["correct_answer"]) == ("B", "A"), (
+        f"The saved entry holds {row['user_answer']!r}/"
+        f"{row['correct_answer']!r}; the form was filled with 'B'/'A'. An "
+        "empty field means the fill landed before the form finished "
+        "initialising and was cleared (#99)."
+    )
 
     # TODO(Phase 4 / T4.1): once data-testid="entry-form-user-answer"
     # and "entry-form-correct-answer" land per UI_AUDIT.md, the two
@@ -247,16 +337,27 @@ def test_browser_shows_seeded_entries(
 
     # The entry browser renders one ``.entry-card`` per row; without
     # testids the cleanest count is a DOM ``querySelectorAll`` via
-    # eval_js. The browser issues an async fetch on load, so we wait
-    # briefly for the cards to render before counting.
+    # eval_js. The browser issues an async fetch on load, so poll for
+    # the cards rather than sleeping a fixed 500 ms: the sleep was the
+    # other instance of the #84/#99 shape in this file, and it decides
+    # the assertion's answer rather than waiting for it.
     # TODO(Phase 4 / T4.3): replace with
     #     len(wimi_page.locator(css="[data-testid^='browser-row-']")
     #         .pw_locator.all())
     # once data-testid="browser-row-{id}" lands per UI_AUDIT.md.
-    wimi_page.pw_page.wait_for_timeout(500)
-    visible_count: Any = wimi_page.eval_js(
-        "document.querySelectorAll('.entry-card').length"
-    )
+    # The predicate is "the list rendered at all", not "the list
+    # rendered five" — a poll that waits for the expected number is a
+    # poll that cannot report the wrong one. The browser builds the
+    # card list in a single pass, so the first non-zero count is the
+    # final one, and the assertion below judges it.
+    visible_count: Any = 0
+    for _ in range(100):
+        visible_count = wimi_page.eval_js(
+            "document.querySelectorAll('.entry-card').length"
+        )
+        if visible_count:
+            break
+        wimi_page.wait_for_timeout(100)
 
     assert visible_count == 5, (
         f"Expected 5 .entry-card elements in the browser; "

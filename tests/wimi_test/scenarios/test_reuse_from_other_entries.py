@@ -217,19 +217,46 @@ def test_attach_existing_header_buttons_and_picker(
         f"subjects yet). state={initial_state!r}"
     )
 
-    # initializeEntryPage is async — let session populate.
-    wimi_page.wait_for_timeout(500)
-    session_loaded = wimi_page.eval_js(
-        "(() => !!(EntryState && EntryState.session "
-        "&& EntryState.session.exam_context_id))()"
+    # initializeEntryPage is async — wait for it to *finish*, not for
+    # its first milestone (#105).
+    #
+    # This used to poll ``EntryState.session``, which is populated by
+    # the first await inside initializeEntryPage. Between that and the
+    # end of init the page still has to fetch the exam context, mount
+    # the rich-text editors, load the session's entries and then call
+    # ``resetFormForNewEntry()`` — which replaces ``EntryState.formData``
+    # wholesale, ``primarySubjects: []`` included. A ``selectSubject``
+    # landing in that window is silently erased, ``refreshAttachCandidates``
+    # then finds no primary subjects and disables both buttons, and the
+    # poll below waits out its ceiling on a refresh that is never coming.
+    # Raising that ceiling could not have fixed it; this is the same
+    # act-before-the-form-is-wired race as #99, one page-load earlier.
+    #
+    # ``EntryState.isLoading`` goes false as the last statement of init,
+    # after the reset and after the click handlers bind, and nothing
+    # else writes it.
+    form_ready = _wait_for(
+        wimi_page,
+        "(() => { try { return typeof EntryState !== 'undefined' "
+        "&& EntryState.isLoading === false "
+        "&& !!EntryState.session; } catch (e) { return false; } })()",
+        timeout_ms=20000,
+        description="entry form finished initialising",
     )
-    assert session_loaded, (
-        "EntryState.session was not populated after navigating to the "
-        "entry form for the interactive session."
+    assert form_ready, (
+        "initializeEntryPage never finished for the interactive session "
+        "(EntryState.isLoading stayed true). Either it threw — look for "
+        "an 'Initialization Failed' toast in the console capture — or "
+        "one of its awaited bridge calls never resolved."
     )
 
     # Tag the interactive entry with subject S — the selectSubject
     # handler schedules refreshAttachCandidates with a 250ms debounce.
+    #
+    # Cursor for the two bridge waits below, taken before the trigger so
+    # a round trip that finishes while the driver is still travelling is
+    # not missed (#105).
+    attach_mark = wimi_page.mark_bridge_calls()
     select_result: Any = wimi_page.eval_js(
         f"""
         (() => {{
@@ -251,6 +278,27 @@ def test_attach_existing_header_buttons_and_picker(
         f"selectSubject raised: {select_result!r}"
     )
 
+    # Absorb the part of the wait that has nothing to do with the DOM.
+    #
+    # #105: the two polls below used to carry the whole cost of
+    # ``scheduleRefreshAttachCandidates``' 250 ms debounce *plus* two
+    # bridge round trips inside their own 4 s ceilings. That is
+    # comfortable on an idle box and is the entire budget four minutes
+    # into a full regression run, so the scenario passed alone and
+    # failed in the suite — while reporting it as "the button never
+    # enabled", i.e. blaming the render for the latency of the fetch.
+    #
+    # Waiting on the calls themselves removes the guess: whatever the
+    # debounce and the round trips cost under load, the DOM polls that
+    # follow start after the data has arrived and only have to cover
+    # ``updateAttachButtonState`` writing two attributes. Both slots are
+    # awaited because ``refreshAttachCandidates`` issues them as one
+    # ``Promise.all`` and paints only after both settle.
+    for slot in ("getNotesBySubjects", "getMediaBySubjects"):
+        wimi_page.wait_for_bridge_call(
+            slot, since_ts=attach_mark, timeout_ms=20_000
+        )
+
     # Wait for the notes button to become enabled with the right count.
     notes_btn_enabled = _wait_for(
         wimi_page,
@@ -269,10 +317,11 @@ def test_attach_existing_header_buttons_and_picker(
         description="notes attach button enabled with count (1)",
     )
     assert notes_btn_enabled, (
-        "Notes header attach button never enabled with count (1) "
-        "after tagging subject S. Check the scheduleRefreshAttachCandidates "
-        "debounce wiring in selectSubject and that getNotesBySubjects "
-        "resolved with note A."
+        "Notes header attach button never enabled with count (1) after "
+        "tagging subject S. getNotesBySubjects was already observed on "
+        "the bridge by the wait above, so this is no longer a question "
+        "of how long the fetch took: either it returned without note A, "
+        "or updateAttachButtonState('notes') did not paint the result."
     )
 
     media_btn_enabled = _wait_for(
@@ -292,8 +341,10 @@ def test_attach_existing_header_buttons_and_picker(
         description="media attach button enabled with count (1)",
     )
     assert media_btn_enabled, (
-        "Media header attach button never enabled with count (1) "
-        "after tagging subject S. Check getMediaBySubjects resolution."
+        "Media header attach button never enabled with count (1) after "
+        "tagging subject S. getMediaBySubjects was already observed on "
+        "the bridge by the wait above, so suspect its payload or "
+        "updateAttachButtonState('media'), not the fetch's latency."
     )
 
     # =================================================================
@@ -517,7 +568,12 @@ def test_attach_existing_header_buttons_and_picker(
     # Block 4 — Detail page reflects both attachments
     # =================================================================
     wimi_page.goto("entry-detail", query={"id": entry_b_id})
-    wimi_page.wait_for_timeout(800)
+    # Poll for the attachments grid to fill rather than sleeping (#84).
+    _wait_for(
+        wimi_page,
+        "(() => { const g = document.getElementById('attachments-grid');"
+        " return !!g && g.children.length >= 1; })()",
+    )
 
     detail_state: Any = wimi_page.eval_js(
         """
@@ -599,7 +655,12 @@ def test_attach_existing_header_buttons_and_picker(
     )
 
     wimi_page.goto("entry-detail", query={"id": entry_a.id})
-    wimi_page.wait_for_timeout(800)
+    # Poll for the notes tab to render content rather than sleeping (#84).
+    _wait_for(
+        wimi_page,
+        "(() => { const t = document.getElementById('notes-tab-content');"
+        " return !!t && t.textContent.trim().length > 0; })()",
+    )
 
     a_notes_text = wimi_page.eval_js(
         "(() => {"

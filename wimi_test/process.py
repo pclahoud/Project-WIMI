@@ -1,9 +1,14 @@
 """WIMI subprocess lifecycle manager.
 
-`WimiProcess` owns one and only one concern: launching ``python
-run_wimi.py --test-mode ...`` as a child process, watching its stdout for
-the ``TEST_MODE_READY:port=N`` sentinel, and ensuring the child is killed
-on teardown — even when something else in the test goes wrong.
+`WimiProcess` owns one and only one concern: launching WIMI with
+``--test-mode ...`` as a child process, watching its stdout for the
+``TEST_MODE_READY:port=N`` sentinel, and ensuring the child is killed on
+teardown — even when something else in the test goes wrong.
+
+What it launches is either ``python run_wimi.py`` (the default) or a
+built executable, when ``TestConfig.wimi_binary`` / ``WIMI_TEST_BINARY``
+names one. See :meth:`WimiProcess._build_command`; driving the frozen
+artifact was impossible before #137 and #138.
 
 This module is deliberately OS-only. It has *no* knowledge of the DOM,
 the WIMI database, Playwright, or CDP semantics beyond the integer port
@@ -64,6 +69,18 @@ _FALLBACK_POLL_INTERVAL_S = 0.5
 # urllib timeout for the polling fallback. Independent of the overall
 # attach timeout — each individual probe should fail fast.
 _FALLBACK_HTTP_TIMEOUT_S = 1.0
+
+# How long ``_pick_free_port`` keeps re-scanning the range before giving
+# up. A single exhausted scan used to raise immediately, which turned one
+# unlucky moment into a setup error for every remaining scenario in the
+# session (issue #80). 30s comfortably outlasts the ~60s TIME_WAIT window
+# for the handful of ports a scan can lose to a genuinely racing peer,
+# while still failing fast when the range really is occupied.
+_PORT_SCAN_TIMEOUT_S = 30.0
+
+# Pause between whole-range rescans. Short enough to grab a port the
+# moment it frees, long enough not to spin the CPU.
+_PORT_SCAN_RETRY_INTERVAL_S = 0.5
 
 
 class WimiProcess:
@@ -127,17 +144,36 @@ class WimiProcess:
         ProcessSpawnError
             If no port in ``config.cdp_port_range`` could be bound.
         """
+        binary = self._config.wimi_binary
+        if binary is not None and not Path(binary).exists():
+            raise ProcessSpawnError(
+                message=(
+                    f"Configured WIMI binary {binary} does not exist. Build "
+                    "a TEST build with `build_windows.bat test` or "
+                    "`./build_macos.sh test` -- a release build refuses "
+                    "--test-mode (#144) -- or unset WIMI_TEST_BINARY to "
+                    "run the dev launcher."
+                ),
+                exit_code=-1,
+                last_stdout=[],
+            )
+
         port = self._pick_free_port()
         cmd = self._build_command(port)
         cwd = self._project_root()
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
-        # Force UTF-8 stdout/stderr in the child so emoji prints (e.g. the
-        # camera glyph in media_scheme_handler.register_media_scheme) don't
-        # crash with UnicodeEncodeError on Windows, where piped stdout
-        # defaults to cp1252. ``errors='replace'`` is a belt-and-suspenders
-        # guard against any other un-encodable character.
+        # Ask for UTF-8 stdout/stderr in the child. This used to be the
+        # whole guard against a non-ASCII print() crashing on Windows,
+        # where piped stdout defaults to cp1252 — and it is **not
+        # sufficient**: measured on Windows, the PyInstaller runtime
+        # ignores PYTHONIOENCODING entirely, so a frozen child crashed
+        # with the variable set exactly as it did without it (#137
+        # comment #1689). The real guard is ``configure_stdio()`` inside
+        # the app, at the top of every entry point. This line stays
+        # because it is still honoured by the dev launcher's ordinary
+        # interpreter, and costs nothing.
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
 
@@ -408,42 +444,135 @@ class WimiProcess:
     # Internals
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _port_is_bindable(port: int) -> bool:
+        """Return ``True`` if the child could bind ``port`` on loopback.
+
+        ``SO_REUSEADDR`` is set before ``bind()`` deliberately: it makes
+        the probe ask the question the caller actually has -- *can the
+        child bind here?* -- instead of *is this port completely
+        untouched?*. The two answers differ for a port whose previous CDP
+        connection is still in ``TIME_WAIT`` (~60s on Linux): a bare
+        ``bind()`` fails, while the child Chromium, which sets
+        ``SO_REUSEADDR`` itself, binds it without complaint.
+
+        That gap is issue #80. Each scenario spawns a WIMI, attaches over
+        CDP and kills it in a few seconds, so a narrow range is consumed
+        far faster than TIME_WAIT drains and the bare probe declared every
+        port busy while ``ss -ltnp`` showed no listener at all.
+
+        Setting the option does not weaken the check. On Linux
+        ``SO_REUSEADDR`` still refuses a port that has a live listener,
+        which is the only condition that should disqualify a port here.
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+        else:
+            return True
+        finally:
+            sock.close()
+
     def _pick_free_port(self) -> int:
-        """Scan ``config.cdp_port_range`` for the first bindable port.
+        """Scan ``config.cdp_port_range`` for a port the child can bind.
+
+        Retries the whole range for up to ``_PORT_SCAN_TIMEOUT_S`` before
+        raising. The original single-pass scan meant the first exhausted
+        moment failed not just this spawn but every remaining scenario in
+        the session, since each one calls this afresh.
+
+        Returns
+        -------
+        int
+            A port in ``config.cdp_port_range`` that nothing is listening
+            on. The port is released before returning, so a racing peer
+            can still take it between here and the child's own bind --
+            spawn failures remain possible, they are just no longer
+            guaranteed by TIME_WAIT alone.
 
         Raises
         ------
         ProcessSpawnError
-            If every port in the range is in use.
+            If every port in the range stayed occupied for the whole
+            retry window.
         """
         lo, hi = self._config.cdp_port_range
-        for port in range(lo, hi + 1):
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.bind(("127.0.0.1", port))
-            except OSError:
-                continue
-            else:
-                return port
-            finally:
-                sock.close()
+        deadline = time.monotonic() + _PORT_SCAN_TIMEOUT_S
+        attempts = 0
+
+        while True:
+            attempts += 1
+            for port in range(lo, hi + 1):
+                if self._port_is_bindable(port):
+                    if attempts > 1:
+                        logger.debug(
+                            "CDP port %d free after %d scan(s) of %d-%d",
+                            port,
+                            attempts,
+                            lo,
+                            hi,
+                        )
+                    return port
+
+            if time.monotonic() >= deadline:
+                break
+
+            logger.debug(
+                "No free CDP port in %d-%d on scan %d; retrying",
+                lo,
+                hi,
+                attempts,
+            )
+            time.sleep(_PORT_SCAN_RETRY_INTERVAL_S)
 
         raise ProcessSpawnError(
-            message="No free port in CDP range",
+            message=(
+                f"No free port in CDP range {lo}-{hi} after {attempts} "
+                f"scans over {_PORT_SCAN_TIMEOUT_S:.0f}s. Every port in "
+                f"the range has a live listener."
+            ),
             exit_code=-1,
             last_stdout=[],
         )
 
     def _build_command(self, port: int) -> list[str]:
-        """Build the argv used to launch the WIMI subprocess."""
+        """Build the argv used to launch the WIMI subprocess.
+
+        Two shapes, one flag set. Without ``config.wimi_binary`` we run
+        the dev launcher through this interpreter, which is what every
+        scenario has always done. With one we run the frozen executable
+        — the artifact users actually get, and the thing nothing could
+        drive until #137 and #138 landed.
+
+        ``--app-data-dir`` is always made absolute, and that is not
+        tidiness: a relative path is resolved by ``src/app/main.py``
+        against *its own* project root, which for a frozen build is the
+        directory holding the executable. Left relative, the harness
+        would seed a user in ``<repo>/app_data_test`` while the binary
+        opened ``<dist>/WIMI/app_data_test`` and found nothing there.
+        For the dev launcher the two already agree, so absolutising is a
+        no-op.
+        """
+        app_data_dir = Path(self._config.app_data_dir)
+        if not app_data_dir.is_absolute():
+            app_data_dir = self._project_root() / app_data_dir
+
+        binary = self._config.wimi_binary
+        if binary is not None:
+            launcher = [str(binary)]
+        else:
+            launcher = [sys.executable, "run_wimi.py"]
+
         return [
-            sys.executable,
-            "run_wimi.py",
+            *launcher,
             "--test-mode",
             "--debug-port",
             str(port),
             "--app-data-dir",
-            str(self._config.app_data_dir),
+            str(app_data_dir),
         ]
 
     @staticmethod

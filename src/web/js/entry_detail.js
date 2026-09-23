@@ -250,8 +250,10 @@ class EntryDetail {
                 source: result.source
             };
             
-            // Store exam context ID for navigation
-            if (result.exam) {
+            // Store exam context ID for navigation. Only overwrite the value
+            // parsed from ?exam= when the payload actually carries one — the
+            // exam dict is null-ish for a session whose exam context is gone.
+            if (result.exam?.id) {
                 this.examContextId = result.exam.id;
             }
             
@@ -402,34 +404,48 @@ class EntryDetail {
             return;
         }
         
-        const difficultyMap = {
-            1: { label: 'Easy', class: 'easy' },
-            2: { label: 'Medium', class: 'medium' },
-            3: { label: 'Hard', class: 'hard' },
-            4: { label: 'Very Hard', class: 'very-hard' },
-            5: { label: 'Very Hard', class: 'very-hard' }
-        };
-        
-        const diffInfo = difficultyMap[difficulty] || { label: 'Unknown', class: '' };
-        
-        this.elements.difficultyBadge.textContent = diffInfo.label;
-        this.elements.difficultyBadge.className = `difficulty-badge ${diffInfo.class}`;
+        // The words come from WimiDifficulty (js/difficulty.js), which holds
+        // the entry form's own vocabulary; the colours and the dot indicator
+        // come from css/difficulty.css, keyed off the data-difficulty this
+        // writes. Do not reintroduce a literal map here -- issue #46 was two
+        // of them, disagreeing with the buttons the student clicked.
+        const level = window.WimiDifficulty.applyToBadge(
+            this.elements.difficultyBadge, difficulty,
+            'difficulty-badge difficulty-badge--dots'
+        );
+
+        // Off-scale is unreachable while the column's CHECK holds it to 1-5,
+        // but say so rather than guessing a step if it ever is.
+        if (!level) {
+            this.elements.difficultyBadge.textContent = 'Unknown';
+        }
+
+        // A previous render of an unrated entry hid the badge inline; clear
+        // that so the stylesheet's inline-flex applies again.
+        this.elements.difficultyBadge.style.display = '';
     }
     
     renderMetaInfo() {
         // Source name
-        if (this.context.source) {
-            this.elements.sourceName.querySelector('.meta-text').textContent = 
-                this.context.source.source_name;
-        } else if (this.context.session?.session_name) {
-            this.elements.sourceName.querySelector('.meta-text').textContent = 
-                this.context.session.session_name;
+        // getEntryWithContext emits the source and the session under `name`
+        // (`{'name': row['source_name'], ...}` in get_entry_with_context), not
+        // `source_name` / `session_name`. Assigning the missing key set
+        // textContent to undefined, which the nullable IDL attribute coerces
+        // to null and renders as an empty meta item.
+        if (this.context.source?.name) {
+            this.elements.sourceName.querySelector('.meta-text').textContent =
+                this.context.source.name;
+        } else if (this.context.session?.name) {
+            this.elements.sourceName.querySelector('.meta-text').textContent =
+                this.context.session.name;
         } else {
             this.elements.sourceName.style.display = 'none';
         }
         
         // Date
-        const sessionDate = this.context.session?.date_encountered;
+        // getEntryWithContext emits the session date under `date` (a bare
+        // YYYY-MM-DD from date.isoformat()), not `date_encountered`.
+        const sessionDate = this.context.session?.date;
         if (sessionDate) {
             this.elements.entryDate.querySelector('.meta-text').textContent = 
                 this.formatDate(sessionDate);
@@ -1103,7 +1119,12 @@ class EntryDetail {
         if (!dateStr) return '';
         
         try {
-            const date = new Date(dateStr);
+            // Bridge dates are bare ISO days ("2026-09-11"). new Date() would
+            // parse that as UTC midnight and render the previous day anywhere
+            // west of Greenwich, so build a local date from the components.
+            const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+            if (!y || !m || !d) return dateStr;
+            const date = new Date(y, m - 1, d);
             return date.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',

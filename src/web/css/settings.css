@@ -798,8 +798,20 @@
     flex-shrink: 0;
 }
 
+/* Not running, not stopped, not failed: not yet asked (#90). A hollow ring
+   rather than a fourth fill, so it reads as the absence of a state instead of
+   as one more state -- and so it cannot be mistaken for the grey `.stopped`
+   dot it may be one refresh away from becoming. `--text-muted` is themed in
+   every theme dictionary in themes.js, so this tracks light and dark. The
+   base rule sets only size and shape, which is why the class has to paint
+   something: dropping it would leave the dot transparent. */
+.mcp-status-dot.unknown {
+    background-color: transparent;
+    border: 1px solid var(--text-muted);
+}
+
 .mcp-status-dot.stopped {
-    background-color: var(--color-text-tertiary, #999);
+    background-color: var(--text-muted);
 }
 
 .mcp-status-dot.running {
@@ -813,11 +825,11 @@
 
 .mcp-status-text {
     font-size: 0.875rem;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
 }
 
 .mcp-connection-url code {
-    background: var(--color-surface-alt, #f5f5f5);
+    background: var(--bg-secondary);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     font-size: 0.8125rem;
@@ -827,7 +839,7 @@
 .mcp-connect-instructions {
     margin-top: 1.5rem;
     padding-top: 1.5rem;
-    border-top: 1px solid var(--color-border, #e0e0e0);
+    border-top: 1px solid var(--border-color);
 }
 
 .mcp-connect-instructions > label {
@@ -838,7 +850,7 @@
 
 .mcp-config-block {
     margin-top: 0.75rem;
-    border: 1px solid var(--color-border, #e0e0e0);
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     overflow: hidden;
 }
@@ -848,8 +860,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.375rem 0.75rem;
-    background: var(--color-surface-alt, #f5f5f5);
-    border-bottom: 1px solid var(--color-border, #e0e0e0);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .mcp-config-label {
@@ -857,16 +869,16 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
 }
 
 .mcp-copy-btn {
     padding: 0.2rem 0.5rem;
     font-size: 0.75rem;
-    border: 1px solid var(--color-border, #ccc);
+    border: 1px solid var(--border-color);
     border-radius: 0.25rem;
-    background: var(--color-surface, #fff);
-    color: var(--color-text-secondary);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
@@ -891,6 +903,172 @@
     line-height: 1.5;
     white-space: pre;
     overflow-x: auto;
-    background: var(--color-surface, #fff);
-    color: var(--color-text-primary);
+    background: var(--bg-primary);
+    color: var(--text-primary);
 }
+
+/* ============================================
+   8f. Question Banks
+   ============================================ */
+
+.qbank-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+    max-width: 40rem;
+}
+
+.qbank-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+}
+
+.qbank-row-name {
+    flex: 0 0 8rem;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.qbank-row-url {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.qbank-row-url::placeholder {
+    color: var(--text-muted);
+}
+
+.qbank-row-url:hover {
+    border-color: var(--border-color);
+}
+
+.qbank-row-url:focus {
+    outline: none;
+    background: var(--bg-primary);
+    border-color: var(--color-primary);
+}
+
+.qbank-row-desktop {
+    flex: 0 0 6.25rem;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.qbank-row-desktop input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* Placeholder for the checkbox column on a source with no address yet, so
+   the rows stay aligned without offering a control that has nothing to act on. */
+.qbank-row-nodesktop {
+    flex: 0 0 6.25rem;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    user-select: none;
+}
+
+.qbank-empty {
+    padding: var(--space-xl);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-md);
+}
+
+/* ============================================================
+   Folder Sync (#123)
+   Tokens only -- scripts/check_css_tokens.py is a gate.
+   ============================================================ */
+
+#folder-sync-section {
+    margin-bottom: var(--space-lg);
+}
+
+.folder-sync-observations {
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+}
+
+/* Each line is one observation with a time on it, so they need separating
+   without implying a status list. No icons, and deliberately no tick: the
+   panel may not claim a state the filesystem cannot report. */
+.folder-sync-observations .field-description + .field-description {
+    margin-top: var(--space-sm);
+}
+
+.folder-sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.folder-sync-problem {
+    color: var(--color-error);
+}
+
+/* Fork resolution (#124). Hidden until there is one -- a permanent
+   "no conflicts" panel is noise that trains people to ignore it. */
+
+.folder-sync-fork {
+    border: 1px solid var(--color-warning, var(--color-primary));
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.folder-sync-fork-side {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+}
+
+.folder-sync-fork-side + .folder-sync-fork-side {
+    margin-top: var(--space-sm);
+}
+
+/* A choice made here and not yet sent (#148). Uses the warning accent
+   rather than error: nothing is wrong, something is waiting. */
+.folder-sync-pending {
+    border-left: 3px solid var(--color-warning, var(--color-primary));
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md, 6px);
+}
+
+/* Catching up (#151): information, not a warning -- a newer copy is good news. */
+.folder-sync-catchup {
+    border-left: 3px solid var(--color-info, var(--color-primary));
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md, 6px);
+}
+

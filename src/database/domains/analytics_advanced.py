@@ -7,30 +7,29 @@ from app_logging import ErrorCategory
 
 
 # ---------------------------------------------------------------------------
-# Stage 9 — confidence multipliers keyed on ``subject_edges.weight_source``.
-# Tunable in one place so the analytics layer can recalibrate without
-# touching every call site.
+# Weight provenance and the efficiency score (settled in #133)
 #
-# Rationale per WEIGHT_ALLOCATION_IMPLEMENTATION_PLAN.md §"Stage 9":
-# * ``official`` — pulled from a real exam outline; treat as ground truth.
-# * ``user_explicit`` — user anchored this value via Stage 6 setExplicitWeight;
-#   strong signal but not as authoritative as the published outline.
-# * ``user_defined`` — user typed it during creation/edit but didn't anchor.
-# * ``derived`` — system computed from sibling rebalance.
-# * ``user_estimate`` — back-of-envelope, lowest confidence.
+# ``weight_source`` describes the **measuring stick**, never the student.
+# It does NOT appear in the efficiency score's arithmetic, in either
+# direction. Stage 9 shipped a ``_WEIGHT_SOURCE_CONFIDENCE`` table that
+# multiplied the *penalty*, so a weight WIMI could not vouch for produced
+# a smaller penalty and therefore a **higher** score — the docstrings
+# called that "pessimistic". It was deleted in #133 along with the
+# companion ``range_confidence`` term, which had the identical direction
+# problem. Do not reintroduce either; see the ``CLAUDE.md`` section
+# "Weight confidence is not part of the efficiency score (settled in
+# #133)" before touching ``_calculate_efficiency_score``.
+#
+# Provenance is still surfaced — it is simply *shown* rather than folded
+# into a point estimate: the per-row markers, the "Weight Sources"
+# breakdown card (``_build_source_distribution``) and, when the student
+# turns it on, the uncertainty band (``_build_efficiency_band``).
 # ---------------------------------------------------------------------------
-_WEIGHT_SOURCE_CONFIDENCE = {
-    'official': 1.0,
-    'user_explicit': 0.7,
-    'user_defined': 0.55,
-    'derived': 0.5,
-    'user_estimate': 0.4,
-}
 
-# Default confidence multiplier when ``weight_source`` is NULL/unknown.
-# Matches ``derived`` because that's the safest pessimistic default for
-# any source we cannot identify (pre-Stage-2 legacy rows).
-_WEIGHT_SOURCE_DEFAULT_CONFIDENCE = 0.5
+#: Sources whose weights came from a published exam blueprint. Everything
+#: else was typed, anchored or computed by somebody, and is what the
+#: uncertainty band widens on.
+_VERIFIED_WEIGHT_SOURCES = frozenset({'official'})
 
 
 class AdvancedAnalyticsMixin:
@@ -82,18 +81,30 @@ class AdvancedAnalyticsMixin:
                 'child_subjects': [{'subject_id': int, 'subject_name': str, 'mistake_count': int, 'total_mistake_count': int}, ...],
                 'mistake_types': [{'tag_name': str, 'color': str, 'description': str, 'count': int, 'percentage': float}, ...],
                 'recent_entries': [{'entry_id': int, 'date_encountered': str, 'subject_name': str, 'reflection': str, 'explanation': str}, ...],
-                'sibling_subjects': [{'subject_id': int, 'subject_name': str, 'mistake_count': int}, ...]
             }
+
+        There is deliberately no ``sibling_subjects`` key. It fed the
+        "Related Topics (Siblings)" panel, which issue #14 removed: the
+        owner's "siblings" are *semantic relations* between topics
+        (hypertension leads to hypertensive nephrosclerosis), and tree
+        adjacency is at best a weak proxy for that — two topics can share
+        a parent and have nothing to do with each other. The replacement
+        feature is parked pending a design discussion about the authoring
+        workflow; do not reinstate a structural query in the meantime.
         """
         from datetime import datetime, timedelta
 
-        # Get subject basic info
+        # Get subject basic info.
+        #
+        # No ``sn.parent_id``: the legacy single-parent column is not
+        # read anywhere on this path any more (issue #14 removed its last
+        # reader with the sibling panel). Keep it that way —
+        # ``subject_edges`` is the canonical parent source per CLAUDE.md.
         subject_query = """
             SELECT
                 sn.id,
                 sn.name as subject_name,
                 sn.level_type as level,
-                sn.parent_id,
                 (COALESCE(sn.exam_weight_low, 0) + COALESCE(sn.exam_weight_high, sn.exam_weight_low, 0)) / 2.0 as exam_weight,
                 COALESCE(sn.exam_weight_low, 0) as exam_weight_low,
                 COALESCE(sn.exam_weight_high, sn.exam_weight_low, 0) as exam_weight_high
@@ -313,11 +324,20 @@ class AdvancedAnalyticsMixin:
         """
         last_week = self.fetchone(last_week_query, tuple(agg_params + [last_week_start.isoformat(), week_start.isoformat()]))['count'] or 0
 
-        # Get timeline (last 8 weeks) - aggregated from descendants
+        # Get timeline (last 8 weeks) - aggregated from descendants.
+        #
+        # Bucket ``i`` is the half-open week ``[week_start - 7i, week_start - 7i + 7)``
+        # so that ``i == 0`` ("This") is the *current* week — the same
+        # ``[week_start, now]`` window the THIS WEEK card counts — and
+        # ``i == 1`` is exactly the LAST WEEK card's window. Issue #5: an
+        # earlier version anchored ``week_end`` at ``week_start`` and walked
+        # backwards from there, which made "This" cover last week and left
+        # the current week in no bucket at all, so every bar read 0 on a
+        # database whose entries were all logged this week.
         timeline = []
         for i in range(7, -1, -1):
-            week_end = week_start - timedelta(days=i * 7)
-            week_begin = week_end - timedelta(days=7)
+            week_begin = week_start - timedelta(days=i * 7)
+            week_end = week_begin + timedelta(days=7)
 
             week_query = f"""
                 {descendants_cte}
@@ -338,10 +358,24 @@ class AdvancedAnalyticsMixin:
 
         # Get child subjects with aggregated counts from their descendants
         # For each direct child, we need to count entries in that child's entire subtree
+        #
+        # The LIST of direct children is sourced from ``subject_edges``, not
+        # the legacy ``subject_nodes.parent_id`` column. The per-child counts
+        # below were already polyhierarchy-aware, but the list they iterated
+        # was not: a child attached to this subject only via ``subject_edges``
+        # (e.g. added through ``addParent``) has a ``parent_id`` pointing
+        # somewhere else — or NULL — so it was dropped from the breakdown
+        # entirely. A silent omission, with nothing on the page signalling it.
+        # m004 backfilled one edge per pre-existing ``parent_id``, and
+        # ``create_subject_node`` dual-writes an edge, so the junction table is
+        # a superset of the legacy column: nothing is lost by reading only it.
         child_query = """
             SELECT sn.id as subject_id, sn.name as subject_name
             FROM subject_nodes sn
-            WHERE sn.parent_id = ? AND sn.status = 'active'
+            JOIN subject_edges se ON se.child_id = sn.id
+            WHERE se.parent_id = ? AND sn.status = 'active'
+            GROUP BY sn.id, sn.name
+            ORDER BY MIN(se.display_order), sn.name
         """
         direct_children = self.fetchall(child_query, (subject_id,))
 
@@ -470,31 +504,6 @@ class AdvancedAnalyticsMixin:
         """
         recent_entries = self.fetchall(entries_query, tuple(agg_params))
 
-        # Get sibling subjects (same parent)
-        siblings_query = """
-            SELECT
-                sn.id as subject_id,
-                sn.name as subject_name,
-                COUNT(DISTINCT qe.id) as mistake_count
-            FROM subject_nodes sn
-            LEFT JOIN entry_subject_mappings esm ON sn.id = esm.subject_node_id
-            LEFT JOIN question_entries qe ON esm.question_entry_id = qe.id
-            LEFT JOIN review_sessions rs ON qe.review_session_id = rs.id
-            WHERE sn.parent_id = (SELECT parent_id FROM subject_nodes WHERE id = ?)
-                AND sn.id != ?
-        """
-        sibling_params = [subject_id, subject_id]
-        if exam_context_id:
-            siblings_query += " AND (rs.exam_context_id = ? OR rs.exam_context_id IS NULL)"
-            sibling_params.append(exam_context_id)
-        if not exam_context_id:
-            # Need to filter by user through review_sessions
-            siblings_query += " AND (rs.user_id = ? OR rs.user_id IS NULL)"
-            sibling_params.append(self.user_id)
-        siblings_query += " GROUP BY sn.id, sn.name HAVING mistake_count > 0 ORDER BY mistake_count DESC LIMIT 3"
-
-        sibling_subjects = self.fetchall(siblings_query, tuple(sibling_params))
-
         # Stage 9 polish — orientation fields for the multi-parent
         # selector. Both are cheap to compute and let the page render a
         # dynamic breadcrumb + an explanatory banner that turns the
@@ -556,7 +565,6 @@ class AdvancedAnalyticsMixin:
             'child_subjects': child_subjects,
             'mistake_types': mistake_types,
             'recent_entries': recent_entries,
-            'sibling_subjects': sibling_subjects
         }
 
     def _build_path_via_parent(
@@ -870,9 +878,14 @@ class AdvancedAnalyticsMixin:
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             LEFT JOIN question_sources qs ON rs.question_source_id = qs.id
             WHERE rs.user_id = ?
-                AND qe.is_draft = FALSE
                 AND DATE(qe.created_at) >= ?
         """
+        # No ``is_draft`` predicate: drafts count here, per the owner's
+        # decision on issue #12. A draft exists because a question was
+        # answered wrong, and which source it came from is known the
+        # moment the entry is started -- the unfinished reflection does
+        # not make the source any less responsible for the mistake.
+        # Pinned by ``tests/database/test_draft_policy_by_surface.py``.
         params = [self.user_id, start_date.isoformat()]
 
         if exam_context_id:
@@ -985,6 +998,11 @@ class AdvancedAnalyticsMixin:
     ) -> Optional[str]:
         """
         Get the most common subject for mistakes from a source.
+
+        Drafts count (issue #12) — the same policy as
+        :meth:`get_source_comparison`, which this feeds. Leaving the
+        filter here would have let a source's headline subject disagree
+        with its own entry count on the same card.
         """
         query = """
             SELECT sn.name, COUNT(*) as count
@@ -993,7 +1011,6 @@ class AdvancedAnalyticsMixin:
             JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
             JOIN subject_nodes sn ON esm.subject_node_id = sn.id
             WHERE rs.user_id = ?
-                AND qe.is_draft = FALSE
                 AND esm.mapping_type = 'primary'
         """
         params = [self.user_id]
@@ -1086,9 +1103,12 @@ class AdvancedAnalyticsMixin:
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE rs.user_id = ?
-                AND qe.is_draft = FALSE
                 AND DATE(qe.created_at) >= ?
         """
+        # No ``is_draft`` predicate (issue #12). This is an activity
+        # trend: a week spent logging drafts is a week the student
+        # studied, and showing it as a flat line was the single most
+        # discouraging way to be wrong about it.
         params = [self.user_id, start_date.isoformat()]
 
         if exam_context_id:
@@ -1150,9 +1170,20 @@ class AdvancedAnalyticsMixin:
                 },
                 'efficiency_score': float,
                 'efficiency_rating': str,
+                'efficiency_band': {
+                    'low': float, 'high': float, 'half_width': float,
+                    'unverified_weight_pct': float,
+                    'unverified_share': float,
+                },
                 'total_mistakes': int,
-                'weighted_subjects': int
+                'weighted_subjects': int,
+                'weight_source_distribution': {...}
             }
+
+        ``efficiency_band`` is always present (#133). The student's
+        ``efficiency_show_confidence_band`` preference decides whether the
+        dashboard *renders* it; the score itself is the same number either
+        way, because provenance is not part of its arithmetic.
         """
         if not exam_context_id:
             raise ValueError("exam_context_id is required for weight analysis")
@@ -1190,13 +1221,31 @@ class AdvancedAnalyticsMixin:
                 COALESCE(sn.exam_weight_high, sn.exam_weight_low, 0) as exam_weight_high,
                 COUNT(DISTINCT qe.id) as mistake_count
             FROM subject_nodes sn
-            LEFT JOIN entry_subject_mappings esm ON sn.id = esm.subject_node_id
+            -- mapping_type belongs in the JOIN, not the WHERE: a
+            -- weighted subject with no entries must still produce a row.
+            --
+            -- Filtering to 'primary' aligns this surface with Top
+            -- Subjects and the sunburst, which both do. Without it the
+            -- quadrant counted secondary "also tested" tags as full
+            -- mistakes, so one question became a mistake in two
+            -- subjects -- the same data reading differently depending on
+            -- which chart you looked at, with the inflated
+            -- total_mistakes feeding mistake_pct and the efficiency
+            -- score.
+            LEFT JOIN entry_subject_mappings esm
+                ON sn.id = esm.subject_node_id
+                AND esm.mapping_type = 'primary'
             LEFT JOIN question_entries qe ON esm.question_entry_id = qe.id
             LEFT JOIN review_sessions rs ON qe.review_session_id = rs.id
+            -- No ``is_draft`` predicate (issue #12). Note where the old
+            -- one sat: in the WHERE, after a LEFT JOIN. A subject whose
+            -- only entries were drafts did not come back with a zero --
+            -- the row was dropped from the quadrant altogether, so the
+            -- student's least-finished topics were the ones the chart
+            -- could not see.
             WHERE sn.exam_context = ?
                 AND sn.status = 'active'
                 AND COALESCE(sn.exam_weight_low, 0) > 0
-                AND (qe.is_draft = FALSE OR qe.id IS NULL)
                 AND (rs.user_id = ? OR qe.id IS NULL)
             GROUP BY sn.id, sn.name, sn.exam_weight_low, sn.exam_weight_high, sn.weight_source
             ORDER BY exam_weight DESC
@@ -1224,6 +1273,16 @@ class AdvancedAnalyticsMixin:
                 },
                 'efficiency_score': 0,
                 'efficiency_rating': 'No Data',
+                # #133: keep the band key present in the empty state for
+                # the same reason the distribution is — the renderer
+                # should not have to null-check a whole branch.
+                'efficiency_band': {
+                    'low': 0.0,
+                    'high': 0.0,
+                    'half_width': 0.0,
+                    'unverified_weight_pct': 0.0,
+                    'unverified_share': 0.0,
+                },
                 'total_mistakes': 0,
                 'weighted_subjects': 0,
                 # Stage 9: keep the shape stable so the dashboard's
@@ -1258,6 +1317,17 @@ class AdvancedAnalyticsMixin:
             # back to the legacy node-level value when the node has no
             # incoming edges (System-level nodes always do) or all
             # edges have weight_source=NULL (pre-Stage-2 legacy data).
+            #
+            # The final ``or 'derived'`` is a *display bucket* for a row
+            # with no recorded provenance at all, nothing more. It used
+            # to be described as a pessimistic default and was in fact
+            # the third of #133's compounding errors: it kept
+            # ``_WEIGHT_SOURCE_DEFAULT_CONFIDENCE`` from ever firing on
+            # real data while quietly discounting the penalty. Now that
+            # the score ignores provenance entirely, this only decides
+            # which row of the "Weight Sources" card the subject lands
+            # in, and 'derived' keeps the totals reconciling with
+            # ``_build_source_distribution``.
             subject_id = row['subject_id']
             ws = dominant_sources.get(subject_id)
             if ws is None:
@@ -1288,6 +1358,10 @@ class AdvancedAnalyticsMixin:
         # Calculate efficiency score
         efficiency_score = self._calculate_efficiency_score(subjects)
         efficiency_rating = self._get_efficiency_rating(efficiency_score)
+        # #133 — always computed, rendered only when the student asks.
+        efficiency_band = self._build_efficiency_band(
+            subjects, efficiency_score
+        )
 
         # Stage 9 — bundle the weight_source distribution so dashboards
         # rendering the "Confidence breakdown" card don't need a
@@ -1303,6 +1377,7 @@ class AdvancedAnalyticsMixin:
             'quadrant_analysis': quadrant_analysis,
             'efficiency_score': round(efficiency_score, 1),
             'efficiency_rating': efficiency_rating,
+            'efficiency_band': efficiency_band,
             'total_mistakes': total_mistakes,
             'weighted_subjects': len(subjects),
             'weight_source_distribution': weight_source_distribution,
@@ -1361,72 +1436,142 @@ class AdvancedAnalyticsMixin:
         subjects: List[Dict[str, Any]]
     ) -> float:
         """
-        Calculate study efficiency score (0-100) with confidence weighting.
+        Calculate study efficiency score (0-100).
 
-        Formula: 100 - Σ(penalty × confidence × weight_factor)
+        Formula: ``100 - Σ(deviation × weight_factor)``
 
-        Subjects with wider weight ranges have less certain efficiency scores,
-        so their impact on the overall score is reduced.
+        **No confidence term, in either direction (settled in #133).**
+        Two of them used to sit in this product — ``source_confidence``,
+        keyed on ``weight_source``, and ``range_confidence``, keyed on how
+        wide the published range is — and both multiplied a *penalty*, so
+        a weight WIMI was less sure about produced a **smaller** penalty
+        and a **higher** score. The ``min()`` of the two, written to make
+        "the less certain signal dominate", systematically picked whichever
+        factor inflated the score most.
 
-        Stage 9 update: confidence is further multiplied by a per-source
-        factor (see ``_WEIGHT_SOURCE_CONFIDENCE``). A narrow range backed
-        by ``user_estimate`` should not score as confidently as a narrow
-        range backed by ``official``. The final confidence used in the
-        penalty term is ``min(range_derived_confidence,
-        source_derived_confidence)`` so the *less* certain of the two
-        signals dominates — adding a low-confidence source can never
-        improve the score, only lower it.
+        Both describe the measuring stick; the score is a statement about
+        the student. Folding data quality into it yields a number meaning
+        "your alignment, adjusted by how good our data is", which nobody
+        can act on. Inverting the multiplier was considered and rejected:
+        that lowers a student's score because their blueprint lacked
+        provenance metadata, which blames a data problem on the person.
+
+        Uncertainty is *shown* instead of priced in — the "Weight Sources"
+        breakdown card, and the optional band from
+        ``_build_efficiency_band`` when the student turns
+        ``efficiency_show_confidence_band`` on. See the ``CLAUDE.md``
+        section "Weight confidence is not part of the efficiency score
+        (settled in #133)".
+
+        Args:
+            subjects: Rows carrying ``mistake_percentage`` and either
+                ``exam_weight`` alone or the ``exam_weight_low`` /
+                ``exam_weight_high`` pair. ``weight_source``, if present,
+                is ignored here by design.
+
+        Returns:
+            A score in ``[0, 100]``; ``0`` for an empty list.
         """
         if not subjects:
             return 0
 
         total_penalty = 0
         for subject in subjects:
-            mistake_pct = subject['mistake_percentage']
-            weight_low = subject.get('exam_weight_low', subject['exam_weight'])
-            weight_high = subject.get('exam_weight_high', subject['exam_weight'])
-            midpoint = (weight_low + weight_high) / 2.0
-            range_width = weight_high - weight_low
-
-            # If mistake_pct is within the range, reduce penalty
-            if weight_low <= mistake_pct <= weight_high:
-                # Within range: minimal penalty based on distance from midpoint
-                deviation = abs(mistake_pct - midpoint)
-            else:
-                # Outside range: penalty based on distance from nearest bound
-                if mistake_pct < weight_low:
-                    deviation = weight_low - mistake_pct
-                else:
-                    deviation = mistake_pct - weight_high
-
-            # Confidence factor: narrower ranges = higher confidence (1.0 max)
-            # Range of 0 = 100% confidence, range of 10+ = 50% confidence minimum
-            range_confidence = max(0.5, 1 - (range_width / 20.0))
-
-            # Stage 9 — source-derived confidence. Subjects without a
-            # ``weight_source`` field (e.g. legacy fixtures or tests
-            # built before Stage 9) fall back to the pessimistic default
-            # so the new factor never silently *raises* a legacy score.
-            source = subject.get('weight_source')
-            source_confidence = _WEIGHT_SOURCE_CONFIDENCE.get(
-                source, _WEIGHT_SOURCE_DEFAULT_CONFIDENCE
-            )
-
-            # The penalty uses the MIN of the two so the less certain
-            # of the two signals dominates: a narrow range backed by
-            # ``user_estimate`` is *less* confident than a wide range
-            # backed by ``official`` because the official outline is
-            # ground truth even when fuzzy.
-            confidence = min(range_confidence, source_confidence)
-
-            # Weight factor: higher weight subjects have more impact
-            weight_factor = midpoint / 100
-
-            penalty = deviation * confidence * weight_factor
-            total_penalty += penalty
+            total_penalty += self._subject_penalty(subject)
 
         score = max(0, 100 - total_penalty)
         return score
+
+    @staticmethod
+    def _subject_deviation(subject: Dict[str, Any]) -> float:
+        """Distance between a subject's mistake share and its exam weight.
+
+        Inside the published range, the deviation is measured from the
+        midpoint; outside it, from the nearest bound. A range is a claim
+        about where the truth lies, so landing anywhere inside it is not
+        a miss.
+        """
+        mistake_pct = subject['mistake_percentage']
+        weight_low = subject.get('exam_weight_low', subject['exam_weight'])
+        weight_high = subject.get('exam_weight_high', subject['exam_weight'])
+        midpoint = (weight_low + weight_high) / 2.0
+
+        if weight_low <= mistake_pct <= weight_high:
+            return abs(mistake_pct - midpoint)
+        if mistake_pct < weight_low:
+            return weight_low - mistake_pct
+        return mistake_pct - weight_high
+
+    @staticmethod
+    def _subject_weight_factor(subject: Dict[str, Any]) -> float:
+        """A subject's share of the exam, as a 0-1 multiplier."""
+        weight_low = subject.get('exam_weight_low', subject['exam_weight'])
+        weight_high = subject.get('exam_weight_high', subject['exam_weight'])
+        return ((weight_low + weight_high) / 2.0) / 100
+
+    def _subject_penalty(self, subject: Dict[str, Any]) -> float:
+        """One subject's contribution to the efficiency penalty."""
+        return (
+            self._subject_deviation(subject)
+            * self._subject_weight_factor(subject)
+        )
+
+    def _build_efficiency_band(
+        self,
+        subjects: List[Dict[str, Any]],
+        score: float,
+    ) -> Dict[str, Any]:
+        """Uncertainty band around the efficiency score (#133).
+
+        The score itself never moves — this is a *rendering* the student
+        opts into with ``efficiency_show_confidence_band``, and the
+        payload always carries it so "off" is a presentation choice
+        rather than a degraded mode.
+
+        The width comes from the weights, **not** from the deviations. A
+        student perfectly aligned against fifteen weights somebody typed
+        by hand has the least trustworthy 100 on offer, so a band that
+        collapsed at perfect alignment would be telling the wrong story.
+        Taking the honest worst case — an unverified weight could be off
+        by as much as its own magnitude — and propagating it through
+        ``penalty = deviation × midpoint/100`` gives
+
+            half_width = Σ over unverified subjects of midpoint² / 100
+
+        which is zero when every weight came from a blueprint, grows with
+        the unverified share of the exam, and *narrows* as the blueprint
+        gets more granular (fifteen 7% buckets say far more per bucket
+        than three 33% ones). "Unverified" means any ``weight_source``
+        outside ``_VERIFIED_WEIGHT_SOURCES`` — typed, anchored, derived
+        or simply unrecorded.
+
+        Returns:
+            ``{'low', 'high', 'half_width', 'unverified_weight_pct',
+            'unverified_share'}``. ``low``/``high`` are clamped to
+            ``[0, 100]``; a subject list with no unverified weight yields
+            a zero-width band sitting on the score.
+        """
+        total_mass = 0.0
+        unverified_mass = 0.0
+        half_width = 0.0
+        for subject in subjects:
+            midpoint = self._subject_weight_factor(subject) * 100
+            total_mass += midpoint
+            if subject.get('weight_source') in _VERIFIED_WEIGHT_SOURCES:
+                continue
+            unverified_mass += midpoint
+            half_width += midpoint * midpoint / 100
+
+        half_width = min(half_width, 100.0)
+        return {
+            'low': round(max(0.0, score - half_width), 1),
+            'high': round(min(100.0, score + half_width), 1),
+            'half_width': round(half_width, 1),
+            'unverified_weight_pct': round(unverified_mass, 1),
+            'unverified_share': (
+                round(unverified_mass / total_mass, 3) if total_mass else 0.0
+            ),
+        }
 
     def _get_efficiency_rating(
         self,

@@ -25,6 +25,7 @@ from app.profile_archive import (
     DISK_SPACE_SAFETY_FACTOR,
     ProfileArchiveError,
     build_profile_archive,
+    count_profile_media,
     install_profile_as_new,
     preflight_schema,
     read_profile_archive,
@@ -195,7 +196,7 @@ class ProfileTransferBridgeMixin:
             - media: {included, file_count, total_bytes, db_references_media}
             - collision: {username_exists, suggested_username}
             - replace_targets: active profiles [{user_id, username,
-              display_name, is_current}]
+              display_name, is_current, media_file_count}]
             - required_bytes, free_bytes
         """
         if self.master_db is None:
@@ -232,6 +233,11 @@ class ProfileTransferBridgeMixin:
                     'username': u.username,
                     'display_name': u.display_name,
                     'is_current': u.id == current_user_id,
+                    # What a replace would delete if the student unticks
+                    # "keep the images already in this profile" (#150).
+                    'media_file_count': count_profile_media(
+                        self.master_db, u.id, u.username
+                    ),
                 }
                 for u in self.master_db.get_all_users(account_status='active')
             ]
@@ -280,7 +286,16 @@ class ProfileTransferBridgeMixin:
 
         Args:
             params_json: JSON object {archive_path, mode: 'create'|'replace',
-                target_user_id?, confirm_replace?, display_name?}
+                target_user_id?, confirm_replace?, display_name?,
+                keep_existing_media?}
+
+            ``keep_existing_media`` (replace mode) is the student's answer to
+            "keep the images already in this profile" (#150). **It defaults
+            to True when absent**, because the alternative deletes files
+            with no undo: an archive exported without media has nothing to
+            put back, and the replaced database may still reference the very
+            images that were deleted. Unticking is a deliberate "make the
+            media match this archive exactly" choice.
 
         Returns:
             JSON response with {user_id, username, display_name, mode,
@@ -323,12 +338,18 @@ class ProfileTransferBridgeMixin:
                     return serialize_response(
                         False, error='Replace mode requires a numeric target_user_id'
                     )
+                keep_media = params.get('keep_existing_media')
                 result = replace_profile(
                     self.master_db,
                     archive_path,
                     target_user_id=target_user_id,
                     active_user_id=active_user_id,
                     confirm_replace=bool(params.get('confirm_replace')),
+                    # Absent means keep: never delete a student's images
+                    # because a caller forgot to say (#150).
+                    keep_existing_media=(
+                        True if keep_media is None else bool(keep_media)
+                    ),
                 )
 
             data = {
@@ -340,7 +361,18 @@ class ProfileTransferBridgeMixin:
                 'warnings': result['warnings'],
                 'entries': result['entries'],
                 'schema_verdict': result['schema_verdict'],
+                # The profile's own cross-machine id (#129), and — on a
+                # create — every other local profile already carrying it.
+                # Empty is the normal case; a non-empty list is the fork
+                # question (#124), reported honestly and resolved
+                # elsewhere. The warning that accompanies it is already
+                # in ``warnings``.
+                'profile_uuid': result.get('profile_uuid'),
             }
+            if mode == 'create':
+                data['already_installed_as'] = result.get(
+                    'already_installed_as', []
+                )
             if mode == 'replace':
                 data['backup_db_path'] = result.get('backup_db_path')
             return serialize_response(True, data=data)

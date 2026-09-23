@@ -8,6 +8,10 @@
     <link rel="stylesheet" href="../css/subject_deep_dive.css">
     <!-- Stage 9: multi-parent selector + source markers share styles. -->
     <link rel="stylesheet" href="../css/weight.css">
+    <!-- Issue #14: the Related Topics panel and its authoring modal.
+         Per-page CSS links are the rule here, not the exception — the
+         classes below render as browser defaults without this line. -->
+    <link rel="stylesheet" href="../css/subject_relations.css">
 </head>
 <body>
     <div class="page-container">
@@ -150,17 +154,24 @@
             </div>
         </section>
 
-        <!-- Related Topics & Recommendations -->
+        <!-- Related Topics (issue #14).
+             A bare mount, not a container: with zero relations the panel
+             renders nothing but a single quiet "Link a related topic"
+             action into this div — no card, no heading, no empty state.
+             Zero is the normal state for months (decision 11), and an
+             empty card sitting there is what the open-learner-model
+             research found people liked least.
+
+             The "Related Topics (Siblings)" card that used to sit beside
+             Recommendations was removed earlier in the same issue: it
+             presented legacy single-parent tree siblings as though they
+             were meaningful relations. This is its replacement, and
+             nothing of it was reused. -->
+        <div id="relationsMount"></div>
+
+        <!-- Recommendations. -->
         <section class="related-section">
             <div class="related-grid">
-                <!-- Related Topics (Siblings) -->
-                <div class="related-card">
-                    <h2 class="card-title">Related Topics (Siblings)</h2>
-                    <div class="related-topics-list" id="relatedTopicsList">
-                        <!-- Will be populated dynamically -->
-                    </div>
-                </div>
-
                 <!-- Recommendations -->
                 <div class="recommendations-card">
                     <h2 class="card-title">Recommendations</h2>
@@ -180,6 +191,7 @@
     <script src="../js/themes.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
+    <script src="../js/subject_relations.js"></script>
     <script src="../js/subject_deep_dive.js"></script>
 </body>
 </html>

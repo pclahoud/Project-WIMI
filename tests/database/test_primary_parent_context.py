@@ -99,7 +99,16 @@ def _make_session(user_db) -> int:
     return cursor.lastrowid
 
 
-def _log_entry(user_db, session_id, subject_node_id, primary_parent_id=None, entry_order=1):
+def _exam_context_id(user_db) -> int:
+    """The exam context ``_make_session`` provisions, for analytics calls."""
+    row = user_db.fetchone(
+        "SELECT id FROM exam_contexts WHERE exam_name = 'USMLE'"
+    )
+    return row['id']
+
+
+def _log_entry(user_db, session_id, subject_node_id, primary_parent_id=None,
+               entry_order=1, mapping_type='primary'):
     cursor = user_db.execute(
         "INSERT INTO question_entries "
         "(review_session_id, entry_order, user_answer, correct_answer) "
@@ -107,11 +116,26 @@ def _log_entry(user_db, session_id, subject_node_id, primary_parent_id=None, ent
         (session_id, entry_order, "A", "B"),
     )
     entry_id = cursor.lastrowid
+    _tag_entry(user_db, entry_id, subject_node_id,
+               primary_parent_id=primary_parent_id, mapping_type=mapping_type)
+    return entry_id
+
+
+def _tag_entry(user_db, entry_id, subject_node_id, primary_parent_id=None,
+               mapping_type='primary'):
+    """Add one mapping row to an existing entry.
+
+    Split out of :func:`_log_entry` so a test can give one entry a
+    'primary' tag on one subject and a 'secondary' ("also tested") tag on
+    another -- ``idx_unique_entry_subject`` is UNIQUE on
+    ``(question_entry_id, subject_node_id)`` and mapping_type agnostic, so
+    the two tags must sit on different subjects.
+    """
     user_db.execute(
         "INSERT INTO entry_subject_mappings "
         "(question_entry_id, subject_node_id, mapping_type, primary_parent_id) "
-        "VALUES (?, ?, 'primary', ?)",
-        (entry_id, subject_node_id, primary_parent_id),
+        "VALUES (?, ?, ?, ?)",
+        (entry_id, subject_node_id, mapping_type, primary_parent_id),
     )
     user_db.conn.commit()
     return entry_id
@@ -473,3 +497,303 @@ def test_deep_dive_filter_includes_chosen_parent_entries(user_db):
     assert via_b['total_mistakes'] == 2
     # Filter=C: NULL entry + C-tagged entry = 2. B-tagged is hidden.
     assert via_c['total_mistakes'] == 2
+
+
+# ------------------------------------------- update preserves the context
+
+
+def _context_of(user_db, entry_id, subject_id):
+    row = user_db.fetchone(
+        "SELECT primary_parent_id FROM entry_subject_mappings "
+        "WHERE question_entry_id = ? AND subject_node_id = ?",
+        (entry_id, subject_id),
+    )
+    return row['primary_parent_id'] if row else None
+
+
+def test_update_preserves_primary_parent_id(user_db):
+    """Saving an entry must not reset the parent context to NULL.
+
+    Regression. ``update_question_entry`` replaces subject mappings
+    wholesale (DELETE + INSERT), but ``primary_parent_id`` is written by
+    a *separate* call (``set_primary_parent_for_entry``) and used to be
+    dropped by that replacement. The mapping row survived, so nothing
+    looked broken -- the context was simply NULL again.
+
+    The damage was silent and compounding: the entry form's
+    ``syncTagContextChoices`` memoises what it last wrote and skips the
+    round-trip when it matches, so from the second save onward nothing
+    rewrote the column. A deliberate "this DVT is the pregnancy one"
+    choice survived exactly one save.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+
+    # Tag D under C specifically (not its canonical first parent B).
+    entry_id = _log_entry(user_db, session_id, d, primary_parent_id=c)
+    assert _context_of(user_db, entry_id, d) == c
+
+    # An ordinary save that re-sends the same subject list.
+    user_db.update_question_entry(
+        entry_id,
+        primary_subject_ids=[d],
+        user_answer="edited once",
+    )
+    assert _context_of(user_db, entry_id, d) == c, (
+        "primary_parent_id was dropped by update_question_entry. The "
+        "mapping replacement must carry the existing value forward."
+    )
+
+    # And again -- the second save is where the client-side memo stops
+    # rewriting, so this is the one that used to lose the data for good.
+    user_db.update_question_entry(
+        entry_id,
+        primary_subject_ids=[d],
+        user_answer="edited twice",
+    )
+    assert _context_of(user_db, entry_id, d) == c
+
+
+def test_update_leaves_new_subject_context_null(user_db):
+    """A subject added by the update has no prior context to preserve."""
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    entry_id = _log_entry(user_db, session_id, d, primary_parent_id=c)
+
+    user_db.update_question_entry(entry_id, primary_subject_ids=[d, b])
+
+    assert _context_of(user_db, entry_id, d) == c
+    assert _context_of(user_db, entry_id, b) is None
+
+
+def test_update_forgets_context_of_removed_subject(user_db):
+    """Dropping a subject and re-adding it starts its context fresh.
+
+    Preservation is per surviving row, not a cache keyed by subject: if
+    the student untags a subject, the parent they had chosen for it is
+    gone, and re-tagging should not silently resurrect it.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    entry_id = _log_entry(user_db, session_id, d, primary_parent_id=c)
+
+    user_db.update_question_entry(entry_id, primary_subject_ids=[b])
+    user_db.update_question_entry(entry_id, primary_subject_ids=[d])
+
+    assert _context_of(user_db, entry_id, d) is None
+
+
+# ------------------------------- entry browser: filtering honours §5.4
+
+
+def _paginated_ids(user_db, **kwargs):
+    """Entry ids from get_entries_paginated, which returns (entries, total)."""
+    entries, _total = user_db.get_entries_paginated(**kwargs)
+    return {e.id for e in entries}
+
+
+def test_entry_filter_excludes_entries_scoped_to_another_parent(user_db):
+    """Filtering by a subject must respect the entry's chosen context.
+
+    ``get_entries_paginated`` is what the entry browser filters with. Its
+    subject filter implements §5.4 via ``_primary_parent_scope_sql``: an
+    entry tagged on shared leaf D counts toward branch B only if it was
+    left unscoped, or was explicitly scoped into B.
+
+    Nothing covered this before. The refactor onto the shared helper was
+    verified by sabotaging the helper to implement only the NULL branch --
+    the whole database suite stayed green, which is how this gap was
+    found.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+
+    scoped_to_c = _log_entry(user_db, session_id, d,
+                             primary_parent_id=c, entry_order=1)
+    unscoped = _log_entry(user_db, session_id, d,
+                          primary_parent_id=None, entry_order=2)
+
+    # Filtering by C: the C-scoped entry plus the unscoped one.
+    via_c = _paginated_ids(user_db, subject_ids=[c], include_child_subjects=True)
+    assert via_c == {scoped_to_c, unscoped}, (
+        f"Filtering by C returned {via_c}; expected both the C-scoped "
+        f"entry ({scoped_to_c}) and the unscoped one ({unscoped})."
+    )
+
+    # Filtering by B: only the unscoped entry. The C-scoped one is
+    # anchored away from B even though D sits under both.
+    via_b = _paginated_ids(user_db, subject_ids=[b], include_child_subjects=True)
+    assert via_b == {unscoped}, (
+        f"Filtering by B returned {via_b}; expected only the unscoped "
+        f"entry ({unscoped}). The entry scoped to C must not surface "
+        "under B -- that is the whole point of the tag context."
+    )
+
+
+def test_entry_filter_on_the_leaf_finds_entries_scoped_to_another_parent(user_db):
+    """Filtering by the leaf finds entries whatever context they carry.
+
+    Was a characterisation test of the opposite behaviour
+    (``test_entry_filter_on_the_leaf_hides_scoped_entries``): both entries
+    are tagged on D, and filtering the entry browser by D returned only the
+    unscoped one, because the predicate asked whether the *chosen parent*
+    (C) was in the filter scope, which for ``subject_ids=[d]`` it is not.
+    So a student tagged a question with D, said "the C one", and could no
+    longer find it by filtering for D.
+
+    Settled by the owner in Forgejo #13 (2026-09-14): filtering by S returns
+    entries tagged S directly **regardless of their chosen parent context**.
+    §5.4 governs rollup *through ancestors*; D is not an ancestor here, it
+    is the subject the entry actually carries. A parent context says which
+    chain an entry rolls up through -- it does not make the entry stop
+    being about D. The deep dive already reads it this way.
+
+    Inverted rather than deleted, per the issue: it still pins the same
+    situation, now with the decided answer.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    scoped = _log_entry(user_db, session_id, d, primary_parent_id=c, entry_order=1)
+    unscoped = _log_entry(user_db, session_id, d, primary_parent_id=None, entry_order=2)
+
+    found = _paginated_ids(user_db, subject_ids=[d])
+    assert found == {scoped, unscoped}, (
+        f"Expected both entries tagged on D ({scoped}, {unscoped}); got "
+        f"{found}. If the C-scoped entry ({scoped}) is missing, the direct-tag "
+        "branch of the browser's subject filter regressed -- see Forgejo #13."
+    )
+
+    # The same holds with the descendants toggle on: turning it on may only
+    # add entries, never drop the ones tagged on the subject itself.
+    with_children = _paginated_ids(
+        user_db, subject_ids=[d], include_child_subjects=True
+    )
+    assert with_children == {scoped, unscoped}, with_children
+
+
+# The three halves of what "filter by subject S" means, per the decision on
+# Forgejo #13. Each is asserted on its own so a regression names itself.
+
+
+def test_entry_filter_finds_entries_tagged_on_the_subject(user_db):
+    """(a) Entries tagged S directly, with no parent context chosen.
+
+    The uncontroversial half, and the one that always worked: a NULL
+    context matches on the subject itself being in scope (§5.3, OMOP).
+    Here so that (c) below is read as an *addition* to (a) rather than a
+    replacement for it.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    on_d = _log_entry(user_db, session_id, d, primary_parent_id=None, entry_order=1)
+    on_b = _log_entry(user_db, session_id, b, primary_parent_id=None, entry_order=2)
+
+    assert _paginated_ids(user_db, subject_ids=[d]) == {on_d}
+    assert _paginated_ids(user_db, subject_ids=[b]) == {on_b}
+
+
+def test_entry_filter_rolls_descendants_up_through_the_chosen_parent(user_db):
+    """(b) Entries on S's descendants, restricted to those routing through S.
+
+    This is the §5.4 reading, and the part the decision explicitly did NOT
+    relax: an entry on shared leaf D pinned to C rolls up through C's chain
+    only, so filtering by B must not return it even though D sits under B
+    too. The discriminator for the fix -- making the direct-tag branch
+    match the whole descendant set instead of the named subjects would
+    quietly break this.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    via_b = _log_entry(user_db, session_id, d, primary_parent_id=b, entry_order=1)
+    via_c = _log_entry(user_db, session_id, d, primary_parent_id=c, entry_order=2)
+    unscoped = _log_entry(user_db, session_id, d, primary_parent_id=None, entry_order=3)
+
+    under_b = _paginated_ids(user_db, subject_ids=[b], include_child_subjects=True)
+    assert under_b == {via_b, unscoped}, (
+        f"Filtering by B returned {under_b}; the C-pinned entry ({via_c}) "
+        "must not roll up through B."
+    )
+
+    under_c = _paginated_ids(user_db, subject_ids=[c], include_child_subjects=True)
+    assert under_c == {via_c, unscoped}, under_c
+
+    # ... and the root sees all three, since B and C are both in A's subtree.
+    under_a = _paginated_ids(user_db, subject_ids=[a], include_child_subjects=True)
+    assert under_a == {via_b, via_c, unscoped}, under_a
+
+
+def test_entry_filter_finds_direct_tags_pinned_outside_the_filter_chain(user_db):
+    """(c) Entries tagged S directly, pinned to a parent outside S's chain.
+
+    The case that disappeared. D gains a third parent E under an unrelated
+    root Z, and the entry is pinned to E -- a parent that is in no sense
+    reachable from the filter subject. Filtering by D must still find it:
+    the filter names the subject the entry carries.
+
+    The second assertion keeps (c) from swallowing (b): the E-pinned entry
+    must still be absent when filtering by B, which is a rollup question.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    z = _make_node(user_db, "Z")
+    e = _make_node(user_db, "E")
+    user_db.add_edge(z, e, is_primary=True)
+    user_db.add_edge(e, d, is_primary=False)
+
+    session_id = _make_session(user_db)
+    pinned_elsewhere = _log_entry(user_db, session_id, d, primary_parent_id=e)
+
+    found = _paginated_ids(user_db, subject_ids=[d])
+    assert found == {pinned_elsewhere}, (
+        f"Filtering by D returned {found}; the entry is tagged D and must be "
+        "found there whatever parent context it carries (Forgejo #13)."
+    )
+
+    under_b = _paginated_ids(user_db, subject_ids=[b], include_child_subjects=True)
+    assert under_b == set(), (
+        f"Filtering by B returned {under_b}; an entry pinned to E rolls up "
+        "through E's chain only."
+    )
+
+
+def test_secondary_tag_is_findable_but_not_counted(user_db):
+    """Counting is primary-only; finding is all tags (Forgejo #13).
+
+    The entry below was tagged "also tested: D" -- a *secondary* mapping.
+    A student looking for their D questions wants it, so the entry
+    browser's subject filter returns it. Top Subjects must not: it totals
+    mistakes, and a shared subject inflating its own total through "also
+    tested" tags is exactly the double count the primary-only rule exists
+    to prevent.
+
+    One test rather than two because the pair is the point: whichever side
+    someone changes, this names the principle they broke.
+    """
+    a, b, c, d = _build_diamond(user_db)
+    session_id = _make_session(user_db)
+    exam_id = _exam_context_id(user_db)
+
+    also_tested_d = _log_entry(user_db, session_id, c, entry_order=1)
+    _tag_entry(user_db, also_tested_d, d, mapping_type='secondary')
+
+    # Finding: the browser's subject filter returns it.
+    assert also_tested_d in _paginated_ids(user_db, subject_ids=[d]), (
+        "an 'also tested' tag on D must be findable by filtering for D -- "
+        "browsing is retrieval, not measurement"
+    )
+
+    # Counting: Top Subjects does not.
+    counted = {
+        row['subject_id']: row['mistake_count']
+        for row in user_db.get_subject_analytics(
+            exam_context_id=exam_id, include_children=False
+        )
+    }
+    assert counted.get(c) == 1, (
+        f"sanity: C carries the primary tag and must be counted; got {counted!r}"
+    )
+    assert d not in counted, (
+        f"D was counted as a mistake ({counted.get(d)!r}) off a secondary "
+        "'also tested' tag. get_subject_analytics filters mapping_type = "
+        "'primary' precisely so it cannot be; if this went red, a counting "
+        "surface picked up the browser filter's semantics."
+    )

@@ -49,6 +49,10 @@
                     <span class="nav-icon">&#128203;</span>
                     <span class="nav-label">Entry Browser</span>
                 </button>
+                <button class="settings-nav-item" data-panel="question_banks" data-testid="settings-nav-question-banks">
+                    <span class="nav-icon">&#127760;</span>
+                    <span class="nav-label">Question Banks</span>
+                </button>
                 <button class="settings-nav-item" data-panel="calendar">
                     <span class="nav-icon">&#128197;</span>
                     <span class="nav-label">Calendar</span>
@@ -57,7 +61,7 @@
                     <span class="nav-icon">&#128279;</span>
                     <span class="nav-label">Anki Integration</span>
                 </button>
-                <button class="settings-nav-item" data-panel="data_backup">
+                <button class="settings-nav-item" data-panel="data_backup" data-testid="settings-nav-data-backup">
                     <span class="nav-icon">&#128190;</span>
                     <span class="nav-label">Data & Backup</span>
                 </button>
@@ -138,9 +142,12 @@
 
                     <div class="form-group">
                         <label for="font_family">Font Family</label>
-                        <p class="field-description">The typeface used throughout the application.</p>
+                        <p class="field-description">The typeface used for the interface. Your saved answers, reflections and notes keep their own, so changing this never reflows what you wrote.</p>
                         <select id="font_family" data-field="font_family">
-                            <option value="system_default">System Default</option>
+                            <option value="system" selected>System Default</option>
+                            <option value="sans">Sans Serif</option>
+                            <option value="serif">Serif</option>
+                            <option value="mono">Monospace</option>
                         </select>
                     </div>
 
@@ -312,6 +319,21 @@
                         <p class="field-description">Display time-based analytics and study duration insights.</p>
                     </div>
 
+                    <!-- #133. The score no longer discounts itself for
+                         weights it cannot vouch for; the student decides
+                         whether the remaining uncertainty is drawn. Off by
+                         default: the rating bands (Excellent / Good / ...)
+                         assume a single number. -->
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="efficiency_show_confidence_band"
+                                   data-testid="settings-analytics-efficiency-band"
+                                   data-field="efficiency_show_confidence_band">
+                            <span>Show the efficiency score as a range</span>
+                        </label>
+                        <p class="field-description">Your subject weights come from two places: some are copied from the official exam blueprint, and others you typed in or WIMI worked out from the ones around them. The efficiency score can't tell the difference &mdash; it treats every weight as if it were published. Turn this on and the score is shown as a range instead of a single number, widened by how much of your exam's weight was never taken from a blueprint. The score itself doesn't change; only how much precision it claims.</p>
+                    </div>
+
                     <hr class="settings-divider">
                     <h3 class="subsection-title">Per-Exam Analytics Configuration</h3>
                     <p class="field-description" style="margin-bottom: 16px;">Configure which charts are visible and set default dimension filtering for each exam.</p>
@@ -378,7 +400,47 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 5: Calendar (COMING SOON)
+                     Panel 5: Question Banks
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="question_banks">
+                    <h2 class="panel-title">Question Banks</h2>
+                    <p class="field-description">
+                        Shortcuts appear in the browser pane. Add a web address to get a button.
+                    </p>
+
+                    <div id="questionBankList" class="qbank-list" data-testid="settings-qbank-list"></div>
+
+                    <div class="form-group">
+                        <label for="pane_open_mode">When the pane opens</label>
+                        <p class="field-description">Where the browser pane starts each time you open it.</p>
+                        <select id="pane_open_mode" data-field="pane_open_mode"
+                                data-testid="settings-pane-open-mode">
+                            <option value="last">Where I left off</option>
+                            <option value="source">A question bank</option>
+                            <option value="blank">Blank page</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="paneDefaultSourceGroup">
+                        <label for="pane_default_source_id">Question bank to open</label>
+                        <p class="field-description">Used when the pane opens to a question bank, and when you open a new tab.</p>
+                        <select id="pane_default_source_id" data-field="pane_default_source_id"
+                                data-testid="settings-pane-default-source"></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="pane_shortcut_opens">Question bank shortcuts</label>
+                        <p class="field-description">Where a question bank opens when you click its shortcut button.</p>
+                        <select id="pane_shortcut_opens" data-field="pane_shortcut_opens"
+                                data-testid="settings-pane-shortcut-opens">
+                            <option value="current">Open in the current tab</option>
+                            <option value="new">Open in a new tab</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 6: Calendar (COMING SOON)
                      ============================================================ -->
                 <div class="settings-panel" data-panel="calendar">
                     <h2 class="panel-title">Calendar</h2>
@@ -416,7 +478,7 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 6: Anki Integration (COMING SOON)
+                     Panel 7: Anki Integration (COMING SOON)
                      ============================================================ -->
                 <div class="settings-panel" data-panel="anki_integration">
                     <h2 class="panel-title">Anki Integration</h2>
@@ -440,10 +502,136 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 7: Data & Backup (COMING SOON)
+                     Panel 8: Data & Backup (COMING SOON)
                      ============================================================ -->
                 <div class="settings-panel" data-panel="data_backup">
                     <h2 class="panel-title">Data & Backup</h2>
+
+                    <!-- Folder sync (#123). LIVE - deliberately outside the
+                         coming-soon block below, which still covers backups.
+
+                         The checkbox carries NO data-field, and that is
+                         load-bearing rather than an oversight. data-field
+                         routes a control through updateUserPreferences into
+                         `user_preferences.cloud_sync_enabled`, which is
+                         user-level and therefore travels inside a .wimi - so
+                         a profile exported with sync on would arrive on the
+                         next machine claiming to sync with no folder linked
+                         there. Settled 2026-09-21: the LINK is the state.
+                         initFolderSync() owns this control end to end. -->
+                    <div class="settings-section" id="folder-sync-section">
+                        <h3 class="section-title">Sync Across Devices</h3>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="cloud_sync_enabled">
+                                <span>Enable Cloud Sync</span>
+                            </label>
+                            <p class="field-description">
+                                Keep this profile in step across your computers by writing it
+                                into a folder your cloud client already syncs.
+                                <strong>WIMI never touches your cloud account</strong> - only the
+                                folder you choose. No sign-in, no permissions.
+                            </p>
+                        </div>
+
+                        <div id="folder-sync-details" hidden>
+                            <div class="form-group">
+                                <label for="folder-sync-provider">Cloud client</label>
+                                <p class="field-description">
+                                    Used only to know what this client does to a folder -
+                                    what it calls "keep offline", and which conflict copies
+                                    it leaves behind.
+                                </p>
+                                <select id="folder-sync-provider"></select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Folder</label>
+                                <p class="field-description" id="folder-sync-folder">-</p>
+                                <button type="button" class="btn btn-secondary"
+                                        id="folder-sync-change-folder">Choose a different folder</button>
+                            </div>
+
+                            <div class="form-group" id="folder-sync-pin-hint" hidden>
+                                <p class="field-description"></p>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Last looked at this folder</label>
+                                <!-- Never a tick. You cannot force a sync or know when one
+                                     finished, so "nothing new" and "the other device has not
+                                     uploaded yet" are indistinguishable from here. Every line
+                                     this renders is an observation with a time on it. -->
+                                <div id="folder-sync-observations" class="folder-sync-observations">
+                                    <p class="field-description">Not looked yet.</p>
+                                </div>
+                            </div>
+
+                            <!-- A choice made here and not yet sent (#148). Standing
+                                 state, not a toast: the owner decided nothing reaches
+                                 the folder until the student sends, so the student
+                                 must be able to see, at any time, that something is
+                                 waiting. -->
+                            <div class="form-group folder-sync-pending" id="folder-sync-pending" hidden>
+                                <div id="folder-sync-pending-text"></div>
+                            </div>
+
+                            <!-- Catching up (#151): another computer built on this one's
+                                 copy. Owner's decision: detect work here that has not
+                                 been sent, say exactly what was checked, and offer both
+                                 "send mine first" and "use the newer copy". -->
+                            <div class="form-group folder-sync-catchup" id="folder-sync-catchup" hidden>
+                                <h4 class="section-title">A newer copy is in the folder</h4>
+                                <div id="folder-sync-catchup-text"></div>
+                                <div class="folder-sync-actions">
+                                    <button type="button" class="btn btn-primary"
+                                            id="folder-sync-take-newer">Use the newer copy</button>
+                                    <button type="button" class="btn btn-secondary"
+                                            id="folder-sync-send-first" hidden>Send mine first</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group folder-sync-actions">
+                                <button type="button" class="btn btn-secondary" id="folder-sync-refresh">Check the folder</button>
+                                <button type="button" class="btn btn-primary" id="folder-sync-push">Send this device's copy</button>
+                                <button type="button" class="btn btn-secondary" id="folder-sync-fetch">Look for a newer copy</button>
+                            </div>
+
+                            <div class="form-group" id="folder-sync-problems" hidden></div>
+
+                            <!-- Fork resolution (#124). Hidden until there is
+                                 one, because a permanent "no conflicts" panel
+                                 is noise that also trains people to ignore it. -->
+                            <div class="form-group folder-sync-fork" id="folder-sync-fork" hidden>
+                                <h4 class="section-title" id="folder-sync-fork-title">Two copies have gone their own way</h4>
+                                <p class="field-description" id="folder-sync-fork-intro">
+                                    Two of your computers both changed this profile without
+                                    seeing each other's work. <strong>Nothing is lost</strong> -
+                                    both copies are safe in the folder, and WIMI saves a backup
+                                    of this computer's copy before doing anything at all.
+                                    <strong>WIMI will not merge them</strong>; you choose which
+                                    to keep.
+                                </p>
+                                <p class="field-description">
+                                    Your choice applies to <strong>this computer</strong> straight
+                                    away. The other computer is not told until you press
+                                    <strong>Send</strong> - so you can check everything here first.
+                                </p>
+                                <div id="folder-sync-fork-sides"></div>
+                                <div id="folder-sync-fork-note" class="field-description" hidden></div>
+                                <div class="folder-sync-actions">
+                                    <button type="button" class="btn btn-secondary"
+                                            id="folder-sync-keep-both">Keep both</button>
+                                    <button type="button" class="btn btn-secondary"
+                                            id="folder-sync-keep-local">Keep this computer's</button>
+                                    <button type="button" class="btn btn-secondary"
+                                            id="folder-sync-keep-remote">Keep the other one</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="coming-soon-badge">Coming Soon</div>
 
                     <div class="coming-soon-panel">
@@ -466,19 +654,11 @@
                             <p class="field-description">How long backup files are kept before being automatically deleted.</p>
                             <input type="number" id="backup_retention_days" data-field="backup_retention_days" value="30" disabled>
                         </div>
-
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="cloud_sync_enabled" data-field="cloud_sync_enabled" disabled>
-                                <span>Enable Cloud Sync</span>
-                            </label>
-                            <p class="field-description">Synchronize your data across devices using cloud storage.</p>
-                        </div>
                     </div>
                 </div>
 
                 <!-- ============================================================
-                     Panel 8: Performance
+                     Panel 9: Performance
                      ============================================================ -->
                 <div class="settings-panel" data-panel="performance">
                     <h2 class="panel-title">Performance</h2>
@@ -491,7 +671,7 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 9: MCP Server
+                     Panel 10: MCP Server
                      ============================================================ -->
                 <div class="settings-panel" data-panel="mcp_server">
                     <h2 class="panel-title">MCP Server</h2>
@@ -518,8 +698,15 @@
                     <div class="form-group">
                         <label>Status</label>
                         <div id="mcpStatusIndicator" class="mcp-status">
-                            <span class="mcp-status-dot stopped" id="mcpStatusDot"></span>
-                            <span class="mcp-status-text" id="mcpStatusText">Stopped</span>
+                            <!-- The neutral fourth state (#90). `Stopped` is
+                                 one of exactly three states
+                                 `_updateMcpStatusUI` writes, so shipping it
+                                 asserted the server was down before
+                                 `refreshMcpStatus` had asked -- the opposite
+                                 of the truth whenever a server was left
+                                 running from a previous session. -->
+                            <span class="mcp-status-dot unknown" id="mcpStatusDot"></span>
+                            <span class="mcp-status-text" id="mcpStatusText">Checking&hellip;</span>
                         </div>
                         <p class="field-description mcp-connection-url" id="mcpConnectionUrl" style="display:none;">
                             Connection URL: <code id="mcpUrlValue"></code>
@@ -549,7 +736,7 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 10: Profile
+                     Panel 11: Profile
                      ============================================================ -->
                 <div class="settings-panel" data-panel="profile" id="profilePanel">
                     <h2 class="panel-title">Profile</h2>
@@ -594,7 +781,7 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 11: Addons
+                     Panel 12: Addons
                      ============================================================ -->
                 <div class="settings-panel" data-panel="addons">
                     <div class="addon-panel-header">

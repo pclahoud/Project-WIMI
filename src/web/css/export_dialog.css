@@ -157,16 +157,16 @@
 .export-warning {
     margin-top: 0.375rem;
     font-size: 0.8125rem;
-    color: var(--warning-dark, #92400e);
-    background: var(--warning-light, #fef3c7);
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
     padding: 0.375rem 0.625rem;
     border-radius: var(--radius-md);
 }
 
 /* Copy success state on button */
 .export-copy-btn.copied {
-    background: var(--success-color, #10b981) !important;
-    border-color: var(--success-color, #10b981) !important;
+    background: var(--color-success) !important;
+    border-color: var(--color-success) !important;
 }
 
 /* ============================================
@@ -297,7 +297,7 @@
 }
 
 .saved-delimiter-delete:hover {
-    background: var(--error-light, #fee2e2);
+    background: var(--color-error-bg);
     color: var(--color-error, #ef4444);
 }
 

@@ -363,7 +363,10 @@ class WeightBridgeMixin:
             node_data_json: JSON string with node data including:
                 - exam_context_id (required): ID to look up exam_name
                 - name (required): Subject name
-                - level_type (required): Hierarchy level type
+                - level_type (optional): Hierarchy level type. Omitted, it
+                  is derived from the parent's stored level_type exactly
+                  as createSubjectNode derives it (issue #106); a node
+                  with no parent to derive from falls back to 'System'.
                 - parent_id (optional): Parent node ID
                 - exam_weight_low (optional): Low end of weight range
                 - exam_weight_high (optional): High end of weight range
@@ -393,6 +396,23 @@ class WeightBridgeMixin:
             config = self.user_db.get_exam_context_config(exam_context_id)
             if not config:
                 return serialize_response(False, error='Exam context not found')
+
+            # Issue #106: an omitted level_type comes from the parent's
+            # stored level, not from the literal 'System'. This slot
+            # creates the same row as createSubjectNode with a weight
+            # attached, so it must not put a different value in the same
+            # column for the same input — a child of a Topic was landing
+            # as a System here and a Subtopic there. Same helper, same
+            # gate ('level_type' absent, not merely falsy), so the two
+            # slots now agree for every input. `or 'System'` is the
+            # unchanged last resort for a node with no parent to derive
+            # from; it is never reached when there is one.
+            if 'level_type' not in data:
+                derived_level = self._derive_child_level_type(
+                    exam_context_id, data.get('parent_id')
+                )
+                if derived_level:
+                    data['level_type'] = derived_level
 
             # Create the subject node with weight
             node = self.user_db.create_subject_node_with_weight(

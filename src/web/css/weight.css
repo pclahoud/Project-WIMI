@@ -130,19 +130,6 @@
     box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
 }
 
-/* Slider track fill */
-.weight-slider-track {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    height: 0.5rem;
-    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) var(--fill-percent, 0%), var(--bg-tertiary) var(--fill-percent, 0%));
-    border-radius: var(--radius-full);
-    transform: translateY(-50%);
-    pointer-events: none;
-    width: 100%;
-}
-
 /* Slider markers */
 .weight-slider-markers {
     display: flex;
@@ -496,7 +483,8 @@
 }
 
 .btn.btn-apply:hover {
-    background: var(--color-success-hover, #059669);
+    background: var(--color-success);
+    filter: brightness(0.9);
 }
 
 .btn.btn-apply:disabled {
@@ -517,11 +505,11 @@
 .btn.btn-rebalance-siblings {
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    border: 1px solid var(--border-color, var(--border-secondary, #d1d5db));
+    border: 1px solid var(--border-color);
 }
 
 .btn.btn-rebalance-siblings:hover:not(:disabled) {
-    background: var(--bg-hover, var(--bg-secondary));
+    background: var(--bg-secondary);
     border-color: var(--color-primary);
 }
 
@@ -1163,7 +1151,7 @@
 
 .weight-unit-btn.active {
     background: var(--color-primary);
-    color: var(--text-on-primary, white);
+    color: var(--text-inverse);
 }
 
 .weight-unit-btn:focus-visible {
@@ -1306,7 +1294,7 @@
      * (a translucent tint) which was invisible against most themes. */
     background: var(--color-warning, #f59e0b);
     color: var(--bg-primary, #1a1a1a);
-    border: 1px solid var(--color-warning-strong, var(--color-warning, #d97706));
+    border: 1px solid var(--color-warning);
     box-shadow: 0 0 0 2px var(--color-warning-bg, rgba(245, 158, 11, 0.25));
     font-size: 12px;
     font-weight: var(--font-weight-bold, 700);
@@ -1440,7 +1428,7 @@
     background: var(--bg-secondary);
     border-radius: var(--radius-md, 6px);
     border: 1px solid var(--border-color);
-    font-size: var(--font-size-base, 0.9375rem);
+    font-size: var(--font-size-sm);
     color: var(--text-primary);
 }
 

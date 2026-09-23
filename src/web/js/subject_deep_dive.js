@@ -17,6 +17,12 @@ class SubjectDeepDive {
         this.parentEdges = [];
         this.activeParentId = null;
 
+        // Issue #14 — the Related Topics panel. Owns its own mount and
+        // its own fetch; the deep dive only tells it which parent
+        // context is selected, because that context ORDERS the panel
+        // (decision 5) exactly as it narrows everything else here.
+        this.relationsPanel = null;
+
         this.init();
     }
 
@@ -179,8 +185,8 @@ class SubjectDeepDive {
             this.renderChildSubjects();
             this.renderMistakeTypes();
             this.renderRecentEntries();
-            this.renderRelatedTopics();
             this.renderRecommendations();
+            this.renderRelations();
 
         } catch (error) {
             console.error('Error loading subject data:', error);
@@ -364,25 +370,38 @@ class SubjectDeepDive {
         document.getElementById('thisWeek').textContent = this.subjectData.this_week || 0;
         document.getElementById('lastWeek').textContent = this.subjectData.last_week || 0;
 
-        const change = (this.subjectData.this_week || 0) - (this.subjectData.last_week || 0);
+        const lastWeek = this.subjectData.last_week || 0;
+        const change = (this.subjectData.this_week || 0) - lastWeek;
         const trendEl = document.getElementById('trendChange');
 
         if (change === 0) {
             trendEl.textContent = 'No change from last week';
             trendEl.className = 'trend-change';
         } else if (change < 0) {
-            const percentage = this.subjectData.last_week > 0
-                ? Math.abs(Math.round(change / this.subjectData.last_week * 100))
-                : 0;
-            trendEl.textContent = `Change: ${change} (↓ ${percentage}% - Improving!)`;
+            trendEl.textContent = `Change: ${change} (${this.formatTrendDetail('↓', change, lastWeek, 'Improving!')})`;
             trendEl.className = 'trend-change improving';
         } else {
-            const percentage = this.subjectData.last_week > 0
-                ? Math.round(change / this.subjectData.last_week * 100)
-                : 0;
-            trendEl.textContent = `Change: +${change} (↑ ${percentage}% - Need more review)`;
+            trendEl.textContent = `Change: +${change} (${this.formatTrendDetail('↑', change, lastWeek, 'Need more review')})`;
             trendEl.className = 'trend-change declining';
         }
+    }
+
+    /**
+     * Parenthetical after "Change: ±N": arrow, week-over-week
+     * percentage, label. The percentage is relative to LAST WEEK, so
+     * it is undefined when last week had no entries; issue #11 was a
+     * fallback to 0 there, which read "↑ 0%" beside a "+9". Growth
+     * from zero now drops the figure and keeps the arrow and label.
+     * (A drop to zero is not the mirror case: change < 0 implies
+     * last_week > 0, and 100% is the right figure there.)
+     */
+    formatTrendDetail(arrow, change, lastWeek, label) {
+        const parts = [arrow];
+        if (lastWeek > 0) {
+            parts.push(`${Math.abs(Math.round(change / lastWeek * 100))}% -`);
+        }
+        parts.push(label);
+        return parts.join(' ');
     }
 
     /**
@@ -605,44 +624,39 @@ class SubjectDeepDive {
     }
 
     /**
-     * Render related topics (sibling subjects)
+     * Render the Related Topics panel (issue #14).
+     *
+     * Its predecessor, "Related Topics (Siblings)", listed the other
+     * children of this subject's parent — two topics can share a parent
+     * and have nothing to do with each other, and for a multi-parent
+     * subject it was wrong in a way the student could not detect. The
+     * replacement is a *semantic* relation the student wrote
+     * ("hypertension leads to hypertensive nephrosclerosis"), and
+     * nothing structural was carried over.
+     *
+     * The panel fetches its own data so a slow or failed relations read
+     * never delays the rest of this page — nothing else here may break
+     * when relations are empty, sparse or wrong (decision 10). The
+     * active parent context is passed through because it **orders** the
+     * list (decision 5); there is no filter on this path and none
+     * should be added.
      */
-    renderRelatedTopics() {
-        const container = document.getElementById('relatedTopicsList');
-        container.setAttribute('data-testid', 'deep-dive-list-related-topics');
-        container.innerHTML = '';
-
-        const siblings = this.subjectData.sibling_subjects || [];
-
-        if (siblings.length === 0) {
-            container.innerHTML = '<div class="empty-state" data-testid="deep-dive-empty-state-related-topics">No related topics</div>';
+    renderRelations() {
+        const mount = document.getElementById('relationsMount');
+        if (!mount || typeof SubjectRelationsPanel === 'undefined') {
             return;
         }
-
-        siblings.forEach(sibling => {
-            const item = document.createElement('div');
-            item.className = 'related-topic-item';
-            item.setAttribute('data-testid', `deep-dive-related-topic-${sibling.subject_id}`);
-            item.setAttribute('role', 'button');
-            item.setAttribute('tabindex', '0');
-            item.innerHTML = `
-                <span class="related-topic-name">${sibling.subject_name}</span>
-                <span class="related-topic-count">${sibling.mistake_count} mistakes</span>
-            `;
-            const navigate = () => {
-                // Navigate to this sibling's deep dive
-                const url = `subject_deep_dive.html?subject=${sibling.subject_id}${this.examContextId ? `&exam=${this.examContextId}` : ''}`;
-                window.location.href = url;
-            };
-            item.addEventListener('click', navigate);
-            item.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate();
-                }
+        if (!this.relationsPanel) {
+            this.relationsPanel = new SubjectRelationsPanel({
+                mount,
+                subjectId: this.subjectId,
+                examContextId: this.examContextId,
             });
-            container.appendChild(item);
-        });
+        }
+        // Not awaited: the panel renders itself when its fetch lands.
+        this.relationsPanel.load(
+            this.activeParentId, this.subjectData.subject_name
+        );
     }
 
     /**

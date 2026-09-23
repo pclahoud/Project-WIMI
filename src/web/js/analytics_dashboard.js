@@ -1033,7 +1033,12 @@ class AnalyticsDashboard {
 
                 // Check if dimension filter is active
                 if (this.currentDimensionFilter && this.dimensionAnalytics?.examUsesDimensions()) {
-                    // Load dimension-filtered hierarchy
+                    // Load dimension-filtered hierarchy. This payload
+                    // carries no `distinct_entries`, so the centre keeps
+                    // showing the sum of what it draws: a slice of one
+                    // dimension is not the population the "Total Entries"
+                    // card counts, and pinning the two together (issue #6)
+                    // would state an equality that isn't true here.
                     hierarchyData = await api.getSubjectHierarchyWithMistakesByDimension({
                         examContextId: this.currentExamFilter,
                         dimensionId: this.currentDimensionFilter
@@ -1108,14 +1113,34 @@ class AnalyticsDashboard {
                 console.log('Subject analytics response (no exam filter):', data);
 
                 if (data && data.length > 0) {
-                    this.subjectData = data;
-                    this._renderSimpleDonut(data);
-                    this.renderLegend('subjectLegend', data, 'subject_name', 'mistake_count');
+                    // get_subject_analytics ranks these rows by total_mistake_count
+                    // (direct + all descendants) whenever include_children is on, which
+                    // is the default here. So every figure on this card — slice angles,
+                    // legend counts and the centre number — must use that same rolled-up
+                    // count. Reading mistake_count showed the direct-only count under a
+                    // ranking by totals: a top 5 made up of parents with no directly
+                    // tagged entries summed to 0 and sent the card to its empty state on
+                    // a database full of entries. Fallback covers payload shapes that
+                    // predate total_mistake_count.
+                    const rankedSubjects = data.map(item => ({
+                        ...item,
+                        rollup_count: item.total_mistake_count || item.mistake_count || 0
+                    }));
 
-                    const total = data.reduce((sum, item) => sum + item.mistake_count, 0);
+                    this.subjectData = rankedSubjects;
+                    this._renderSimpleDonut(rankedSubjects);
+                    this.renderLegend('subjectLegend', rankedSubjects, 'subject_name', 'rollup_count');
+
+                    // The centre is the total of what this donut draws, not the
+                    // database's entry count: if a parent and one of its descendants
+                    // both make the top 5, the descendant's entries are inside both
+                    // slices and the sum exceeds the number of entries. The sunburst
+                    // branch above has the same property via its own centre label.
+                    const total = rankedSubjects.reduce((sum, item) => sum + item.rollup_count, 0);
                     document.getElementById('totalEntriesCenter').textContent = total;
-                    
+
                     // Set default deep dive link to top subject
+                    // (data[0] is the maximum only because the backend sorted it)
                     this.updateDeepDiveLink(data[0].subject_id);
                 } else {
                     this._renderEmptySunburst();
@@ -1209,7 +1234,13 @@ class AnalyticsDashboard {
             '#ef4444', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ec4899'
         ];
 
-        const total = data.reduce((sum, item) => sum + item.mistake_count, 0);
+        // Rows arrive carrying rollup_count — total_mistake_count, i.e. direct plus
+        // every descendant — which is the figure the backend ranked them by, so it is
+        // what the slices have to be drawn from. mistake_count (direct only) is the
+        // fallback for payload shapes without the rolled-up field.
+        const countOf = (item) => item.rollup_count ?? item.mistake_count ?? 0;
+
+        const total = data.reduce((sum, item) => sum + countOf(item), 0);
         if (total === 0) {
             this._renderEmptySunburst();
             return;
@@ -1220,7 +1251,7 @@ class AnalyticsDashboard {
         let startAngle = -Math.PI / 2;
 
         data.forEach((item, index) => {
-            const sliceAngle = (item.mistake_count / total) * 2 * Math.PI;
+            const sliceAngle = (countOf(item) / total) * 2 * Math.PI;
             const endAngle = startAngle + sliceAngle;
 
             const x1 = Math.cos(startAngle) * radius;
@@ -1242,7 +1273,7 @@ class AnalyticsDashboard {
                 'Z'
             ].join(' ');
 
-            pathsHtml += `<path d="${pathData}" fill="${colors[index % colors.length]}" style="cursor: pointer;" onclick="window.dashboard.navigateToSubjectDeepDive(${item.subject_id})"><title>${item.subject_name}: ${item.mistake_count}</title></path>`;
+            pathsHtml += `<path d="${pathData}" fill="${colors[index % colors.length]}" style="cursor: pointer;" onclick="window.dashboard.navigateToSubjectDeepDive(${item.subject_id})"><title>${item.subject_name}: ${countOf(item)}</title></path>`;
 
             startAngle = endAngle;
         });

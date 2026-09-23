@@ -193,9 +193,16 @@ class TestExport:
             "total_bytes": manifest["media"]["total_bytes"],
         }
         assert manifest["media"]["total_bytes"] > 0
-        assert manifest["stats"] == {
-            "entries": 3, "sessions": 1, "exam_contexts": 1,
-        }
+        # Subset, not equality: #124 added date ranges and a subject count to
+        # these stats so a fork report can tell "a month of work" from "a stale
+        # copy". Asserting the whole dict would make every future addition a
+        # failure here, in a test that is about media flattening.
+        assert manifest["stats"]["entries"] == 3
+        assert manifest["stats"]["sessions"] == 1
+        assert manifest["stats"]["exam_contexts"] == 1
+        for added in ("subjects", "encountered_first", "encountered_last",
+                      "logged_first", "logged_last"):
+            assert added in manifest["stats"], f"{added} missing from stats"
 
     def test_export_without_media(self, source_master, alice, tmp_path):
         dest = tmp_path / "no_media.wimi"

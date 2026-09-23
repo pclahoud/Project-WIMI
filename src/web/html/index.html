@@ -41,6 +41,19 @@
         <!-- Main Content -->
         <main class="landing-content">
             <div class="landing-container">
+                <!-- Folder sync notice (#148). The owner decided it fires once,
+                     at startup - the bridge keeps the "once" - and only when
+                     there is something the student must act on: two copies to
+                     choose between, a choice not yet sent, this computer's copy
+                     set aside by another computer, or a newer copy to take
+                     (#151). Never a "synced" tick. -->
+                <section class="sync-notice" id="sync-notice" data-testid="dashboard-sync-notice" hidden>
+                    <p class="sync-notice-text" id="sync-notice-text"></p>
+                    <div class="sync-notice-actions">
+                        <a href="settings.html#data_backup" class="btn btn-primary" data-testid="dashboard-sync-notice-open">Open sync settings</a>
+                        <button type="button" class="btn btn-secondary" id="sync-notice-dismiss">Dismiss</button>
+                    </div>
+                </section>
                 <!-- Analytics Preview Section -->
                 <section class="analytics-preview-section" id="analytics-preview-container">
                     <!-- Analytics preview will be rendered here by JavaScript -->

@@ -330,27 +330,50 @@ class EntriesMixin:
                     else None
                 )
 
-                if primary_unique is not None:
+                # Subject mappings are replaced wholesale, but
+                # primary_parent_id must survive that replacement.
+                #
+                # It is written by a SEPARATE call
+                # (setPrimaryParentForEntry) and records which parent a
+                # multi-parent subject was tagged under -- the thing the
+                # entry form's Tag context pill exists to capture. A
+                # delete-and-reinsert that omits the column silently
+                # discards it on every save after the first, and the
+                # caller has no way to notice: the mapping row is still
+                # there, just with its context reset to NULL.
+                #
+                # So carry the existing value forward per subject. A
+                # newly-added subject has no prior row and correctly
+                # starts NULL.
+                def _replace_mappings(mapping_type, subject_ids):
+                    existing = {
+                        row['subject_node_id']: row['primary_parent_id']
+                        for row in self.fetchall(
+                            "SELECT subject_node_id, primary_parent_id "
+                            "FROM entry_subject_mappings "
+                            "WHERE question_entry_id = ? AND mapping_type = ?",
+                            (entry_id, mapping_type)
+                        )
+                    }
                     self.execute(
-                        "DELETE FROM entry_subject_mappings WHERE question_entry_id = ? AND mapping_type = 'primary'",
-                        (entry_id,)
+                        "DELETE FROM entry_subject_mappings "
+                        "WHERE question_entry_id = ? AND mapping_type = ?",
+                        (entry_id, mapping_type)
                     )
-                    for subject_id in primary_unique:
+                    for subject_id in subject_ids:
                         self.execute("""
-                            INSERT INTO entry_subject_mappings (question_entry_id, subject_node_id, mapping_type)
-                            VALUES (?, ?, 'primary')
-                        """, (entry_id, subject_id))
+                            INSERT INTO entry_subject_mappings
+                                (question_entry_id, subject_node_id,
+                                 mapping_type, primary_parent_id)
+                            VALUES (?, ?, ?, ?)
+                        """, (entry_id, subject_id, mapping_type,
+                              existing.get(subject_id)))
+
+                if primary_unique is not None:
+                    _replace_mappings('primary', primary_unique)
 
                 if secondary_unique is not None:
-                    self.execute(
-                        "DELETE FROM entry_subject_mappings WHERE question_entry_id = ? AND mapping_type = 'secondary'",
-                        (entry_id,)
-                    )
-                    for subject_id in secondary_unique:
-                        self.execute("""
-                            INSERT INTO entry_subject_mappings (question_entry_id, subject_node_id, mapping_type)
-                            VALUES (?, ?, 'secondary')
-                        """, (entry_id, subject_id))
+                    _replace_mappings('secondary', secondary_unique)
 
             # Update tags if provided
             if tag_ids is not None:
@@ -561,14 +584,23 @@ class EntriesMixin:
 
         # Subject filter.
         #
-        # Polyhierarchy migration §5.4: when esm.primary_parent_id is
-        # set, the entry is contextually anchored to that parent's
-        # subtree, NOT the leaf's full ancestor closure. So a "filter
-        # by subject S" matches an entry iff:
-        #   - primary_parent_id IS NULL AND subject_node_id is in S's subtree, OR
-        #   - primary_parent_id IS NOT NULL AND primary_parent_id is in S's subtree.
-        # The descendant set (`sid_set`) already includes ``sid`` itself
-        # so the equality case (primary_parent_id == sid) is covered.
+        # This is a *finding* surface, so the scope rule is
+        # _subject_filter_scope_sql, not the strict §5.4 predicate the
+        # counting surfaces use: entries tagged the named subject directly
+        # match whatever parent context they carry, and entries on its
+        # descendants match only when their context routes through it.
+        # See that helper's docstring, and the decision on Forgejo #13.
+        #
+        # The two id sets it takes are not interchangeable: the named
+        # subjects drive the direct-tag clause, the descendant set drives
+        # the rollup clause. The descendant set already includes the seed
+        # node itself, so the equality case (primary_parent_id == the
+        # filtered subject) is covered.
+        #
+        # No mapping_type filter, deliberately: an entry tagged
+        # "also tested: DVT" is one the student looking for DVT wants.
+        # Contrast get_subject_analytics, which totals mistakes and
+        # filters to 'primary'.
         if subject_ids:
             if subject_mode == 'and' and len(subject_ids) > 1:
                 # AND mode: entry must be tagged with at least one node from EACH subject's tree
@@ -577,19 +609,17 @@ class EntriesMixin:
                     sid_set = {sid}
                     if include_child_subjects:
                         sid_set.update(self._get_descendant_node_ids(sid))
-                    placeholders = ','.join(['?'] * len(sid_set))
-                    sid_set_list = list(sid_set)
+                    scope_sql, scope_params = self._subject_filter_scope_sql(
+                        {sid}, sid_set, alias='esm'
+                    )
                     subject_conditions.append(f"""
                         qe.id IN (
-                            SELECT DISTINCT question_entry_id
-                            FROM entry_subject_mappings
-                            WHERE
-                                (primary_parent_id IS NULL AND subject_node_id IN ({placeholders}))
-                                OR (primary_parent_id IS NOT NULL AND primary_parent_id IN ({placeholders}))
+                            SELECT DISTINCT esm.question_entry_id
+                            FROM entry_subject_mappings esm
+                            WHERE {scope_sql}
                         )
                     """)
-                    params.extend(sid_set_list)
-                    params.extend(sid_set_list)
+                    params.extend(scope_params)
                 conditions.append('(' + ' AND '.join(subject_conditions) + ')')
             else:
                 # OR mode (default): entry matches any of the subjects
@@ -598,19 +628,17 @@ class EntriesMixin:
                     for sid in subject_ids:
                         all_subject_ids.update(self._get_descendant_node_ids(sid))
 
-                placeholders = ','.join(['?'] * len(all_subject_ids))
-                all_list = list(all_subject_ids)
+                scope_sql, scope_params = self._subject_filter_scope_sql(
+                    set(subject_ids), all_subject_ids, alias='esm'
+                )
                 conditions.append(f"""
                     qe.id IN (
-                        SELECT DISTINCT question_entry_id
-                        FROM entry_subject_mappings
-                        WHERE
-                            (primary_parent_id IS NULL AND subject_node_id IN ({placeholders}))
-                            OR (primary_parent_id IS NOT NULL AND primary_parent_id IN ({placeholders}))
+                        SELECT DISTINCT esm.question_entry_id
+                        FROM entry_subject_mappings esm
+                        WHERE {scope_sql}
                     )
                 """)
-                params.extend(all_list)
-                params.extend(all_list)
+                params.extend(scope_params)
 
         # Tag filter
         if tag_ids:
@@ -639,6 +667,16 @@ class EntriesMixin:
             params.append(is_draft)
 
         # Search filter - searches in entry text fields AND associated subject names
+        #
+        # Deliberately no mapping_type filter (decided, not overlooked). This
+        # is a free-text *search* over a browse surface: someone typing a
+        # subject name is asking "which entries mention this", and an entry
+        # where the subject was an "also tested" secondary tag is a legitimate
+        # hit. Filtering to 'primary' here would silently hide entries whose
+        # text the user can see matches. Contrast get_related_subjects, which
+        # is a mistake count and does filter. Also no §5.4 predicate: this
+        # branch names an exact subject by name with no descendant set, so it
+        # does not aggregate and §5.4 is inapplicable.
         if search_query:
             search_term = f"%{search_query}%"
             conditions.append("""
@@ -667,6 +705,12 @@ class EntriesMixin:
                     conditions.append(f"{col} LIKE ?")
                     params.append(f"%{field_value}%")
                 elif field_name == 'subject':
+                    # Same call as the free-text branch above: a name search
+                    # on a browse surface, so no mapping_type filter and no
+                    # §5.4 predicate (exact name match, no ancestor walk).
+                    # The structured, hierarchy-aware subject filter is
+                    # `subject_ids` + `include_child_subjects`, which does
+                    # apply §5.4.
                     conditions.append("""
                         qe.id IN (
                             SELECT esm.question_entry_id
@@ -754,7 +798,7 @@ class EntriesMixin:
         row = self.fetchone("""
             SELECT qe.*,
                    rs.session_name, rs.date_encountered, rs.total_questions, rs.total_incorrect,
-                   ec.exam_name, ec.exam_description,
+                   ec.id AS exam_context_id, ec.exam_name, ec.exam_description,
                    qs.source_name, qs.source_type
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
@@ -788,6 +832,10 @@ class EntriesMixin:
                 'total_incorrect': row['total_incorrect']
             },
             'exam': {
+                # The id the detail page scopes Related Topics, subject-name
+                # resolution and its Back/per-subject links to. NULL only when
+                # the session's exam context row is gone (the join is LEFT).
+                'id': row['exam_context_id'],
                 'name': row['exam_name'],
                 'description': row['exam_description']
             },
@@ -808,13 +856,61 @@ class EntriesMixin:
         Get related subjects for the 'Related Topics to Review' panel.
 
         Strategy:
-        1. Get siblings (same parent) - prioritized
-        2. Get parent's siblings (aunts/uncles)
-        3. Prioritize subjects with more entries (mistakes)
+        1. Get siblings (every parent's other children) - prioritized
+        2. Get parents' siblings (aunts/uncles)
+        3. Get children of the current node
+        4. Prioritize subjects with more entries (mistakes)
+
+        **This function does NOT aggregate up a hierarchy.** The count is a
+        direct per-node count: each candidate is matched on
+        ``esm.subject_node_id = sn.id`` with no descendant set and no
+        ancestor walk, so ``POLYHIERARCHY_MIGRATION.md`` §5.4 (and
+        :meth:`SharedHelpersMixin._primary_parent_scope_sql`) is
+        definitionally inapplicable here — a disambiguated entry is still
+        this subject's own mistake whichever branch it rolls into. Changing
+        the tag context cannot change this function's output. Do not add
+        the §5.4 predicate here; it would *remove* entries the student
+        explicitly tagged on the node.
+
+        What it did carry (all fixed):
+
+        * **Legacy ``subject_nodes.parent_id``** in all three discovery
+          steps, so a relative attached only through ``subject_edges`` was
+          invisible. Discovery now walks ``subject_edges`` (the canonical
+          source per CLAUDE.md), which also means a multi-parent subject
+          contributes siblings from *every* parent rather than only the
+          legacy one. Falls back to ``parent_id`` only when the node has no
+          edges at all (legacy DBs predating m004, and tests that seed
+          ``subject_nodes`` by raw INSERT).
+        * **No ``mapping_type`` filter**, so "also tested" secondary tags
+          were counted as mistakes. This is a *mistake count* used to rank
+          what to review next, so it now filters to ``'primary'`` — the
+          same choice Top Subjects, the subject sunburst and the dimension
+          sunburst make. (Contrast the free-text search branches in this
+          file, which deliberately stay unfiltered; see
+          :meth:`get_entries_paginated`.)
+        * **No session scoping at all** — ``exam_context_id`` was accepted,
+          used once for an early-return config lookup, and never reached
+          the query. Every other user's and every other exam's entries
+          were counted. Now joined through ``review_sessions`` and scoped
+          to both.
+        * ``COUNT(esm.id)`` rather than
+          ``COUNT(DISTINCT esm.question_entry_id)``. Kept as the distinct
+          form for intent, though note the two are equivalent in practice:
+          ``idx_unique_entry_subject`` is UNIQUE on
+          ``(question_entry_id, subject_node_id)`` and is mapping_type
+          agnostic, so one entry can never hold two mappings on the same
+          node (``create_question_entry`` dedups defensively for exactly
+          this reason).
+
+        ``is_draft`` is deliberately NOT filtered — see the ledger in
+        ``docs/planning/ENTRY_COUNT_AUDIT.md``; picking a side belongs to
+        that decision, not to this fix.
 
         Args:
             subject_id: Current subject ID
-            exam_context_id: Exam context for entry counting
+            exam_context_id: Exam context — scopes the entry counts, and
+                gates the early return
             limit: Maximum results
 
         Returns:
@@ -825,53 +921,111 @@ class EntriesMixin:
         if not exam_config:
             return []
 
-        # Get current node's parent
         current = self.get_subject_node(subject_id)
         if not current:
             return []
 
+        edges_available = self.fetchone(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='subject_edges'"
+        ) is not None
+
+        def _parents_of(node_id: int, legacy_parent_id: Optional[int] = None) -> List[int]:
+            """Parent ids from ``subject_edges``, legacy column as fallback.
+
+            A node may have several parents; all of them contribute
+            relatives. The legacy fallback fires only when the node has no
+            edge rows at all, matching the dual-mode shape of
+            ``_get_descendant_node_ids``.
+            """
+            if edges_available:
+                rows = self.fetchall(
+                    "SELECT parent_id FROM subject_edges WHERE child_id = ?",
+                    (node_id,),
+                )
+                if rows:
+                    return [row['parent_id'] for row in rows]
+            if legacy_parent_id is None:
+                row = self.fetchone(
+                    "SELECT parent_id FROM subject_nodes WHERE id = ?",
+                    (node_id,),
+                )
+                legacy_parent_id = row['parent_id'] if row else None
+            return [legacy_parent_id] if legacy_parent_id else []
+
+        def _children_of(node_ids: List[int]) -> List[int]:
+            """Active child ids of any of ``node_ids``, edges first."""
+            if not node_ids:
+                return []
+            placeholders = ','.join(['?'] * len(node_ids))
+            if edges_available:
+                rows = self.fetchall(
+                    f"""
+                    SELECT DISTINCT se.child_id AS id
+                    FROM subject_edges se
+                    JOIN subject_nodes sn ON sn.id = se.child_id
+                    WHERE se.parent_id IN ({placeholders})
+                      AND sn.status = 'active'
+                    """,
+                    tuple(node_ids),
+                )
+                if rows:
+                    return [row['id'] for row in rows]
+            rows = self.fetchall(
+                f"""
+                SELECT id FROM subject_nodes
+                WHERE parent_id IN ({placeholders}) AND status = 'active'
+                """,
+                tuple(node_ids),
+            )
+            return [row['id'] for row in rows]
+
         related_ids = set()
 
-        # 1. Get siblings (same parent)
-        if current.parent_id:
-            siblings = self.fetchall("""
-                SELECT id FROM subject_nodes
-                WHERE parent_id = ? AND id != ? AND status = 'active'
-            """, (current.parent_id, subject_id))
-            related_ids.update(row['id'] for row in siblings)
+        # 1. Siblings — other children of every parent this node has.
+        parent_ids = _parents_of(subject_id, current.parent_id)
+        related_ids.update(_children_of(parent_ids))
+        related_ids.discard(subject_id)
 
-        # 2. Get parent's siblings (aunts/uncles) if we need more
-        if len(related_ids) < limit and current.parent_id:
-            parent = self.get_subject_node(current.parent_id)
-            if parent and parent.parent_id:
-                aunts_uncles = self.fetchall("""
-                    SELECT id FROM subject_nodes
-                    WHERE parent_id = ? AND id != ? AND status = 'active'
-                """, (parent.parent_id, parent.id))
-                related_ids.update(row['id'] for row in aunts_uncles)
+        # 2. Aunts/uncles — other children of every grandparent.
+        if len(related_ids) < limit and parent_ids:
+            grandparent_ids = []
+            for pid in parent_ids:
+                grandparent_ids.extend(_parents_of(pid))
+            related_ids.update(_children_of(grandparent_ids))
+            related_ids.difference_update(parent_ids)
+            related_ids.discard(subject_id)
 
-        # 3. Get children of current node if we need more
+        # 3. Children of the current node.
         if len(related_ids) < limit:
-            children = self.fetchall("""
-                SELECT id FROM subject_nodes
-                WHERE parent_id = ? AND status = 'active'
-            """, (subject_id,))
-            related_ids.update(row['id'] for row in children)
+            related_ids.update(_children_of([subject_id]))
+            related_ids.discard(subject_id)
 
         if not related_ids:
             return []
 
-        # Get entry counts for these subjects and rank by count
-        placeholders = ','.join(['?'] * len(related_ids))
+        # Rank by mistake count. The count is a correlated scalar subquery
+        # rather than a LEFT JOIN + GROUP BY so that a candidate whose only
+        # entries fall outside this user/exam still appears with a count of
+        # 0 instead of being dropped from the result set entirely.
+        ids = list(related_ids)
+        placeholders = ','.join(['?'] * len(ids))
         results = self.fetchall(f"""
-            SELECT sn.id, sn.name, COUNT(esm.id) as entry_count
+            SELECT sn.id, sn.name, (
+                SELECT COUNT(DISTINCT esm.question_entry_id)
+                FROM entry_subject_mappings esm
+                JOIN question_entries qe ON qe.id = esm.question_entry_id
+                JOIN review_sessions rs ON rs.id = qe.review_session_id
+                WHERE esm.subject_node_id = sn.id
+                  AND esm.mapping_type = 'primary'
+                  AND rs.user_id = ?
+                  AND rs.exam_context_id = ?
+            ) AS entry_count
             FROM subject_nodes sn
-            LEFT JOIN entry_subject_mappings esm ON sn.id = esm.subject_node_id
             WHERE sn.id IN ({placeholders})
-            GROUP BY sn.id, sn.name
+              AND sn.status = 'active'
             ORDER BY entry_count DESC, sn.name ASC
             LIMIT ?
-        """, tuple(list(related_ids) + [limit]))
+        """, tuple([self.user_id, exam_context_id] + ids + [limit]))
 
         return [
             {
@@ -891,6 +1045,13 @@ class EntriesMixin:
     ) -> List['QuestionEntry']:
         """
         Full-text search across entry fields.
+
+        Does not aggregate — the subject sub-query matches a node by name
+        with no descendant set, so §5.4 is inapplicable. The missing
+        ``mapping_type`` filter is deliberate for the same reason as the
+        search branch of :meth:`get_entries_paginated`: a name search on a
+        browse surface should return entries where the subject was a
+        secondary ("also tested") tag.
 
         Args:
             query: Search query
@@ -1096,71 +1257,101 @@ class EntriesMixin:
         self,
         subject_id: int,
         include_children: bool = True,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        exam_context_id: Optional[int] = None
     ) -> List['QuestionEntry']:
         """
         Get entries for a specific subject (for related topics navigation).
 
-        Graph-primary (P2.5): uses graph for entry ID retrieval, SQLite for
-        full entry content.
+        **This function AGGREGATES up a hierarchy** when
+        ``include_children`` is set: the scope is ``subject_id`` plus
+        ``_get_descendant_node_ids(subject_id)``, and entries are matched
+        against that whole set. That makes ``POLYHIERARCHY_MIGRATION.md``
+        §5.4 apply, and it was absent — an entry whose student pinned it to
+        one parent was still returned under every other parent of a shared
+        subject. Scoping now goes through
+        :meth:`SharedHelpersMixin._subject_filter_scope_sql`, the same
+        helper :meth:`get_entries_paginated` uses; see its docstring for
+        why the predicate is a conditional with an unconditional
+        direct-tag clause in front of it. Do not re-derive it inline.
+
+        Two further changes:
+
+        * **The graph-first shortcut is gone.** It asked LadybugDB for the
+          entry ids and returned that answer whenever it was non-empty,
+          which bypassed the SQL above entirely — including the §5.4
+          predicate. ``GraphMixin._etl_subjects`` builds ``HAS_CHILD``
+          exclusively from the legacy ``subject_nodes.parent_id`` column and
+          ``EdgesMixin`` performs no graph dual-write, so the graph cannot
+          see a second parent and answers every polyhierarchy question with
+          the legacy single-parent one. ``_graph_read_ready`` defaults to
+          True, so the shortcut fired in production. Same defect, same
+          cause and same resolution as the one recorded on
+          :meth:`SharedHelpersMixin._get_descendant_node_ids` and
+          :meth:`SharedHelpersMixin._build_subject_path`: **do not re-add
+          it** without first rebuilding the ETL on ``subject_edges`` and
+          adding dual-writes to ``EdgesMixin``.
+        * **``exam_context_id`` is now accepted** so a caller can scope to
+          one exam. It defaults to None (no scoping) to keep the existing
+          signature working.
+
+        Deliberately NOT filtered:
+
+        * ``mapping_type`` — this is a *browse/navigation* surface that
+          answers "show me the entries on this subject", not a mistake
+          count. A student who navigates to a topic plausibly wants the
+          questions where it was a secondary ("also tested") tag too. The
+          mistake-count surfaces (Top Subjects, both sunbursts,
+          :meth:`get_related_subjects`) filter to ``'primary'``; this one
+          matches :meth:`get_entries_paginated`'s subject filter instead.
+        * ``is_draft`` — see the ledger in
+          ``docs/planning/ENTRY_COUNT_AUDIT.md``.
+
+        Former quirk, fixed in the shared helper (Forgejo #13, decided
+        2026-09-14): an entry tagged on a shared leaf *and* pinned to a
+        parent used not to be returned when the scope was the leaf alone,
+        because the predicate asked whether the chosen parent was in
+        scope. It is now returned — the leaf is the subject the entry
+        actually carries. Pinned by
+        ``test_entry_filter_on_the_leaf_finds_entries_scoped_to_another_parent``
+        and ``test_entries_by_subject_finds_the_leaf_whatever_the_context``
+        in ``tests/database/``.
 
         Args:
             subject_id: Subject node ID
             include_children: Include entries from child subjects
             limit: Maximum results
+            exam_context_id: Optional exam context to scope entries to
 
         Returns:
             List of entries
         """
         from ..models import QuestionEntry
 
-        entry_ids = None
+        subject_ids = {subject_id}
+        if include_children:
+            subject_ids.update(self._get_descendant_node_ids(subject_id))
 
-        # Try graph first for entry ID retrieval (P2.5)
-        # Only trust non-empty results — empty could mean unpopulated graph edges
-        if getattr(self, '_graph_read_ready', False):
-            try:
-                graph_ids = self._graph_get_entries_for_subject(
-                    subject_id, include_children=include_children,
-                )
-                if graph_ids:
-                    entry_ids = graph_ids
-            except Exception as e:
-                logger.warning("Graph read failed for get_entries_by_subject, falling back to SQLite: %s", e)
+        scope_sql, scope_params = self._subject_filter_scope_sql(
+            {subject_id}, subject_ids, alias='esm'
+        )
 
-        if entry_ids is not None:
-            # Graph provided IDs — fetch full entries from SQLite
-            placeholders = ','.join(['?'] * len(entry_ids))
-            query = f"""
-                SELECT DISTINCT qe.*
-                FROM question_entries qe
-                JOIN review_sessions rs ON qe.review_session_id = rs.id
-                WHERE rs.user_id = ? AND qe.id IN ({placeholders})
-                ORDER BY rs.date_encountered DESC, qe.created_at DESC
-            """
-            params = [self.user_id] + entry_ids
-            if limit:
-                query += f" LIMIT {limit}"
-            rows = self.fetchall(query, tuple(params))
-        else:
-            # SQLite fallback — full query
-            subject_ids = [subject_id]
-            if include_children:
-                subject_ids.extend(self._get_descendant_node_ids(subject_id))
-
-            placeholders = ','.join(['?'] * len(subject_ids))
-            query = f"""
-                SELECT DISTINCT qe.*
-                FROM question_entries qe
-                JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
-                JOIN review_sessions rs ON qe.review_session_id = rs.id
-                WHERE rs.user_id = ? AND esm.subject_node_id IN ({placeholders})
-                ORDER BY rs.date_encountered DESC, qe.created_at DESC
-            """
-            params = [self.user_id] + subject_ids
-            if limit:
-                query += f" LIMIT {limit}"
-            rows = self.fetchall(query, tuple(params))
+        query = f"""
+            SELECT DISTINCT qe.*
+            FROM question_entries qe
+            JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
+            JOIN review_sessions rs ON qe.review_session_id = rs.id
+            WHERE rs.user_id = ? AND {scope_sql}
+        """
+        params = [self.user_id] + scope_params
+        if exam_context_id is not None:
+            query += " AND rs.exam_context_id = ?"
+            params.append(exam_context_id)
+        query += " ORDER BY rs.date_encountered DESC, qe.created_at DESC"
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        rows = self.fetchall(query, tuple(params))
 
         entries = []
         for row in rows:

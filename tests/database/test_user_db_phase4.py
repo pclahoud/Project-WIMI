@@ -303,6 +303,27 @@ class TestReviewSessionManagement:
         assert session.completion_percentage == 0.0
         assert session.remaining_entries == 10
 
+    def test_session_completion_percentage_clamps_at_100(self, temp_db):
+        """More entries logged than declared (Forgejo #8) reads 100.0, not 110.0.
+
+        The raw counts are left alone -- 11 logged of 10 declared is honest --
+        only the derived percentage is capped so no surface draws past 100.
+        """
+        db = temp_db['db']
+        exam_context = temp_db['exam_context']
+
+        session = db.create_review_session(
+            exam_context_id=exam_context.id,
+            total_questions=40,
+            total_incorrect=10
+        )
+        session = db.update_review_session(session.id, entries_completed=11)
+
+        assert session.entries_completed == 11
+        assert session.total_incorrect == 10
+        assert session.is_complete
+        assert session.completion_percentage == 100.0
+
 
 class TestQuestionEntryManagement:
     """Tests for Question Entry CRUD operations"""

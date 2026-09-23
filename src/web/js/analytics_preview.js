@@ -89,6 +89,8 @@ class AnalyticsPreview {
             if (subjects) {
                 const subjectArray = subjects.subjects || subjects;
                 if (Array.isArray(subjectArray) && subjectArray.length > 0) {
+                    // [0] is the top subject only because get_subject_analytics sorts
+                    // descending by total_mistake_count — nothing here re-checks it.
                     topSubject = subjectArray[0];
                 }
             }
@@ -540,9 +542,16 @@ class AnalyticsPreview {
             `;
         }
         
-        // Handle different possible field names
+        // Handle different possible field names.
+        // The count is total_mistake_count (direct entries plus every descendant),
+        // because that is the figure get_subject_analytics ranked by when it made
+        // this subject first. Printing mistake_count (direct only) rendered a parent
+        // with 0 directly tagged entries and 40 below it as "Pharmacology (0 entries)"
+        // while still calling it the top subject. The later fallbacks cover payload
+        // shapes that carry no rolled-up field.
         const rawName = topSubject.subject_name || topSubject.name || topSubject.full_path || '—';
-        const count = topSubject.mistake_count || topSubject.count || topSubject.entry_count || 0;
+        const count = topSubject.total_mistake_count || topSubject.mistake_count
+            || topSubject.count || topSubject.entry_count || 0;
         
         return `
             <div class="preview-stat">

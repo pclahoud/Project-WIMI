@@ -4,6 +4,7 @@ Unit tests for the Error Logging Manager
 
 import unittest
 import tempfile
+import logging
 import time
 import json
 from pathlib import Path
@@ -116,6 +117,99 @@ class TestErrorLogger(unittest.TestCase):
         self.assertIsNotNone(cached_entry)
         self.assertEqual(cached_entry.count, 5)
     
+    def test_info_records_are_never_deduplicated(self):
+        """Routine events must not be collapsed into each other.
+
+        Dedup is anti-spam for repeated failures. Applied to INFO it
+        destroys the audit trail: the capture pipeline logs one
+        low-entropy line per commit, so two commits inside the 5-minute
+        window produced a single line and the second left no trace.
+        """
+        message = "Committed captured block into session 6 (profile 1)"
+
+        for _ in range(3):
+            self.logger.info(message, category=ErrorCategory.DATABASE)
+
+        time.sleep(0.3)
+        self.logger.flush()
+
+        written = Path(self.logger.current_log_file).read_text(encoding='utf-8')
+        occurrences = written.count(message)
+        self.assertEqual(
+            occurrences, 3,
+            f"Three identical INFO records must all reach the log; the "
+            f"file holds {occurrences}. Deduplicating events silently "
+            f"drops history."
+        )
+
+    def test_warnings_and_errors_are_still_deduplicated(self):
+        """The anti-spam behaviour the mechanism exists for stays."""
+        for _ in range(4):
+            self.logger.warning("Repeating warning",
+                                category=ErrorCategory.SYSTEM)
+        time.sleep(0.2)
+
+        error_hash = self.logger._hash_error(
+            "Repeating warning", ErrorCategory.SYSTEM)
+        cached = self.logger.error_cache.get(error_hash)
+        self.assertIsNotNone(cached)
+        self.assertEqual(cached.count, 4)
+
+    def test_cleanup_detaches_from_the_package_loggers(self):
+        """An ErrorLogger must not outlive itself on the logging tree.
+
+        The handler is installed on process-global state
+        (logging.getLogger('database') and the other captured roots) but
+        its lifetime was tied to nothing. cleanup() shut the executor
+        down and left the handler attached, so the next code to log an
+        ERROR under a captured root -- code owning no ErrorLogger at all
+        -- routed into the dead instance and raised "cannot schedule new
+        futures after shutdown" from inside an unrelated test.
+
+        That is the whole of the suite's cross-module contamination:
+        running tests/test_error_logger.py before tests/database/ turned
+        8 passing tests into errors, and reordering the same directories
+        changed the count, because whichever ErrorLogger was constructed
+        last owned the handler slot.
+        """
+        captured = logging.getLogger('database')
+
+        def ours():
+            return [h for h in captured.handlers
+                    if isinstance(h, ErrorLogger.PythonLoggingHandler)
+                    and h.error_logger is self.logger]
+
+        self.assertEqual(len(ours()), 1, 'handler was never installed')
+
+        self.logger.cleanup()
+        self.assertEqual(
+            ours(), [],
+            'cleanup() left its handler attached to the "database" logger; '
+            'the next ERROR logged anywhere under that root will route '
+            'into a shut-down executor.'
+        )
+
+    def test_logging_after_cleanup_does_not_raise(self):
+        """A logging handler must never take down the code that logged."""
+        self.logger.cleanup()
+        try:
+            logging.getLogger('database').error(
+                'Transaction failed, rolled back: duplicate username')
+        except RuntimeError as exc:  # pragma: no cover - the bug
+            self.fail(f'logging after cleanup raised: {exc}')
+
+    def test_handler_drops_records_for_a_cleaned_up_logger(self):
+        """The guard behind the detach, for a handler that outlives its
+        logger by a route cleanup() never sees -- Qt destroying the C++
+        half of the QObject while this wrapper survives."""
+        handler = ErrorLogger.PythonLoggingHandler(self.logger)
+        self.logger.cleanup()
+        record = logging.LogRecord(
+            name='database', level=logging.ERROR, pathname=__file__,
+            lineno=1, msg='boom', args=(), exc_info=None,
+        )
+        handler.emit(record)  # must not raise
+
     def test_stack_trace_capture(self):
         """Test exception stack trace capture"""
         try:
@@ -513,6 +607,142 @@ class TestVerboseFormatAndSyncFlush(unittest.TestCase):
             self.assertIn('info should still be async', content_after)
         finally:
             logger.cleanup()
+
+
+class TestStdlibLoggingCapture(unittest.TestCase):
+    """Records logged through module loggers must reach the log file.
+
+    This silently did not work: the handler was attached to
+    ``logging.getLogger("StudentApp")``, but every module logs through
+    ``logging.getLogger(__name__)`` — ``app.model_runtime``,
+    ``app.capture_extractor``, ``database.base_db`` — none of which are
+    descendants of that name. Every ``StudentApp_*.log`` was 0 bytes for
+    the life of the app, which is why a failing capture left no trace.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.logger = ErrorLogger(
+            app_name="TestApp",
+            log_dir=Path(self.temp_dir),
+            mode='development',
+            flush_interval=0.1,
+        )
+
+    def tearDown(self):
+        self.logger.cleanup()
+
+    def _records(self):
+        self.logger.flush()
+        records = []
+        for path in Path(self.temp_dir).glob('*.log'):
+            for line in path.read_text(encoding='utf-8',
+                                       errors='replace').splitlines():
+                try:
+                    records.append(json.loads(line))
+                except ValueError:
+                    continue
+        return records
+
+    def test_module_logger_records_reach_the_file(self):
+        import logging as stdlib_logging
+        marker = 'capture extraction: 1234 input chars -> 3 questions'
+        stdlib_logging.getLogger('app.bridge_domains.capture').info(marker)
+        self.assertTrue(
+            any(marker in r.get('msg', '') for r in self._records()),
+            'A module logger under an app package produced no file record.',
+        )
+
+    def test_every_captured_package_root_is_wired(self):
+        import logging as stdlib_logging
+        for root in ErrorLogger.CAPTURED_LOGGER_ROOTS:
+            marker = f'probe from {root}.submodule'
+            stdlib_logging.getLogger(f'{root}.submodule').info(marker)
+        records = self._records()
+        for root in ErrorLogger.CAPTURED_LOGGER_ROOTS:
+            self.assertTrue(
+                any(f'probe from {root}.submodule' in r.get('msg', '')
+                    for r in records),
+                f'Package root {root!r} is listed but captures nothing.',
+            )
+
+    def test_info_is_not_swallowed_by_an_inherited_level(self):
+        """The default level for a fresh logger is NOTSET, which inherits
+        root's WARNING — that alone dropped every INFO record before it
+        reached the handler."""
+        import logging as stdlib_logging
+        captured = stdlib_logging.getLogger('app')
+        self.assertLessEqual(captured.level, stdlib_logging.DEBUG)
+        self.assertNotEqual(captured.level, stdlib_logging.NOTSET)
+
+    def test_periodic_flush_works_without_a_qapplication(self):
+        """The old flush timer was a QTimer created before QApplication
+        existed, so it never fired — records queued forever and every
+        StudentApp_*.log stayed 0 bytes. Verified: 8 s of event loop
+        afterwards still wrote nothing. The replacement must flush with no
+        Qt event loop at all."""
+        import logging as stdlib_logging
+        fast_dir = tempfile.mkdtemp()
+        fast = ErrorLogger(
+            app_name="TestAppFast",
+            log_dir=Path(fast_dir),
+            mode='development',
+            flush_interval=0.2,
+        )
+        try:
+            stdlib_logging.getLogger('app.flushprobe').info('drain me')
+            deadline = time.time() + 5.0
+            size = 0
+            while time.time() < deadline:
+                sizes = [p.stat().st_size for p in Path(fast_dir).glob('*.log')]
+                size = max(sizes) if sizes else 0
+                if size:
+                    break
+                time.sleep(0.05)
+            self.assertGreater(
+                size, 0,
+                'Nothing reached disk without an explicit flush — the '
+                'periodic flush is not running.',
+            )
+        finally:
+            fast.cleanup()
+
+    def test_cleanup_is_idempotent(self):
+        """Reachable from the Qt aboutToQuit hook AND the atexit hook; a
+        second call must not raise on an already-closed handle."""
+        second_dir = tempfile.mkdtemp()
+        logger = ErrorLogger(
+            app_name="TestAppTwice",
+            log_dir=Path(second_dir),
+            mode='development',
+            flush_interval=0.1,
+        )
+        logger.cleanup()
+        logger.cleanup()          # must be a no-op, not a traceback
+
+    def test_a_second_logger_does_not_duplicate_records(self):
+        """Two ErrorLoggers in one process must not double-write."""
+        import logging as stdlib_logging
+        second_dir = tempfile.mkdtemp()
+        second = ErrorLogger(
+            app_name="TestApp2",
+            log_dir=Path(second_dir),
+            mode='development',
+            flush_interval=0.1,
+        )
+        try:
+            marker = 'exactly once please'
+            stdlib_logging.getLogger('app.probe').info(marker)
+            second.flush()
+            hits = sum(
+                line.count(marker)
+                for path in Path(second_dir).glob('*.log')
+                for line in path.read_text(encoding='utf-8',
+                                           errors='replace').splitlines()
+            )
+            self.assertEqual(hits, 1)
+        finally:
+            second.cleanup()
 
 
 if __name__ == '__main__':

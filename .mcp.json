@@ -5,8 +5,11 @@
       "url": "http://127.0.0.1:8000/sse"
     },
     "wimi-test": {
-      "command": "python",
-      "args": ["run_wimi.py", "--test-mcp-server"],
+      "command": "${WIMI_PYTHON:-python}",
+      "args": [
+        "run_wimi.py",
+        "--test-mcp-server"
+      ],
       "cwd": "."
     }
   }

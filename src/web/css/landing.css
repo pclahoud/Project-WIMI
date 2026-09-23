@@ -773,3 +773,34 @@
         width: 100%;
     }
 }
+
+/* Folder sync notice (#148). `[hidden]` is restated because `display: flex`
+   would otherwise override the attribute and show an empty banner. */
+.sync-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+}
+
+.sync-notice[hidden] {
+    display: none;
+}
+
+.sync-notice-text {
+    margin: 0;
+    flex: 1 1 320px;
+}
+
+.sync-notice-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+

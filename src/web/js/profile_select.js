@@ -851,6 +851,10 @@ function openImportPreviewModal(preview) {
     }
     const replaceConfirm = document.getElementById('importReplaceConfirm');
     if (replaceConfirm) replaceConfirm.checked = false;
+    // Ticked every time the modal opens: keeping images is the answer that
+    // cannot lose anything, and the student has to choose deletion (#150).
+    const keepMedia = document.getElementById('importReplaceKeepMedia');
+    if (keepMedia) keepMedia.checked = true;
     const hintEl = document.getElementById('importReplaceHint');
     if (hintEl) {
         const hasCurrent = (preview.replace_targets || []).some((t) => t.is_current);
@@ -903,7 +907,50 @@ function updateImportControls() {
     const targetId = targetSelect && targetSelect.value ? parseInt(targetSelect.value, 10) : null;
     const target = (preview?.replace_targets || []).find((t) => t.user_id === targetId) || null;
     const confirmed = !!document.getElementById('importReplaceConfirm')?.checked;
+    updateKeepMediaHint(target);
     confirmBtn.disabled = !(target && !target.is_current && confirmed);
+}
+
+/**
+ * Say what "keep the images already in this profile" does to THIS pair of
+ * profile and archive (#150).
+ *
+ * The checkbox is abstract on its own: what matters is how many images the
+ * chosen profile holds and whether the archive carries any. An archive
+ * exported without media is the case the bug was filed for — unticking
+ * there deletes every image and puts nothing back.
+ */
+function updateKeepMediaHint(target) {
+    const hintEl = document.getElementById('importReplaceKeepMediaHint');
+    if (!hintEl) return;
+
+    const keep = !!document.getElementById('importReplaceKeepMedia')?.checked;
+    const archiveHasMedia = !!(ImportState.preview?.media || {}).included;
+    const count = target ? (target.media_file_count || 0) : 0;
+    const name = target ? (target.display_name || target.username) : '';
+    const images = count === 1 ? '1 image' : `${count} images`;
+
+    let text = '';
+    let warn = false;
+    if (!target) {
+        text = '';
+    } else if (count === 0) {
+        text = archiveHasMedia
+            ? `${name} has no images of its own; the archive's are copied in either way.`
+            : `${name} has no images, so there is nothing to keep or delete.`;
+    } else if (keep) {
+        text = archiveHasMedia
+            ? `Keeps the ${images} in ${name} and adds the archive's.`
+            : `Keeps the ${images} in ${name}. This archive carries none of its own.`;
+    } else {
+        warn = true;
+        text = archiveHasMedia
+            ? `Deletes any of the ${images} in ${name} that this archive does not contain. This cannot be undone.`
+            : `Deletes all ${images} in ${name}. This archive has no images to put back, and this cannot be undone.`;
+    }
+
+    hintEl.textContent = text;
+    hintEl.classList.toggle('profile-import-mode-hint--warning', warn);
 }
 
 /** Run executeProfileImport for the current modal state. */
@@ -922,6 +969,8 @@ async function executeImportFromModal() {
         if (!targetId) return;
         params.target_user_id = targetId;
         params.confirm_replace = !!document.getElementById('importReplaceConfirm')?.checked;
+        params.keep_existing_media =
+            !!document.getElementById('importReplaceKeepMedia')?.checked;
     }
 
     showModalError('importError', null);
@@ -957,6 +1006,7 @@ function wireImportModal() {
     document.getElementById('importModeReplace')?.addEventListener('change', updateImportControls);
     document.getElementById('importReplaceTarget')?.addEventListener('change', updateImportControls);
     document.getElementById('importReplaceConfirm')?.addEventListener('change', updateImportControls);
+    document.getElementById('importReplaceKeepMedia')?.addEventListener('change', updateImportControls);
     document.getElementById('importConfirmBtn')?.addEventListener('click', executeImportFromModal);
 }
 
@@ -980,6 +1030,164 @@ function consumePendingImport() {
 // Page Initialization
 // =========================================================================
 
+// =========================================================================
+// Get a profile from a sync folder (#151)
+//
+// The second computer's first copy. It lives here, not in Settings, because
+// a computer that has never had the profile has no profile open. Installing
+// also links the profile to the folder it came from (owner's decision) and
+// records the installed generation as its base, so its first send builds on
+// it instead of claiming no history (#149).
+// =========================================================================
+
+const SyncInstallState = { folder: null, providerId: 'generic', busy: false };
+
+function syncInstallAvailable() {
+    return typeof api.discoverFolderSync === 'function'
+        && typeof api.installFromSyncFolder === 'function'
+        && typeof api.pickFolderSyncFolder === 'function';
+}
+
+function wireSyncInstall() {
+    const btn = document.getElementById('syncInstallBtn');
+    if (!btn) return;
+    if (!syncInstallAvailable()) {
+        btn.classList.add('hidden');
+        return;
+    }
+    btn.addEventListener('click', openSyncInstallModal);
+    document.getElementById('syncInstallCloseBtn')
+        ?.addEventListener('click', () => closeModal('syncInstallModal'));
+    document.getElementById('syncInstallChooseBtn')
+        ?.addEventListener('click', chooseSyncInstallFolder);
+    document.getElementById('syncInstallProvider')?.addEventListener('change', (e) => {
+        SyncInstallState.providerId = e.target.value || 'generic';
+        if (SyncInstallState.folder) scanSyncInstallFolder();
+    });
+    document.getElementById('syncInstallFound')?.addEventListener('click', (e) => {
+        const install = e.target.closest('[data-sync-install]');
+        if (install) { installFromSyncFolder(install.dataset.syncInstall, install); return; }
+        const open = e.target.closest('[data-sync-open]');
+        if (open) selectProfile(Number(open.dataset.syncOpen), open);
+    });
+}
+
+async function openSyncInstallModal() {
+    showModalError('syncInstallError', '');
+    const select = document.getElementById('syncInstallProvider');
+    if (select && !select.options.length) {
+        try {
+            const providers = await api.getFolderSyncProviders();
+            select.innerHTML = providers
+                .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+                .join('');
+        } catch (e) {
+            select.innerHTML = '<option value="generic">Local folder</option>';
+        }
+        SyncInstallState.providerId = select.value || 'generic';
+    }
+    openModal('syncInstallModal');
+}
+
+async function chooseSyncInstallFolder() {
+    let picked;
+    try {
+        picked = await api.pickFolderSyncFolder();
+    } catch (e) {
+        showModalError('syncInstallError', 'Could not open the folder picker: ' + (e.message || e));
+        return;
+    }
+    if (!picked || !picked.folder) return;
+    SyncInstallState.folder = picked.folder;
+    document.getElementById('syncInstallFolder').textContent = picked.folder;
+    await scanSyncInstallFolder();
+}
+
+async function scanSyncInstallFolder() {
+    const mount = document.getElementById('syncInstallFound');
+    showModalError('syncInstallError', '');
+    mount.innerHTML = '<p class="profile-sync-install-row-hint">Looking in the folder&hellip;</p>';
+    let found;
+    try {
+        found = await api.discoverFolderSync(SyncInstallState.folder, SyncInstallState.providerId);
+    } catch (e) {
+        mount.innerHTML = '';
+        showModalError('syncInstallError', 'Could not read that folder: ' + (e.message || e));
+        return;
+    }
+    if (!found.length) {
+        // Not "there is nothing": the other computer's cloud client may not
+        // have finished uploading, and nothing here can see that.
+        mount.innerHTML = '<p class="profile-sync-install-row-hint">No WIMI profile in this '
+            + 'folder yet. If your other computer has only just sent one, its cloud client '
+            + 'may still be uploading - try again in a minute.</p>';
+        return;
+    }
+    mount.innerHTML = found.map(renderSyncInstallRow).join('');
+}
+
+function renderSyncInstallRow(entry) {
+    const head = entry.head;
+    const here = entry.local_profiles || [];
+    let title;
+    let hint;
+    if (head) {
+        const when = head.created_at ? new Date(head.created_at).toLocaleString() : '';
+        title = `Last sent from ${escapeHtml(head.device_name || 'another computer')}`
+            + (when ? ` on ${escapeHtml(when)}` : '');
+        hint = `${head.entries ?? '?'} entries &middot; generation ${head.generation}`;
+    } else {
+        title = 'A profile whose newest copy cannot be read yet';
+        hint = (entry.rejected || []).map(r => escapeHtml(`generation ${r.generation}: ${r.reason}`))
+            .join('; ') || 'It may still be uploading.';
+    }
+    let action = '';
+    if (here.length) {
+        // A second copy sharing this profile's id must never be linked, so
+        // the way forward is the copy already here -- Settings catches it up.
+        hint += ` &middot; already on this computer as @${escapeHtml(here[0].username)}`;
+        action = `<button type="button" class="btn btn-secondary" data-sync-open="${Number(here[0].user_id)}"`
+            + ` data-testid="profile-sync-install-open-existing">Open it</button>`;
+    } else if (head) {
+        action = `<button type="button" class="btn btn-primary" data-sync-install="${escapeHtml(entry.sync_id)}"`
+            + ` data-testid="profile-sync-install-go">Install</button>`;
+    }
+    return '<div class="profile-sync-install-row" data-testid="profile-sync-install-row">'
+        + `<div><div class="profile-sync-install-row-text">${title}</div>`
+        + `<div class="profile-sync-install-row-hint">${hint}</div></div>`
+        + action + '</div>';
+}
+
+async function installFromSyncFolder(syncId, button) {
+    if (SyncInstallState.busy) return;
+    SyncInstallState.busy = true;
+    if (button) button.disabled = true;
+    showModalError('syncInstallError', '');
+    showBusyOverlay('Bringing the profile over from the folder…');
+    try {
+        const result = await api.installFromSyncFolder(
+            SyncInstallState.folder, syncId, SyncInstallState.providerId);
+        hideBusyOverlay();
+        await loadProfiles();
+        const linked = result.linked
+            ? 'Linked to this folder, so it sends and receives from here.'
+            : 'Installed but not linked: ' + escapeHtml(result.link_error || 'unknown reason')
+              + ' You can link it from Settings.';
+        document.getElementById('syncInstallFound').innerHTML =
+            '<div class="profile-sync-install-row" data-testid="profile-sync-install-done">'
+            + `<div><div class="profile-sync-install-row-text">Installed as @${escapeHtml(result.username)}</div>`
+            + `<div class="profile-sync-install-row-hint">${linked}</div></div>`
+            + `<button type="button" class="btn btn-primary" data-sync-open="${Number(result.user_id)}"`
+            + ' data-testid="profile-sync-install-open">Open it</button></div>';
+    } catch (e) {
+        hideBusyOverlay();
+        showModalError('syncInstallError', e.message || String(e));
+        if (button) button.disabled = false;
+    } finally {
+        SyncInstallState.busy = false;
+    }
+}
+
 async function initializeProfileSelectPage() {
     wireGrid();
     wireModalDismissal();
@@ -988,6 +1196,7 @@ async function initializeProfileSelectPage() {
     wireExportModal();
     wireImportButton();
     wireImportModal();
+    wireSyncInstall();
     wireDeletedSection();
 
     try {

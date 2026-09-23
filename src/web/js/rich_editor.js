@@ -51,7 +51,25 @@ class RichEditor {
         this.placeholder = options.placeholder || 'Enter text here...';
         this.initialContent = options.initialContent || null;
         this.onChange = options.onChange || null;
+        // Fired once, after the ``init`` event has applied any content
+        // queued through setContent() before TinyMCE was ready. Until
+        // then isEmpty()/getContent() answer for an empty editor, so a
+        // caller that derives state from the editor's contents has to be
+        // told when those answers become true. Distinct from onChange
+        // because nothing the *user* did has changed.
+        this.onReady = options.onReady || null;
         this.readOnly = options.readOnly || false;
+        // Editor height in px.
+        //
+        // This is the option that actually decides how tall an editor
+        // looks. The ``autoresize`` plugin is NOT loaded, so TinyMCE's
+        // min_height/max_height are inert and its own 400px default for
+        // ``height`` wins -- which is why every editor came out the same
+        // size regardless of CSS min-heights on the iframe. min/max are
+        // still passed so they take effect if autoresize is ever added.
+        this.height = options.height || 400;
+        this.minHeight = options.minHeight || 200;
+        this.maxHeight = options.maxHeight || 500;
 
         // Editor state
         this.editor = null;
@@ -206,6 +224,23 @@ class RichEditor {
             block_formats: 'Paragraph=p; Heading 1=h1; Heading 2=h2; Heading 3=h3; Heading 4=h4; Heading 5=h5; Heading 6=h6',
 
             // Table options
+            //
+            // ``table_toolbar`` is deliberately empty. The table plugin
+            // registers its cell toolbar anchored to the ``<table>``
+            // element (``position: 'node'``), and once a table is taller
+            // than the editor's visible area neither the table's top nor
+            // its bottom edge is on screen -- the positioner then falls
+            // back to an inset placement against the editor's own bounds
+            // and pins the toolbar to the bottom edge of the editor,
+            // hundreds of pixels from the cell the caret is in (#20).
+            // Emptying the option stops the plugin registering at all;
+            // ``setup`` below re-registers the same items anchored to the
+            // selection. It has to be done this way round because the
+            // silver theme snapshots the context-toolbar registry when it
+            // renders its UI, which is after plugins initialise -- a
+            // second ``addContextToolbar('table', ...)`` from an ``init``
+            // handler would land too late to be seen.
+            table_toolbar: '',
             table_responsive_width: true,
             table_default_attributes: {
                 border: '1'
@@ -230,9 +265,10 @@ class RichEditor {
             paste_webkit_styles: 'none',
             paste_remove_styles_if_webkit: true,
 
-            // Auto-resize
-            min_height: 200,
-            max_height: 500,
+            // Sizing. height is the effective one; see the constructor.
+            height: this.height,
+            min_height: this.minHeight,
+            max_height: this.maxHeight,
             autoresize_bottom_margin: 20,
 
             // Placeholder
@@ -247,6 +283,21 @@ class RichEditor {
             // Setup callback for custom buttons and events
             setup: (editor) => {
                 self.editor = editor;
+
+                // Table cell toolbar, anchored to the selection rather
+                // than to the table (see table_toolbar above). Registered
+                // here in setup() so it survives plugin initialisation;
+                // the items are the table plugin's own defaults.
+                editor.ui.registry.addContextToolbar('tablecells', {
+                    predicate: (node) => editor.dom.is(node, 'table')
+                        && editor.getBody().contains(node)
+                        && editor.dom.isEditable(node.parentNode),
+                    items: 'tableprops tabledelete'
+                        + ' | tableinsertrowbefore tableinsertrowafter tabledeleterow'
+                        + ' | tableinsertcolbefore tableinsertcolafter tabledeletecol',
+                    scope: 'node',
+                    position: 'selection'
+                });
 
                 // Register custom math button
                 editor.ui.registry.addButton('math', {
@@ -311,6 +362,12 @@ class RichEditor {
                             }
                         }
                     });
+
+                    // Last: the editor now answers isEmpty()/getContent()
+                    // truthfully, and any queued content is in it.
+                    if (self.onReady) {
+                        self.onReady();
+                    }
                 });
             }
         });
@@ -572,8 +629,22 @@ class RichEditor {
      */
     getContent() {
         if (!this.editor || !this.isInitialized) {
-            console.log('[RichEditor] getContent called but editor not ready, returning empty');
-            return { delta: null, html: '' };
+            // TinyMCE has not mounted yet, so it holds nothing to read
+            // back — but this object usually does, in the content that
+            // setContent() queued or the constructor's initialContent.
+            // Answering '' here is what let a save landing in the window
+            // between mount and `init` persist a blank over a real note
+            // (#47): collectFormData() treats getContent() as the truth
+            // and writes it straight to the database. Answer with the
+            // queued content instead, so a save in the window is a
+            // no-op rewrite rather than data loss. A genuinely emptied
+            // editor still reads empty: the user cannot empty one they
+            // have not interacted with, and by then `init` has fired.
+            const html = this._queuedHtml();
+            console.log(
+                '[RichEditor] getContent called before init, answering with '
+                + 'queued content, length:', html.length);
+            return { delta: null, html: html, pending: true };
         }
 
         const html = this.editor.getContent();
@@ -606,6 +677,58 @@ class RichEditor {
     }
 
     /**
+     * Normalise any accepted content shape to an HTML string.
+     *
+     * Accepts the same inputs as {@link setContent}: a raw HTML string,
+     * an object with an ``html`` property, a legacy Quill Delta (either
+     * bare ``{ops}`` or wrapped as ``{delta: {ops}}``), or null/undefined
+     * meaning "empty". Returns ``null`` — distinct from the empty string —
+     * for a shape it does not recognise, so callers can tell "no content"
+     * from "unusable content".
+     *
+     * @param {Object|string|null} content
+     * @returns {string|null} HTML, or null if the shape is unrecognised
+     */
+    _contentToHtml(content) {
+        if (typeof content === 'string') {
+            return content;
+        }
+        if (content === null || content === undefined) {
+            return '';
+        }
+        if (content.html) {
+            return content.html;
+        }
+        if (content.ops) {
+            // Legacy Quill Delta format - no html sibling to fall back on.
+            return this._convertDeltaToHtml(content);
+        }
+        if (content.delta && content.delta.ops) {
+            return this._convertDeltaToHtml(content.delta);
+        }
+        return null;
+    }
+
+    /**
+     * The content this editor is holding but has not mounted yet.
+     *
+     * Between construction and TinyMCE's ``init`` event the editor owns
+     * content it cannot answer questions about: whatever ``setContent()``
+     * queued, or the ``initialContent`` the constructor was given. This
+     * returns that HTML so {@link getContent} and {@link isEmpty} can tell
+     * the truth during the window instead of reporting an empty editor.
+     *
+     * @returns {string} HTML (empty string when nothing is queued)
+     */
+    _queuedHtml() {
+        const queued = this._pendingContent !== null
+            ? this._pendingContent
+            : this.initialContent;
+        if (queued === null || queued === undefined) return '';
+        return this._contentToHtml(queued) || '';
+    }
+
+    /**
      * Internal method to actually set content (called when editor is ready)
      * @param {Object|string} content - HTML string, or object with html property, or legacy Quill Delta
      */
@@ -617,38 +740,8 @@ class RichEditor {
 
         console.log('[RichEditor] _setContentInternal called with:', typeof content);
 
-        let htmlContent = '';
-
-        if (typeof content === 'string') {
-            // HTML string - use directly
-            htmlContent = content;
-            console.log('[RichEditor] Content is HTML string, length:', content.length);
-        } else if (content && content.html) {
-            // Object with html property
-            htmlContent = content.html;
-            console.log('[RichEditor] Content has html property, length:', content.html.length);
-        } else if (content && content.ops) {
-            // Legacy Quill Delta format - attempt to extract text or use HTML fallback
-            console.warn('[RichEditor] Quill Delta format detected. Using HTML fallback if available.');
-            // If there's an html property in the parent, use that
-            if (content.html) {
-                htmlContent = content.html;
-            } else {
-                // Try to convert simple deltas (text only)
-                htmlContent = this._convertDeltaToHtml(content);
-            }
-        } else if (content && content.delta && content.delta.ops) {
-            // Object with delta property containing ops
-            console.warn('[RichEditor] Legacy delta object detected. Using HTML if available.');
-            if (content.html) {
-                htmlContent = content.html;
-            } else {
-                htmlContent = this._convertDeltaToHtml(content.delta);
-            }
-        } else if (content === null || content === undefined) {
-            // Clear content
-            htmlContent = '';
-        } else {
+        const htmlContent = this._contentToHtml(content);
+        if (htmlContent === null) {
             console.warn('[RichEditor] _setContentInternal received unexpected content type:', content);
             return;
         }
@@ -781,11 +874,44 @@ class RichEditor {
     }
 
     /**
+     * Emptiness test for a raw HTML string.
+     *
+     * Used only for content TinyMCE has not mounted yet — once it has,
+     * {@link isEmpty} asks the editor for its text, which is more
+     * accurate. Mirrors that check: text-empty still counts as
+     * non-empty when the markup carries an image, a math span or a
+     * table.
+     *
+     * @param {string} html
+     * @returns {boolean}
+     */
+    _isHtmlEmpty(html) {
+        if (!html) return true;
+        const hasEmbeds = html.includes('<img')
+            || html.includes('math-tex')
+            || html.includes('<table');
+        if (hasEmbeds) return false;
+        const text = html
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim();
+        return text.length === 0;
+    }
+
+    /**
      * Check if the editor is empty
      * @returns {boolean} True if editor has no meaningful content
      */
     isEmpty() {
-        if (!this.editor || !this.isInitialized) return true;
+        if (!this.editor || !this.isInitialized) {
+            // Same reasoning as getContent(): before `init` the queued
+            // content is the editor's real content. Reporting "empty"
+            // here is what made validateForm() flag a complete entry as
+            // a draft (#32, papered over with the onReady hook the init
+            // handler fires) and what made applyAutofillData() overwrite
+            // queued content with an autofill source's.
+            return this._isHtmlEmpty(this._queuedHtml());
+        }
 
         const content = this.editor.getContent({ format: 'text' }).trim();
         if (content.length === 0) {

@@ -86,11 +86,14 @@ def test_backfill_applies_via_runner(fresh_conn):
         _description_of(fresh_conn, gap_id)
         == DEFAULT_DEFINITIONS["Second-Guessing"]
     )
-    # Ledger stamped at v10.
+    # Ledger stamped v10. Asserted by presence, not by MAX(version):
+    # this test is about m010 being recorded, and MAX ties it to whatever
+    # happens to be the newest migration in the whole registry, so adding
+    # any later one fails a test that has nothing to do with it.
     row = fresh_conn.execute(
-        "SELECT MAX(version) FROM schema_migrations"
+        "SELECT COUNT(*) FROM schema_migrations WHERE version = 10"
     ).fetchone()
-    assert row[0] == 10
+    assert row[0] == 1
 
 
 def test_rerun_is_idempotent(fresh_conn):

@@ -4,6 +4,14 @@ Run this file to start the WIMI desktop application
 
 Supports both development mode and frozen (PyInstaller) builds.
 Use --mcp-server flag to run the embedded MCP server instead of the GUI.
+
+**This file is the frozen entry point.** ``wimi.spec`` and
+``wimi_macos.spec`` both name it as the PyInstaller Analysis script, so
+in a shipped binary this module is ``__main__`` and ``run_wimi.py`` is
+not in the bundle at all. The ``__main__`` block at the bottom therefore
+*is* the release build's command line, and it parses through the shared
+``app.cli`` the launcher uses — see #138 for what happened when it did
+not.
 """
 
 import argparse
@@ -56,7 +64,7 @@ def _run_mcp_server():
     return 0
 
 
-def resolve_startup_profile(master_db, UserDatabase):
+def resolve_startup_profile(master_db, UserDatabase, error_logger=None):
     """Decide which profile (if any) to auto-open at launch.
 
     Rules, in order:
@@ -86,12 +94,26 @@ def resolve_startup_profile(master_db, UserDatabase):
 
     def _open_profile(user):
         db_path = master_db.ensure_user_database(user.id)
+        # error_logger is load-bearing, not decoration: the database layer
+        # guards every log call with `if getattr(self, 'error_logger', None)`,
+        # so omitting it silently disables ALL database logging.
+        # device_id names the MACHINE and must not travel with the
+        # profile, so it comes from master's app_settings (#126). The
+        # profile uuid is the opposite: it lives in the user database
+        # and travels, and master only keeps a re-derived mirror (#129).
         user_db = UserDatabase(
             db_path=db_path,
             user_id=user.id,
-            username=user.username
+            username=user.username,
+            error_logger=error_logger,
+            device_id=master_db.get_device_id(),
         )
         master_db.touch_user_last_active(user.id)
+        try:
+            master_db.record_profile_uuid(user.id, user_db.get_profile_uuid())
+        except Exception as exc:
+            # An un-mirrored id costs a registry lookup, never the launch.
+            print(f"Warning: could not mirror profile id: {exc}")
         return user_db
 
     # Rule 2: explicit "always ask" preference wins
@@ -125,25 +147,34 @@ def main(args: Optional[argparse.Namespace] = None):
     """Main entry point for the application.
 
     Args:
-        args: Parsed CLI arguments from ``run_wimi.py``. ``None`` is
-            accepted for backward-compatibility when this module is
-            invoked directly (e.g. ``python -m app.main``); in that case
-            we fall back to the historical ``sys.argv`` peek for the
-            ``--mcp-server`` flow and treat all test-mode flags as
-            unset.
+        args: Parsed CLI arguments, from ``app.cli.parse_cli_args``.
+            Both real entry points pass one — ``run_wimi.py`` in
+            development and this module's own ``__main__`` block in a
+            frozen build. ``None`` is accepted only for programmatic
+            callers (tests, ``python -c "from app.main import main"``)
+            and means "no flags"; it used to be the *frozen* path, which
+            is exactly why every test-mode flag was silently dropped
+            from the shipped binary (#138). Do not restore a code path
+            that reaches here with ``None`` from a command line.
     """
-    # Check for MCP server mode before importing GUI dependencies. The
-    # ``args is None`` branch preserves the legacy direct-invocation
-    # contract; ``run_wimi.py`` always passes a parsed namespace.
-    if args is None:
-        if '--mcp-server' in sys.argv:
-            return _run_mcp_server()
-    else:
-        if '--mcp-server' in sys.argv:
-            return _run_mcp_server()
+    # Before anything can print. On Windows a redirected stdout encodes
+    # with the console codepage, and a non-ASCII character then raises
+    # UnicodeEncodeError from inside print() — which killed the frozen
+    # build during startup (#137). The banner below is the first writer,
+    # so this has to come first. Import is local because ``src`` only
+    # joins ``sys.path`` at module import time, above.
+    from console_encoding import configure_stdio
+    configure_stdio()
 
-    # Test-mode flags from the launcher. Default to "off" when run
-    # without the launcher so direct invocations behave exactly as before.
+    # Check for MCP server mode before importing GUI dependencies.
+    # ``--mcp-server`` is declared in ``app.cli`` so strict parsing
+    # accepts it, but the dispatch stays a ``sys.argv`` peek so a
+    # programmatic caller passing ``args=None`` behaves as it always has.
+    if getattr(args, 'mcp_server', False) or '--mcp-server' in sys.argv:
+        return _run_mcp_server()
+
+    # Test-mode flags from the CLI. Default to "off" for a programmatic
+    # caller that passed no namespace at all.
     test_mode_active: bool = bool(getattr(args, 'test_mode', False))
     debug_port: Optional[int] = getattr(args, 'debug_port', None)
     app_data_override: Optional[str] = getattr(args, 'app_data_dir', None)
@@ -156,18 +187,37 @@ def main(args: Optional[argparse.Namespace] = None):
     # ------------------------------------------------------------------
     if test_mode_active:
         # Defensive: --test-mode + missing port should never happen
-        # because run_wimi._resolve_test_mode_args fills it in, but if
+        # because app.cli.resolve_test_mode_args fills it in, but if
         # someone calls main() directly with a hand-built namespace we
         # want a loud error rather than passing None to int().
         if debug_port is None:
             raise RuntimeError(
                 "main() invoked with test_mode=True but no debug_port; "
-                "run_wimi.py is responsible for resolving this."
+                "app.cli.resolve_test_mode_args is responsible for this."
             )
         os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(debug_port)
         # Quiet the noisy ``qt.webenginecontext.info`` category which
         # otherwise pollutes the test parent process's stdout/stderr.
         os.environ['QT_LOGGING_RULES'] = 'qt.webenginecontext.info=false'
+        # Keep the renderer producing frames even when nothing is
+        # watching. A driven session spends its life behind the terminal
+        # that is driving it, and Chromium notices: Windows native
+        # occlusion detection marks the window hidden and backgrounds the
+        # renderer. Screenshots go through ``Page.captureScreenshot``,
+        # which waits for a compositor frame, so a throttled renderer
+        # turns a capture into a stall.
+        #
+        # Belt and braces rather than a fix for anything observed: the
+        # stale-frame problem this looks like it addresses was really a
+        # detached page (see ``test_mode.install_on_view``), and these
+        # flags did nothing for it.
+        os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = ' '.join(filter(None, [
+            os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS', ''),
+            '--disable-features=CalculateNativeWinOcclusion',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-background-timer-throttling',
+        ]))
 
     # ------------------------------------------------------------------
     # Determine paths. In test mode the default app_data root is
@@ -208,7 +258,6 @@ def main(args: Optional[argparse.Namespace] = None):
     from database import MasterDatabase, UserDatabase
     from app_logging import ErrorLogger
     from app.main_window import run_application
-    from app.media_scheme_handler import register_media_scheme
     from app.plugin_manager import PluginManager
     from app import test_mode
 
@@ -221,11 +270,8 @@ def main(args: Optional[argparse.Namespace] = None):
     else:
         print("   [Running in development mode]")
     if test_mode_active:
-        print(f"   [Test mode active — CDP on port {debug_port}]")
+        print(f"   [Test mode active - CDP on port {debug_port}]")
     print()
-
-    # IMPORTANT: Register media URL scheme BEFORE creating QApplication
-    register_media_scheme()
 
     print(f"App data directory: {app_data_dir}")
 
@@ -259,7 +305,9 @@ def main(args: Optional[argparse.Namespace] = None):
         print("[test-mode] Skipping startup profile resolution.")
         user_db = None
     else:
-        user_db = resolve_startup_profile(master_db, UserDatabase)
+        user_db = resolve_startup_profile(
+            master_db, UserDatabase, error_logger=error_logger
+        )
     initial_page = 'index.html' if user_db is not None else 'profile_select.html'
     print()
 
@@ -303,13 +351,18 @@ def main(args: Optional[argparse.Namespace] = None):
             debug_port=debug_port,
         )
 
+    # Without this MainWindow falls through to `error_logger or
+    # ErrorLogger(...)` and mints a SECOND logger with its own file, so
+    # database and plugin records land in one file and bridge records in
+    # another.
     exit_code = run_application(
         master_db=master_db,
         user_db=user_db,
         dev_mode=dev_mode,
         app_data_dir=app_data_dir,
         plugin_manager=plugin_manager,
-        initial_page=initial_page
+        initial_page=initial_page,
+        error_logger=error_logger
     )
 
     return exit_code
@@ -386,5 +439,43 @@ def _run_test_mode(
     return app.exec()
 
 
+def _entry_point() -> int:
+    """Parse this process's command line and run the app.
+
+    **This is the shipped binary's entry point**, not a fallback:
+    ``wimi.spec:91`` and ``wimi_macos.spec:91`` freeze
+    ``src/app/main.py``, so a frozen WIMI never executes ``run_wimi.py``
+    and never saw the parser that used to live there. What stood here
+    was ``sys.exit(main())`` — no arguments — so ``--test-mode``,
+    ``--debug-port`` and ``--app-data-dir`` were read off a ``None``
+    namespace by ``getattr(..., default)`` and dropped without a word:
+    the CDP port never opened, and a caller pointing the binary at a
+    scratch directory quietly got the real ``app_data/`` instead (#138).
+
+    Parsing goes through ``app.cli``, the same module ``run_wimi.py``
+    uses, so the flag surface and the 12000-12100 port validation cannot
+    fork between the launcher and the artifact users actually get.
+    """
+    # Before argparse, which writes usage and errors to the streams.
+    from console_encoding import configure_stdio
+    configure_stdio()
+
+    from app.cli import parse_cli_args
+
+    args = parse_cli_args()
+
+    if args.test_mcp_server:
+        # Development-checkout tooling: ``wimi_test_mcp`` is excluded
+        # from frozen builds (it drives WIMI, it does not ship inside
+        # it). Say so rather than repeat #138's accept-and-ignore.
+        sys.stderr.write(
+            "error: --test-mcp-server is only available from the "
+            "development checkout: python run_wimi.py --test-mcp-server\n"
+        )
+        return 2
+
+    return main(args)
+
+
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(_entry_point())

@@ -77,9 +77,17 @@
                 <span class="separator">•</span>
                 <span id="total-weight" data-testid="tree-total-weight">Total: 0%</span>
                 <span class="separator">•</span>
-                <span id="weight-config-badge" class="weight-config-badge" data-testid="tree-weight-badge">
-                    <span class="badge-icon">⚙️</span>
-                    <span class="badge-text">User Defined</span>
+                <!-- Ships hidden and empty: the badge names the exam's weight
+                     source, which only `updateWeightConfigBadge` knows once
+                     `getWeightConfig` has resolved. Shipping the gear and
+                     "User Defined" told a student with imported official
+                     weights that they were hand-entered (#89); shipping them
+                     empty but visible would trade that for a blank chip, so
+                     the badge is revealed by JS like the page's other
+                     deferred chrome. -->
+                <span id="weight-config-badge" class="weight-config-badge hidden" data-testid="tree-weight-badge">
+                    <span class="badge-icon"></span>
+                    <span class="badge-text"></span>
                 </span>
             </div>
         </div>
@@ -93,7 +101,11 @@
                     <div class="dimension-info-header">
                         <span class="dimension-info-icon">&#128194;</span>
                         <span class="dimension-info-name" id="dimension-info-name" data-testid="tree-dimension-info-name">Dimension Name</span>
-                        <span class="dimension-info-badge" id="dimension-info-badge" data-testid="tree-dimension-info-badge">Required</span>
+                        <!-- Empty: `updateDimensionInfo` writes Required,
+                             Multi-select, both, or Optional -- and Optional is
+                             the fallback, so shipping "Required" was not even
+                             this element's JS-side default (#89). -->
+                        <span class="dimension-info-badge" id="dimension-info-badge" data-testid="tree-dimension-info-badge"></span>
                     </div>
                     <p class="dimension-info-description" id="dimension-info-description" data-testid="tree-dimension-info-description">
                         Dimension description will appear here
@@ -383,11 +395,22 @@
             <p class="modal-message">
                 Are you sure you want to delete
                 <span class="modal-exam-name" id="delete-node-name" data-testid="tree-delete-modal-subject-name">this subject</span>?
-                <br><br>
-                <span id="delete-children-warning" class="text-warning hidden" data-testid="tree-delete-modal-children-warning">
-                    This will also delete all child subjects!
-                </span>
             </p>
+            <!-- Issue #15 decision 2: one global choice for all exclusive
+                 direct children, not a per-child toggle. Hidden entirely
+                 when the subject has none, because there is nothing to
+                 decide. -->
+            <label class="delete-promote-row hidden" id="delete-promote-row"
+                   data-testid="tree-delete-modal-promote-row">
+                <input type="checkbox" id="delete-promote-children"
+                       data-testid="tree-delete-modal-promote-toggle">
+                <span id="delete-promote-label">Keep direct children — move them to the top level</span>
+            </label>
+            <!-- Issue #15 decision 5: state what will happen, truthfully,
+                 before the user confirms. Filled from
+                 api.getSubjectDeletePreview. -->
+            <div class="delete-preview" id="delete-preview"
+                 data-testid="tree-delete-modal-preview">Checking what this will affect…</div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="delete-node-cancel" data-testid="tree-delete-modal-cancel">Cancel</button>
                 <button class="btn btn-danger" id="delete-node-confirm" data-testid="tree-delete-modal-confirm">Delete</button>
@@ -399,39 +422,98 @@
     <input type="file" id="import-file" data-testid="tree-import-file-input" accept=".json" style="display: none;">
 
     <!-- Import Help Modal -->
-    <!-- Inline source for the import help modal. Embedded (rather than
+    <!-- GENERATED BLOCK — DO NOT EDIT BY HAND (issue #69).
+         Inline source for the import help modal. Embedded (rather than
          fetched from docs/) so the guide renders identically in dev and
-         frozen builds; keep in sync with docs/examples/subject_tree_import_format.md -->
+         frozen builds, where docs/ is not shipped and there is no
+         filesystem read to fall back on.
+
+         The single source is docs/examples/subject_tree_import_format.md.
+         Edit that file, then run:
+
+             python scripts/check_import_guide_sync.py --write
+
+         to regenerate this block and docs/examples/subject_tree_import.schema.json.
+         The same script with no arguments is a CI gate: it fails if this
+         block and the markdown have drifted, which they already had over
+         #61 and #62 before the gate existed. -->
     <script type="text/markdown" id="import-help-source">
 # Subject Tree Import Format
 
 This document describes the JSON format for importing subject hierarchies into WIMI.
 
+## How to read this guide
+
+Three kinds of statement appear below, and they are marked so you never
+have to guess which one you are reading:
+
+| Marker | Meaning |
+|--------|---------|
+| **Rule** | Enforced. Breaking it stops the import, and the modal says why. |
+| **Warning** | Allowed. WIMI imports the file as written and tells you what looked odd. |
+| **Guidance** | Advice. Nothing checks it, and a good file may ignore it. |
+
+Anything with no marker is a plain statement of what WIMI does.
+
 ## Overview
 
 The import format allows you to define:
-- Exam context (name, description, source information)
 - Hierarchical subject structure (unlimited nesting depth)
-- Weight configurations (official ranges, relative weights, user estimates)
+- Weight configurations (official ranges and single values)
+- Synonyms for each subject, as aliases
+- Sibling order
+
+Importing does **not** create or rename an exam. The file is merged into
+the exam context you have open in the tree editor, and for a
+multi-dimensional exam into the dimension you are looking at.
 
 ## File Structure
 
 ```json
 {
-  "exam_context": { ... },
-  "subjects": [ ... ]
+  "root_nodes": [ ]
 }
 ```
 
-## Exam Context
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `root_nodes` | array | Yes, or `subjects` | The top-level subjects. This is what WIMI's own export writes. |
+| `subjects` | array | Yes, or `root_nodes` | The same thing under the older spelling. Accepted so files written to earlier versions of this guide still import. |
+| `dimension_id` | number | No | For a multi-dimensional exam. Ignored when you import from a dimension's tree view, which supplies its own. |
+| `exam_context` | object | No | Descriptive only. See below. |
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Exam identifier (e.g., "USMLE Step 1", "SAT", "CPA REG") |
-| `description` | string | No | Detailed exam description |
-| `source.name` | string | No | Name of content outline source |
-| `source.url` | string | No | URL to official content outline |
-| `source.retrieved_date` | string | No | Date source was accessed (YYYY-MM-DD) |
+**Rule:** the file must be a JSON object carrying `root_nodes` or
+`subjects`, and that key's value must be an array. If a file somehow
+carries both, `root_nodes` wins.
+
+**A file whose subject array is empty removes nothing.** A misspelled
+`root_nodes` key arrives at the importer as an empty list, and "this
+file lists no subjects" must never be read as "remove every subject".
+The preview says the file is empty instead.
+
+### `exam_context` is descriptive only
+
+Older versions of this guide documented an `exam_context` object with
+`name`, `description` and a `source` block. Import reads none of it: the
+exam you are importing into is the one open in the tree editor, and no
+part of `exam_context` is stored. It is kept in the format because it
+documents the file for whoever reads it next, and because thousands of
+existing files carry it.
+
+```json
+{
+  "exam_context": {
+    "name": "USMLE Step 1",
+    "description": "United States Medical Licensing Examination Step 1",
+    "source": {
+      "name": "NBME Content Outline 2024",
+      "url": "https://www.usmle.org/prepare-your-exam/step-1-materials/step-1-content-outline",
+      "retrieved_date": "2026-09-14"
+    }
+  },
+  "root_nodes": [ ]
+}
+```
 
 ## Subject Structure
 
@@ -439,88 +521,411 @@ Each subject can contain:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Subject name |
-| `level_type` | string | Yes | Hierarchy level (e.g., "System", "Topic", "Subtopic") |
-| `weight` | object | No | Weight configuration (see below) |
-| `children` | array | No | Nested child subjects |
+| `name` | string | Yes | Subject name. Must contain at least one non-space character. |
+| `id` | string or number | No | Stable identifier, used when the file is imported again. See **Re-importing a corrected file**. |
+| `level_type` | string | No | The name of this subject's level. See **What `level_type` is for**. |
+| `weight` | object or number | No | Weight configuration. See **Weight semantics**. |
+| `aliases` | array | No | Synonyms for this subject. See **Aliases**. |
+| `sort_order` | number | No | Display position among siblings. See **Sibling order**. |
+| `children` | array | No | Nested child subjects, same shape as this table. |
 
-## Weight Configuration
+### Unknown fields are ignored
 
-Weights can be specified in several ways:
+WIMI reads the fields above and nothing else. Any other key — at the top
+level, on a subject, or inside `weight` — is **silently ignored**, not
+rejected. WIMI's own export writes several such keys (`exam_weight_low`,
+`exam_weight_high`, `is_alias_appearance`, `import_id`, `aliasesString`,
+a top-level `_metadata` block), and an export re-imports cleanly because
+of it.
 
-### 1. Absolute Weights (Range)
-For subjects with official exam weight ranges:
+The cost of that leniency is that a **misspelled** field is also
+ignored, with no message: a subject carrying `"weights"` or `"alias"`
+imports as though it carried nothing. Validate against the schema at the
+end of this guide if you are generating files by script.
+
+## Names: case, whitespace and Unicode
+
+Names are stored **exactly as written**, apart from leading and trailing
+whitespace, which is trimmed. Nothing else is normalised.
+
+- **Unicode is kept verbatim.** Dashes (– —), accents (ü é), Greek (α β)
+  and any other non-ASCII text are stored and displayed as given. There
+  is no transliteration and no Unicode normalisation, so `é` written as
+  one code point and `é` written as `e` + a combining accent are two
+  different names to WIMI.
+- **Internal whitespace is kept verbatim.** A name copied out of a PDF
+  as `non- alcoholic` keeps that space. Only the ends are trimmed.
+- **Rule:** a name that is empty, or is only whitespace, stops the
+  import with a message naming its parent.
+
+**Case:** two siblings whose names differ only in case are ambiguous and
+should be avoided.
+
+- Matching an existing subject on re-import is **case-insensitive**, so
+  `Neoplasms` in the file matches a stored `neoplasms`.
+- Creating a subject checks for a duplicate **case-sensitively**, so
+  `Neoplasms` and `neoplasms` can both exist under one parent.
+
+The two halves disagree, which is exactly why case-differing siblings
+are a bad idea: a file containing both imports the first time and can
+fail on re-import. A parent and its child may differ only in case
+(`Shock` containing `shock`) with no trouble at all — the restriction is
+between siblings.
+
+**Guidance:** pick one capitalisation per name and keep it. If your
+source document writes the same topic two ways, make one the name and
+the other an alias.
+
+## What `level_type` is for
+
+`level_type` is the **name of the level a subject sits at** — `System`,
+`Domain`, `Topic`, `Skill`. It is free text, stored per subject exactly
+as given, and it is used in four places:
+
+1. **As a label.** The tree editor shows it on each subject's chip and
+   in the details panel.
+2. **As a grouping key.** The tree editor's "Subjects by level" section
+   counts subjects by their stored `level_type`, not by their depth, so
+   two subjects at different depths that share a level name are counted
+   together.
+3. **As the basis for the next level down.** When you add a child in the
+   tree editor, the level offered is derived from the *parent's stored
+   `level_type`* — its position in the exam's configured level list,
+   plus one. A level name that is not in that list is offered back as
+   itself.
+4. **As an analytics filter.** Cross-dimension correlation filters and
+   groups subjects by the literal `level_type` string, so two subjects
+   are "the same level" there only if they spell it identically.
+
+So it is more than decoration, but it is matched **by name, not by
+depth**. Two consequences:
+
+**Guidance:** spell a level the same way everywhere you mean the same
+level. `Topic` and `topic` are two levels as far as points 2 and 4 are
+concerned.
+
+**Guidance:** do **not** try to keep level types uniform by depth. Real
+outlines are not uniform-depth — one branch may run three levels and
+another eight — and forcing a shared name onto subjects that mean
+different things is worse than letting depth vary. Keep level types
+consistent *within a branch* and consistent *in meaning*, and let the
+depth fall where the source document puts it.
+
+**Omitting `level_type` is not free on re-import.** When the field is
+absent, WIMI substitutes the exam's configured level name for that
+*depth* (and `Level 4`, `Level 5`, … past the end of the configured
+list). On a re-import that means an omitted `level_type` will overwrite
+a level name you set by hand. Write the field if you care about it.
+
+## Weight semantics
+
+This section is the answer to "what does the number actually mean".
+
+### A weight is a percentage of the whole exam
+
+At every depth. Not a percentage of its parent.
+
+This is how published blueprints write their numbers, and it has three
+consequences worth stating outright:
+
+- **Absolute weights may appear at any level.** The examples further
+  down mostly put them at the top, which is an accident of those
+  examples and not a rule.
+- **A child may legitimately exceed its parent.** Step 2 CK publishes
+  Nutrition (15–20%) and Multisystem Processes & Disorders (4–8%) as
+  separate top-level rows — but nothing stops you filing nutrition under
+  multisystem in your own tree, and then a 15–20% child sits inside a
+  4–8% parent using two numbers taken straight from the blueprint. Your
+  hierarchy is yours; the weights stay exam-wide either way. This is
+  **not** an error, nothing validates against it, and nothing rescales it.
+- **Any two weights anywhere in the tree are directly comparable**, which
+  is what makes "what is my heaviest untouched topic" a meaningful
+  question across branches.
+
+### Coverage: accept the published numbers, warn, never normalise
+
+The weights of the top-level subjects will often not total 100%, and
+that is usually the document's fault rather than yours. Overlapping
+classification is a genuine property of blueprints — USMLE's own
+Clinical Science table exceeds 100% *by design*, because an item can
+classify to several disciplines at once. Two real USMLE files totalled
+78–113% and 84–153%.
+
+WIMI therefore:
+
+- imports exactly what the document says;
+- **never rescales** — normalising would store numbers that do not match
+  the source you copied from, which silently falsifies a published
+  document;
+- reports the total so a genuine typo is visible.
+
+**Warning:** if the top-level weights do not span 100% at all — their
+low total is above 100, or their high total is below it — the import
+warns. A total outside 100% is **never** a hard failure. The check is
+skipped entirely for a file whose top-level subjects carry no weights.
+
+### An omitted weight means zero, on import only
+
+**On import, a subject with no `weight` is 0%: the blueprint did not
+weight it.** This is the non-obvious half, because the tree editor's own
+weight field means the opposite.
+
+| Where | An empty weight means |
+|-------|-----------------------|
+| An import file | 0% — the blueprint did not weight this |
+| The tree editor's weight field | Share out the remainder among siblings |
+
+The tree editor's help text ("Leave empty to auto-distribute among
+siblings") is correct for the tree editor. It does not describe imports.
+
+### Zero is a weight, and `derived` does not mean `locked`
+
+- **`0` is valid data, not an error.** Step 2 CK really does publish two
+  tasks at 0%. WIMI stores a zero exactly like any other number.
+- **`derived` records only that WIMI computed the number** rather than
+  reading it from a source document. It says nothing about whether the
+  number can be edited. Locking is a separate, explicit choice.
+
+### Locked weights and auto-balance
+
+Auto-balancing never fights a lock. Rebalancing siblings is opt-in — no
+write to one subject's weight silently rewrites its siblings — and when
+it does run it **excludes** anchored and locked edges. A weight you
+locked stays where you put it, and the remainder is shared out among the
+weights you did not lock.
+
+### Weight forms
+
+`weight` may be an object or a bare number. Both are supported, and both
+will stay supported.
+
+| Form | Example | Result |
+|------|---------|--------|
+| Range | `{"low": 11, "high": 15}` | 11–15% of the exam |
+| Single value | `{"value": 50}` | Exactly 50% |
+| Low only | `{"low": 50}` | Exactly 50%, because `high` defaults to `low` |
+| Bare number | `50` | Exactly 50%. Identical to `{"value": 50}` |
+
+The object form is canonical: it is what the examples use, what the
+schema describes first, and the only form that can express a range. The
+bare number is a shorthand kept for files written against earlier
+versions of this guide.
+
+**Rule:** `low` must be less than or equal to `high` — except that WIMI
+does not stop an import over it. A file with `low` above `high` imports
+as written and **warns**, because rejecting a 2,000-subject outline over
+one transposed pair helps nobody.
+
+**Warning:** a weight below 0 or above 100 imports as written and warns.
+
+### Fields inside `weight` that import does not read
+
+| Field | What happens |
+|-------|--------------|
+| `source` | Ignored by import. The subject keeps the default weight source. |
+| `locked` | Ignored by import. Lock the weight in the tree editor instead. |
+| `relative` | Ignored by import, and there is nothing to read it as — a weight is a share of the exam, never of its parent. A subject whose only weight is `{"relative": 25}` imports as 0%. |
+
+These three appear in files written against earlier versions of this
+guide, which documented them. They have never been applied by the
+importer. They are harmless — they are ignored like any other unknown
+field — but do not expect them to do anything.
+
+## Aliases
+
+An alias is another name for the same subject: an eponym, an acronym, a
+colloquialism, a synonym your question bank uses. Aliases feed subject
+search, so a student searching "shortness of breath" finds Dyspnea.
+
+**Put synonyms here, not in the name.** A name is the subject's
+identity, and packing synonyms into it —
+`Dyspnea, shortness of breath, breathlessness` — makes every screen that
+shows a subject show the whole list, and makes search treat the
+synonyms as part of the subject's identity rather than as ways of
+reaching it.
 
 ```json
 {
-  "weight": {
-    "low": 11,
-    "high": 15,
-    "source": "official",
-    "locked": true
-  }
+  "id": "2.1.4",
+  "name": "Dyspnea",
+  "level_type": "Topic",
+  "aliases": [
+    { "name": "shortness of breath", "type": "colloquial" },
+    { "name": "SOB", "type": "acronym", "notes": "As written in UWorld" },
+    { "name": "breathlessness", "type": "alternate_name", "is_primary": true }
+  ]
 }
 ```
 
-### 2. Absolute Weights (Single Value)
-When a subject has an exact weight percentage (not a range), you have two options:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | The alias itself. Trimmed; a blank one is skipped. |
+| `type` | string | No | One of `eponym`, `acronym`, `alternate_name`, `colloquial`. Anything else becomes `alternate_name`. Defaults to `alternate_name`. |
+| `is_primary` | boolean | No | Marks the preferred alias. Defaults to `false`. |
+| `notes` | string | No | Free text about where the alias comes from. |
 
-**Option A: Using `value` shorthand (recommended)**
+How aliases behave on import:
+
+- **Aliases are added, never removed.** Dropping an alias from the file
+  does not delete it from the subject.
+- **Duplicates are skipped**, comparing case-insensitively, both within
+  the file and against the aliases the subject already has. Re-importing
+  the same file adds nothing.
+- **An alias that will not write is a warning, not a failure.** One bad
+  alias never costs you the rest of the import.
+- An unrecognised `type` is quietly corrected to `alternate_name`
+  rather than refused.
+
+### The four alias types
+
+| Type | Use it for | Example |
+|------|-----------|---------|
+| `eponym` | A name from a person | `Crohn disease` for Regional enteritis |
+| `acronym` | An initialism | `DVT` for Deep vein thrombosis |
+| `alternate_name` | A formal synonym | `Myocardial infarction` for Heart attack |
+| `colloquial` | What people actually say | `shortness of breath` for Dyspnea |
+
+Type is a label for you; search treats all four the same.
+
+## Sibling order
+
+Sibling order is taken from the file: the first subject in an array is
+shown first, so a hierarchy copied from a published outline keeps that
+outline's order. Siblings without `sort_order` are numbered by their
+position, starting at 1.
+
+Give `sort_order` only when you want an order different from the one the
+file is written in. It is an integer, and it orders siblings within one
+parent only — values need not be unique or contiguous across the tree.
+
+## Re-importing a corrected file
+
+Importing a file a second time **merges** it with the subjects you
+already have. It does not add a second copy of everything.
+
+Before anything is written, WIMI shows you what the import will do: how
+many subjects will be added, updated, removed and left alone. Nothing
+happens until you confirm.
+
+**How WIMI recognises a subject it has already imported:**
+
+1. By its `id`, if the file gives one.
+2. Otherwise by its name and its position in the tree.
+
+The difference matters as soon as you correct something. If you rename
+"Anemias" to "Anemias, cytopenias, and polycythemia" and the subject
+carries an `id`, WIMI understands it as a rename, and your entries,
+weights and related topics stay attached to it. Without an `id`, the old
+name has simply vanished and a new one has appeared, so the old subject
+is removed and a new one created — and everything attached to the old one
+stays with the old one. The preview says so plainly when your file has no
+ids.
+
+Ids only have to be unique within the file, and any string will do — the
+numbering from an official outline (`"1.2.3"`) works well because it
+survives a rename. Add them once and every later correction is
+understood.
+
 ```json
 {
-  "weight": {
-    "value": 50,
-    "source": "official",
-    "locked": true
-  }
+  "id": "2.4",
+  "name": "Anemias, cytopenias, and polycythemia",
+  "level_type": "Topic"
 }
 ```
 
-**Option B: Using `low` only (high defaults to match low)**
-```json
-{
-  "weight": {
-    "low": 50,
-    "source": "official",
-    "locked": true
-  }
-}
-```
+**Rule:** no two subjects in one file may share an `id`. Two that do
+stop the import, naming both.
 
-Both options result in the same storage: `exam_weight_low = 50, exam_weight_high = 50`.
+**Subjects you have used are never removed by an import.** If the file no
+longer lists a subject but some of your entries are tagged to it, WIMI
+keeps the subject and says so in the preview, with a link to those
+entries. Your own history outranks the blueprint. Re-tag those entries if
+you want the subject gone, and it can then be deleted normally. Subjects
+kept this way keep their parents too, so nothing is left rolling up
+nowhere.
 
-### 3. Relative Weights
-For child subjects, specifying percentage of parent's weight:
+A subject the file no longer lists and that no entry uses is removed —
+the same soft delete as deleting it by hand.
 
-```json
-{
-  "weight": {
-    "relative": 25,
-    "source": "user_estimate",
-    "locked": false
-  }
-}
-```
+**Edges the file does not mention are left alone.** If you gave a
+subject a second parent by hand, the blueprint does not take it away;
+only the subject's primary parent follows the file.
 
-### Weight Source Values
+WIMI's own export writes the `id` of every subject that has one, so
+exporting, editing and re-importing keeps everything matched up.
 
-| Value | Description |
-|-------|-------------|
-| `official` | From authoritative exam content outline |
-| `derived` | Calculated from official data |
-| `user_estimate` | User's personal estimate |
-| `user_defined` | User-defined without reference |
+## What import reports
 
-### Weight Locking
+**Errors stop the import before anything is written.** They are listed
+in the preview, and there are only three of them:
 
-- `locked: true` - Prevents accidental modification (use for official weights)
-- `locked: false` - Allows editing in the application
+- a subject with no name, or a name that is only whitespace;
+- two subjects sharing one `id`;
+- an entry in a subject array that is not an object.
+
+**Warnings never stop anything.** The import runs, and the warnings are
+shown afterwards. They cover weights that look wrong (see **Weight
+semantics**), an alias that could not be written, and a move WIMI refused
+because it would have made a subject its own ancestor. Per-subject
+warnings are capped so a large file cannot bury you; the message says
+how many more there were.
+
+**The preview is the real report.** It is computed by the same code that
+performs the import, so it cannot promise something different from what
+happens. Read it before confirming — especially the counts of removed
+subjects and of subjects kept because entries point at them.
+
+## Limits
+
+**Nothing in the list below is enforced.** These are the real
+boundaries, stated so you can tell whether your file is near one.
+
+| Thing | Limit |
+|-------|-------|
+| Subjects per file | None. 2,211 subjects is a routine real-world file. |
+| Nesting depth | None enforced. The importer walks the tree recursively, so depth in the hundreds would eventually exhaust Python's recursion limit. Real outlines run 3–8 levels. |
+| Name length | None enforced. Long names are stored in full and are simply hard to read on screen. |
+| Aliases per subject | None. |
+| File size | None. The file is read into memory whole. |
+| Level count | None. The exam's configured level names run out, after which levels are named `Level 5`, `Level 6`, and so on — which only affects subjects that omit `level_type`. |
+
+The tree editor's own file check warns about nesting beyond 10 levels.
+That is advice about legibility, not a limit.
+
+## Validation Rules
+
+**Rules — these stop the import:**
+
+1. The file is a JSON object with a `root_nodes` or `subjects` array.
+2. Every subject has a `name` with at least one non-space character.
+3. No two subjects in one file share an `id`.
+4. Every element of a subject array is an object.
+
+**Warnings — these are reported, and the import proceeds:**
+
+1. `low` is greater than `high`.
+2. A weight is below 0 or above 100.
+3. The top-level weights do not span 100%.
+4. An alias could not be written, or a move would have created a cycle.
+
+**Guidance — nothing checks these:**
+
+1. Give every subject an `id` if you will ever correct the file.
+2. Keep level names consistent in meaning, not by depth.
+3. Put synonyms in `aliases`, never in the name.
 
 ---
 
 ## Examples
 
+All weights below are percentages of the whole exam.
+
 ### Example 1: USMLE Step 1 (Medical Licensing)
+
+Absolute weights at two levels. The children's weights are shares of the
+exam, not of the parent, which is why they are small numbers rather than
+20 / 25 / 35 / 20.
 
 ```json
 {
@@ -532,44 +937,57 @@ For child subjects, specifying percentage of parent's weight:
       "url": "https://www.usmle.org/prepare-your-exam/step-1-materials/step-1-content-outline"
     }
   },
-  "subjects": [
+  "root_nodes": [
     {
+      "id": "GI",
       "name": "Gastrointestinal System",
       "level_type": "System",
-      "weight": { "low": 11, "high": 15, "source": "official", "locked": true },
+      "weight": { "low": 11, "high": 15 },
       "children": [
         {
+          "id": "GI.anat",
           "name": "Anatomy",
           "level_type": "Category",
-          "weight": { "relative": 20, "source": "user_estimate" }
+          "weight": { "low": 2, "high": 3 }
         },
         {
+          "id": "GI.phys",
           "name": "Physiology",
           "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
+          "weight": { "low": 3, "high": 4 }
         },
         {
+          "id": "GI.path",
           "name": "Pathology",
           "level_type": "Category",
-          "weight": { "relative": 35, "source": "user_estimate" }
+          "weight": { "low": 4, "high": 5 },
+          "aliases": [
+            { "name": "Pathophysiology", "type": "alternate_name" }
+          ]
         },
         {
+          "id": "GI.pharm",
           "name": "Pharmacology",
           "level_type": "Category",
-          "weight": { "relative": 20, "source": "user_estimate" }
+          "weight": { "low": 2, "high": 3 }
         }
       ]
     },
     {
+      "id": "CV",
       "name": "Cardiovascular System",
       "level_type": "System",
-      "weight": { "low": 11, "high": 15, "source": "official", "locked": true }
+      "weight": { "low": 11, "high": 15 }
     }
   ]
 }
 ```
 
 ### Example 2: SAT (College Admission)
+
+Two sections at 50% each, and domains whose weights are shares of the
+whole test. They total 100% here because the College Board's blueprint
+does; yours may not, and WIMI will not adjust it either way.
 
 ```json
 {
@@ -581,97 +999,107 @@ For child subjects, specifying percentage of parent's weight:
       "url": "https://collegereadiness.collegeboard.org/"
     }
   },
-  "subjects": [
+  "root_nodes": [
     {
+      "id": "RW",
       "name": "Reading and Writing",
       "level_type": "Section",
-      "weight": { "value": 50, "source": "official", "locked": true },
+      "weight": { "value": 50 },
       "children": [
         {
+          "id": "RW.craft",
           "name": "Craft and Structure",
           "level_type": "Domain",
-          "weight": { "relative": 28, "source": "official", "locked": true },
+          "weight": { "value": 14 },
           "children": [
-            { "name": "Words in Context", "level_type": "Skill" },
-            { "name": "Text Structure and Purpose", "level_type": "Skill" },
-            { "name": "Cross-Text Connections", "level_type": "Skill" }
+            { "id": "RW.craft.wic", "name": "Words in Context", "level_type": "Skill" },
+            { "id": "RW.craft.tsp", "name": "Text Structure and Purpose", "level_type": "Skill" },
+            { "id": "RW.craft.xtc", "name": "Cross-Text Connections", "level_type": "Skill" }
           ]
         },
         {
+          "id": "RW.info",
           "name": "Information and Ideas",
           "level_type": "Domain",
-          "weight": { "relative": 26, "source": "official", "locked": true },
+          "weight": { "value": 13 },
           "children": [
-            { "name": "Central Ideas and Details", "level_type": "Skill" },
-            { "name": "Command of Evidence", "level_type": "Skill" },
-            { "name": "Inferences", "level_type": "Skill" }
+            { "id": "RW.info.cid", "name": "Central Ideas and Details", "level_type": "Skill" },
+            { "id": "RW.info.coe", "name": "Command of Evidence", "level_type": "Skill" },
+            { "id": "RW.info.inf", "name": "Inferences", "level_type": "Skill" }
           ]
         },
         {
+          "id": "RW.conv",
           "name": "Standard English Conventions",
           "level_type": "Domain",
-          "weight": { "relative": 26, "source": "official", "locked": true },
+          "weight": { "value": 13 },
           "children": [
-            { "name": "Boundaries", "level_type": "Skill" },
-            { "name": "Form, Structure, and Sense", "level_type": "Skill" }
+            { "id": "RW.conv.bnd", "name": "Boundaries", "level_type": "Skill" },
+            { "id": "RW.conv.fss", "name": "Form, Structure, and Sense", "level_type": "Skill" }
           ]
         },
         {
+          "id": "RW.expr",
           "name": "Expression of Ideas",
           "level_type": "Domain",
-          "weight": { "relative": 20, "source": "official", "locked": true },
+          "weight": { "value": 10 },
           "children": [
-            { "name": "Rhetorical Synthesis", "level_type": "Skill" },
-            { "name": "Transitions", "level_type": "Skill" }
+            { "id": "RW.expr.rs", "name": "Rhetorical Synthesis", "level_type": "Skill" },
+            { "id": "RW.expr.tr", "name": "Transitions", "level_type": "Skill" }
           ]
         }
       ]
     },
     {
+      "id": "M",
       "name": "Math",
       "level_type": "Section",
-      "weight": { "value": 50, "source": "official", "locked": true },
+      "weight": { "value": 50 },
       "children": [
         {
+          "id": "M.alg",
           "name": "Algebra",
           "level_type": "Domain",
-          "weight": { "relative": 35, "source": "official", "locked": true },
+          "weight": { "value": 17.5 },
           "children": [
-            { "name": "Linear Equations", "level_type": "Skill" },
-            { "name": "Linear Functions", "level_type": "Skill" },
-            { "name": "Systems of Equations", "level_type": "Skill" },
-            { "name": "Linear Inequalities", "level_type": "Skill" }
+            { "id": "M.alg.lineq", "name": "Linear Equations", "level_type": "Skill" },
+            { "id": "M.alg.linfn", "name": "Linear Functions", "level_type": "Skill" },
+            { "id": "M.alg.sys", "name": "Systems of Equations", "level_type": "Skill" },
+            { "id": "M.alg.ineq", "name": "Linear Inequalities", "level_type": "Skill" }
           ]
         },
         {
+          "id": "M.adv",
           "name": "Advanced Math",
           "level_type": "Domain",
-          "weight": { "relative": 35, "source": "official", "locked": true },
+          "weight": { "value": 17.5 },
           "children": [
-            { "name": "Equivalent Expressions", "level_type": "Skill" },
-            { "name": "Nonlinear Equations", "level_type": "Skill" },
-            { "name": "Nonlinear Functions", "level_type": "Skill" }
+            { "id": "M.adv.eq", "name": "Equivalent Expressions", "level_type": "Skill" },
+            { "id": "M.adv.nleq", "name": "Nonlinear Equations", "level_type": "Skill" },
+            { "id": "M.adv.nlfn", "name": "Nonlinear Functions", "level_type": "Skill" }
           ]
         },
         {
+          "id": "M.psda",
           "name": "Problem-Solving and Data Analysis",
           "level_type": "Domain",
-          "weight": { "relative": 15, "source": "official", "locked": true },
+          "weight": { "value": 7.5 },
           "children": [
-            { "name": "Ratios and Percentages", "level_type": "Skill" },
-            { "name": "Probability and Statistics", "level_type": "Skill" },
-            { "name": "Data Interpretation", "level_type": "Skill" }
+            { "id": "M.psda.rp", "name": "Ratios and Percentages", "level_type": "Skill" },
+            { "id": "M.psda.ps", "name": "Probability and Statistics", "level_type": "Skill" },
+            { "id": "M.psda.di", "name": "Data Interpretation", "level_type": "Skill" }
           ]
         },
         {
+          "id": "M.geo",
           "name": "Geometry and Trigonometry",
           "level_type": "Domain",
-          "weight": { "relative": 15, "source": "official", "locked": true },
+          "weight": { "value": 7.5 },
           "children": [
-            { "name": "Area and Volume", "level_type": "Skill" },
-            { "name": "Lines, Angles, and Triangles", "level_type": "Skill" },
-            { "name": "Circles", "level_type": "Skill" },
-            { "name": "Right Triangles and Trigonometry", "level_type": "Skill" }
+            { "id": "M.geo.av", "name": "Area and Volume", "level_type": "Skill" },
+            { "id": "M.geo.lat", "name": "Lines, Angles, and Triangles", "level_type": "Skill" },
+            { "id": "M.geo.circ", "name": "Circles", "level_type": "Skill" },
+            { "id": "M.geo.trig", "name": "Right Triangles and Trigonometry", "level_type": "Skill" }
           ]
         }
       ]
@@ -680,7 +1108,11 @@ For child subjects, specifying percentage of parent's weight:
 }
 ```
 
-### Example 3: CPA Exam - REG Section
+### Example 3: CPA Exam — REG Section
+
+Ranges that overlap. The lows total 75 and the highs total 125, so this
+file does span 100% and imports without a coverage warning — even though
+no single reading of it adds up to exactly 100.
 
 ```json
 {
@@ -692,145 +1124,121 @@ For child subjects, specifying percentage of parent's weight:
       "url": "https://www.aicpa.org/resources/download/cpa-exam-blueprints"
     }
   },
-  "subjects": [
+  "root_nodes": [
     {
+      "id": "REG1",
       "name": "Ethics, Professional Responsibilities and Federal Tax Procedures",
       "level_type": "Area",
-      "weight": { "low": 10, "high": 20, "source": "official", "locked": true },
+      "weight": { "low": 10, "high": 20 },
       "children": [
-        { "name": "Ethics and Responsibilities", "level_type": "Topic" },
-        { "name": "Licensing and Disciplinary Systems", "level_type": "Topic" },
-        { "name": "Federal Tax Procedures", "level_type": "Topic" }
+        { "id": "REG1.1", "name": "Ethics and Responsibilities", "level_type": "Topic" },
+        { "id": "REG1.2", "name": "Licensing and Disciplinary Systems", "level_type": "Topic" },
+        { "id": "REG1.3", "name": "Federal Tax Procedures", "level_type": "Topic" }
       ]
     },
     {
+      "id": "REG2",
       "name": "Business Law",
       "level_type": "Area",
-      "weight": { "low": 10, "high": 20, "source": "official", "locked": true },
+      "weight": { "low": 10, "high": 20 },
       "children": [
-        { "name": "Contracts", "level_type": "Topic" },
-        { "name": "Debtor-Creditor Relationships", "level_type": "Topic" },
-        { "name": "Agency", "level_type": "Topic" },
-        { "name": "Business Structure", "level_type": "Topic" }
+        { "id": "REG2.1", "name": "Contracts", "level_type": "Topic" },
+        { "id": "REG2.2", "name": "Debtor-Creditor Relationships", "level_type": "Topic" },
+        { "id": "REG2.3", "name": "Agency", "level_type": "Topic" },
+        { "id": "REG2.4", "name": "Business Structure", "level_type": "Topic" }
       ]
     },
     {
+      "id": "REG3",
       "name": "Federal Taxation of Property Transactions",
       "level_type": "Area",
-      "weight": { "low": 12, "high": 22, "source": "official", "locked": true },
+      "weight": { "low": 12, "high": 22 },
       "children": [
-        { "name": "Basis of Assets", "level_type": "Topic" },
-        { "name": "Taxable and Nontaxable Dispositions", "level_type": "Topic" },
-        { "name": "Cost Recovery", "level_type": "Topic" }
+        { "id": "REG3.1", "name": "Basis of Assets", "level_type": "Topic" },
+        { "id": "REG3.2", "name": "Taxable and Nontaxable Dispositions", "level_type": "Topic" },
+        { "id": "REG3.3", "name": "Cost Recovery", "level_type": "Topic" }
       ]
     },
     {
+      "id": "REG4",
       "name": "Federal Taxation of Individuals",
       "level_type": "Area",
-      "weight": { "low": 15, "high": 25, "source": "official", "locked": true },
+      "weight": { "low": 15, "high": 25 },
       "children": [
-        { "name": "Gross Income", "level_type": "Topic" },
-        { "name": "Adjustments and Deductions", "level_type": "Topic" },
-        { "name": "Tax Credits", "level_type": "Topic" },
-        { "name": "Filing Status and Dependents", "level_type": "Topic" }
+        { "id": "REG4.1", "name": "Gross Income", "level_type": "Topic" },
+        { "id": "REG4.2", "name": "Adjustments and Deductions", "level_type": "Topic" },
+        { "id": "REG4.3", "name": "Tax Credits", "level_type": "Topic" },
+        { "id": "REG4.4", "name": "Filing Status and Dependents", "level_type": "Topic" }
       ]
     },
     {
+      "id": "REG5",
       "name": "Federal Taxation of Entities",
       "level_type": "Area",
-      "weight": { "low": 28, "high": 38, "source": "official", "locked": true },
+      "weight": { "low": 28, "high": 38 },
       "children": [
-        { "name": "C Corporations", "level_type": "Topic" },
-        { "name": "S Corporations", "level_type": "Topic" },
-        { "name": "Partnerships", "level_type": "Topic" },
-        { "name": "Tax-Exempt Organizations", "level_type": "Topic" }
+        { "id": "REG5.1", "name": "C Corporations", "level_type": "Topic" },
+        { "id": "REG5.2", "name": "S Corporations", "level_type": "Topic" },
+        { "id": "REG5.3", "name": "Partnerships", "level_type": "Topic" },
+        { "id": "REG5.4", "name": "Tax-Exempt Organizations", "level_type": "Topic" }
       ]
     }
   ]
 }
 ```
 
-### Example 4: GRE (Graduate Record Examination)
+### Example 4: Uneven depth, zero weights and aliases
+
+A small file that exercises the awkward cases: branches of different
+depths, a task published at 0%, a child heavier than its parent, and a
+subject with no weight at all.
 
 ```json
 {
-  "exam_context": {
-    "name": "GRE General Test",
-    "description": "Graduate Record Examination General Test",
-    "source": {
-      "name": "ETS GRE General Test Content",
-      "url": "https://www.ets.org/gre/test-takers/general-test/prepare/content.html"
-    }
-  },
-  "subjects": [
+  "root_nodes": [
     {
-      "name": "Verbal Reasoning",
-      "level_type": "Section",
-      "weight": { "value": 33, "source": "official", "locked": true },
+      "id": "MS",
+      "name": "Multisystem Processes",
+      "level_type": "System",
+      "weight": { "low": 4, "high": 8 },
       "children": [
         {
-          "name": "Reading Comprehension",
+          "id": "MS.nutr",
+          "name": "Nutrition",
           "level_type": "Category",
-          "weight": { "relative": 50, "source": "user_estimate" },
-          "children": [
-            { "name": "Multiple-choice (single answer)", "level_type": "Question Type" },
-            { "name": "Multiple-choice (multiple answers)", "level_type": "Question Type" },
-            { "name": "Select-in-Passage", "level_type": "Question Type" }
+          "weight": { "low": 15, "high": 20 },
+          "aliases": [
+            { "name": "Nutritional disorders", "type": "alternate_name" }
           ]
         },
         {
-          "name": "Text Completion",
-          "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
-        },
-        {
-          "name": "Sentence Equivalence",
-          "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
+          "id": "MS.multi",
+          "name": "Multisystem processes not otherwise classified",
+          "level_type": "Category"
         }
       ]
     },
     {
-      "name": "Quantitative Reasoning",
-      "level_type": "Section",
-      "weight": { "value": 33, "source": "official", "locked": true },
+      "id": "SD",
+      "name": "Social Sciences",
+      "level_type": "System",
+      "weight": { "value": 0 },
       "children": [
         {
-          "name": "Arithmetic",
+          "id": "SD.comm",
+          "name": "Communication skills",
           "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
-        },
-        {
-          "name": "Algebra",
-          "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
-        },
-        {
-          "name": "Geometry",
-          "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
-        },
-        {
-          "name": "Data Analysis",
-          "level_type": "Category",
-          "weight": { "relative": 25, "source": "user_estimate" }
-        }
-      ]
-    },
-    {
-      "name": "Analytical Writing",
-      "level_type": "Section",
-      "weight": { "value": 34, "source": "official", "locked": true },
-      "children": [
-        {
-          "name": "Analyze an Issue",
-          "level_type": "Task",
-          "weight": { "relative": 50, "source": "official", "locked": true }
-        },
-        {
-          "name": "Analyze an Argument",
-          "level_type": "Task",
-          "weight": { "relative": 50, "source": "official", "locked": true }
+          "weight": { "value": 0 },
+          "children": [
+            {
+              "id": "SD.comm.int",
+              "name": "Interpreting a patient's account",
+              "level_type": "Topic",
+              "aliases": [
+                { "name": "history taking", "type": "colloquial" }
+              ]
+            }
+          ]
         }
       ]
     }
@@ -840,14 +1248,12 @@ For child subjects, specifying percentage of parent's weight:
 
 ### Example 5: Minimal Structure (No Weights)
 
-For exams where official weights aren't available:
+For exams where official weights are not available. Every subject
+imports at 0%, and you can set weights in the tree editor afterwards.
 
 ```json
 {
-  "exam_context": {
-    "name": "Custom Exam"
-  },
-  "subjects": [
+  "root_nodes": [
     {
       "name": "Section A",
       "level_type": "Section",
@@ -873,7 +1279,8 @@ For exams where official weights aren't available:
 
 ## Common Level Types
 
-Choose appropriate level types based on your exam structure:
+Starting points, not requirements — branches of different depths are
+normal, and a real outline will need names these lists do not have.
 
 | Exam Type | Common Hierarchy |
 |-----------|------------------|
@@ -886,36 +1293,154 @@ Choose appropriate level types based on your exam structure:
 
 ---
 
-## Validation Rules
+## JSON Schema
 
-1. **Unique Names**: Subjects at the same level under the same parent must have unique names
-2. **Weight Ranges**: `low` must be ≤ `high` for absolute weights
-3. **Single Values**: Use `value` shorthand or `low` alone (high defaults to match low)
-4. **Relative Weights**: Should sum to ~100% among siblings (WIMI will auto-balance)
-5. **Required Fields**: `name` and `level_type` are always required
+A machine-readable description of everything above, published at
+`docs/examples/subject_tree_import.schema.json` and generated from this
+section, so the two cannot disagree.
 
----
+The schema is **stricter than the importer in two places**, deliberately:
+it requires `level_type` to be a string when present and weights to be
+numbers in 0–100, where the importer merely warns. It is lenient about
+unknown fields, because the importer ignores them.
 
-## Weight Format Summary
-
-| Format | Example | Result |
-|--------|---------|--------|
-| Range | `{"low": 20, "high": 25}` | 20-25% range |
-| Single (value) | `{"value": 50}` | Exact 50% |
-| Single (low only) | `{"low": 50}` | Exact 50% (high defaults to low) |
-| Legacy number | `"weight": 50` | Exact 50% (backwards compatible) |
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wimi.app/schemas/subject_tree_import.schema.json",
+  "title": "WIMI subject tree import file",
+  "description": "A subject hierarchy that can be merged into a WIMI exam context.",
+  "type": "object",
+  "anyOf": [
+    { "required": ["root_nodes"] },
+    { "required": ["subjects"] }
+  ],
+  "properties": {
+    "root_nodes": {
+      "description": "The top-level subjects. Canonical spelling; what WIMI exports.",
+      "$ref": "#/$defs/subjectArray"
+    },
+    "subjects": {
+      "description": "The same array under the older spelling. root_nodes wins if both appear.",
+      "$ref": "#/$defs/subjectArray"
+    },
+    "dimension_id": {
+      "description": "Target dimension for a multi-dimensional exam. Overridden when importing from a dimension view.",
+      "type": ["integer", "null"]
+    },
+    "exam_context": {
+      "description": "Descriptive only. No part of it is stored.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "source": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string" },
+            "retrieved_date": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "subjectArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/subject" }
+    },
+    "subject": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "Stored verbatim apart from trimming. Must not be blank.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "id": {
+          "description": "Stable identifier, unique within the file. Numbers are stringified.",
+          "type": ["string", "number"]
+        },
+        "level_type": {
+          "description": "Name of this subject's level. Free text, matched by name.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "weight": { "$ref": "#/$defs/weight" },
+        "sort_order": {
+          "description": "Position among siblings. Defaults to array position.",
+          "type": "integer"
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/alias" }
+        },
+        "children": { "$ref": "#/$defs/subjectArray" }
+      }
+    },
+    "weight": {
+      "description": "A percentage of the whole exam, at any depth. Never a share of the parent.",
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number", "minimum": 0, "maximum": 100 },
+            "low": { "type": "number", "minimum": 0, "maximum": 100 },
+            "high": { "type": "number", "minimum": 0, "maximum": 100 },
+            "source": {
+              "description": "Not read by import. Kept because older files carry it.",
+              "enum": ["official", "derived", "user_estimate", "user_defined"]
+            },
+            "locked": {
+              "description": "Not read by import. Lock the weight in the tree editor.",
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "alias": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "pattern": "\\S" },
+        "type": {
+          "description": "Anything outside this list becomes alternate_name.",
+          "enum": ["eponym", "acronym", "alternate_name", "colloquial"]
+        },
+        "is_primary": { "type": "boolean" },
+        "notes": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
+```
 
 ---
 
 ## Tips for Creating Import Files
 
-1. **Start with official content outlines** when available
-2. **Use official weights** at the top level, then estimate relative weights for children
-3. **Lock official weights** to prevent accidental changes
-4. **Keep level types consistent** within the same hierarchy level
-5. **Test with a small sample** before importing a full structure
-6. **Use `value` shorthand** for cleaner single-value weights instead of `{"low": 50, "high": 50}`
-
+1. **Start with official content outlines** when available, and copy the
+   numbers exactly as published — WIMI will not rescale them.
+2. **Give every subject an `id`.** It is what lets WIMI tell a rename
+   from a replacement, and adding them later does not recover the
+   history you lost in between.
+3. **Put synonyms in `aliases`**, never in the name.
+4. **Write `level_type` on every subject**, or accept that WIMI will
+   name the level after its depth on every re-import.
+5. **Leave a weight out** rather than inventing one. An unweighted
+   subject is honestly 0% from the blueprint's point of view, and you
+   can weight it by hand afterwards.
+6. **Use `value`** for a single weight rather than `{"low": 50, "high": 50}`.
+7. **Test with a small sample** before importing a full structure, and
+   read the preview before confirming.
     </script>
 
     <div class="modal-backdrop" id="import-help-modal" data-testid="tree-import-help-modal">

@@ -73,12 +73,28 @@ class UtilityBridgeMixin:
             from database import UserDatabase
 
             db_path = self.master_db.users_dir / user.database_filename
+            # The database layer guards every log call with
+            # `if getattr(self, 'error_logger', None)`, so omitting this
+            # silently disables all database logging for the profile the
+            # student just switched to.
+            # device_id names the machine, not the student, so it comes
+            # from master (#126); the profile's own id lives in the user
+            # database and master only mirrors it (#129).
             new_db = UserDatabase(
                 db_path=db_path,
                 user_id=user.id,
                 username=user.username,
+                error_logger=getattr(self, 'error_logger', None),
+                device_id=self.master_db.get_device_id(),
             )
             self.user_db = new_db
+            try:
+                self.master_db.record_profile_uuid(
+                    user.id, new_db.get_profile_uuid()
+                )
+            except Exception:
+                # The mirror is an index, never a precondition for opening.
+                pass
             self.userDatabaseLoaded.emit(user.id)
             return serialize_response(
                 True,

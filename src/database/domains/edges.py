@@ -211,12 +211,21 @@ class EdgesMixin:
     # ---------------------------------------------------------------- read ops
 
     def get_parents(self, child_id: int) -> List[ParentEdgeInfo]:
-        """Return all parent edges for ``child_id`` (primary first).
+        """Return all *active* parent edges for ``child_id`` (primary first).
 
         Joins ``subject_edges`` with ``subject_nodes`` to surface each
         parent's display name. Ordered by ``is_primary DESC`` then
         ``display_order ASC`` so the canonical parent always leads the
         list.
+
+        **Archived parents are excluded** (issue #15, casualty 2). A
+        subject delete is soft: the parent's ``status`` flips to
+        ``'archived'`` and its row stays. Without this filter the child
+        kept reporting a subject the student had deleted, and the
+        breadcrumb and the deep dive's "Show as part of" pill would name
+        it. Every other read in this mixin that joins ``subject_nodes``
+        already filters on ``status='active'`` (see
+        :meth:`get_sibling_edges`); this one was simply missed.
         """
         rows = self.fetchall(
             """
@@ -229,6 +238,7 @@ class EdgesMixin:
             FROM subject_edges se
             JOIN subject_nodes sn ON sn.id = se.parent_id
             WHERE se.child_id = ?
+              AND sn.status = 'active'
             ORDER BY se.is_primary DESC, se.display_order ASC, se.id ASC
             """,
             (child_id,),
@@ -610,6 +620,23 @@ class EdgesMixin:
         (``relative_weight``, ``is_anchor``, ``weight_source``) plus
         the parent's display name from the join.
 
+        **Archived parents are excluded** (issue #57), mirroring
+        :meth:`get_parents`, which #15 fixed and this sibling was left
+        out of. The filter is not cosmetic: the head of this list is the
+        *default* parent context. ``mountTagContextPill`` in
+        ``src/web/js/question_entry.js`` reads ``cached[0].parent_id``,
+        and every multi-parent subject gets a non-NULL
+        ``primary_parent_id`` on save, so a leading archived edge pinned
+        a **new** entry to a deleted parent — which under §5.4 rolls up
+        through a chain that is in no scope set, i.e. counts nowhere on
+        every analytics surface while still listing in the entry
+        browser.
+
+        Excluding it deliberately *moves* that default to the first
+        surviving parent. Since #15 a delete also removes the
+        archived-parent→surviving-child edge, so only databases that had
+        subject deletes before #15 can still hold such a row.
+
         Args:
             child_id: ``subject_nodes.id`` of the child.
 
@@ -618,7 +645,7 @@ class EdgesMixin:
             ``parent_name``, ``child_id``, ``dimension_id``,
             ``relative_weight``, ``is_anchor``, ``weight_source``,
             ``sort_order``, ``is_primary``. Empty list when the child
-            has no parents.
+            has no *active* parents.
         """
         rows = self.fetchall(
             """
@@ -636,6 +663,7 @@ class EdgesMixin:
             FROM subject_edges se
             JOIN subject_nodes sn ON sn.id = se.parent_id
             WHERE se.child_id = ?
+              AND sn.status = 'active'
             ORDER BY se.is_primary DESC, se.parent_id ASC
             """,
             (child_id,),

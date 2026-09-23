@@ -301,7 +301,7 @@ function renderExamCard(exam) {
                     <span class="exam-stat-icon">📊</span>
                     <div>
                         <div class="exam-stat-label">Subjects</div>
-                        <div class="exam-stat-value">${stats.subject_count} topics</div>
+                        <div class="exam-stat-value" data-testid="dashboard-exam-${exam.id}-subject-count">${stats.subject_count} subject${stats.subject_count !== 1 ? 's' : ''}</div>
                     </div>
                 </div>
                 <div class="exam-stat">
@@ -595,8 +595,83 @@ async function initializeLandingPage() {
     
     // Load exams
     await loadExams();
-    
+
+    // Not awaited: a folder look can take as long as the cloud client does,
+    // and nothing on the dashboard waits for it.
+    checkFolderSyncAtStartup();
+
     console.log('✅ Landing page initialized');
+}
+
+// =========================================================================
+// Folder sync notice (#148)
+// =========================================================================
+
+/**
+ * What the student must act on, from one status look, or null.
+ *
+ * Four states earn a notice, in this order: this computer's copy was set
+ * aside elsewhere; two copies are waiting to be chosen between; a choice was
+ * made here and never sent; a newer copy from another computer builds on
+ * this one (#151). "Nothing new" is not one of them -- the
+ * folder cannot tell us that, and a banner saying so would be the green
+ * tick #123 forbids.
+ */
+function folderSyncNoticeText(status) {
+    if (!status || !status.linked) return null;
+    const forks = status.forks || [];
+    if (status.pending_state === 'folder_moved') {
+        return 'You chose which copy of this profile to keep, but another computer '
+            + 'has sent a copy since. Nothing was sent from here - look at the copies again.';
+    }
+    if (forks.some(f => f.set_aside && !f.resolved_here)) {
+        const by = (status.relation_detail && status.relation_detail.device_name) || 'Another computer';
+        return by + ' kept its own copy of this profile instead of this computer\u2019s. '
+            + 'Nothing has been removed here - choose which copy you want.';
+    }
+    if (forks.some(f => !f.resolved_here)) {
+        return 'Two of your computers changed this profile independently. '
+            + 'Nothing is lost - choose which copy to keep.';
+    }
+    if (status.pending) {
+        return 'You chose which copy of this profile to keep, but have not sent it yet. '
+            + 'Your other computer will keep seeing two copies until you do.';
+    }
+    // #151, owner's decision: the moment a student sits down at the second
+    // computer is exactly when they would otherwise start on a stale copy --
+    // and every entry added then turns a catch-up into a choice.
+    if (status.base_relation === 'behind') {
+        const from = (status.relation_detail && status.relation_detail.device_name) || 'your other computer';
+        const changed = status.local_changes && (status.local_changes.differs || []).length;
+        return 'A newer copy of this profile from ' + from + ' is in the sync folder. '
+            + (changed
+                ? 'This computer has changes of its own since it last synced - open sync settings to choose what to keep.'
+                : 'Take it before adding work here, or the two copies will need choosing between.');
+    }
+    return null;
+}
+
+async function checkFolderSyncAtStartup() {
+    const box = document.getElementById('sync-notice');
+    const text = document.getElementById('sync-notice-text');
+    if (!box || !text || typeof api.runFolderSyncStartupCheck !== 'function') return;
+    let status = null;
+    try {
+        await api.ready();
+        status = await api.runFolderSyncStartupCheck();
+    } catch (e) {
+        // No profile, no master database, or an unreadable folder. The
+        // Settings panel reports folder problems in full; a dashboard banner
+        // for them would fire on every flaky network.
+        console.warn('folder sync startup check:', e);
+        return;
+    }
+    const message = folderSyncNoticeText(status);
+    if (!message) return;
+    text.textContent = message;
+    box.hidden = false;
+    const dismiss = document.getElementById('sync-notice-dismiss');
+    if (dismiss) dismiss.addEventListener('click', () => { box.hidden = true; }, { once: true });
 }
 
 // =========================================================================
