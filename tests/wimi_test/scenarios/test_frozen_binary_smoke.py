@@ -48,7 +48,11 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("WIMI_TEST_BINARY", "").strip(),
     reason=(
         "Set WIMI_TEST_BINARY to a built WIMI TEST executable "
-        "(build_windows.bat test -> dist/WIMI-test/WIMI) to run the frozen smoke test."
+        # Both platforms, because the first person to hit this skip on macOS
+        # was sent to a .bat file and a path the .app does not have.
+        "to run the frozen smoke test. Build one with `build_windows.bat test` "
+        "(-> dist/WIMI-test/WIMI.exe) or `./build_macos.sh test` "
+        "(-> dist/WIMI-test/WIMI.app/Contents/MacOS/WIMI)."
     ),
 )
 

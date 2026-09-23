@@ -221,3 +221,10 @@ coverage.xml
 # publish_release.py snapshots the committed tree to the public mirror.
 /.claude/worktrees/
 /artifacts/
+
+# npm residue. Frontend libraries are VENDORED under src/web/js/lib/ and
+# src/web/lib/ -- there is no package manager in this project, and a
+# stray node_modules/ contradicts that in the published tree.
+/node_modules/
+/package.json
+/package-lock.json
