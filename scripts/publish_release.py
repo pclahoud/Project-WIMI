@@ -49,10 +49,10 @@ REMOTE_BRANCH = "main"
 EXCLUDE_PREFIXES = (
     # Internal planning, decision records and handoff notes -- written for
     # whoever maintains WIMI, not for a visitor.
+    # (This now also covers the phase 5/6 wireframes -- ~1.9 MB of design
+    # files in a format nothing on a visitor's machine opens -- which used
+    # to sit in a top-level "wireframe designs/" and needed its own entry.)
     "docs/",
-    # Design files from development phases 5 and 6, in a format nothing on
-    # a visitor's machine opens. ~1.9 MB, the largest thing in the tree.
-    "wireframe designs/",
     # This project's own agent tooling: slash commands and the private
     # tracker's issue templates. Internal workflow, not part of the app.
     ".claude/",
