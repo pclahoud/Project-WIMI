@@ -17,6 +17,9 @@
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
+    <!-- The page gate's voice (#127). Before question_entry.js, which calls
+         PageGate.release() from markEntryFormReady(). -->
+    <script src="../js/page_gate.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
     <!-- Fuse.js for fuzzy search (bundled locally) -->
@@ -31,8 +34,35 @@
     <!-- TinyMCE Rich Text Editor -->
     <script src="../lib/tinymce/tinymce.min.js"></script>
     <script src="../js/rich_editor.js"></script>
+    <!-- The microphone beside each writing field (#59). Before
+         question_entry.js, which calls attachDictation() from
+         initRichTextEditors(). -->
+    <script src="../js/dictation.js"></script>
 </head>
 <body>
+    <!--
+      The gate's voice (#127), and the ONE thing about it that is easy to get
+      wrong: it sits OUTSIDE .entry-page. `inert` removes its whole subtree
+      from the accessibility tree, so a status message placed inside the thing
+      being gated is as invisible to a screen reader as the form is. Measured
+      on this page through CDP: while the gate is up the accessibility tree
+      holds one non-ignored node, the document root, out of 72.
+
+      The holding message is in the markup for the same reason the `inert`
+      attribute is -- there must be no window in which the page is gated and
+      silent. A live region does not announce text that was already in it when
+      it was registered, which is wanted here rather than worked around: on a
+      warm ~110 ms load nothing is said at all, and this is simply what a
+      reader finds if it reads the document during the gate.
+      PageGate.release() then CHANGES the text, and a change is announced.
+
+      src/web/js/page_gate.js holds the contract; docs/guides/PAGE_GATE.md is
+      how to apply it to another page (#119-#122 are the same defect on four
+      more). Styled in styles.css, which every page already links.
+    -->
+    <div class="page-gate" data-page-gate role="status" aria-live="polite"
+        >Preparing the entry form&hellip;</div>
+
     <!--
       Ships `inert`. Until initializeEntryPage() has wired it, this page is
       markup and nothing else: resetFormForNewEntry() / populateFormWithEntry()
@@ -45,8 +75,12 @@
       before the first script runs. markEntryFormReady() removes it -- see the
       comment there for why that is gated on the editors and not just on the end
       of the init chain.
+
+      `data-page-gated` names this as the container the page gate covers. It
+      carries no behaviour; tests/test_page_gate_markup.py reads it to check
+      that the gate's voice is not inside it.
     -->
-    <div class="entry-page" inert data-testid="entry-form-page">
+    <div class="entry-page" inert data-page-gated data-testid="entry-form-page">
         <!-- Header -->
         <header class="entry-header">
             <div class="entry-header-left">
@@ -66,10 +100,18 @@
                 <div class="session-timer" id="session-timer" style="display: none;">
                     <span class="round-indicator" id="round-indicator" style="display: none;"></span>
                     <span class="session-timer-display" id="timer-display" data-testid="entry-form-timer-display">00:00</span>
-                    <button type="button" class="session-timer-btn" id="btn-timer-pause" title="Pause timer" data-testid="entry-form-timer-pause-button">
+                    <!-- aria-label, not just title (#306): these announced as
+                         "pause symbol" and "clockwise open circle arrow",
+                         because visible content beats `title`. The pause
+                         button's label flips with the glyph, and an
+                         `aria-label` OVERRIDES the `title` the old code kept
+                         in sync -- so every update goes through
+                         `setTimerPauseAffordance()` in question_entry.js,
+                         which owns glyph, tooltip and name together. -->
+                    <button type="button" class="session-timer-btn" id="btn-timer-pause" title="Pause timer" aria-label="Pause timer" data-testid="entry-form-timer-pause-button">
                         <span id="timer-pause-icon">&#x23F8;</span>
                     </button>
-                    <button type="button" class="session-timer-btn session-timer-new-round" id="btn-new-round" title="Start new timer round" style="display: none;" data-testid="entry-form-timer-new-round-button">
+                    <button type="button" class="session-timer-btn session-timer-new-round" id="btn-new-round" title="Start new timer round" aria-label="Start a new timer round" style="display: none;" data-testid="entry-form-timer-new-round-button">
                         &#x21BB;
                     </button>
                 </div>
@@ -167,7 +209,11 @@
                                 <div class="time-input-group">
                                     <input type="number" id="time-spent" min="0" max="999" placeholder="0"
                                            data-testid="entry-form-time-spent-input">
+                                    <!-- The "Time Spent" label belongs to the
+                                         number box; this picker had no name of
+                                         its own and announced empty (#305). -->
                                     <select id="time-unit"
+                                            aria-label="Time unit"
                                             data-testid="entry-form-time-unit-select">
                                         <option value="minutes">minutes</option>
                                         <option value="seconds">seconds</option>
@@ -271,15 +317,23 @@
                 <div class="entry-writing">
                     <div class="write-block">
                         <label for="reflection-editor">Why did you get this wrong? <span class="required">*</span></label>
-                        <p class="form-help">This is the core of metacognitive learning - understanding WHY you got it wrong</p>
+                        <p class="form-help">Say it out loud, as if you were teaching it. Where the
+                            spoken explanation runs out is the thing you actually missed.</p>
                         <div id="reflection-editor" class="rich-editor-container"
                              data-testid="entry-form-reflection-editor"></div>
+                        <!-- Host for the microphone (#59). Empty in the markup:
+                             dictation.js renders into it, and only after the
+                             editors report ready. -->
+                        <div class="dictation-mount" id="reflection-dictation"></div>
                     </div>
 
                     <div class="write-block">
                         <label for="explanation-editor">Why is the correct answer correct? <span class="required">*</span></label>
+                        <p class="form-help">Explain it the way you would to a classmate who asked.
+                            If you cannot say it plainly, you have found the gap.</p>
                         <div id="explanation-editor" class="rich-editor-container"
                              data-testid="entry-form-explanation-editor"></div>
+                        <div class="dictation-mount" id="explanation-dictation"></div>
                     </div>
                 </div>
 
@@ -361,9 +415,10 @@
          opens. -->
     <div class="modal-backdrop quick-add-modal-backdrop" id="quick-add-subject-modal"
          data-testid="entry-form-quick-add-modal">
-            <div class="quick-add-modal">
+            <div class="quick-add-modal" data-modal-surface role="dialog"
+                 aria-modal="true" aria-labelledby="quick-add-modal-title">
                 <div class="quick-add-header">
-                    <h4>Quick Add Subject</h4>
+                    <h2 id="quick-add-modal-title">Quick Add Subject</h2>
                     <button type="button" class="quick-add-close" id="quick-add-close" data-testid="entry-form-quick-add-close-button">&times;</button>
                 </div>
                 <div class="quick-add-body">
@@ -409,9 +464,10 @@
     </div>
 
     <div class="modal-backdrop" id="unsaved-modal" data-testid="entry-form-unsaved-modal">
-        <div class="modal">
+        <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="unsaved-modal-title">
             <div class="modal-icon">⚠️</div>
-            <h3 class="modal-title">Unsaved Changes</h3>
+            <h2 class="modal-title" id="unsaved-modal-title">Unsaved Changes</h2>
             <p class="modal-message" id="unsaved-modal-message">
                 You have unsaved changes. What would you like to do?
             </p>
@@ -425,9 +481,10 @@
 
     <!-- Note Delete Many-To-Many Confirmation Modal -->
     <div class="modal-backdrop note-delete-modal" id="note-delete-modal" data-testid="note-delete-modal">
-        <div class="modal">
+        <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="note-delete-modal-title">
             <div class="modal-icon">🗑️</div>
-            <h3 class="modal-title">Delete this note?</h3>
+            <h2 class="modal-title" id="note-delete-modal-title">Delete this note?</h2>
             <p class="modal-message" id="note-delete-modal-message">
                 This note is attached to multiple entries. What would you like to do?
             </p>
@@ -443,12 +500,10 @@
     <!-- Manage Error Types Modal -->
     <div class="modal-backdrop manage-tags-modal-backdrop"
          id="manage-tags-modal"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="manage-tags-modal-title"
          data-testid="manage-tags-modal">
-        <div class="modal manage-tags-modal">
-            <h3 class="modal-title" id="manage-tags-modal-title">Manage Error Types</h3>
+        <div class="modal manage-tags-modal" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="manage-tags-modal-title">
+            <h2 class="modal-title" id="manage-tags-modal-title">Manage Error Types</h2>
             <p class="modal-message manage-tags-modal-sub">
                 Edit definitions or delete types. Definitions appear as hover tooltips in the picker.
             </p>
@@ -465,9 +520,10 @@
 
     <!-- Delete Error Type Confirmation Modal -->
     <div class="modal-backdrop delete-tag-modal" id="delete-tag-modal" data-testid="delete-tag-modal">
-        <div class="modal">
+        <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="delete-tag-modal-title">
             <div class="modal-icon">🗑️</div>
-            <h3 class="modal-title" id="delete-tag-modal-title">Delete this error type?</h3>
+            <h2 class="modal-title" id="delete-tag-modal-title">Delete this error type?</h2>
             <p class="modal-message delete-tag-modal-name" id="delete-tag-modal-name"></p>
             <p class="modal-message" id="delete-tag-modal-usage" data-testid="delete-tag-modal-usage"></p>
             <div class="modal-actions">
@@ -484,12 +540,10 @@
     <!-- Attach Existing (notes/media) Picker Modal -->
     <div class="modal-backdrop attach-existing-modal-backdrop"
          id="attach-existing-modal"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="attach-existing-modal-title"
          data-testid="attach-existing-modal">
-        <div class="modal attach-existing-modal">
-            <h3 class="modal-title" id="attach-existing-modal-title">Attach existing</h3>
+        <div class="modal attach-existing-modal" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="attach-existing-modal-title">
+            <h2 class="modal-title" id="attach-existing-modal-title">Attach existing</h2>
             <p class="modal-message attach-existing-modal-sub" id="attach-existing-modal-sub"></p>
             <div class="attach-existing-list"
                  id="attach-existing-list"
@@ -525,9 +579,10 @@
 
     <!-- Session Complete Modal -->
     <div class="modal-backdrop" id="complete-modal" data-testid="entry-form-complete-modal">
-        <div class="modal">
+        <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="complete-modal-title">
             <div class="modal-icon">🎉</div>
-            <h3 class="modal-title">Session Complete!</h3>
+            <h2 class="modal-title" id="complete-modal-title">Session Complete!</h2>
             <p class="modal-message">
                 You've logged all <span id="complete-count">0</span> incorrect questions for this session.
             </p>
@@ -540,8 +595,9 @@
 
     <!-- Round Complete Overlay -->
     <div class="new-round-dialog-overlay" id="round-complete-overlay" style="display: none;" data-testid="entry-form-round-complete-overlay">
-        <div class="new-round-dialog">
-            <h3>Round Complete!</h3>
+        <div class="new-round-dialog" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="round-complete-title">
+            <h2 id="round-complete-title">Round Complete!</h2>
             <p id="round-complete-message" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">Time for a break!</p>
             <label for="break-duration-input">Break Duration (minutes)</label>
             <input type="number" id="break-duration-input" min="1" max="60" value="5" data-testid="entry-form-round-complete-break-duration-input" />
@@ -555,8 +611,9 @@
 
     <!-- New Timer Round Dialog -->
     <div class="new-round-dialog-overlay" id="new-round-dialog-overlay" style="display: none;" data-testid="entry-form-new-round-dialog">
-        <div class="new-round-dialog">
-            <h3>Start New Timer Round</h3>
+        <div class="new-round-dialog" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="new-round-title">
+            <h2 id="new-round-title">Start New Timer Round</h2>
             <label for="new-round-duration">Duration (minutes)</label>
             <input type="number" id="new-round-duration" min="1" max="600" value="30" data-testid="entry-form-new-round-duration-input" />
             <div class="new-round-dialog-actions">
@@ -566,6 +623,7 @@
         </div>
     </div>
 
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/question_entry.js"></script>
 </body>
 </html>

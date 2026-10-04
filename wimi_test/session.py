@@ -67,7 +67,7 @@ from wimi_test.capture.bridge import BridgeCapture
 from wimi_test.capture.bundle import CaptureBundle
 from wimi_test.capture.console import ConsoleCapture
 from wimi_test.capture.network import NetworkCapture
-from wimi_test.config import TestConfig
+from wimi_test.config import TestConfig, warn_if_unresolved
 from wimi_test.db.test_user import TestUser
 from wimi_test.errors import WimiTestError
 from wimi_test.page import WimiPage
@@ -122,6 +122,7 @@ class WimiTestSession:
         """
         self.scenario: str = scenario
         self.config: TestConfig = config if config is not None else TestConfig.resolve()
+        warn_if_unresolved(self.config, consumer='WimiTestSession')
 
         # TODO(T5.1): replace inline run-id with
         # ``wimi_test._internal.runid.next_run_id()`` once that module

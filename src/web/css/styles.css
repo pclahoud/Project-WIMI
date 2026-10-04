@@ -20,7 +20,59 @@
     --color-primary-hover: #1d4ed8;
     --color-primary-light: #3b82f6;
     --color-primary-bg: #eff6ff;
-    
+
+    /* Primary colour as TEXT (#325).
+
+       #303's split, one semantic over and on more elements: 129 `color:`
+       declarations across 26 stylesheets painted --color-primary (125) or
+       --color-primary-hover (4) as a label, usually on the primary tint.
+       .badge-primary below is the canonical shape. Measured 3.25:1 in Nord,
+       3.32:1 in Forest, 3.13:1 for Midnight's hover value; 118 rendered
+       elements over four pages, the largest single contrast class left in the
+       app after #302/#303.
+
+       The owner's rule is the one #303 shipped: a darker text variant, and
+       THE BRIGHT VALUE STAYS FOR FILLS AND BORDERS. So `background`,
+       `border-color` and `fill` keep var(--color-primary), and the
+       white-on-amber selected difficulty dot stays at 2.15:1 ON PURPOSE --
+       that is a palette design question, not a contrast sweep. Do not fix it
+       while you are in here.
+
+       THE SLAB THESE ARE BARRED AGAINST IS NOT THE ONE IN themes.js.
+       --color-primary-bg above is overwritten on every page load:
+       _wimiApplyColourPreferences derives it from prefs.primary_color_hex,
+       which has a column default and a dataclass default and so is never
+       unset. The curated dictionary value never paints. Measured, that is the
+       difference between "passing" and failing: this token's base #2563eb is
+       4.75:1 on the dictionary tint #eff6ff and 4.20:1 on the derived #dee8fc,
+       and Warm Study's is 4.51 against 4.08. #325's own table reports the
+       first number of each pair because it read the dictionary.
+
+       Each value is therefore the minimum hue-preserving move of its base
+       that clears 4.5:1 on all FOUR: --bg-primary, --bg-secondary, the
+       dictionary tint and the derived tint.
+
+       EVERY THEME NEEDS AN ENTRY FOR BOTH, which is NOT true of #303's four.
+       A theme may share :root's --color-success and legitimately omit
+       --color-success-text; no theme shares :root's --color-primary. A
+       dictionary that lists the fill and omits the label paints this blue on
+       Warm Study's sepia -- a HUE break, not a thin ratio, and invisible to
+       check_css_tokens.py because the token is defined, just not there.
+       Four of the six keep their base value unchanged and are listed anyway.
+
+       --color-primary-light has no -text counterpart because it is never
+       painted as text: zero `color:` declarations name it (border and
+       gradient only). Do not add one speculatively.
+
+       KNOWN LIMIT, filed separately: a student who picks a CUSTOM primary in
+       Appearance gets fills in their colour and labels in the theme's, because
+       _wimiApplyColourPreferences derives the fill tokens and these two are
+       themed. Deriving them instead would make every dictionary value below
+       dead decoration and leave the static guard asserting values that never
+       paint. */
+    --color-primary-text: #235fe0;
+    --color-primary-hover-text: #1d4fbb;
+
     /* Secondary Colors */
     --color-secondary: #64748b;
     --color-secondary-hover: #475569;
@@ -65,7 +117,78 @@
     --color-success-dark: #166534;
     --color-warning-dark: #92400e;
     --color-error-dark: #991b1b;
-    
+
+    /* Status colours as TEXT (#303).
+
+       A fill and a label are different jobs and one value cannot do both.
+       The four tokens above this comment are fills; these four are labels,
+       and nothing else. Measured on rendered elements, the base colours as
+       text were --color-warning #f59e0b at 2.07:1 on --color-warning-bg
+       (the "In Progress" session badge), --color-success #10b981 at 2.54:1
+       on white, --color-info #06b6d4 at 2.43:1 and --color-error #ef4444 at
+       3.44:1 -- all against a 4.5:1 bar.
+
+       Each value is the MINIMUM hue-preserving darkening of its own base
+       that clears 4.5:1 against every slab a rendered audit found these
+       labels painted on: --bg-primary, --bg-secondary, and the matching
+       --color-X-bg tint. The first pass barred only against --bg-primary
+       and the tint -- the two #303's own table names -- and the re-render
+       then found eight labels still failing on --bg-secondary, which is the
+       whole reason the bar is measured rather than assumed. They are NOT
+       the --color-X-dark values above, which clear by a wider margin
+       (6.8-7.6:1) and would have been a bigger move than the defect needs.
+       They land at 4.50-4.76:1, so do not "round them off" -- a nudge
+       lighter drops below AA.
+
+       --bg-tertiary is STILL deliberately not in the bar, and the asymmetry
+       with --text-muted above is now empirical rather than pending. #326
+       widened that token's bar because a rendered audit counted 114 elements
+       carrying it on the nested slabs; no status label has ever been
+       observed on --bg-tertiary. A static sweep says 13 of these 24 cells
+       would fail there, which is a statement about a background none of them
+       land on, and widening the bar on it would push every status label in
+       the application past the minimum the owner approved in order to serve
+       no measured site.
+
+       What remains of #326 for this palette is the two color-mix rules in
+       tree.css that invent their own slab (#326 comment #4593): 7 of 12
+       cells below AA. That is a choice between widening this bar and making
+       those two rules stop inventing a slab, and it is open.
+
+       --color-info is here even though #303 does not list it: the rendered
+       audit found 13 failing elements carrying it on the analytics
+       dashboard, which is more than --color-error contributed. The issue's
+       table was built from a sample that happened not to include them.
+
+       WHICH THEMES NEED AN ENTRY, and it is NOT the same set as the -dark
+       tokens above. Midnight and High Contrast paint bright status colours
+       on near-black tints and are therefore ALREADY at 4.68-15.66:1 --
+       their dictionaries set these tokens to their own base colours, so a
+       label stays bright there, and listing them explicitly is load-bearing
+       rather than tidy (falling through would put a darkened label on a
+       near-black tint at 1.75-1.93:1, the current defect inverted). Nord's
+       pastels are the worst of the six (1.42:1) and it gets four entries.
+
+       Warm Study and Forest need entries too, and NOT because their bases
+       differ -- Warm Study overrides none of the four. Their --bg-secondary
+       is a shade darker than the generic one, so the :root value lands at
+       4.37-4.44:1 there. That is the one asymmetry with the -dark tokens
+       worth knowing: a -dark value only has to work against --color-white,
+       which two themes invert, while a -text value has to work against
+       three slabs that every theme tints differently. Error falls through
+       in both of those themes because #df1313 clears on its own.
+
+       _wimiApplyThemeVariables clears the union of every themed name before
+       applying a theme, so a token listed by only some dictionaries falls
+       through to :root in the rest -- the mechanism #110 established. A
+       token defined ONLY here and in no dictionary could not be themed at
+       all, which is the "Repoint, do not define" rule in
+       scripts/check_css_tokens.py. */
+    --color-success-text: #0b835c;
+    --color-warning-text: #a16707;
+    --color-error-text: #df1313;
+    --color-info-text: #047e93;
+
     /* Neutral Colors */
     --color-white: #ffffff;
     --color-gray-50: #f8fafc;
@@ -79,10 +202,38 @@
     --color-gray-800: #1e293b;
     --color-gray-900: #0f172a;
     
-    /* Text Colors */
+    /* Text Colors
+
+       --text-muted was --color-gray-400 until #302 and --color-gray-500
+       until #326, and is now off the ramp entirely. The history matters
+       because each step had a different bar:
+
+       #302: gray-400 #94a3b8 on --bg-primary #ffffff is 2.56:1 against a
+       4.5:1 WCAG AA body-text bar -- and this one token carries 270 `color:`
+       declarations under src/web/css (276 counting the html and js), so it
+       was most of the application's contrast debt on its own. Count it with
+       a pattern that excludes `*-color:`, or `border-top-color` and
+       `background-color` inflate it. gray-500 #64748b is 4.76:1 and was
+       already in the palette, so that move introduced no new value.
+
+       #326 is the measured residual of that: the bar was --bg-primary only,
+       and a card nested in a card is not --bg-primary. gray-500 measures
+       4.55:1 on --bg-secondary and 4.34:1 on --bg-tertiary -- 114 rendered
+       elements below AA across four pages, 46% of everything surviving #302
+       and #303. #617187 clears all three (4.98 / 4.76 / 4.54) and is the
+       minimum hue-preserving darkening that does.
+
+       So DO NOT tidy this back to var(--color-gray-500): no value on the ramp
+       clears the nested slabs, and gray-600 #475569 overshoots to 7.6:1,
+       which is --text-secondary's job. The ramp is unchanged for the same
+       reason #302 left gray-400 alone -- gray-400 is also --border-dark, and
+       gray-500 is still what a grey of that step means.
+
+       The same widened bar is applied in each theme dictionary in themes.js.
+       Midnight is the only theme that needed no move at all. */
     --text-primary: var(--color-gray-900);
     --text-secondary: var(--color-gray-600);
-    --text-muted: var(--color-gray-400);
+    --text-muted: #617187;
     --text-inverse: var(--color-white);
     
     /* Background Colors */
@@ -207,13 +358,13 @@ p {
 }
 
 a {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     text-decoration: none;
     transition: color var(--transition-fast);
 }
 
 a:hover {
-    color: var(--color-primary-hover);
+    color: var(--color-primary-hover-text);
     text-decoration: underline;
 }
 
@@ -468,7 +619,7 @@ input[type="radio"] {
 .form-error {
     margin-top: var(--space-xs);
     font-size: var(--font-size-sm);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 
@@ -482,28 +633,36 @@ input[type="radio"] {
     margin-bottom: var(--space-md);
 }
 
+/* The four .alert-* and three .badge-* text colours below were HARDCODED hex
+   literals (#0e7490 / #047857 / #b45309 / #b91c1c) on a themed -bg (#303).
+   That is #110's mechanism exactly: a light-theme text colour pinned onto a
+   background that inverts, so Midnight painted #047857 on its near-black
+   --color-success-bg #064e3b. Being literals they were invisible to the token
+   sweep that fixed the rest of #303 and to check_css_tokens, which can only
+   see a var() -- the rendered audit is what found them. If a status label ever
+   needs a colour here, it is --color-X-text; a literal cannot be themed. */
 .alert-info {
     background-color: var(--color-info-bg);
     border: 1px solid var(--color-info);
-    color: #0e7490;
+    color: var(--color-info-text);
 }
 
 .alert-success {
     background-color: var(--color-success-bg);
     border: 1px solid var(--color-success);
-    color: #047857;
+    color: var(--color-success-text);
 }
 
 .alert-warning {
     background-color: var(--color-warning-bg);
     border: 1px solid var(--color-warning);
-    color: #b45309;
+    color: var(--color-warning-text);
 }
 
 .alert-error {
     background-color: var(--color-error-bg);
     border: 1px solid var(--color-error);
-    color: #b91c1c;
+    color: var(--color-error-text);
 }
 
 
@@ -522,22 +681,22 @@ input[type="radio"] {
 
 .badge-primary {
     background-color: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .badge-success {
     background-color: var(--color-success-bg);
-    color: #047857;
+    color: var(--color-success-text);
 }
 
 .badge-warning {
     background-color: var(--color-warning-bg);
-    color: #b45309;
+    color: var(--color-warning-text);
 }
 
 .badge-error {
     background-color: var(--color-error-bg);
-    color: #b91c1c;
+    color: var(--color-error-text);
 }
 
 .badge-gray {
@@ -724,7 +883,7 @@ input[type="radio"] {
 
 .custom-select-option.selected {
     background-color: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: var(--font-weight-medium);
 }
 
@@ -962,7 +1121,7 @@ input[type="radio"] {
 
 .weight-config-badge.has-official {
     background: var(--color-primary-bg, #dbeafe);
-    color: var(--color-primary, #1e40af);
+    color: var(--color-primary-text, #1e40af);
 }
 
 .weight-config-badge .badge-icon {
@@ -977,6 +1136,21 @@ input[type="radio"] {
    with nothing extra for a caller to remember. Should :has() ever not apply,
    this degrades to the stray bullet rather than to anything incorrect. */
 .tree-toolbar-info .separator:has(+ .weight-config-badge.hidden) {
+    display: none;
+}
+
+/* Same move for the two toolbar counters, which ship empty and `hidden` since
+   #289 instead of claiming "0 subjects - Total: 0%" before anything has
+   counted. The separator between them would otherwise be a bare bullet for
+   the duration of the load, so it follows the counter it precedes. Keyed on a
+   class rather than on #total-weight so a third counter needs no new rule.
+
+   Deliberately NOT `:empty` -- QtWebEngine 6.10 stops re-invalidating that
+   selector, so a container that gains its first child keeps `display: none`
+   and renders at zero pixels (#134/#136/#141, and `check_css_empty_selector.py`
+   is the gate). Keying on the class JS removes invalidates correctly on both
+   engines, exactly as the badge rule above does. */
+.tree-toolbar-info .separator:has(+ .tree-toolbar-stat.hidden) {
     display: none;
 }
 
@@ -1003,4 +1177,198 @@ input[type="radio"] {
 
 .tree-node.locked .tree-node-weight {
     font-style: italic;
+}
+
+/* =========================================================================
+   The page gate's voice (#127)
+   =========================================================================
+
+   #114 gates a page by shipping its container `inert` until it can keep what
+   it is given. `inert` also removes that subtree from the accessibility tree,
+   so while the gate is up a screen reader reads an empty document -- measured
+   through CDP on the entry form: 72 accessibility nodes, 71 of them ignored,
+   one non-ignored node, the document root.
+
+   `.page-gate` is the one element that is not gated, carrying `role="status"`
+   so it is both readable during the gate and able to announce the handover.
+   See src/web/js/page_gate.js for the contract and docs/guides/PAGE_GATE.md
+   for how to apply it to another page.
+
+   It lives HERE, in styles.css, rather than in a page's own stylesheet,
+   because every page already links styles.css. A pattern four more pages are
+   about to copy must not also require them to remember a <link> -- a missing
+   one renders with browser defaults and says nothing about it.
+   ========================================================================= */
+
+/* The sighted half of the gate (#114), for the same reason the pill above is
+   here: it belongs to the pattern, not to one page. `inert` already refuses
+   the click and the keystroke; this is the part that tells a student who can
+   see the screen why, so a page being wired up does not simply feel broken.
+
+   Keyed on `[data-page-gated][inert]`, which is the pattern's own marker, so
+   a page gets it by declaring itself gated. This rule was `.entry-page[inert]`
+   in entry.css until #119/#120 needed the same thing twice more; the values
+   are unchanged, so the entry form renders exactly as it did.
+
+   Animated rather than a flat `opacity`, with a delay longer than a normal
+   load: a warm page is ready in ~110 ms and must not flash grey every single
+   time it opens. `both` holds the `from` frame through the delay, so the dim
+   appears only when initialisation actually drags -- which is exactly when
+   there is something to communicate. Removing `inert` drops the rule and the
+   page snaps back to full strength, which reads as "ready". The 250 ms is the
+   same number `.page-gate`'s own animation waits: one delay, one story.
+
+   Opacity and cursor only: no colour, so both themes are covered by whatever
+   the page already paints underneath. */
+@keyframes page-gated-initialising {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
+[data-page-gated][inert] {
+    animation: page-gated-initialising 150ms ease 250ms both;
+    cursor: progress;
+}
+
+.page-gate {
+    position: fixed;
+    top: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--z-toast);
+    max-width: calc(100% - var(--space-xl));
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    box-shadow: var(--shadow-md);
+
+    /* Invisible to the eye, present for assistive tech, and that combination
+       is the point. `opacity: 0` keeps the node in the accessibility tree;
+       `display: none` and `visibility: hidden` would both remove it, which is
+       the very bug this element exists to fix. `pointer-events: none` stops an
+       invisible fixed element from swallowing a click aimed at the page
+       underneath. */
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Shown to the eye only if the gate drags, with the same 250 ms delay that
+   `.entry-page[inert]`'s dim waits -- a warm page is ready in ~110 ms and must
+   not flash a banner every time it opens. `both` holds the `from` frame
+   through the delay. PageGate.release() stamps data-gate-state="ready", which
+   drops this rule and returns the element to the transparent base state. */
+@keyframes page-gate-appear {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.page-gate:not([data-gate-state="ready"]) {
+    animation: page-gate-appear 150ms ease 250ms both;
+}
+
+/* The delay is the mechanism and must survive; only the fade is motion. Zero
+   duration here would leave the element at its transparent base state, i.e.
+   invisible forever, so the duration is collapsed rather than removed. */
+@media (prefers-reduced-motion: reduce) {
+    .page-gate:not([data-gate-state="ready"]) {
+        animation-duration: 1ms;
+    }
+}
+
+/* ===================================================================
+   ARCHIVED ANCESTOR NOTE (#301)
+   ===================================================================
+
+   The second channel for #301's caveat. `_build_subject_path` filters
+   archived ancestors so the rendered path agrees with `get_paths_to_root`
+   (#262); where that SHORTENS a path, this says why. The owner's decision
+   (2026-10-03) was both halves together: filter AND explain.
+
+   Lives in `styles.css` because two pages render it today -- the subject
+   deep dive (its "Full path" line AND the Related Topics panel) and the
+   entry detail breadcrumb -- and #314 adds a third (the dashboard's Top
+   Subject card). Per-page stylesheets are the gotcha CLAUDE.md warns
+   about: a page that consumed these classes without linking their file
+   would render a bare `i` with browser defaults, and `styles.css` is the
+   one sheet every page already links.
+
+   The entry browser is deliberately NOT in that list. Its subject chips
+   already carry the path in a `title`, so they append
+   `ArchivedAncestorNote.sentence(...)` to it rather than nesting a
+   `tabindex="0"` host inside a clickable filter control.
+
+   Shape copied from `.sunburst-info-icon` / `.sunburst-info-tooltip`
+   (#6) and `.efficiency-info-icon` (#133): a `tabindex="0"` host whose
+   tooltip opens on `:hover` AND `:focus`, with the ring on
+   `:focus-visible` only. The `:focus` half is not decoration -- `title=`
+   was rejected for this precisely because it never appears on keyboard
+   focus. The `:focus-visible` rule MUST stay after the `:focus` one:
+   same specificity, so source order decides which outline wins (#304).
+   =================================================================== */
+
+.archived-ancestors-note {
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.375rem;
+    border: 1px solid var(--border-medium);
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.625rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    vertical-align: middle;
+}
+
+.archived-ancestors-note:hover,
+.archived-ancestors-note:focus {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    /* The label takes the -text variant and the border keeps the bright value
+       -- #325's split, and this rule is the canonical shape of it: a primary
+       label on the primary tint. It arrived with #301 after that fix branched
+       and was the first case the declaration sweep caught rather than a human
+       (see test_no_fill_token_is_painted_as_text). */
+    color: var(--color-primary-text);
+    outline: none;
+}
+
+.archived-ancestors-note:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.archived-ancestors-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 0.375rem);
+    left: 0;
+    width: 17rem;
+    max-width: 70vw;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    z-index: 400;
+}
+
+.archived-ancestors-note:hover .archived-ancestors-tooltip,
+.archived-ancestors-note:focus .archived-ancestors-tooltip {
+    display: block;
 }

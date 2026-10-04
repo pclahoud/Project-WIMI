@@ -77,7 +77,7 @@
 
 .settings-nav-item.active {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 600;
     border-left: 3px solid var(--color-primary);
 }
@@ -147,7 +147,7 @@
 .btn-reset {
     background: none;
     border: 1px solid var(--color-warning);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     padding: 0.5rem 1rem;
     border-radius: var(--radius-md);
     font-size: var(--font-size-xs);
@@ -335,7 +335,7 @@
 .range-value {
     font-size: var(--font-size-xs);
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 /* ============================================
@@ -445,7 +445,7 @@
 
 .hotkey-clear-btn:hover {
     background: var(--color-error-bg, #fef2f2);
-    color: var(--color-error, #dc2626);
+    color: var(--color-error-text);
     border-color: var(--color-error, #dc2626);
 }
 
@@ -502,7 +502,7 @@
 .btn-addon-uninstall {
     background: none;
     border: 1px solid var(--color-error, #dc2626);
-    color: var(--color-error, #dc2626);
+    color: var(--color-error-text);
     padding: 0.25rem 0.75rem;
     border-radius: var(--radius-md);
     font-size: var(--font-size-xs);
@@ -644,7 +644,7 @@
     height: 3rem;
     border-radius: 50%;
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-size: var(--font-size-lg);
     font-weight: 600;
     flex-shrink: 0;
@@ -672,7 +672,7 @@
 .profile-settings-switch {
     flex-shrink: 0;
     font-size: var(--font-size-xs);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     text-decoration: none;
 }
 
@@ -700,7 +700,7 @@
 .coming-soon-badge {
     display: inline-block;
     background: var(--color-info-bg);
-    color: var(--color-info);
+    color: var(--color-info-text);
     padding: 0.25rem 0.625rem;
     border-radius: var(--radius-xl);
     font-size: var(--font-size-xs);
@@ -1033,7 +1033,7 @@
 }
 
 .folder-sync-problem {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 /* Fork resolution (#124). Hidden until there is one -- a permanent
@@ -1072,3 +1072,198 @@
     border-radius: var(--radius-md, 6px);
 }
 
+
+/* ============================================================
+   Speech to Text (#59)
+   Tokens only -- scripts/check_css_tokens.py is a gate.
+   No `:empty` anywhere -- scripts/check_css_empty_selector.py is
+   the other one, and a progress bar that starts out empty is
+   exactly the shape that regression bites.
+   ============================================================ */
+
+/* Three rows, never one. The engine, the model and the microphone
+   fail independently and have three different fixes, so they get
+   three dots and three sentences (plan section 3.8, section 7). */
+.stt-status {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+}
+
+.stt-status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.stt-status-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    /* Line up with the first line of the title rather than the top of
+       the box, which a two-line remedy sentence would otherwise pull. */
+    margin-top: 0.3125rem;
+}
+
+/* Nobody has asked yet. A hollow ring rather than a fourth fill, for
+   the reason #90 gives about the MCP dot: the absence of a state must
+   not read as one more state. */
+.stt-status-dot.unknown {
+    background-color: transparent;
+    border: 1px solid var(--text-muted);
+}
+
+.stt-status-dot.ready {
+    background-color: var(--color-success);
+}
+
+/* Something is wrong and the student must do something outside WIMI:
+   plug a microphone in, grant permission, reinstall. */
+.stt-status-dot.problem {
+    background-color: var(--color-error);
+}
+
+/* "No model yet" is NOT a failure -- it is the first-run resting
+   state, one click from resolved (plan section 7). It gets its own
+   colour so the download prompt never looks like a breakage. */
+.stt-status-dot.action {
+    background-color: var(--color-info);
+}
+
+.stt-status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.stt-status-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stt-status-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.stt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
+.stt-problem {
+    color: var(--color-error-text);
+}
+
+/* The download. The track is hidden outright when the server sent no
+   Content-Length, rather than drawn indeterminate: a bar that cannot
+   say how far along it is must not draw a position. The byte count
+   still ticks. */
+.stt-progress {
+    margin-top: var(--space-sm);
+}
+
+.stt-progress-track {
+    height: 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.stt-progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--color-primary);
+    border-radius: var(--radius-full);
+}
+
+.stt-progress-text {
+    margin-top: var(--space-xs);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Models already on disk, each with an explicit Remove. The container is
+   hidden by settings.js while there are none -- `:empty` would do it in
+   one line and is exactly what #134/#136/#141 forbid. */
+.stt-model-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.stt-model-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.stt-model-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* ===================================================================
+   About panel: third-party notices (#195, owner's decision (a))
+   Theme tokens only. `scripts/check_css_tokens.py` is the gate, and it
+   catches an invented name even when a fallback hides it.
+   =================================================================== */
+
+.about-subhead {
+    margin: var(--space-lg) 0 var(--space-sm);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.about-notices-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--space-md);
+    font-size: 0.85rem;
+}
+
+.about-notices-table th,
+.about-notices-table td {
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.about-notices-table th {
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* The licence column is the one a reader scans, so keep it unwrapped where
+   the viewport allows it. */
+.about-notices-table td:last-child {
+    white-space: normal;
+}
+
+.about-notices-table code {
+    font-size: 0.8rem;
+    word-break: break-word;
+}
+
+/* The two section headings in the About panel. `.about-subhead` carries the
+   type; `.about-section` marks the two top-level ones so they sit apart from
+   the sub-headings inside the notices. */
+.about-notices-table + .about-subhead,
+.about-subhead.about-section {
+    margin-top: var(--space-xl);
+    font-size: 1rem;
+}

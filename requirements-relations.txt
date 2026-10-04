@@ -1,0 +1,60 @@
+# WIMI relation-extraction runtime (#60)
+#
+# NOT part of requirements-prod.txt, and that is the point of this file.
+#
+# The owner's 2026-10-04 decision ships TWO artifacts per platform: the
+# default one, and a larger one carrying this runtime. Bundling it for
+# everyone roughly doubles the installer -- PyQt6 + Qt + Chromium is 504 MB in
+# the venv and this adds 1.2 GB of site-packages (769 MB of it torch,
+# measured) -- for a feature many users will not enable.
+#
+# Putting these pins in requirements-prod.txt would make
+# scripts/check_build_env.py demand torch for the DEFAULT build on every
+# machine, which is the sequencing problem the variant decision removes. The
+# gate reads this file only when WIMI_BUILD_RELATIONS=1.
+#
+# INSTALL FROM THE CPU INDEX. This is a build-gate concern, not a README note:
+#
+#     pip install -r requirements-relations.txt \
+#         --index-url https://download.pytorch.org/whl/cpu \
+#         --extra-index-url https://pypi.org/simple
+#
+# The #60 spike measured `gliner2[local]` resolving torch from PyPI and
+# pulling 5.6 GB, 3.2 GB of it NVIDIA CUDA libraries, on a machine with no
+# NVIDIA GPU, against 863 MB from the CPU index. Bundling makes that
+# difference ship, and a maintainer who installed the default wheel would
+# produce an artifact several gigabytes larger with gigabytes of GPU libraries
+# that can never execute -- and nothing would notice. That is #135's shape, so
+# check_build_env.py asserts the CPU build when the relations flag is set
+# rather than merely asserting torch imports.
+#
+# Versions resolved from the CPU index on 2026-10-04 (Linux, Python 3.12) and
+# recorded here as measured, not chosen. Bump deliberately, and re-run
+# `python scripts/check_build_env.py --relations` afterwards.
+
+# ------------------------------------------------------------------ the runtime
+
+# NOTE THE ABSENT LOCAL VERSION LABEL, which is deliberate and portable.
+# The wheel installed from the CPU index on Linux reports `2.14.1+cpu`, and a
+# pin written that way would be UNSATISFIABLE on macOS, where there is only
+# one torch build and it carries no `+cpu` suffix. PEP 440 says a specifier
+# with no local version label ignores the candidate's label, so `==2.14.1`
+# matches both.
+#
+# This pin therefore states the VERSION and says nothing about the BUILD.
+# Asserting CPU-ness is check_build_env.py's separate job (torch.version.cuda
+# must be None, and no nvidia-* distribution may be installed) -- two
+# different claims, checked in two places, rather than one pin pretending to
+# make both.
+torch==2.14.1
+
+# Hugging Face transformers. GLiNER2 is built on DeBERTa-v3-base through it.
+transformers==5.18.0
+
+# The extraction model's own package (`fastino/gliner2-base-v1`, Apache-2.0
+# over MIT DeBERTa-v3-base). Weights are NOT here and must never enter the
+# installer: they download on first use into app_data/models/, per the owner's
+# decision and #59's D2. `import gliner2` was measured silent -- 0 bytes on
+# both streams -- so #60's note about it printing an emoji is about MODEL LOAD,
+# which happens in-process where configure_stdio() has already run (#137).
+gliner2==2.0.0

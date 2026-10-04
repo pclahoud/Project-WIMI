@@ -361,7 +361,27 @@ class SubjectDeepDive {
         const displayPath = this.subjectData.path_via_parent
             || this.subjectData.full_path
             || '-';
-        document.getElementById('fullPath').textContent = displayPath;
+        const pathEl = document.getElementById('fullPath');
+        pathEl.textContent = displayPath;
+        // #301: the path above is filtered, so an archived ancestor is no
+        // longer named in it. Say why, where something was actually
+        // removed. `path_omitted_ancestors` is keyed to whichever of the
+        // two paths the backend knows this line will show, so there is no
+        // branch here. Guarded on `typeof` so a missing script tag costs
+        // the explanation, never the path.
+        //
+        // A SIBLING of `#fullPath`, never a child: that element's
+        // `textContent` is the value scenarios read, and
+        // `test_multi_parent_selector_refilter.py` asserts a subject name is
+        // *absent* from it.
+        const staleNote = pathEl.parentNode
+            && pathEl.parentNode.querySelector(
+                '[data-testid="archived-ancestors-note"]');
+        if (staleNote) staleNote.remove();
+        if (typeof ArchivedAncestorNote !== 'undefined') {
+            ArchivedAncestorNote.insertAfter(
+                pathEl, this.subjectData.path_omitted_ancestors);
+        }
 
         // Exam weight - show range if available
         document.getElementById('examWeight').textContent = this.formatWeightDisplay(this.subjectData);

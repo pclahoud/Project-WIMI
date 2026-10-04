@@ -101,7 +101,7 @@
 
 .btn-delete-dimension:hover:not(:disabled) {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .btn-delete-dimension:disabled {
@@ -205,7 +205,7 @@
 
 #btn-add-dimension:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: var(--color-primary-bg);
 }
 
@@ -296,7 +296,7 @@
 }
 
 .dimension-body .field-error {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: var(--font-size-xs);
     margin-top: var(--space-xs);
 }

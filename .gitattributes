@@ -1,0 +1,26 @@
+# Git must not transform these files. They are conveyed byte-for-byte and
+# their sha256 digests are pinned by scripts/check_bundled_licenses.py.
+#
+# WHY THIS FILE EXISTS (#272, found on Windows 2026-10-03)
+#
+# With no .gitattributes, git applies `core.autocrlf` on checkout. On a Windows
+# clone that converts LF to CRLF, which changes the bytes, which breaks a
+# digest pin on a file NOBODY EDITED. Measured: licenses/LGPL-3.0.txt is 7,687
+# bytes and 162 lines here, and 7,849 bytes on Windows -- exactly one added CR
+# per line. check_bundled_licenses.py then reported "content changed" on a
+# clean checkout, and would have failed every Windows build.
+#
+# `-text` means "never do end-of-line conversion", in either direction. It is
+# the right answer rather than normalising in the gate: the gate's job is to
+# notice an EDIT, and teaching it to ignore whitespace would blind it to a
+# reflowed licence, which is the thing it exists to catch.
+#
+# A checkout made before this file existed still has CRLF in its working tree.
+# Fix it with `git add --renormalize .` or a fresh checkout; the gate now says
+# so when it detects that specific case.
+LICENSE            -text
+licenses/*.txt     -text
+
+# Same reasoning, different owner: the vendored whisper.cpp licence rides along
+# in vendor/whisper/<platform>/ and is conveyed with the build.
+vendor/whisper/**/LICENSE  -text

@@ -68,6 +68,15 @@ class EdgesMixin:
         """
         cursor = self.execute(
             """
+            -- includes-archived (#262): this walk must see archived nodes,
+            -- and it is the only recursive walk over subject_edges that must.
+            -- A cycle through an archived subject is still a cycle: #15 keeps
+            -- the edges of an archived subtree so #37's restore can bring it
+            -- back, and it would come back into a graph that now loops.
+            -- Every other walk answers "what is this subject related to", and
+            -- there a dead link in a live answer is the defect; this one
+            -- answers "would this write corrupt the DAG", where status is
+            -- beside the point.
             WITH RECURSIVE descendants(id) AS (
                 SELECT child_id FROM subject_edges WHERE parent_id = :child_id
                 UNION
@@ -345,34 +354,67 @@ class EdgesMixin:
     def get_paths_to_root(self, child_id: int) -> List[List[int]]:
         """Return every distinct root-to-``child_id`` path.
 
-        Each path is a list of node IDs starting at a root (a node with
-        no parent edges) and ending at ``child_id``. The primary path
-        — the one assembled by following ``is_primary=TRUE`` edges
-        upward — is returned first; remaining paths follow in
-        deterministic order (sorted by their tuple representation).
+        Each path is a list of node IDs starting at a root and ending at
+        ``child_id``. The primary path — the one assembled by following
+        ``is_primary=TRUE`` edges upward — is returned first; remaining
+        paths follow in deterministic order (sorted by their tuple
+        representation).
+
+        **Archived subjects are not named (#262).** A root is a node
+        with no incoming edge *from an active parent*, and the walk
+        itself refuses to step onto an archived node, so a path never
+        terminates at one and never runs through one either. Filtering
+        only one of those two would be incoherent rather than merely
+        incomplete: paths would still cross archived ancestors and just
+        stop somewhere else. This is the same answer
+        ``RelationsMixin._ancestor_sets`` has always given for the other
+        upward walk over this table — *an edge from an archived node is
+        not a live context* — and the same predicate #260 gave the root
+        finders and #57 gave ``get_parents`` /
+        ``get_edges_for_child``.
+
+        The result is therefore **never empty for any node**: if a
+        subject has no active parent it is a root, so it gets the
+        one-element path ``[child_id]``. That is what #262's concern
+        about an undefined empty case resolved to, and it matches what
+        #260 made the tree editor draw — such a subject renders at the
+        top level. ``child_id`` itself is emitted whatever its status,
+        because the caller named it.
 
         Implementation: a recursive CTE walks edges *upward* from
         ``child_id``, accumulating the path as a comma-separated string
-        (SQLite has no array type). Roots are detected by the absence
-        of any incoming edge for the current node. The CTE uses
-        ``UNION`` (not ``UNION ALL``) defensively so accidental data
-        cycles do not produce infinite recursion.
+        (SQLite has no array type). The CTE uses ``UNION`` (not
+        ``UNION ALL``) defensively so accidental data cycles do not
+        produce infinite recursion.
         """
         # Walk upward: at each step, prepend the parent to the path.
         # We only emit a row when the current node has no further
-        # parents (i.e., it's a root in the polyhierarchy graph).
+        # ACTIVE parents (i.e., it's a root in the polyhierarchy graph).
         rows = self.fetchall(
             """
             WITH RECURSIVE upward(node_id, path) AS (
                 SELECT :child_id, CAST(:child_id AS TEXT)
                 UNION
+                -- The WALK is filtered, not just the root predicate below
+                -- (#262). An archived ancestor is not a live context, so a
+                -- path must not run through one; stopping only where a path
+                -- terminates would move the problem rather than fix it.
                 SELECT se.parent_id, se.parent_id || ',' || u.path
                 FROM subject_edges se
                 JOIN upward u ON se.child_id = u.node_id
+                JOIN subject_nodes p
+                  ON p.id = se.parent_id AND p.status = 'active'
             )
+            -- A root is a node with no incoming edge FROM AN ACTIVE PARENT,
+            -- the same predicate #260 gave the other root finders. The two
+            -- halves have to agree: a node whose only parent is archived is
+            -- a root here and renders at the top level in the tree editor.
             SELECT path FROM upward
             WHERE NOT EXISTS (
-                SELECT 1 FROM subject_edges se WHERE se.child_id = upward.node_id
+                SELECT 1 FROM subject_edges se
+                JOIN subject_nodes p
+                  ON p.id = se.parent_id AND p.status = 'active'
+                WHERE se.child_id = upward.node_id
             )
             """,
             {"child_id": child_id},
@@ -398,11 +440,24 @@ class EdgesMixin:
         return sorted(all_paths)
 
     def _primary_path_to_root(self, child_id: int) -> List[int]:
-        """Walk upward via ``is_primary=TRUE`` edges only.
+        """Walk upward via ``is_primary=TRUE`` edges to an ACTIVE parent.
 
         Returns the canonical breadcrumb path. If a node has no primary
         parent edge, traversal stops there (so an orphaned child
         returns ``[child_id]``).
+
+        **Archived parents are skipped (#262), and the honest reason is
+        consistency rather than an observable bug.** Measured: with the
+        CTE above filtered, filtering here changes what *this* method
+        returns (``[X, B, D]`` becomes ``[B, D]`` when ``X`` is archived)
+        but never changes ``get_paths_to_root``'s output — a path naming
+        an archived node and a truncated prefix both fail the membership
+        test against ``all_paths`` identically, so both fall through to
+        ``sorted(all_paths)``. The filter is still right: this method's
+        contract is "the canonical breadcrumb path", a breadcrumb naming
+        a subject the tree does not show is wrong on its face, and a
+        second caller would inherit that. Do not describe it as fixing
+        the ordering.
         """
         path: List[int] = [child_id]
         seen: set[int] = {child_id}
@@ -411,8 +466,10 @@ class EdgesMixin:
         # case the cycle-prevention check was bypassed.
         for _ in range(1024):
             row = self.fetchone(
-                "SELECT parent_id FROM subject_edges "
-                "WHERE child_id = ? AND is_primary = TRUE LIMIT 1",
+                "SELECT se.parent_id AS parent_id FROM subject_edges se "
+                "JOIN subject_nodes p "
+                "  ON p.id = se.parent_id AND p.status = 'active' "
+                "WHERE se.child_id = ? AND se.is_primary = TRUE LIMIT 1",
                 (cursor_node,),
             )
             if row is None:

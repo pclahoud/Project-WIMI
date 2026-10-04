@@ -138,20 +138,57 @@ class SerializerMixin:
     def _serialize_entry_media(self, media) -> dict:
         """Serialize an EntryMedia object to a dictionary with URLs."""
         entry_id = media.question_entry_id
-        # Look up exam context names for this media (for global search display)
+        # Exam context names for this media, rendered as a badge on each
+        # attachment thumbnail (``entry_detail.js`` / ``detail.css``) and as
+        # a label on each image-browser card (``image_browser.js`` /
+        # ``media.css``). Plural because one media row can attach to many
+        # entries across exams, which is why both consumers ``join(', ')``.
+        #
+        # This selected ``ec.name`` until #200. ``exam_contexts`` has no
+        # such column -- it is ``exam_name`` and no migration adds one --
+        # so the statement raised on every call, the bare ``except
+        # Exception: pass`` below swallowed it, and ``exam_names`` was
+        # ALWAYS empty. Both surfaces above were therefore built, styled
+        # and never once displayed, and an empty list reads as "this media
+        # belongs to no exam" rather than as a failure.
+        #
+        # ``AS name`` is not decoration. #200 describes the fix as "one
+        # character", and a one-character fix is still broken:
+        # ``sqlite3.Row`` raises ``IndexError`` for a key it does not
+        # carry, so renaming the column alone moves the failure into the
+        # comprehension below, where the same handler swallows it and the
+        # result is an empty list again -- identical symptom, obviously
+        # correct diff. The alias keeps the projection and the read
+        # agreeing in one place.
         exam_names = []
         if hasattr(self, 'user_db') and self.user_db:
             try:
                 rows = self.user_db.fetchall("""
-                    SELECT DISTINCT ec.name FROM entry_media_mapping emm
+                    SELECT DISTINCT ec.exam_name AS name FROM entry_media_mapping emm
                     JOIN question_entries qe ON emm.question_entry_id = qe.id
                     JOIN review_sessions rs ON qe.review_session_id = rs.id
                     JOIN exam_contexts ec ON rs.exam_context_id = ec.id
                     WHERE emm.media_id = ?
                 """, (media.id,))
                 exam_names = [r['name'] for r in rows]
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                # Still caught broadly, and still non-fatal: the badge is a
+                # nicety and the image is not, so a lookup failure must not
+                # cost the student their attachment (#139's reasoning).
+                # But it says so now -- the silence is what let a wrong
+                # column name live in a query that runs on every entry
+                # open.
+                #
+                # WARNING, not ERROR: the payload remains useful, and
+                # WARNING-and-above deduplicates within 300 s by
+                # category:message, so a six-attachment entry logs once
+                # rather than six times.
+                logger = getattr(self, 'error_logger', None)
+                if logger is not None:
+                    logger.warning(
+                        f'Could not look up exam names for media: {exc}',
+                        context={'media_id': media.id, 'entry_id': entry_id},
+                    )
 
         return {
             'id': media.id,

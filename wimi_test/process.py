@@ -448,26 +448,72 @@ class WimiProcess:
     def _port_is_bindable(port: int) -> bool:
         """Return ``True`` if the child could bind ``port`` on loopback.
 
-        ``SO_REUSEADDR`` is set before ``bind()`` deliberately: it makes
-        the probe ask the question the caller actually has -- *can the
+        The probe asks the question the caller actually has -- *can the
         child bind here?* -- instead of *is this port completely
         untouched?*. The two answers differ for a port whose previous CDP
         connection is still in ``TIME_WAIT`` (~60s on Linux): a bare
-        ``bind()`` fails, while the child Chromium, which sets
-        ``SO_REUSEADDR`` itself, binds it without complaint.
+        ``bind()`` fails, while the child Chromium binds it without
+        complaint.
 
         That gap is issue #80. Each scenario spawns a WIMI, attaches over
         CDP and kills it in a few seconds, so a narrow range is consumed
         far faster than TIME_WAIT drains and the bare probe declared every
         port busy while ``ss -ltnp`` showed no listener at all.
 
-        Setting the option does not weaken the check. On Linux
-        ``SO_REUSEADDR`` still refuses a port that has a live listener,
-        which is the only condition that should disqualify a port here.
+        **The option is platform-specific, and getting that wrong was
+        issue #217.** This function had no branch, and a docstring that
+        scoped its own safety claim to Linux sat above it:
+
+            *"Setting the option does not weaken the check. On Linux
+            ``SO_REUSEADDR`` still refuses a port that has a live
+            listener."*
+
+        True, and true only there. Measured on Windows (10 Pro 19045,
+        2026-09-27), the rule is **mutual consent** -- a second
+        ``SO_REUSEADDR`` bind succeeds only when the *incumbent* listener
+        also set ``SO_REUSEADDR``:
+
+            listener bound bare            listener bound SO_REUSEADDR
+              bare bind   -> refused         bare bind   -> refused
+              REUSEADDR   -> refused (13)    REUSEADDR   -> **BOUND**
+              EXCLUSIVE   -> refused         EXCLUSIVE   -> refused
+
+        So the earlier diagnosis -- "Windows ``SO_REUSEADDR`` behaves like
+        Linux's ``SO_REUSEPORT`` and permits binding over any live
+        listener" -- is **wrong as stated**, and a probe against a bare
+        listener would have cleared the code falsely. It is the
+        ``SO_REUSEADDR`` incumbent that this used to hand out as free.
+
+        Note the errno: over a *bare* listener Windows refuses
+        ``SO_REUSEADDR`` with **13 / WSAEACCES**, not 10048 /
+        WSAEADDRINUSE. Anything that ever discriminates by errno needs
+        both.
+
+        ``SO_EXCLUSIVEADDRUSE`` is the win32 option that means "refuse if
+        anyone else holds this", and it refuses in **both** incumbent
+        cases -- which is the property this probe needs and the one the
+        docstring above used to claim without qualification.
+
+        **It does not cost #80 on Windows**, which was the question that
+        decided the fix rather than an assumption: measured, a
+        ``TIME_WAIT`` port with no listener is bound by
+        ``SO_EXCLUSIVEADDRUSE`` just as it is by ``SO_REUSEADDR`` and, on
+        Windows only, by a bare ``bind()`` too. So the exclusive option
+        restores the listener check without reintroducing the port
+        exhaustion ``SO_REUSEADDR`` was added to fix.
+
+        Linux keeps ``SO_REUSEADDR`` and #80's reasoning unchanged.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if sys.platform == "win32":
+                # Explicit platform branch rather than a sentence about one
+                # platform above a branchless function -- that shape is what
+                # #217 was.
+                sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind(("127.0.0.1", port))
         except OSError:
             return False

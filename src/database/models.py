@@ -227,10 +227,19 @@ class UserPreferences:
     # same thing on the other machine. Contrast ``ankiconnect_host``,
     # whose identical string denotes a different machine.
     pane_default_source_id: Optional[int] = None
+    # Speech to text (#59). Both are user-level: vocabulary priming is a
+    # stated preference about how decoding should behave, the same class
+    # as ``pane_open_mode``, and the first-use notice records what the
+    # student has been *told* about their audio rather than anything
+    # about a machine. The device half -- which microphone, which model
+    # -- is on ``DeviceSettings``, because those name this machine's
+    # hardware and this machine's ``app_data/``.
+    stt_priming_enabled: bool = True
+    stt_show_first_use_notice: bool = True
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> 'UserPreferences':
         """Create UserPreferences from database row"""
@@ -278,6 +287,10 @@ class UserPreferences:
             pane_open_mode=row.get('pane_open_mode') or 'last',
             pane_shortcut_opens=row.get('pane_shortcut_opens') or 'current',
             pane_default_source_id=row.get('pane_default_source_id'),
+            stt_priming_enabled=bool(row.get('stt_priming_enabled', True)),
+            stt_show_first_use_notice=bool(
+                row.get('stt_show_first_use_notice', True)
+            ),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
         )
@@ -315,6 +328,13 @@ class DeviceSettings:
     # MCP server
     mcp_server_enabled: bool = False
     mcp_server_port: int = 8000
+    # Speech to text (#59). Both default to None, meaning "this machine
+    # has not chosen": the microphone falls back to the system default
+    # device, and the model falls back to whatever ``stt/model_spec.py``
+    # pins. Resolving those belongs there and not to a default here,
+    # which would be a second statement of the same fact.
+    stt_model_size: Optional[str] = None
+    stt_input_device_id: Optional[str] = None
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -336,6 +356,8 @@ class DeviceSettings:
             ankiconnect_port=row.get('ankiconnect_port') or 8765,
             mcp_server_enabled=bool(row.get('mcp_server_enabled', False)),
             mcp_server_port=row.get('mcp_server_port') or 8000,
+            stt_model_size=row.get('stt_model_size'),
+            stt_input_device_id=row.get('stt_input_device_id'),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None,
         )

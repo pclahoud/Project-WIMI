@@ -219,7 +219,7 @@
 }
 
 .required {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .optional {
@@ -263,7 +263,7 @@
     height: 1.75rem;
     border-radius: 50%;
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -292,7 +292,7 @@
 
 .badge-required {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .badge-optional {
@@ -378,7 +378,7 @@
 }
 
 .preview-highlight {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: var(--font-weight-medium);
 }
 
@@ -540,12 +540,12 @@
 
 .modal-icon.success {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .modal-icon.error {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .modal-title {
@@ -773,22 +773,22 @@
 
 .template-category-badge.category-medical {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .template-category-badge.category-graduate {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .template-category-badge.category-undergraduate {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .template-category-badge.category-professional {
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .template-category-badge.category-other {
@@ -801,7 +801,7 @@
     padding: 0.125rem 0.5rem;
     border-radius: var(--radius-full);
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     font-weight: var(--font-weight-medium);
 }
 
@@ -922,7 +922,7 @@
 
 .template-modification-indicator.default {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .template-modification-indicator.default::before {
@@ -936,7 +936,7 @@
 
 .template-modification-indicator.modified {
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .template-modification-indicator.modified::before {
@@ -953,7 +953,7 @@
 .btn.btn-text-only {
     background: none;
     border: none;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-size: var(--font-size-sm);
     cursor: pointer;
     padding: var(--space-xs) var(--space-sm);
@@ -980,7 +980,7 @@
     font-size: var(--font-size-xs);
     padding: 0.125rem 0.375rem;
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-radius: var(--radius-sm);
     font-weight: var(--font-weight-medium);
     margin-left: auto;

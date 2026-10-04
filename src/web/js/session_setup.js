@@ -26,7 +26,13 @@ const SessionState = {
     examContext: null,
     sources: [],
     previousSessions: [],
+    // "The form is still markup." Cleared by markSessionSetupReady(), which is
+    // also what removes `inert` from .session-page -- one flag, one gate, so
+    // the flag can never say ready while the page still refuses input (#120).
     isLoading: true,
+    // Latch so markSessionSetupReady() is idempotent; it is called from the
+    // init `finally` and from the pre-`try` "no exam id" return.
+    isPageReady: false,
     selectedSourceId: null,
     editingSourceId: null,
     sourceSelect: null,  // CustomSelect instance for new session form
@@ -173,9 +179,16 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * The default for #session-date: the student's own calendar day (#286).
+ *
+ * This was `new Date().toISOString().split('T')[0]`, i.e. the UTC date, and
+ * #session-date is a required field nobody is asked to confirm -- so west of
+ * Greenwich every evening session was stored, and counted, under tomorrow.
+ * `LocalDate` carries why that is the storage bug and not a display one.
+ */
 function getTodayDateString() {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    return LocalDate.today();
 }
 
 function getSourceTypeLabel(type) {
@@ -1164,12 +1177,62 @@ async function confirmEntryDeletion() {
 // Initialization
 // =========================================================================
 
+/**
+ * Hand the form to the student: clear `inert`, drop isLoading, and say so.
+ *
+ * Until this runs, .session-page ships `inert`, so a click has nowhere to land
+ * and a keystroke cannot be typed -- which is the point (#120). Two separate
+ * things were being lost in that window:
+ *
+ * 1. The form got stuck. `input` / `change` handlers are bound by
+ *    initializeFormValidation() at the very end of the chain, so a keystroke
+ *    before that never ran validateForm() and #btn-start-session stayed
+ *    disabled on a visibly complete form. Nothing said so.
+ * 2. Three fields were reverted. The chain assigns #session-date today's date
+ *    unconditionally, and initializeSessionDuration() assigns the preset and
+ *    custom-minutes inputs from the stored preference after its own await. A
+ *    back-dated session or a chosen duration was simply overwritten.
+ *
+ * SessionState.isLoading moves here because one gate must own the flag and the
+ * attribute together, or the flag can claim ready while the page still refuses
+ * input (#114's rule). It was declared `true` and never cleared or read by
+ * anything, so this is the first thing that makes it mean something.
+ */
+function markSessionSetupReady() {
+    if (SessionState.isPageReady) return;
+    SessionState.isPageReady = true;
+    SessionState.isLoading = false;
+
+    const page = document.querySelector('.session-page');
+    if (page) page.removeAttribute('inert');
+
+    // Say so (#127). `inert` removes .session-page from the accessibility tree
+    // as well as refusing its input, so until this moment a screen reader has
+    // been reading an empty document. .page-gate is the sibling element that
+    // is not gated, and changing its text is what gets announced; a gate too
+    // brief to be worth announcing clears it instead.
+    //
+    // AFTER removeAttribute, inside a try, behind a typeof check, and its
+    // return value deliberately ignored. Nothing added for assistive tech --
+    // a forgotten <script> tag included -- may be able to leave the page
+    // gated. See src/web/js/page_gate.js.
+    try {
+        if (typeof PageGate !== 'undefined') PageGate.release('Session form ready.');
+    } catch (err) {
+        console.warn('PageGate.release failed; the form is released anyway:', err);
+    }
+}
+
 async function initializeSessionSetup() {
     console.log('🚀 Initializing session setup page...');
     
     // Get exam context ID from URL
     const examId = getUrlParam('exam_id');
     if (!examId) {
+        // Outside the try below, so the finally does not cover it. Release the
+        // form anyway: the page is about to redirect, and leaving it `inert`
+        // would freeze the last frame the student sees (#120, #114's rule).
+        markSessionSetupReady();
         Toast.error('Missing Exam', 'No exam selected. Redirecting...');
         setTimeout(() => {
             window.location.href = 'index.html';
@@ -1212,6 +1275,13 @@ async function initializeSessionSetup() {
     } catch (error) {
         console.error('Error initializing session setup:', error);
         Toast.error('Initialization Failed', error.message);
+    } finally {
+        // In a `finally`, and that is the load-bearing part: this page stays
+        // put when its init fails -- it reports a toast and does not redirect
+        // -- so a release reached only from the happy path would leave a
+        // permanently dead form on screen. A permanently gated page is a far
+        // worse bug than the one this gate fixes (#114's own rule).
+        markSessionSetupReady();
     }
 }
 

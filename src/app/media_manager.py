@@ -9,15 +9,24 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 import mimetypes
 
 try:
     from PIL import Image
     PILLOW_AVAILABLE = True
+    # The failures `_generate_thumbnail` is written to tolerate, named rather
+    # than caught as a bare `Exception` (#139). `UnidentifiedImageError` is an
+    # `OSError` subclass so it needs no separate entry; `DecompressionBombError`
+    # is NOT -- it derives straight from `Exception` -- so leaving it out would
+    # class a hostile upload as a programming error.
+    _EXPECTED_THUMBNAIL_ERRORS = (
+        OSError, ValueError, Image.DecompressionBombError,
+    )
 except ImportError:
     PILLOW_AVAILABLE = False
-    # Warning will be shown when thumbnail generation is attempted
+    # `_generate_thumbnail` returns early in this case, and says so in the log.
+    _EXPECTED_THUMBNAIL_ERRORS = (OSError, ValueError)
 
 
 # Supported image formats
@@ -79,18 +88,32 @@ class MediaManager:
         - Metadata tracking
     """
     
-    def __init__(self, base_path: Path, user_id: int, username: str):
+    def __init__(
+        self,
+        base_path: Path,
+        user_id: int,
+        username: str,
+        error_logger: Optional[Any] = None,
+    ):
         """
         Initialize MediaManager.
-        
+
         Args:
             base_path: Base application data path (e.g., app_data/)
             user_id: Current user's ID
             username: Current user's username
+            error_logger: The one ``ErrorLogger``. Optional so a test or a
+                plugin fixture can build a manager without the Qt logging
+                stack, but every production site must pass it -- thumbnail
+                failures are reported through it and nowhere else (#139),
+                and an omitted logger disables them silently, which is the
+                defect that issue is about. Never mint a second one here;
+                thread the one ``MainWindow`` holds.
         """
         self.base_path = Path(base_path)
         self.user_id = user_id
         self.username = username
+        self.error_logger = error_logger
         self.user_media_path = self.base_path / "media" / f"user_{user_id}_{username}"
         
         # Ensure base directory exists
@@ -241,13 +264,28 @@ class MediaManager:
             True if thumbnail was generated, False otherwise
         """
         if not PILLOW_AVAILABLE:
+            # The import guard at the top of this module says "Warning will be
+            # shown when thumbnail generation is attempted". It never was
+            # (#139).
+            #
+            # Deliberately names no file. Pillow being absent is a condition
+            # of the whole process, not a fact about one upload -- no image
+            # gets a thumbnail -- so naming one would misdirect. Keeping the
+            # message constant also lets the logger's 300 s WARNING dedup
+            # window collapse it to one record however many images are
+            # attached, which interpolating a filename would defeat.
+            self._log_thumbnail_problem(
+                'warning',
+                "Pillow is not available, so no thumbnails can be generated. "
+                "Images still upload and are displayed at full size."
+            )
             return False
-        
+
         try:
             # Skip SVG files (can't easily thumbnail)
             if source_path.suffix.lower() == '.svg':
                 return False
-            
+
             with Image.open(source_path) as img:
                 # Convert to RGB if necessary (for PNG with transparency)
                 if img.mode in ('RGBA', 'LA', 'P'):
@@ -267,10 +305,78 @@ class MediaManager:
                 img.save(thumbnail_path, 'JPEG', quality=85)
                 return True
                 
-        except Exception as e:
-            # Log error but don't raise - thumbnail is optional
+        except _EXPECTED_THUMBNAIL_ERRORS as exc:
+            # The cases this handler was written for: the upload is not an
+            # image after all (UnidentifiedImageError is an OSError), it is
+            # truncated, the thumbnail directory is not writable, the disk is
+            # full, or Pillow refused a decompression bomb.
+            #
+            # Not raising is deliberate and unchanged -- the thumbnail is
+            # optional and the one caller (save_media_from_base64) already
+            # handles False by storing thumbnail_path=None, which the whole
+            # read path tolerates. Raising would turn "this image has no
+            # thumbnail" into "this image failed to upload", losing the
+            # student's data to improve a diagnostic.
+            self._log_thumbnail_problem(
+                'warning',
+                f"Could not generate a thumbnail for {source_path}: {exc!r}. "
+                f"The image itself was saved and is shown at full size."
+            )
             return False
-    
+        except Exception as exc:
+            # Anything else is a bug rather than a bad upload -- a Pillow API
+            # change, a programming error, MemoryError. It is still not worth
+            # the student's upload (same reasoning as above), but it is an
+            # ERROR with a stack trace rather than a routine warning, because
+            # the previous behaviour here was to swallow a broken thumbnailer
+            # in silence: verifying #135's Pillow downgrade was harder than it
+            # should have been precisely because nothing would have said so.
+            self._log_thumbnail_problem(
+                'error',
+                f"Unexpected failure generating a thumbnail for "
+                f"{source_path}: {exc!r}. The image itself was saved.",
+                exc=exc,
+            )
+            return False
+
+    def _log_thumbnail_problem(
+        self, level: str, message: str, exc: Optional[BaseException] = None
+    ) -> None:
+        """Record a thumbnail failure, if this manager was given a logger.
+
+        Guarded on ``self.error_logger`` the same way the database layer
+        guards its calls, so a ``MediaManager`` built without one (a test, a
+        plugin fixture) degrades to silence rather than raising. That is the
+        trap CLAUDE.md's *Logging* invariant 2 is about, which is why every
+        production construction site in ``main_window.py`` passes one.
+
+        ``ErrorCategory`` is imported lazily and defensively: ``app_logging``
+        imports PyQt6, and this module is otherwise Qt-free and importable on
+        its own. ``migration_runner._log`` does the same for the same reason.
+        The logger wants an ``ErrorCategory`` member rather than a string --
+        it calls ``.value`` on it -- and ``tests/database/test_logger_category_types.py``
+        is the gate that keeps that honest.
+        """
+        logger = getattr(self, 'error_logger', None)
+        if logger is None:
+            return
+        method = getattr(logger, level, None)
+        if method is None:
+            return
+        kwargs = {}
+        try:
+            from app_logging import ErrorCategory
+            kwargs['category'] = ErrorCategory.SYSTEM
+        except (ImportError, AttributeError):
+            pass
+        if exc is not None:
+            kwargs['error'] = exc
+        try:
+            method(message, **kwargs)
+        except Exception:
+            # A failing logger must never cost an upload.
+            pass
+
     def save_media_from_base64(
         self,
         entry_id: int,

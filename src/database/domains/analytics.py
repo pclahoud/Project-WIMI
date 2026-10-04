@@ -159,6 +159,7 @@ class AnalyticsMixin:
                     'subject_id': int,
                     'subject_name': str,
                     'full_path': str,
+                    'path_omitted_ancestors': [str, ...] | None,  # #301
                     'mistake_count': int,        # Direct mistakes only
                     'total_mistake_count': int,  # Including descendants (if include_children)
                     'percentage': float,
@@ -218,8 +219,27 @@ class AnalyticsMixin:
             # pinned to one parent must not also inflate the others.
             # Without this a mistake on a subject with N parents reached
             # all N of them.
-            subject_ids = [row['subject_id'] for row in subject_rows]
-            bucket_placeholders = ','.join(['?'] * len(subject_ids))
+            # Scope to the same subjects the query above found by JOINing
+            # the table it joins -- NOT by an IN list of their ids (#199).
+            #
+            # The IN list was one placeholder per subject: 2,575 of them on
+            # a real outline, costing 1,613 ms against this join's 7 ms for
+            # a byte-identical row set. A long IN list is not slow to parse;
+            # it changes the PLAN. With it SQLite picks the composite
+            # idx_unique_entry_subject (question_entry_id, subject_node_id)
+            # and probes it once per element of the list, per entry. Without
+            # it, one probe on idx_entry_subjects_entry. The list multiplies
+            # the work by its own length, so the cost grew with the size of
+            # the student's outline -- 2.6 s of a 2.8 s dashboard open.
+            #
+            # The join is equivalent BY CONSTRUCTION, not by coincidence:
+            # subject_query above selects FROM subject_nodes joined to these
+            # same three tables, under the same where_clause and the same
+            # mapping_type = 'primary', with no LIMIT. Both therefore see
+            # exactly the same subject_node_ids. Keeping the join rather
+            # than dropping the predicate entirely means that stays true
+            # even if _aggregate_hierarchy_counts ever iterates the buckets
+            # instead of reading them per known node.
             bucket_rows = self.fetchall(f"""
                 SELECT esm.subject_node_id AS sid,
                        esm.primary_parent_id AS ppid,
@@ -227,11 +247,11 @@ class AnalyticsMixin:
                 FROM entry_subject_mappings esm
                 JOIN question_entries qe ON qe.id = esm.question_entry_id
                 JOIN review_sessions rs ON rs.id = qe.review_session_id
+                JOIN subject_nodes sn ON sn.id = esm.subject_node_id
                 WHERE {where_clause}
                   AND esm.mapping_type = 'primary'
-                  AND esm.subject_node_id IN ({bucket_placeholders})
                 GROUP BY esm.subject_node_id, esm.primary_parent_id
-            """, tuple(list(params) + subject_ids))
+            """, tuple(params))
 
             context_buckets = {}
             for brow in bucket_rows:
@@ -291,8 +311,18 @@ class AnalyticsMixin:
             count_for_percentage = subj['total_mistake_count'] if include_children else subj['mistake_count']
             percentage = (count_for_percentage / total_entries * 100) if total_entries > 0 else 0
 
-            # Get full path
-            full_path = self._build_subject_path(subject_id)
+            # Get full path.
+            #
+            # #301 filters archived ancestors out of it. The names it removed
+            # travel too, because **#314 renders this path on the dashboard's
+            # Top Subject card** and the alternative there would be a second
+            # unfiltered walk at the call site -- which is the disagreement
+            # #301 exists to remove. Today `analytics_preview.js` reads
+            # `full_path` only as a fallback for a missing name, so nothing
+            # renders the key yet; it is here so #314 does not have to choose
+            # between re-walking and shipping an unexplained short path.
+            full_path_info = self._build_subject_path_info(subject_id)
+            full_path = full_path_info['path']
 
             # Calculate trend (based on direct counts for this node).
             #
@@ -343,6 +373,11 @@ class AnalyticsMixin:
                 'subject_id': subject_id,
                 'subject_name': subj['subject_name'],
                 'full_path': full_path,
+                # #301. Names when the path was shortened, `None` otherwise,
+                # never an empty list -- one rule across every payload.
+                'path_omitted_ancestors': (
+                    full_path_info['omitted_ancestors'] or None
+                ),
                 'mistake_count': subj['mistake_count'],
                 'total_mistake_count': subj['total_mistake_count'],
                 'percentage': round(percentage, 1),

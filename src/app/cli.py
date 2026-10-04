@@ -100,7 +100,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     from the frozen binary, which is what each caller actually types.
     """
     parser = argparse.ArgumentParser(
-        description="WIMI - What I Missed It (desktop GUI by default).",
+        description="WIMI - Why I Missed It (desktop GUI by default).",
         allow_abbrev=False,
     )
     parser.add_argument(

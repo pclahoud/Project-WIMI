@@ -31,14 +31,14 @@
     display: inline-flex;
     align-items: center;
     gap: var(--radius-lg);
-    color: var(--color-info);
+    color: var(--color-info-text);
     text-decoration: none;
     font-size: var(--font-size-sm);
     transition: color 0.2s;
 }
 
 .header-left .back-link:hover {
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .header-center {
@@ -55,7 +55,7 @@
 }
 
 .chart-icon {
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .header-right {
@@ -147,7 +147,7 @@
 }
 
 .stat-value .value {
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .stat-value .change {
@@ -156,7 +156,7 @@
 }
 
 .stat-value .change.positive {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .stat-value .change.positive::before {
@@ -165,7 +165,7 @@
 }
 
 .stat-value .change.negative {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .stat-value .change.negative::before {
@@ -324,9 +324,20 @@
 .sunburst-info-icon:hover,
 .sunburst-info-icon:focus {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-color: var(--color-primary);
     outline: none;
+}
+
+/* #304: the `outline: none` above is what made this one of the audit's five
+   invisible focus stops -- it carries tabindex="0", so Tab lands here and
+   nothing is drawn. Kept as `:focus` for the tooltip (keyboard focus must
+   open it) with the ring on `:focus-visible` so a mouse hover draws none.
+   This rule must stay AFTER the one above: same specificity, so source
+   order decides which outline wins. */
+.sunburst-info-icon:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 .sunburst-info-tooltip {
@@ -371,18 +382,20 @@
 }
 
 .sunburst-breadcrumb .breadcrumb-item.clickable {
-    color: var(--color-info);
+    color: var(--color-info-text);
     cursor: pointer;
     transition: color 0.2s;
 }
 
 .sunburst-breadcrumb .breadcrumb-item.clickable:hover {
-    color: var(--color-info);
+    color: var(--color-info-text);
     text-decoration: underline;
 }
 
+/* #330: a separator is text. The sibling .breadcrumb-separator rule
+   further down this file is already --text-muted. */
 .sunburst-breadcrumb .breadcrumb-separator {
-    color: var(--border-medium);
+    color: var(--text-muted);
 }
 
 .chart-legend {
@@ -418,14 +431,14 @@
 .deep-dive-link {
     display: inline-block;
     margin-top: 1rem;
-    color: var(--color-info);
+    color: var(--color-info-text);
     text-decoration: none;
     font-size: var(--font-size-sm);
     font-weight: 500;
 }
 
 .deep-dive-link:hover {
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 /* ============================================================================
@@ -463,7 +476,7 @@
 
 .period-btn:hover {
     border-color: var(--color-info);
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .period-btn.active {
@@ -601,10 +614,13 @@
     font-size: var(--font-size-sm);
 }
 
+/* #330: this is a SENTENCE, not a decorative glyph -- it tells a student
+   why the heatmap is empty, which is exactly when they need telling.
+   --border-medium as text is 1.42-2.48:1 in every theme. */
 .heatmap-empty-hint {
     font-size: 0.8125rem;
     margin-top: 0.5rem !important;
-    color: var(--border-medium);
+    color: var(--text-muted);
 }
 
 /* Streak Cards */
@@ -678,7 +694,7 @@
 
 .streak-warning {
     font-size: var(--font-size-xs);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     font-weight: 500;
     margin-top: 0.25rem;
 }
@@ -689,11 +705,11 @@
 }
 
 .streak-status.active {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .streak-status.best {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     font-weight: 500;
 }
 
@@ -726,7 +742,7 @@
 
 .streak-compact.active {
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .streak-compact.at-risk {
@@ -770,10 +786,11 @@
     font-size: var(--font-size-sm);
 }
 
+/* #330: a sentence, as with .heatmap-empty-hint above. */
 .streak-empty-hint {
     font-size: 0.8125rem;
     margin-top: 0.25rem !important;
-    color: var(--border-medium);
+    color: var(--text-muted);
 }
 
 /* ============================================================================
@@ -841,7 +858,7 @@
 
 .insight-action {
     font-size: 0.8125rem;
-    color: var(--color-info);
+    color: var(--color-info-text);
     font-weight: 500;
 }
 
@@ -974,7 +991,7 @@
 }
 
 .goal-message.success {
-    color: var(--color-success);
+    color: var(--color-success-text);
     font-weight: 500;
 }
 
@@ -1191,7 +1208,7 @@
     border-bottom: 1px solid var(--border-light);
 }
 
-.goal-modal .modal-header h3 {
+.goal-modal .modal-header h2 {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
     color: var(--text-primary);
@@ -1259,7 +1276,7 @@
 .goal-adjust-btn:active {
     background: var(--color-primary-bg);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .goal-target-input {
@@ -1408,12 +1425,12 @@
 
 .trend-improving {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .trend-worsening {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .trend-stable {
@@ -1495,7 +1512,7 @@
 
 .difficulty-icon {
     font-size: var(--font-size-xs);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     min-width: 2.1875rem;
 }
 
@@ -1727,7 +1744,7 @@
 
 .dimension-tab:hover {
     border-color: var(--color-info);
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .dimension-tab.active {
@@ -1886,7 +1903,7 @@
 }
 
 .breadcrumb-link {
-    color: var(--color-info);
+    color: var(--color-info-text);
     cursor: pointer;
     text-decoration: none;
 }
@@ -2130,13 +2147,13 @@
 }
 
 .recommendation-priority {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     font-size: var(--font-size-sm);
     letter-spacing: 1px;
 }
 
 .priority-stars {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .recommendation-stats {
@@ -2162,16 +2179,16 @@
 
 .recommendation-stats .stat-value.difficulty-very\ hard,
 .recommendation-stats .stat-value.difficulty-hard {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .recommendation-stats .stat-value.difficulty-medium {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .recommendation-stats .stat-value.difficulty-easy,
 .recommendation-stats .stat-value.difficulty-very\ easy {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .recommendation-text {
@@ -2253,12 +2270,12 @@
 
 .interaction-direction.over {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .interaction-direction.under {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .interaction-combination {
@@ -2479,13 +2496,13 @@
 }
 
 .dimension-info-text {
-    color: var(--color-info);
+    color: var(--color-info-text);
     margin: 0;
     font-size: var(--font-size-sm);
 }
 
 .learn-more-link {
-    color: var(--color-info);
+    color: var(--color-info-text);
     text-decoration: none;
     font-weight: 500;
 }
@@ -2539,7 +2556,7 @@
 .dimension-error {
     text-align: center;
     padding: 1.5rem;
-    color: var(--color-error);
+    color: var(--color-error-text);
     background: var(--color-error-bg);
     border-radius: var(--radius-lg);
 }
@@ -2612,12 +2629,12 @@
 
 .trends-indicator.trend-up {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .trends-indicator.trend-down {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .trends-indicator.trend-stable {
@@ -2690,16 +2707,26 @@
     padding: 2px;
 }
 
+/* `min-height` in px: WCAG 2.2 AA asks for a 24x24 CSS-pixel target and
+   these measured 22 px tall (#306). A floor rather than a fixed height, so
+   a longer label or a bigger body font still grows the button. */
 .size-preset-btn {
     background: transparent;
     border: none;
     padding: 0.25rem 0.625rem;
+    min-width: 24px;
+    min-height: 24px;
     font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-muted);
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.15s;
+}
+
+.size-preset-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 .size-preset-btn:hover {
@@ -2709,6 +2736,6 @@
 
 .size-preset-btn.active {
     background: var(--bg-primary);
-    color: var(--color-info);
+    color: var(--color-info-text);
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }

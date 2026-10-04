@@ -186,12 +186,12 @@ body:has(> .tree-page) {
 
 .tree-search-clear:hover {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 mark.tree-search-highlight {
     background: color-mix(in srgb, var(--color-primary, #2563eb) 15%, transparent);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     border-radius: 3px;
     font-weight: 700;
 }
@@ -300,6 +300,35 @@ mark.tree-search-highlight {
     box-shadow: inset -3px 0 0 0 var(--color-primary, #2563eb);
 }
 
+/* #304: the row's keyboard control.
+   `.tree-node-name` carries role="button" + tabindex="0" because selecting a
+   subject was mouse-only. The ROLE is on the name rather than on
+   `.tree-node-content` because role="button" on the row container was
+   measured first and makes the row's accessible name the concatenation of
+   everything in it ("▶ 📁 Cardio System 0.0% + 🗑️"), whereas the name span's
+   contents are exactly the subject.
+
+   The RING, though, goes on the row and not on the element holding the
+   focus. `.tree-node-name` is `flex: 1`, so an outline on it is a
+   full-width rounded rectangle around the text -- which is very close to
+   what `.tree-node-name-input` looks like (`flex: 1`, 1px solid
+   `--color-primary`, same radius), so a focused row read as a row already
+   in rename mode. Seen in a screenshot, not reasoned about. Ringing the row
+   also says the truer thing: the row is what Enter acts on.
+
+   `:focus-visible` so a mouse click draws nothing; `:has()` because it is
+   the sanctioned selector in this codebase (the one that replaced
+   `:empty`). */
+.tree-node-name:focus-visible {
+    outline: none;
+}
+
+.tree-node-content:has(> .tree-node-name:focus-visible) {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+    border-radius: var(--radius-md);
+}
+
 /* Expand/Collapse Toggle */
 .tree-toggle {
     width: 1.5rem;
@@ -396,7 +425,7 @@ mark.tree-search-highlight {
     font-weight: var(--font-weight-medium);
     border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-primary, #2563eb) 12%, transparent);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     border: 1px solid color-mix(in srgb, var(--color-primary, #2563eb) 30%, transparent);
     font-style: italic;
     flex-shrink: 0;
@@ -446,7 +475,7 @@ mark.tree-search-highlight {
     font-weight: var(--font-weight-medium);
     border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-primary, #2563eb) 8%, transparent);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     border: none;
     flex-shrink: 0;
     cursor: pointer;
@@ -524,7 +553,7 @@ mark.tree-search-highlight {
 }
 
 .parent-row-marker:hover {
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     border-color: var(--color-primary, #2563eb);
     background: color-mix(in srgb, var(--color-primary, #2563eb) 10%, transparent);
 }
@@ -570,7 +599,7 @@ mark.tree-search-highlight {
 }
 
 .parent-row.is-primary .parent-row-meta {
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     font-weight: var(--font-weight-medium);
 }
 
@@ -604,7 +633,7 @@ mark.tree-search-highlight {
 
 .parent-row-action.danger:hover {
     background: color-mix(in srgb, var(--color-error) 12%, transparent);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .parent-row-action[disabled] {
@@ -706,7 +735,7 @@ mark.tree-search-highlight {
 
 .parents-picker-result-reason {
     font-size: 0.6875rem;
-    color: var(--color-warning, #f59e0b);
+    color: var(--color-warning-text);
     font-style: italic;
     margin-top: 0.125rem;
 }
@@ -719,17 +748,17 @@ mark.tree-search-highlight {
 
 .tree-node-weight.high {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .tree-node-weight.medium {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .tree-node-weight.low {
     background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, var(--bg-tertiary, #f3f4f6));
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 /* Quick Action Buttons */
@@ -740,7 +769,13 @@ mark.tree-search-highlight {
     transition: opacity var(--transition-fast);
 }
 
-.tree-node-content:hover .tree-node-actions {
+/* The `:focus-within` arm is #304: hover alone meant a keyboard user tabbed
+   onto a button at `opacity: 0` -- focusable, in the accessibility tree, and
+   INVISIBLE -- which a focus ring on the button cannot fix, because the ring
+   is transparent with it. This reveals the group for whichever of the row's
+   controls has focus, the name span included. */
+.tree-node-content:hover .tree-node-actions,
+.tree-node-content:focus-within .tree-node-actions {
     opacity: 1;
 }
 
@@ -761,12 +796,20 @@ mark.tree-search-highlight {
 
 .tree-action-btn:hover {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .tree-action-btn.danger:hover {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
+}
+
+/* These are already in the tab order and already 24x24; what they lacked was
+   a ring, since `.tree-node-actions` reveals them on row hover and a
+   keyboard user had nothing to go on (#304's family). */
+.tree-action-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 /* Children Container */
@@ -782,11 +825,11 @@ mark.tree-search-highlight {
 }
 
 /* Level-based Colors */
-.tree-node[data-level="1"] > .tree-node-content .tree-node-icon { color: var(--color-primary, #2563eb); }
+.tree-node[data-level="1"] > .tree-node-content .tree-node-icon { color: var(--color-primary-text, #2563eb); }
 .tree-node[data-level="2"] > .tree-node-content .tree-node-icon { color: #8b5cf6; }
-.tree-node[data-level="3"] > .tree-node-content .tree-node-icon { color: var(--color-success, #059669); }
-.tree-node[data-level="4"] > .tree-node-content .tree-node-icon { color: var(--color-warning, #d97706); }
-.tree-node[data-level="5"] > .tree-node-content .tree-node-icon { color: var(--color-error, #dc2626); }
+.tree-node[data-level="3"] > .tree-node-content .tree-node-icon { color: var(--color-success-text); }
+.tree-node[data-level="4"] > .tree-node-content .tree-node-icon { color: var(--color-warning-text); }
+.tree-node[data-level="5"] > .tree-node-content .tree-node-icon { color: var(--color-error-text); }
 
 /* Drag State */
 .tree-node.dragging {
@@ -834,7 +877,7 @@ mark.tree-search-highlight {
     font-weight: var(--font-weight-semibold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     margin-bottom: 0.375rem;
 }
 
@@ -1109,7 +1152,7 @@ mark.tree-search-highlight {
 }
 
 .siblings-total.invalid {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-weight: var(--font-weight-medium);
 }
 
@@ -1270,7 +1313,7 @@ mark.tree-search-highlight {
     display: block;
     font-size: var(--font-size-2xl);
     font-weight: 700;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     line-height: 1.2;
 }
 
@@ -1487,7 +1530,7 @@ mark.tree-search-highlight {
 .weight-config-badge.has-official {
     background: var(--color-primary-bg);
     border: 1px solid var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .weight-config-badge .badge-icon {
@@ -1614,7 +1657,7 @@ mark.tree-search-highlight {
     padding: 0.125rem 0.5rem;
     border-radius: var(--radius-sm);
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .dimension-info-badge.optional {
@@ -1657,7 +1700,7 @@ mark.tree-search-highlight {
 }
 
 .tree-empty-dimension-hint strong {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 /* =========================================================================
@@ -1685,7 +1728,7 @@ mark.tree-search-highlight {
 
 .modal-dimension-name {
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 /* =========================================================================
@@ -1709,22 +1752,22 @@ mark.tree-search-highlight {
 
 .alias-chip.alias-type-eponym {
     background: var(--color-success-bg);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .alias-chip.alias-type-acronym {
     background: var(--color-info-bg);
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 .alias-chip.alias-type-alternate_name {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .alias-chip.alias-type-colloquial {
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .alias-more {
@@ -1781,7 +1824,7 @@ mark.tree-search-highlight {
 }
 
 .delete-preview .delete-preview-danger {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-weight: 600;
 }
 
@@ -1789,4 +1832,176 @@ mark.tree-search-highlight {
     display: block;
     margin-top: 0.5rem;
     font-size: var(--font-size-xs);
+}
+
+/* ===========================================================================
+   Archived subjects panel (#37)
+   ---------------------------------------------------------------------------
+   Collapsed by default. Sits at the foot of the tree column because it is
+   exam/dimension-scoped, not per-selected-subject -- the details panel is the
+   wrong home for it.
+
+   Tokens only, and note the palette has no `--color-danger` (#76): the single
+   red is `--color-error`. `--space-*` is the spacing scale; there is no
+   `--spacing-*`. `scripts/check_css_tokens.py` fails the build on either
+   mistake, and it also flags the fallback form -- an undefined token behind a
+   fallback is worse than a plain one, because it is valid CSS and the
+   fallback simply always wins, so a themed value quietly becomes a constant.
+   (It scans comments too, which it demonstrated on this one.)
+   =========================================================================== */
+
+.archived-panel {
+    margin-top: var(--space-xl);
+    border-top: 1px solid var(--border-light);
+    padding-top: var(--space-md);
+}
+
+.archived-panel-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: var(--space-sm) var(--space-xs);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.archived-panel-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.archived-panel-arrow {
+    display: inline-block;
+    transition: transform var(--transition-fast);
+    color: var(--text-muted);
+}
+
+.archived-panel.open .archived-panel-arrow {
+    transform: rotate(90deg);
+}
+
+.archived-panel-title {
+    flex: 1;
+    text-align: left;
+}
+
+.archived-panel-count {
+    min-width: 1.5rem;
+    padding: 0 var(--space-xs);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    text-align: center;
+}
+
+.archived-panel-body {
+    padding: var(--space-sm) var(--space-xs) 0;
+}
+
+.archived-panel-hint {
+    margin: 0 0 var(--space-md);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-relaxed);
+    color: var(--text-muted);
+}
+
+.archived-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.archived-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+/* A dimension archive is the expensive one -- it took whole trees with it --
+   so it reads differently from a single subject deletion rather than sitting
+   in the same visual weight (#252's lesson one surface over). */
+.archived-item.archived-item-dimension {
+    border-left: 3px solid var(--color-warning);
+    background: var(--color-warning-bg);
+}
+
+.archived-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.archived-item-name {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.archived-item-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--text-muted);
+}
+
+.archived-item-note {
+    display: block;
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--text-secondary);
+}
+
+.archived-item-blocked {
+    color: var(--color-error-text);
+}
+
+.archived-restore-btn {
+    flex-shrink: 0;
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-family);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-primary-text);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.archived-restore-btn:hover:not(:disabled) {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+}
+
+.archived-restore-btn:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.archived-empty {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
 }

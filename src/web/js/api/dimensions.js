@@ -49,36 +49,6 @@
         return api._callBridge('reorderDimensions', examContextId, JSON.stringify(dimensionIds));
     };
 
-    // Hierarchy Tag Operations
-    api.createHierarchyTag = async function(params) {
-        params = params || {};
-        if (!params.entryId) throw new Error('entryId is required');
-        if (!params.hierarchyId) throw new Error('hierarchyId is required');
-        if (!params.dimensionId) throw new Error('dimensionId is required');
-        return api._callBridge('createHierarchyTag', params.entryId, params.hierarchyId, params.dimensionId);
-    };
-
-    api.getEntryHierarchyTags = async function(entryId) {
-        if (!entryId) throw new Error('entryId is required');
-        return api._callBridge('getEntryHierarchyTags', entryId);
-    };
-
-    api.deleteHierarchyTag = async function(tagId) {
-        if (!tagId) throw new Error('tagId is required');
-        return api._callBridge('deleteHierarchyTag', tagId);
-    };
-
-    api.deleteEntryTagsByDimension = async function(entryId, dimensionId) {
-        if (!entryId) throw new Error('entryId is required');
-        if (!dimensionId) throw new Error('dimensionId is required');
-        return api._callBridge('deleteEntryTagsByDimension', entryId, dimensionId);
-    };
-
-    api.validateEntryDimensions = async function(entryId, examContextId) {
-        if (!entryId) throw new Error('entryId is required');
-        if (!examContextId) throw new Error('examContextId is required');
-        return api._callBridge('validateEntryDimensions', entryId, examContextId);
-    };
 
     api.getHierarchyNodesByDimension = async function(examContextId, dimensionId) {
         if (!examContextId) throw new Error('examContextId is required');

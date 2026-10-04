@@ -33,6 +33,8 @@ import pytest
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+from _helpers.tree_expand import expand_whole_tree
+
 _PREVIEW = '[data-testid="tree-delete-modal-preview"]'
 _PROMOTE_ROW = '[data-testid="tree-delete-modal-promote-row"]'
 _PROMOTE_TOGGLE = '[data-testid="tree-delete-modal-promote-toggle"]'
@@ -131,6 +133,12 @@ def test_delete_preview_matches_the_resulting_tree(
 
     # ---- Act: confirm -------------------------------------------------
     wimi_page.eval_js("document.getElementById('delete-node-confirm').click()")
+    # #177: only expanded subtrees are rendered now, so expand BEFORE the
+    # absence check below. A collapsed parent would make "the deleted subject
+    # is gone" trivially true whether or not the delete worked, turning a
+    # real assertion into a tautology.
+    expand_whole_tree(wimi_page)
+
     _wait_for(
         wimi_page,
         f'!document.querySelector(\'[data-testid="tree-node-{pdel.id}"]\')',

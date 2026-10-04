@@ -53,6 +53,8 @@ import pytest
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+from _helpers.tree_expand import expand_whole_tree
+
 
 
 def _wait_for(
@@ -146,6 +148,10 @@ def test_level_labels_read_level_type_not_depth(
     # ---- Act ---------------------------------------------------------
     wimi_page.goto("tree-editor", query={"exam_id": exam.id})
     level_counts = _wait_for_level_counts(wimi_page)
+
+    # #177: only expanded subtrees are rendered now. These rows used to be
+    # in the DOM but CSS-hidden, so this assertion read invisible state.
+    expand_whole_tree(wimi_page)
 
     chip_labels: Any = wimi_page.eval_js(
         f"""

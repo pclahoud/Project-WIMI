@@ -93,6 +93,7 @@ real blueprint can legitimately break the arithmetic, and refusing a
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..exceptions import (
@@ -291,6 +292,32 @@ class SubjectImportMixin:
     # Reading what is already there
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _empty_import_scope() -> Dict[str, Any]:
+        """A scope with nothing in it.
+
+        Two callers, and the second is the reason this is a method rather
+        than a literal in one place. :meth:`_import_scope` returns it when
+        the query found no rows, and :meth:`plan_whole_exam_import` uses it
+        for an axis **the file creates** (#241): a dimension that does not
+        exist yet holds no subjects, so every file node under it is an add
+        and there is nothing for it to remove.
+
+        ``dimension_id=None`` cannot say that. ``None`` is the
+        *dimensionless* scope — the legacy subjects of an exam that predates
+        dimensions — and it holds real rows. Planning a new axis against it
+        would match that axis's subjects to dimensionless ones and judge the
+        rest absent from the file.
+        """
+        return {
+            'nodes': {},
+            'children_of': {},
+            'primary_parent_of': {},
+            'by_import_id': {},
+            'by_parent_name': {},
+            'aliases_of': {},
+        }
+
     def _import_scope(
         self,
         exam_name: str,
@@ -302,6 +329,11 @@ class SubjectImportMixin:
         multi-dimensional exam imports one dimension at a time, and an
         import into "Systems" that judged "Disciplines" absent-from-the-
         file would delete the other half of the tree.
+
+        This partition is also what keeps a whole-exam import's axes from
+        bleeding into each other (#241) and what leaves the dimensionless
+        subjects alone: the ``dimension_id IS NULL`` branch is reachable
+        only by asking for it, and the whole-exam planner never does.
         """
         if dimension_id is None:
             rows = self.fetchall(
@@ -324,14 +356,7 @@ class SubjectImportMixin:
 
         nodes = {row['id']: dict(row) for row in rows}
         if not nodes:
-            return {
-                'nodes': {},
-                'children_of': {},
-                'primary_parent_of': {},
-                'by_import_id': {},
-                'by_parent_name': {},
-                'aliases_of': {},
-            }
+            return self._empty_import_scope()
 
         ids = tuple(sorted(nodes))
         placeholders = ','.join(['?'] * len(ids))
@@ -496,8 +521,44 @@ class SubjectImportMixin:
             raise SubjectNodeError(f"Exam context {exam_context_id} not found")
         exam_name = config.exam_name
 
+        return self._plan_subject_tree(
+            exam_context_id,
+            exam_name,
+            root_nodes,
+            self._import_scope(exam_name, dimension_id),
+            dimension_id=dimension_id,
+        )
+
+    def _plan_subject_tree(
+        self,
+        exam_context_id: int,
+        exam_name: str,
+        root_nodes: List[Dict[str, Any]],
+        scope: Dict[str, Any],
+        *,
+        dimension_id: Optional[int] = None,
+        axis_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Plan one tree against an already-built ``scope``. Read-only.
+
+        Everything :meth:`plan_subject_import` documents happens here. The
+        split exists so a whole-exam import (#241) can plan **each axis
+        through this same code** rather than growing a second planner: its
+        only differences are which scope an axis is planned against and
+        whose name a coverage warning carries.
+
+        That is the difference between threading a dimension through the
+        planner and forking it. #67's guarantee is that the preview and the
+        apply cannot disagree because there is one planner; a multi-axis
+        planner that re-derived any of the above would reintroduce exactly
+        the drift #67 closed, one level up.
+
+        ``scope`` comes from :meth:`_import_scope` for an axis that exists
+        and :meth:`_empty_import_scope` for one the file is about to create.
+        ``axis_name`` only ever changes wording: a coverage warning about a
+        file with three axes has to say which one it is about.
+        """
         records, errors = self._flatten_import_file(root_nodes, exam_context_id)
-        scope = self._import_scope(exam_name, dimension_id)
         nodes = scope['nodes']
         primary_parent_of = scope['primary_parent_of']
 
@@ -698,7 +759,9 @@ class SubjectImportMixin:
         # able to say the same thing, and the apply reads this list
         # straight out of the plan.
         coverage = self._import_weight_coverage(records)
-        weight_warnings = self._import_weight_warnings(records, coverage)
+        weight_warnings = self._import_weight_warnings(
+            records, coverage, axis_name=axis_name
+        )
 
         return {
             'exam_context_id': exam_context_id,
@@ -820,6 +883,7 @@ class SubjectImportMixin:
     def _import_weight_warnings(
         records: List[Dict[str, Any]],
         coverage: Dict[str, Any],
+        axis_name: Optional[str] = None,
     ) -> List[str]:
         """Weight problems worth saying out loud. Never fatal (issue #64).
 
@@ -833,7 +897,25 @@ class SubjectImportMixin:
 
         Deliberately absent: any comparison between a subject's weight and
         its parent's. A child heavier than its parent is correct data.
+
+        ``axis_name`` names the axis in the coverage sentence for a
+        whole-exam file (#241). Coverage is **per axis and never summed** —
+        the axes are overlapping partitions of the same items, which is why
+        the three Step 2 CK tables total 84–153%, 78–113% and 97–142% — so
+        three separate sentences are informative and one combined number
+        would be rescaling by another name. Left ``None`` the wording is
+        byte-identical to the single-tree wording, because a single-tree
+        import has no axis to name.
         """
+        def subject(name: str) -> str:
+            # Labelled once, here, rather than by prefixing the finished
+            # strings at the whole-exam level. Prefixing would double-label
+            # the coverage sentence below, which already names the axis
+            # because its *claim* is about the axis rather than the file.
+            if axis_name is None:
+                return f'"{name}"'
+            return f'"{name}" in the "{axis_name}" axis'
+
         problems: List[str] = []
         for record in records:
             name = record['name']
@@ -841,19 +923,19 @@ class SubjectImportMixin:
             high = _as_number(record['weight_high'])
             if low is None or high is None:
                 problems.append(
-                    f'"{name}" has a weight that is not a number '
+                    f'{subject(name)} has a weight that is not a number '
                     f'({record["weight_low"]!r}); imported as 0%'
                 )
                 continue
             if low > high:
                 problems.append(
-                    f'"{name}" has a weight low of {low:g} above its high of '
-                    f'{high:g}; imported as written'
+                    f'{subject(name)} has a weight low of {low:g} above its '
+                    f'high of {high:g}; imported as written'
                 )
             if low < 0 or high > 100:
                 problems.append(
-                    f'"{name}" has a weight of {low:g}–{high:g}%, outside '
-                    f'0–100%; imported as written'
+                    f'{subject(name)} has a weight of {low:g}–{high:g}%, '
+                    f'outside 0–100%; imported as written'
                 )
 
         warnings = problems[:_WEIGHT_WARNING_LIMIT]
@@ -864,8 +946,12 @@ class SubjectImportMixin:
             )
 
         if coverage['weighted_roots'] and not coverage['spans_100']:
+            whose = (
+                "The file's top-level weights" if axis_name is None
+                else f'The "{axis_name}" axis\'s top-level weights'
+            )
             warnings.append(
-                f"The file's top-level weights total "
+                f"{whose} total "
                 f"{coverage['low']:g}–{coverage['high']:g}% of the exam, which "
                 f"does not span 100%. WIMI imports the numbers as written and "
                 f"never rescales them — check the file if that is not what the "
@@ -905,13 +991,25 @@ class SubjectImportMixin:
         moved out of a doomed branch must have moved *before* the branch
         is judged empty, or the move would be undone by the removal.
 
-        Atomicity is best-effort, matching the rest of this layer:
+        **The whole apply is atomic** (#239). One ``self.transaction()``
+        spans all four phases and the removals, so an import applies
+        wholly or not at all.
+
+        This docstring used to say the opposite, and gave a reason that
+        was false by the time anyone read it: *"``BaseDatabase.transaction``
+        commits rather than nesting a savepoint … making it genuinely
+        atomic is a change to ``BaseDatabase``, not to import."*
+        ``transaction()`` has been **re-entrant since #95**, which landed
+        five hours after that sentence was written (``55a7fa4`` 17:28,
+        ``2d64b5c`` 22:48, both 2026-09-16) and never updated it. Depth
+        ≥ 2 issues a ``SAVEPOINT``; only the outermost block commits. So
         ``create_subject_node``, ``add_edge`` and
-        ``delete_subject_subtree`` each open their own transaction, and
-        ``BaseDatabase.transaction`` commits rather than nesting a
-        savepoint, so a failure midway leaves the work done so far
-        committed. That was true of the old importer too; making it
-        genuinely atomic is a change to ``BaseDatabase``, not to import.
+        ``delete_subject_subtree`` opening their own transactions is
+        exactly what makes this work, rather than what prevented it.
+
+        The note it replaced was right about one thing and it is kept:
+        the *old* importer was not atomic either, so this is a new
+        guarantee rather than a restored one.
 
         Returns the plan, plus:
 
@@ -928,8 +1026,54 @@ class SubjectImportMixin:
             raise ValidationError('; '.join(plan['errors']))
 
         config = self.get_exam_context_config(exam_context_id)
-        exam_name = config.exam_name
+        outcome = self._apply_subject_plan(
+            plan, config.exam_name, dimension_id=dimension_id
+        )
 
+        if self.error_logger:
+            self.error_logger.info(
+                f"Subject import into exam {exam_context_id} "
+                f"(dimension {dimension_id}): "
+                f"{len(outcome['created_ids'])} added, "
+                f"{len(outcome['updated_ids'])} updated, "
+                f"{plan['counts']['unchanged']} unchanged, "
+                f"{len(outcome['removed_ids'])} removed, "
+                f"{plan['counts']['kept_in_use']} kept because entries "
+                f"point at them",
+                category=ErrorCategory.DATABASE,
+            )
+
+        result = dict(plan)
+        result.update(outcome)
+        return result
+
+    def _apply_subject_plan(
+        self,
+        plan: Dict[str, Any],
+        exam_name: str,
+        *,
+        dimension_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Execute one already-computed subject plan. The only write path.
+
+        Split out of :meth:`apply_subject_import` so a whole-exam import
+        (#241) can execute **the plan the student was shown** for each axis
+        instead of calling the public apply and re-planning. Re-planning
+        would be the drift #67 closed, reintroduced one level up: the plan
+        that ran would be a second derivation of the plan that was
+        previewed, and the two could differ — a whole-exam apply creates
+        dimensions and archives others between the preview and the writes,
+        so the second derivation would not even be against the same state.
+
+        ``dimension_id`` is passed rather than read from ``plan`` for one
+        reason: an axis the file **creates** has no id at plan time, so
+        ``plan['dimension_id']`` is ``None`` there and the caller supplies
+        the id it got from :meth:`create_dimension`. It is the single value
+        the apply legitimately knows better than the plan.
+
+        Returns ``{imported_count, created_ids, updated_ids, removed_ids,
+        delete_batch_ids, warnings}``.
+        """
         ref_to_node_id: Dict[int, int] = {
             r['ref']: r['node_id']
             for r in plan['nodes'] if r['node_id'] is not None
@@ -941,114 +1085,114 @@ class SubjectImportMixin:
         # and risking a different answer.
         warnings: List[str] = list(plan['warnings'])
 
-        # Phase 1 — rename and re-value the subjects that already exist.
+        # ONE transaction spanning every write (#239). The four phases and
+        # the removals are a single composite: a failure that left three
+        # subjects renamed, none created and the removal pass unreached is a
+        # state no student can see or undo, and the whole-exam import makes
+        # that composite much larger.
         #
-        # **Before the adds, not after.** A file that renames "Alpha" to
-        # "Beta" and introduces a different subject also called "Alpha"
-        # is a perfectly ordinary correction, and creating the new
-        # "Alpha" while the old row is still called that hits
-        # ``create_subject_node``'s duplicate-name check — the import
-        # fails on a file with nothing wrong with it. Column writes carry
-        # no parent dependency, so they can all go first.
-        for record in plan['nodes']:
-            if record['action'] == 'update':
-                self._apply_import_update_columns(record)
-                updated_ids.append(record['node_id'])
+        # Everything called from inside here opens its own transaction and
+        # nests as a SAVEPOINT -- `create_subject_node`, `add_edge`,
+        # `delete_subject_subtree`, and the narrow blocks in the helpers. That
+        # is #95's re-entrancy, and
+        # `tests/database/test_no_bare_commit_inside_a_transaction.py` is what
+        # keeps it true: a bare `conn.commit()` becoming reachable from here
+        # would end this block and make its rollback a no-op silently.
+        with self.transaction():
+            # Phase 1 — rename and re-value the subjects that already exist.
+            #
+            # **Before the adds, not after.** A file that renames "Alpha" to
+            # "Beta" and introduces a different subject also called "Alpha"
+            # is a perfectly ordinary correction, and creating the new
+            # "Alpha" while the old row is still called that hits
+            # ``create_subject_node``'s duplicate-name check — the import
+            # fails on a file with nothing wrong with it. Column writes carry
+            # no parent dependency, so they can all go first.
+            for record in plan['nodes']:
+                if record['action'] == 'update':
+                    self._apply_import_update_columns(record)
+                    updated_ids.append(record['node_id'])
 
-        # Phase 2 — create what is new, in pre-order so a new parent
-        # exists before its new children.
-        for record in plan['nodes']:
-            if record['action'] != 'add':
-                continue
-            parent_ref = record['parent_ref']
-            parent_node_id = (
-                ref_to_node_id.get(parent_ref) if parent_ref is not None else None
-            )
-            node = self.create_subject_node(
-                exam_context=exam_name,
-                name=record['name'],
-                level_type=record['level_type'],
-                parent_id=parent_node_id,
-                exam_weight_low=record['weight_low'],
-                exam_weight_high=record['weight_high'],
-                sort_order=record['sort_order'],
-                dimension_id=dimension_id,
-            )
-            if record['import_id']:
-                with self.transaction():
-                    self.execute(
-                        "UPDATE subject_nodes SET import_id = ?, "
-                        "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        (record['import_id'], node.id),
-                    )
-            ref_to_node_id[record['ref']] = node.id
-            created_ids.append(node.id)
+            # Phase 2 — create what is new, in pre-order so a new parent
+            # exists before its new children.
+            for record in plan['nodes']:
+                if record['action'] != 'add':
+                    continue
+                parent_ref = record['parent_ref']
+                parent_node_id = (
+                    ref_to_node_id.get(parent_ref) if parent_ref is not None else None
+                )
+                node = self.create_subject_node(
+                    exam_context=exam_name,
+                    name=record['name'],
+                    level_type=record['level_type'],
+                    parent_id=parent_node_id,
+                    exam_weight_low=record['weight_low'],
+                    exam_weight_high=record['weight_high'],
+                    sort_order=record['sort_order'],
+                    dimension_id=dimension_id,
+                )
+                if record['import_id']:
+                    with self.transaction():
+                        self.execute(
+                            "UPDATE subject_nodes SET import_id = ?, "
+                            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (record['import_id'], node.id),
+                        )
+                ref_to_node_id[record['ref']] = node.id
+                created_ids.append(node.id)
 
-        # Phase 3 — re-parent what moved, now that every node the file
-        # names exists. A subject can legitimately move *under a subject
-        # this same import created*, which is only possible once phase 2
-        # has run.
-        for record in plan['nodes']:
-            if record['action'] != 'update' or 'parent_id' not in record['changes']:
-                continue
-            parent_ref = record['parent_ref']
-            parent_node_id = (
-                ref_to_node_id.get(parent_ref) if parent_ref is not None else None
-            )
-            self._apply_import_move(
-                record['node_id'], record, parent_node_id, warnings
-            )
+            # Phase 3 — re-parent what moved, now that every node the file
+            # names exists. A subject can legitimately move *under a subject
+            # this same import created*, which is only possible once phase 2
+            # has run.
+            for record in plan['nodes']:
+                if record['action'] != 'update' or 'parent_id' not in record['changes']:
+                    continue
+                parent_ref = record['parent_ref']
+                parent_node_id = (
+                    ref_to_node_id.get(parent_ref) if parent_ref is not None else None
+                )
+                self._apply_import_move(
+                    record['node_id'], record, parent_node_id, warnings
+                )
 
-        # Phase 4 — aliases, for new and existing subjects alike. The
-        # planner worked out which ones are missing; this only writes.
-        for record in plan['nodes']:
-            node_id = ref_to_node_id.get(record['ref'])
-            if node_id is not None:
-                self._apply_import_aliases(node_id, exam_name, record, warnings)
+            # Phase 4 — aliases, for new and existing subjects alike. The
+            # planner worked out which ones are missing; this only writes.
+            for record in plan['nodes']:
+                node_id = ref_to_node_id.get(record['ref'])
+                if node_id is not None:
+                    self._apply_import_aliases(node_id, exam_name, record, warnings)
 
-        # Removals last, and top-down: ``delete_subject_subtree``
-        # cascades to descendants left without a surviving parent, so a
-        # removal root usually takes its branch with it and the ones
-        # below it are already archived by the time the loop reaches
-        # them. Re-reading ``status`` before each call is what makes that
-        # safe — it is also #57's no-op guard, but relying on the guard
-        # instead of checking would journal empty batches.
-        removed_ids: List[int] = []
-        delete_batch_ids: List[str] = []
-        for item in self._import_removal_order(plan):
-            row = self.fetchone(
-                "SELECT status FROM subject_nodes WHERE id = ?", (item['id'],)
-            )
-            if row is None or row['status'] != 'active':
+            # Removals last, and top-down: ``delete_subject_subtree``
+            # cascades to descendants left without a surviving parent, so a
+            # removal root usually takes its branch with it and the ones
+            # below it are already archived by the time the loop reaches
+            # them. Re-reading ``status`` before each call is what makes that
+            # safe — it is also #57's no-op guard, but relying on the guard
+            # instead of checking would journal empty batches.
+            removed_ids: List[int] = []
+            delete_batch_ids: List[str] = []
+            for item in self._import_removal_order(plan):
+                row = self.fetchone(
+                    "SELECT status FROM subject_nodes WHERE id = ?", (item['id'],)
+                )
+                if row is None or row['status'] != 'active':
+                    removed_ids.append(item['id'])
+                    continue
+                result = self.delete_subject_subtree(item['id'], promote_children=False)
                 removed_ids.append(item['id'])
-                continue
-            result = self.delete_subject_subtree(item['id'], promote_children=False)
-            removed_ids.append(item['id'])
-            if result.get('batch_id'):
-                delete_batch_ids.append(result['batch_id'])
+                if result.get('batch_id'):
+                    delete_batch_ids.append(result['batch_id'])
 
-        if self.error_logger:
-            self.error_logger.info(
-                f"Subject import into exam {exam_context_id} "
-                f"(dimension {dimension_id}): "
-                f"{len(created_ids)} added, {len(updated_ids)} updated, "
-                f"{plan['counts']['unchanged']} unchanged, "
-                f"{len(removed_ids)} removed, "
-                f"{plan['counts']['kept_in_use']} kept because entries "
-                f"point at them",
-                category=ErrorCategory.DATABASE,
-            )
-
-        result = dict(plan)
-        result.update({
+        return {
             'imported_count': plan['file_node_count'],
             'created_ids': created_ids,
             'updated_ids': updated_ids,
             'removed_ids': removed_ids,
             'delete_batch_ids': delete_batch_ids,
             'warnings': warnings,
-        })
-        return result
+        }
 
     @staticmethod
     def _import_removal_order(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -1208,3 +1352,763 @@ class SubjectImportMixin:
                         f'"{alias["name"]}" on node {node_id}: {exc}',
                         category=ErrorCategory.DATABASE,
                     )
+
+    # ------------------------------------------------------------------
+    # The whole-exam import (#66 Wave 3, issue #241)
+    #
+    # One file describes the whole exam: a top-level ``dimensions`` list,
+    # each entry an axis carrying its own identity and its own tree. Real
+    # blueprints classify the same questions along several axes at once --
+    # Step 2 CK publishes System, Discipline and Physician Task as three
+    # tables over one item pool -- and importing them one axis at a time
+    # means the student re-runs the same dialog three times and WIMI never
+    # learns that the axes belong together.
+    #
+    # **Everything here delegates.** Axis matching is the only new
+    # semantics; the subjects under each axis are planned by
+    # ``_plan_subject_tree`` and written by ``_apply_subject_plan``, the
+    # same two methods a single-tree import uses. That is #67's guarantee
+    # -- one planner, and an apply that re-derives nothing -- held one
+    # level up. A multi-axis planner that re-implemented survival, matching
+    # or removal would reintroduce exactly the preview/apply drift #67
+    # closed, and it would do it in the path that can archive three trees
+    # at once.
+    # ------------------------------------------------------------------
+
+    def _read_axis_declarations(
+        self,
+        dimensions: Any,
+    ) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """Read the file's ``dimensions`` list into axis records.
+
+        Defects are **errors**, not skips, for #61's reason: an import that
+        quietly drops half a file is how that bug happened.
+
+        Two of them have no subject-level counterpart, and both come from
+        the schema rather than from taste. ``exam_dimensions`` carries
+        ``UNIQUE(exam_id, name)``, so two axes sharing a name is a file
+        asking for something the table cannot hold -- where two *subjects*
+        sharing a name is merely a tree the matcher leaves unmatched. And
+        two axes sharing an ``id`` is refused for the same reason two
+        subjects sharing one is: the second would fall through to a create
+        that then writes an ``import_id`` the first already holds.
+
+        Inside an axis, ``root_nodes`` and ``subjects`` are both accepted.
+        #61 reconciled those two spellings at the top level and the same
+        file conventions apply one level down; reconciling them here keeps
+        that in one place per level rather than per caller.
+        """
+        axes: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        seen_ids: Dict[str, str] = {}
+        seen_names: Dict[str, str] = {}
+
+        for index, raw in enumerate(dimensions or []):
+            where = f'Dimension {index + 1} in the file'
+            if not isinstance(raw, dict):
+                errors.append(f'{where} is not an object')
+                continue
+            name = str(raw.get('name', '') or '').strip()
+            if not name:
+                errors.append(f'{where} has no name')
+                continue
+
+            import_id = self._import_id_of(raw)
+            if import_id is not None and import_id in seen_ids:
+                errors.append(
+                    f'Two dimensions share id "{import_id}": '
+                    f'"{seen_ids[import_id]}" and "{name}"'
+                )
+                continue
+            lowered = name.lower()
+            if lowered in seen_names:
+                errors.append(
+                    f'Two dimensions in the file are named "{name}". An exam '
+                    f'cannot have two dimensions with the same name.'
+                )
+                continue
+            if import_id is not None:
+                seen_ids[import_id] = name
+            seen_names[lowered] = name
+
+            root_nodes = raw.get('root_nodes')
+            if not isinstance(root_nodes, list):
+                root_nodes = raw.get('subjects')
+            if not isinstance(root_nodes, list):
+                root_nodes = []
+
+            description = raw.get('description')
+            if description is not None and not isinstance(description, str):
+                description = str(description)
+
+            axes.append({
+                'file_index': index,
+                'name': name,
+                'import_id': import_id,
+                # Which keys the file actually spelled. An omitted flag on
+                # an axis that already exists must mean "leave it alone",
+                # not "reset it to the default" -- the file is a blueprint
+                # of the exam's structure, not of every setting the student
+                # has since changed. On a *new* axis there is nothing to
+                # leave alone, so `create_dimension`'s defaults apply.
+                'declared': [
+                    key for key in
+                    ('display_order', 'is_required', 'allow_multiple',
+                     'description')
+                    if key in raw
+                ],
+                'display_order': raw.get('display_order'),
+                'is_required': bool(raw.get('is_required', True)),
+                'allow_multiple': bool(raw.get('allow_multiple', False)),
+                'description': description,
+                'root_nodes': root_nodes,
+                # A misspelled `root_nodes` key arrives as an empty list,
+                # and "this axis lists no subjects" must never read as
+                # "archive this axis's whole tree" (#67's hazard, one level
+                # up). `_plan_subject_tree`'s `empty_file` already makes it
+                # remove nothing; this is the flag that lets the preview
+                # *say* so instead of reporting a silent no-op.
+                'declares_no_subjects': not root_nodes,
+            })
+
+        return axes, errors
+
+    def _dimension_entry_counts(
+        self,
+        dimension_ids: List[int],
+    ) -> Dict[int, Dict[str, int]]:
+        """``{dimension_id: {'subjects': n, 'entries': n}}`` over active rows.
+
+        ``entries`` counts **distinct** entries, and counts every mapping
+        type rather than only ``primary``. This is a "does anything point
+        into this axis" question, not a measurement -- #13's
+        counting-is-primary-only rule governs totals, and archiving an axis
+        whose subjects only ever appear as secondary tags would still take
+        those tags away from the student's entries.
+        """
+        if not dimension_ids:
+            return {}
+        placeholders = ','.join(['?'] * len(dimension_ids))
+        out = {
+            did: {'subjects': 0, 'entries': 0} for did in dimension_ids
+        }
+        for row in self.fetchall(
+            f"SELECT dimension_id, COUNT(*) AS n FROM subject_nodes "
+            f"WHERE dimension_id IN ({placeholders}) AND status = 'active' "
+            f"GROUP BY dimension_id",
+            tuple(dimension_ids),
+        ):
+            out[row['dimension_id']]['subjects'] = row['n']
+        for row in self.fetchall(
+            f"""
+            SELECT sn.dimension_id AS dimension_id,
+                   COUNT(DISTINCT esm.question_entry_id) AS n
+            FROM subject_nodes sn
+            JOIN entry_subject_mappings esm ON esm.subject_node_id = sn.id
+            WHERE sn.dimension_id IN ({placeholders})
+              AND sn.status = 'active'
+            GROUP BY sn.dimension_id
+            """,
+            tuple(dimension_ids),
+        ):
+            out[row['dimension_id']]['entries'] = row['n']
+        return out
+
+    def plan_whole_exam_import(
+        self,
+        exam_context_id: int,
+        dimensions: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Work out exactly what importing a whole-exam file would do. Read-only.
+
+        Single source of truth for the multi-axis case, the way
+        :meth:`plan_subject_import` is for one tree:
+        :meth:`apply_whole_exam_import` consumes this and re-derives
+        nothing (#67, decision 2.4).
+
+        **Axis matching, in order.** An axis with an ``id`` matches the
+        active dimension carrying that ``import_id`` (m025), whatever it is
+        currently called -- that is what makes a renamed axis a rename
+        rather than a remove-plus-add, which at this level would archive
+        every tree under it. Failing that it matches by name, and an axis
+        matched by name while carrying an id **adopts** it, so an exam set
+        up before the field existed is not stranded (decision 2.3).
+
+        **Axis survival, bottom-up (decision 2.1).** An axis survives if
+        the file declares it, or any subject in it carries entries. #67's
+        third clause -- *or anything beneath it survives* -- collapses into
+        the second one here rather than being omitted: every subject in an
+        axis's tree is itself in that axis, because cross-dimensional edges
+        are a Non-Goal, so "something beneath it survives" and "some
+        subject in it carries entries" select the same axes. Kept axes are
+        reported as ``dimensions_kept_in_use``, the way ``kept_in_use``
+        reports kept subjects.
+
+        **A file declaring no dimensions removes none.** #67's *"an empty
+        file removes nothing"* one level up. This is the destructive
+        reading of a truncated download or a mis-typed key, and it is never
+        the one the student meant.
+
+        **Per-axis scope, with no bleed.** Each axis is planned against
+        ``_import_scope(exam_name, its dimension)``, or
+        ``_empty_import_scope()`` for an axis the file creates. A subject
+        in the System tree is therefore not a match candidate for a subject
+        in the Task tree even with an identical name, and the dimensionless
+        subjects -- the ``dimension_id IS NULL`` partition -- are in no
+        axis's scope at all and are never touched.
+
+        **Coverage is per axis and is never summed** (#64, and §10 of
+        ``WHOLE_EXAM_IMPORT.md``). The axes are overlapping partitions of
+        one item pool, which is why the three real Step 2 CK tables total
+        84-153%, 78-113% and 97-142%. A combined number would be rescaling
+        by another name, so there is deliberately **no top-level
+        ``coverage`` key** -- an absence, and
+        ``tests/database/test_whole_exam_import.py`` asserts it.
+
+        **``display_order`` is resolved here, not reported as a change.**
+        ``exam_dimensions`` carries ``UNIQUE(exam_id, display_order)`` as
+        well as ``UNIQUE(exam_id, name)``, and a file whose orders collide
+        with a kept axis must be resolved by the planner rather than
+        surfaced as an ``IntegrityError`` (decision 2.2). So the plan
+        carries ``final_order``: the declared axes in the order the file
+        asks for, then the kept axes in the order they already had,
+        numbered 1..N. The apply writes it with
+        :meth:`reorder_dimensions`, which is #211's park-and-assign --
+        reusing that scheme rather than inventing a second one.
+
+        Returns a dict of:
+
+        - ``axes`` -- one record per declared axis, each carrying its
+          ``action`` (``'add'``/``'update'``/``'unchanged'``), its matched
+          ``dimension_id`` and ``matched_by``, a ``changes`` map, its own
+          ``coverage``, and ``plan`` -- the full subject plan for that axis,
+          exactly as :meth:`plan_subject_import` would return it.
+        - ``dimensions_added`` / ``dimensions_updated`` /
+          ``dimensions_unchanged`` -- views of the above.
+        - ``dimensions_removed`` -- axes the import will archive, with the
+          subject count that goes with each.
+        - ``dimensions_kept_in_use`` -- axes kept because entries point
+          into them, with ``entry_count`` and ``subject_count``.
+        - ``final_order`` -- every surviving axis and the ``display_order``
+          it will hold.
+        - ``declares_no_dimensions`` -- the empty-list case, which removes
+          nothing.
+        - ``dimensionless_subject_count`` -- active subjects in no
+          dimension. Left alone; reported so that is visible rather than
+          silent.
+        - ``errors`` -- file defects that stop the import.
+        - ``warnings`` -- every axis's weight warnings, each already naming
+          its axis, plus a note when subjects sit outside every axis.
+        - ``counts`` -- axis counts, and the subject counts summed across
+          axes. ``entries_affected`` is counted **distinct across all
+          axes**, never summed: one entry tagged in both System and Task
+          sits on a kept subject in each, and adding the two would report
+          it twice.
+
+        Raises:
+            SubjectNodeError: if ``exam_context_id`` names no exam.
+        """
+        config = self.get_exam_context_config(exam_context_id)
+        if not config:
+            raise SubjectNodeError(f"Exam context {exam_context_id} not found")
+        exam_name = config.exam_name
+
+        axes, errors = self._read_axis_declarations(dimensions)
+        declares_no_dimensions = not axes
+
+        existing = self.get_exam_dimensions(exam_context_id)
+        by_id = {row['id']: row for row in existing}
+        by_import_id: Dict[str, int] = {}
+        by_name: Dict[str, int] = {}
+        for row in existing:
+            if row.get('import_id'):
+                by_import_id.setdefault(str(row['import_id']), row['id'])
+            by_name.setdefault((row['name'] or '').strip().lower(), row['id'])
+
+        claimed: set = set()
+
+        # Pass 1 -- ids, before any name can claim a dimension. Same
+        # ordering argument as the subject matcher: a name match that took
+        # a dimension out from under the axis carrying its import_id would
+        # send that axis to "add", and the add would write an import_id the
+        # claimed row still holds -- a unique-index failure on a file with
+        # nothing wrong with it.
+        for axis in axes:
+            axis['dimension_id'] = None
+            axis['matched_by'] = None
+            if not axis['import_id']:
+                continue
+            candidate = by_import_id.get(axis['import_id'])
+            if candidate is not None and candidate not in claimed:
+                claimed.add(candidate)
+                axis['dimension_id'] = candidate
+                axis['matched_by'] = 'id'
+
+        # Pass 2 -- name.
+        for axis in axes:
+            if axis['dimension_id'] is not None:
+                continue
+            candidate = by_name.get(axis['name'].lower())
+            if candidate is not None and candidate not in claimed:
+                claimed.add(candidate)
+                axis['dimension_id'] = candidate
+                axis['matched_by'] = 'name'
+
+        # ---- what each declared axis does to its dimension row ---------
+        for axis in axes:
+            if axis['dimension_id'] is None:
+                axis['action'] = 'add'
+                axis['changes'] = {}
+                continue
+            current = by_id[axis['dimension_id']]
+            changes: Dict[str, List[Any]] = {}
+            if (current['name'] or '') != axis['name']:
+                changes['name'] = [current['name'], axis['name']]
+            for key in ('is_required', 'allow_multiple'):
+                if key not in axis['declared']:
+                    continue
+                if bool(current[key]) != bool(axis[key]):
+                    changes[key] = [bool(current[key]), bool(axis[key])]
+            if 'description' in axis['declared']:
+                was = current['description'] or None
+                now = axis['description'] or None
+                if was != now:
+                    changes['description'] = [current['description'],
+                                              axis['description']]
+            if axis['import_id'] and not current.get('import_id'):
+                changes['import_id'] = [None, axis['import_id']]
+            # `display_order` is deliberately absent from `changes`. It is
+            # resolved into `final_order` below and written by
+            # `reorder_dimensions`, because writing it one row at a time is
+            # what UNIQUE(exam_id, display_order) refuses (#211).
+            axis['changes'] = changes
+            axis['action'] = 'update' if changes else 'unchanged'
+
+        # ---- axes the file did not declare -----------------------------
+        unmatched = [row for row in existing if row['id'] not in claimed]
+        axis_stats = self._dimension_entry_counts([row['id'] for row in unmatched])
+
+        dimensions_kept_in_use: List[Dict[str, Any]] = []
+        dimensions_removed: List[Dict[str, Any]] = []
+        if not declares_no_dimensions:
+            for row in unmatched:
+                stats = axis_stats.get(row['id'], {'subjects': 0, 'entries': 0})
+                record = {
+                    'dimension_id': row['id'],
+                    'name': row['name'],
+                    'display_order': row['display_order'],
+                    'subject_count': stats['subjects'],
+                    'entry_count': stats['entries'],
+                }
+                if stats['entries']:
+                    dimensions_kept_in_use.append(record)
+                else:
+                    dimensions_removed.append(record)
+
+        # ---- the order every surviving axis ends up in (decision 2.2) ---
+        def file_order_key(axis: Dict[str, Any]) -> Tuple[int, float, int]:
+            declared = _as_number(axis['display_order'])
+            return (
+                0 if declared is not None else 1,
+                declared if declared is not None else 0.0,
+                axis['file_index'],
+            )
+
+        final_order: List[Dict[str, Any]] = []
+        for axis in sorted(axes, key=file_order_key):
+            final_order.append({
+                'file_index': axis['file_index'],
+                'dimension_id': axis['dimension_id'],
+                'name': axis['name'],
+                'source': 'file',
+            })
+        for record in sorted(
+            dimensions_kept_in_use,
+            key=lambda r: (r['display_order'] or 0, r['dimension_id']),
+        ):
+            final_order.append({
+                'file_index': None,
+                'dimension_id': record['dimension_id'],
+                'name': record['name'],
+                'source': 'kept',
+            })
+        for position, item in enumerate(final_order, start=1):
+            item['display_order'] = position
+
+        # A name the schema cannot hold, reported as a sentence rather than
+        # left to surface as an IntegrityError from three frames down
+        # (decision 2.2, and the courtesy `create_subject_relation`
+        # extends). The file's own duplicates were caught in
+        # `_read_axis_declarations`; what is left is a declared axis whose
+        # name a KEPT axis is still using.
+        final_names: Dict[str, str] = {}
+        for item in final_order:
+            key = item['name'].strip().lower()
+            if key in final_names:
+                errors.append(
+                    f'The file gives a dimension the name "{item["name"]}", '
+                    f'which another dimension of this exam is already using '
+                    f'and the import is keeping because entries point into '
+                    f'it. Rename one of them.'
+                )
+            final_names[key] = item['name']
+
+        # ---- the subjects under each axis, through the shared planner ---
+        for axis in axes:
+            scope = (
+                self._import_scope(exam_name, axis['dimension_id'])
+                if axis['dimension_id'] is not None
+                else self._empty_import_scope()
+            )
+            plan = self._plan_subject_tree(
+                exam_context_id,
+                exam_name,
+                axis['root_nodes'],
+                scope,
+                dimension_id=axis['dimension_id'],
+                axis_name=axis['name'],
+            )
+            axis['plan'] = plan
+            axis['coverage'] = plan['coverage']
+            for message in plan['errors']:
+                errors.append(f'"{axis["name"]}": {message}')
+
+        warnings: List[str] = []
+        for axis in axes:
+            warnings.extend(axis['plan']['warnings'])
+
+        # Subjects in no dimension at all are in no axis's scope, so this
+        # import cannot add to them, update them or remove them. Said out
+        # loud because #67's rules are enforced by absences and an unstated
+        # rule is the one that gets "fixed" back -- and because a student
+        # whose legacy tree is invisible to a whole-exam file deserves to
+        # know that rather than conclude the import lost it.
+        dimensionless = self.fetchone(
+            "SELECT COUNT(*) AS n FROM subject_nodes "
+            "WHERE exam_context = ? AND dimension_id IS NULL "
+            "  AND status = 'active'",
+            (exam_name,),
+        )
+        dimensionless_subject_count = dimensionless['n'] if dimensionless else 0
+        if dimensionless_subject_count and not declares_no_dimensions:
+            warnings.append(
+                f'This exam has {dimensionless_subject_count} '
+                f'subject{"s" if dimensionless_subject_count != 1 else ""} '
+                f'that are not in any dimension. A whole-exam file describes '
+                f'the dimensions, so they are left exactly as they are -- '
+                f'neither updated nor removed.'
+            )
+
+        # `entries_affected` is DISTINCT across every axis, never the sum.
+        # An entry tagged in both System and Task sits on a kept subject in
+        # each, and summing the per-axis figures would count it twice --
+        # the same non-additivity the subject sunburst carries a tooltip
+        # for (#6).
+        kept_subject_ids: List[int] = []
+        for axis in axes:
+            kept_subject_ids.extend(
+                item['id'] for item in axis['plan']['kept_in_use']
+            )
+        entries_affected = 0
+        if kept_subject_ids:
+            placeholders = ','.join(['?'] * len(kept_subject_ids))
+            row = self.fetchone(
+                f"SELECT COUNT(DISTINCT question_entry_id) AS c "
+                f"FROM entry_subject_mappings "
+                f"WHERE subject_node_id IN ({placeholders})",
+                tuple(kept_subject_ids),
+            )
+            entries_affected = row['c'] if row else 0
+
+        def summed(key: str) -> int:
+            return sum(axis['plan']['counts'][key] for axis in axes)
+
+        added = [a for a in axes if a['action'] == 'add']
+        updated = [a for a in axes if a['action'] == 'update']
+        unchanged = [a for a in axes if a['action'] == 'unchanged']
+
+        def describe_axis(axis: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                'file_index': axis['file_index'],
+                'dimension_id': axis['dimension_id'],
+                'name': axis['name'],
+                'import_id': axis['import_id'],
+                'matched_by': axis['matched_by'],
+                'changes': axis['changes'],
+                'declares_no_subjects': axis['declares_no_subjects'],
+                'coverage': axis['coverage'],
+                'counts': axis['plan']['counts'],
+            }
+
+        return {
+            'exam_context_id': exam_context_id,
+            'exam_name': exam_name,
+            'whole_exam': True,
+            'axes': axes,
+            'axis_count': len(axes),
+            'declares_no_dimensions': declares_no_dimensions,
+            'dimensions_added': [describe_axis(a) for a in added],
+            'dimensions_updated': [describe_axis(a) for a in updated],
+            'dimensions_unchanged': [describe_axis(a) for a in unchanged],
+            'dimensions_removed': dimensions_removed,
+            'dimensions_kept_in_use': dimensions_kept_in_use,
+            'final_order': final_order,
+            'dimensionless_subject_count': dimensionless_subject_count,
+            'entries_affected': entries_affected,
+            'errors': errors,
+            'warnings': warnings,
+            'counts': {
+                'dimensions_added': len(added),
+                'dimensions_updated': len(updated),
+                'dimensions_unchanged': len(unchanged),
+                'dimensions_removed': len(dimensions_removed),
+                'dimensions_kept_in_use': len(dimensions_kept_in_use),
+                'added': summed('added'),
+                'updated': summed('updated'),
+                'unchanged': summed('unchanged'),
+                'renamed': summed('renamed'),
+                'moved': summed('moved'),
+                'removed': summed('removed'),
+                'kept_in_use': summed('kept_in_use'),
+                'kept_as_ancestor': summed('kept_as_ancestor'),
+                'entries_affected': entries_affected,
+            },
+        }
+
+    def apply_whole_exam_import(
+        self,
+        exam_context_id: int,
+        dimensions: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Execute :meth:`plan_whole_exam_import`'s plan.
+
+        Nothing is re-derived. Each axis's subjects are written by
+        :meth:`_apply_subject_plan` from **the plan object the preview was
+        built from**, not from a fresh call to the planner -- which is why
+        that method was split out. Re-planning here would be #67's drift
+        reintroduced at the worst possible level: this apply creates
+        dimensions and archives others, so a second derivation would not
+        even be against the same state as the first.
+
+        **The whole thing is one transaction**, for #239's reason scaled up.
+        A whole-exam apply is a far larger composite than a single tree --
+        three axes created, one tree filled, another archived -- and a
+        half-applied blueprint is a state no student can see or undo.
+        Everything called from inside nests as a ``SAVEPOINT`` (#95).
+
+        Six phases, and the order of the first two is load-bearing:
+
+        **A. Park the names that are changing.** ``exam_dimensions`` has
+        ``UNIQUE(exam_id, name)``. A file can legitimately swap two axes'
+        names, or rename an axis and introduce a new one with the old name
+        -- reachable whenever the file matches a dimension by ``import_id``
+        and then declares a second axis under the name that dimension is
+        currently using. Both land on the constraint if the writes go
+        straight in. This is the same park-and-assign shape #211 needed for
+        ``display_order``, for the same underlying reason: SQLite checks a
+        UNIQUE index per row as the statement runs and has no deferred
+        constraints. Parking is unconditional on a rename rather than
+        conditional on a detected collision, because the case analysis is
+        exactly what gets it wrong.
+
+        **B. Create the axes the exam does not have**, at temporary orders
+        above everything in use. A real order cannot be assigned yet for
+        the same UNIQUE reason, and phase F assigns it properly.
+
+        **C. The matched axes' own columns**, including adopting an
+        ``import_id`` (m025) and taking the final name out of the park.
+
+        **D. The subjects under each axis**, through
+        :meth:`_apply_subject_plan`. ``dimension_id`` is supplied by this
+        method rather than read from the axis plan, because an axis the file
+        creates had no id when it was planned.
+
+        **E. Archive the axes the file dropped**, through
+        :meth:`archive_dimension` -- which is itself composed of
+        :meth:`delete_subject_subtree` calls, so #67's *never a second path*
+        holds at both levels. Removals last, mirroring the single-tree
+        apply.
+
+        **F. One :meth:`reorder_dimensions` over the survivors**, which is
+        #211's park-and-assign. The plan already decided the order; this
+        writes it.
+
+        Returns the plan, plus ``created_dimension_ids``,
+        ``updated_dimension_ids``, ``removed_dimension_ids``,
+        ``dimension_delete_batch_ids``, the subject-level ``created_ids`` /
+        ``updated_ids`` / ``removed_ids`` / ``delete_batch_ids`` pooled
+        across axes, ``axis_results`` (the same figures per axis),
+        ``imported_count`` and ``warnings``.
+        """
+        plan = self.plan_whole_exam_import(exam_context_id, dimensions)
+        if plan['errors']:
+            raise ValidationError('; '.join(plan['errors']))
+
+        config = self.get_exam_context_config(exam_context_id)
+        exam_name = config.exam_name
+
+        warnings: List[str] = list(plan['warnings'])
+        created_dimension_ids: List[int] = []
+        updated_dimension_ids: List[int] = []
+        removed_dimension_ids: List[int] = []
+        dimension_delete_batch_ids: List[str] = []
+        created_ids: List[int] = []
+        updated_ids: List[int] = []
+        removed_ids: List[int] = []
+        delete_batch_ids: List[str] = []
+        axis_results: List[Dict[str, Any]] = []
+        imported_count = 0
+
+        # file_index -> the dimension this axis ends up in. Seeded with the
+        # matches the planner made; phase B fills in the rest. Kept here
+        # rather than written back into the plan, so the plan stays the
+        # read-only thing the preview showed.
+        resolved: Dict[int, int] = {
+            axis['file_index']: axis['dimension_id']
+            for axis in plan['axes'] if axis['dimension_id'] is not None
+        }
+
+        with self.transaction():
+            # Phase A -- park every name that is about to change.
+            for axis in plan['axes']:
+                if 'name' in axis['changes']:
+                    self.update_dimension(
+                        axis['dimension_id'],
+                        name=f'__wimi_import_{uuid.uuid4().hex}',
+                    )
+
+            # Phase B -- create the axes the exam does not have, at orders
+            # nothing can already hold. `MAX` is taken over every row of the
+            # exam including archived ones, whose parked `-id` orders are in
+            # the same UNIQUE index (#210).
+            highest = self.fetchone(
+                '-- includes-archived (#210): a temporary order must clear '
+                'every row in the UNIQUE index, parked ones included\n'
+                'SELECT MAX(display_order) AS hi FROM exam_dimensions '
+                'WHERE exam_id = ?',
+                (exam_context_id,),
+            )
+            next_free = int((highest['hi'] if highest else 0) or 0) + 1
+            for axis in plan['axes']:
+                if axis['action'] != 'add':
+                    continue
+                dimension_id = self.create_dimension(
+                    exam_id=exam_context_id,
+                    name=axis['name'],
+                    display_order=next_free,
+                    is_required=axis['is_required'],
+                    allow_multiple=axis['allow_multiple'],
+                    description=axis['description'],
+                )
+                next_free += 1
+                if axis['import_id']:
+                    self._write_dimension_import_id(
+                        dimension_id, axis['import_id'])
+                resolved[axis['file_index']] = dimension_id
+                created_dimension_ids.append(dimension_id)
+
+            # Phase C -- the matched axes' own columns.
+            for axis in plan['axes']:
+                if axis['action'] != 'update':
+                    continue
+                changes = axis['changes']
+                fields: Dict[str, Any] = {}
+                if 'name' in changes:
+                    fields['name'] = axis['name']
+                if 'is_required' in changes:
+                    fields['is_required'] = axis['is_required']
+                if 'allow_multiple' in changes:
+                    fields['allow_multiple'] = axis['allow_multiple']
+                if 'description' in changes:
+                    fields['description'] = axis['description']
+                if fields:
+                    self.update_dimension(axis['dimension_id'], **fields)
+                if 'import_id' in changes:
+                    self._write_dimension_import_id(
+                        axis['dimension_id'], axis['import_id'])
+                updated_dimension_ids.append(axis['dimension_id'])
+
+            # Phase D -- the subjects under each axis, through the same
+            # apply a single-tree import uses.
+            for axis in plan['axes']:
+                dimension_id = resolved[axis['file_index']]
+                outcome = self._apply_subject_plan(
+                    axis['plan'], exam_name, dimension_id=dimension_id
+                )
+                created_ids.extend(outcome['created_ids'])
+                updated_ids.extend(outcome['updated_ids'])
+                removed_ids.extend(outcome['removed_ids'])
+                delete_batch_ids.extend(outcome['delete_batch_ids'])
+                imported_count += outcome['imported_count']
+                for message in outcome['warnings']:
+                    if message not in warnings:
+                        warnings.append(message)
+                axis_results.append({
+                    'file_index': axis['file_index'],
+                    'name': axis['name'],
+                    'dimension_id': dimension_id,
+                    'created_ids': outcome['created_ids'],
+                    'updated_ids': outcome['updated_ids'],
+                    'removed_ids': outcome['removed_ids'],
+                    'delete_batch_ids': outcome['delete_batch_ids'],
+                    'imported_count': outcome['imported_count'],
+                })
+
+            # Phase E -- archive the axes the file dropped, trees and all.
+            for record in plan['dimensions_removed']:
+                result = self.archive_dimension(record['dimension_id'])
+                removed_dimension_ids.append(record['dimension_id'])
+                if result.get('batch_id'):
+                    dimension_delete_batch_ids.append(result['batch_id'])
+
+            # Phase F -- one park-and-assign over the survivors (#211).
+            final_ids = [
+                resolved[item['file_index']] if item['file_index'] is not None
+                else item['dimension_id']
+                for item in plan['final_order']
+            ]
+            if final_ids:
+                self.reorder_dimensions(exam_context_id, final_ids)
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Whole-exam import into exam {exam_context_id}: "
+                f"{len(created_dimension_ids)} dimensions added, "
+                f"{len(updated_dimension_ids)} updated, "
+                f"{len(removed_dimension_ids)} archived, "
+                f"{plan['counts']['dimensions_kept_in_use']} kept because "
+                f"entries point into them; "
+                f"{len(created_ids)} subjects added, "
+                f"{len(updated_ids)} updated, {len(removed_ids)} removed",
+                category=ErrorCategory.DATABASE,
+            )
+
+        result = dict(plan)
+        result.update({
+            'imported_count': imported_count,
+            'created_dimension_ids': created_dimension_ids,
+            'updated_dimension_ids': updated_dimension_ids,
+            'removed_dimension_ids': removed_dimension_ids,
+            'dimension_delete_batch_ids': dimension_delete_batch_ids,
+            'created_ids': created_ids,
+            'updated_ids': updated_ids,
+            'removed_ids': removed_ids,
+            'delete_batch_ids': delete_batch_ids,
+            'axis_results': axis_results,
+            'warnings': warnings,
+        })
+        return result
+
+    def _write_dimension_import_id(self, dimension_id: int, import_id: str) -> None:
+        """Set ``exam_dimensions.import_id`` (m025).
+
+        A direct write because neither ``create_dimension`` nor
+        ``update_dimension`` carries the column, and widening their
+        signatures for a field only the importer writes would advertise it
+        to the exam wizard, which has no stable id to offer. This mirrors
+        what the subject apply does for ``subject_nodes.import_id``.
+        """
+        self.execute(
+            'UPDATE exam_dimensions SET import_id = ? WHERE id = ?',
+            (import_id, dimension_id),
+        )

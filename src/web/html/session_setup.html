@@ -12,6 +12,12 @@
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
+    <!-- #286. Both session_setup.js (the #session-date default) and
+         session_import.js (#import-session-date) call LocalDate.today(). -->
+    <script src="../js/local_date.js"></script>
+    <!-- The page gate's voice (#127). Before session_setup.js, which calls
+         PageGate.release() from markSessionSetupReady(). -->
+    <script src="../js/page_gate.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
     <script src="../js/custom-select.js"></script>
@@ -19,7 +25,54 @@
     <script src="../js/text_preview.js"></script>
 </head>
 <body>
-    <div class="session-page">
+    <!--
+      The gate's voice (#127), and the ONE thing about it that is easy to get
+      wrong: it sits OUTSIDE .session-page. `inert` removes its whole subtree
+      from the accessibility tree, so a status message placed inside the thing
+      being gated is as invisible to a screen reader as the form is.
+
+      The holding message is in the markup for the same reason the `inert`
+      attribute is -- there must be no window in which the page is gated and
+      silent. A live region does not announce text that was already in it when
+      it was registered, which is wanted here: on a warm load nothing is said
+      at all, and this is simply what a reader finds if it reads the document
+      during the gate. PageGate.release() then CHANGES the text, and a change
+      is announced.
+
+      docs/guides/PAGE_GATE.md is the pattern; src/web/js/page_gate.js holds
+      the contract. Styled in styles.css, which every page already links.
+    -->
+    <div class="page-gate" data-page-gate role="status" aria-live="polite"
+        >Preparing the session form&hellip;</div>
+
+    <!--
+      Ships `inert` (#120, the #114 defect on this page). Until
+      initializeSessionSetup() has finished, every field here is markup:
+      the `input` / `change` handlers are bound by initializeFormValidation()
+      at the very END of the chain, so a keystroke before that never reached
+      validateForm() and #btn-start-session stayed disabled on a form that
+      visibly had every required field filled in -- the student had to
+      re-touch a field to unstick it, with nothing on screen saying so. And
+      the chain overwrites what it finds: #session-date is assigned today's
+      date unconditionally, and initializeSessionDuration() assigns
+      #session-duration-preset / #session-duration-custom from the stored
+      preference after its own await.
+
+      The attribute is in the markup rather than set from JS so there is no gap
+      before the first script runs. markSessionSetupReady() removes it, from a
+      `finally` and from the pre-`try` "no exam id" return, so neither a failed
+      init nor a redirect can leave the page permanently dead.
+
+      `data-page-gated` names this as the container the gate covers. It carries
+      no behaviour; tests/test_page_gate_markup.py reads it to check that the
+      gate's voice is not inside it.
+
+      The modals below are siblings of this container rather than children, so
+      they are not gated -- same as the entry form's. They are reachable only
+      through buttons that ARE inside it, so none can be opened while the gate
+      holds.
+    -->
+    <div class="session-page" inert data-page-gated>
         <!-- Header -->
         <header class="session-header">
             <div class="session-header-left">
@@ -164,8 +217,10 @@
 
     <!-- Add Source Modal -->
     <div class="modal-backdrop" id="add-source-modal" data-testid="session-source-add-modal">
-        <div class="modal">
-            <h3 class="modal-title">Add Question Source</h3>
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="add-source-modal-title">
+            <h2 class="modal-title" id="add-source-modal-title">Add Question Source</h2>
             <div class="form-group">
                 <label for="new-source-name">Source Name <span class="required">*</span></label>
                 <input type="text" id="new-source-name" placeholder="e.g., UWorld, Amboss, First Aid">
@@ -199,8 +254,10 @@
 
     <!-- Manage Sources Modal -->
     <div class="modal-backdrop" id="manage-sources-modal" data-testid="session-source-manage-modal">
-        <div class="modal modal-lg">
-            <h3 class="modal-title">Manage Question Sources</h3>
+        <div class="modal modal-lg"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="manage-sources-modal-title">
+            <h2 class="modal-title" id="manage-sources-modal-title">Manage Question Sources</h2>
             <div class="sources-list" id="sources-list">
                 <!-- Source items will be rendered here -->
                 <div class="sources-loading">
@@ -219,8 +276,10 @@
 
     <!-- Edit Source Modal -->
     <div class="modal-backdrop" id="edit-source-modal" data-testid="session-source-edit-modal">
-        <div class="modal">
-            <h3 class="modal-title">Edit Question Source</h3>
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="edit-source-modal-title">
+            <h2 class="modal-title" id="edit-source-modal-title">Edit Question Source</h2>
             <input type="hidden" id="edit-source-id">
             <div class="form-group">
                 <label for="edit-source-name">Source Name <span class="required">*</span></label>
@@ -258,9 +317,11 @@
 
     <!-- Delete Source Confirmation Modal -->
     <div class="modal-backdrop" id="delete-source-modal" data-testid="session-source-delete-confirm">
-        <div class="modal">
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="delete-source-modal-title">
             <div class="modal-icon">⚠️</div>
-            <h3 class="modal-title">Delete Source?</h3>
+            <h2 class="modal-title" id="delete-source-modal-title">Delete Source?</h2>
             <p class="modal-message">
                 Are you sure you want to delete 
                 <strong id="delete-source-name">this source</strong>?
@@ -276,8 +337,10 @@
 
     <!-- Edit Session Modal -->
     <div class="modal-backdrop" id="edit-session-modal" data-testid="session-edit-modal">
-        <div class="modal">
-            <h3 class="modal-title">Edit Session</h3>
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="edit-session-modal-title">
+            <h2 class="modal-title" id="edit-session-modal-title">Edit Session</h2>
             <input type="hidden" id="edit-session-id">
             <div class="form-group">
                 <label for="edit-session-name">Session Name</label>
@@ -327,8 +390,10 @@
 
     <!-- Entry Picker Modal (for reducing incorrect count) -->
     <div class="modal-backdrop" id="entry-picker-modal" data-testid="session-entry-picker">
-        <div class="modal">
-            <h3 class="modal-title">Select Entries to Remove</h3>
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="entry-picker-modal-title">
+            <h2 class="modal-title" id="entry-picker-modal-title">Select Entries to Remove</h2>
             <p class="entry-picker-message" id="entry-picker-message"></p>
             <div class="entry-picker-list" id="entry-picker-list"></div>
             <div class="entry-picker-counter" id="entry-picker-counter"></div>
@@ -341,9 +406,11 @@
 
     <!-- Delete Session Confirmation Modal -->
     <div class="modal-backdrop" id="delete-session-modal" data-testid="session-session-delete-confirm">
-        <div class="modal">
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="delete-session-modal-title">
             <div class="modal-icon">⚠️</div>
-            <h3 class="modal-title">Delete Session?</h3>
+            <h2 class="modal-title" id="delete-session-modal-title">Delete Session?</h2>
             <p class="modal-message">
                 Are you sure you want to delete 
                 <strong id="delete-session-name">this session</strong>?
@@ -359,8 +426,10 @@
 
     <!-- Import Session Wizard Modal -->
     <div class="modal-backdrop import-wizard-modal" id="import-wizard-modal" data-testid="session-import-wizard-modal">
-        <div class="modal">
-            <h3 class="modal-title">Import Session from JSON</h3>
+        <div class="modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="import-wizard-modal-title">
+            <h2 class="modal-title" id="import-wizard-modal-title">Import Session from JSON</h2>
 
             <!-- Progress Steps -->
             <div class="import-wizard-progress">
@@ -533,8 +602,10 @@
 
     <!-- Save Mapping Profile Modal -->
     <div class="modal-backdrop" id="save-profile-modal" data-testid="session-import-save-profile">
-        <div class="modal" style="max-width: 360px;">
-            <h3 class="modal-title">Save Mapping Profile</h3>
+        <div class="modal" style="max-width: 360px;"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="save-profile-modal-title">
+            <h2 class="modal-title" id="save-profile-modal-title">Save Mapping Profile</h2>
             <div class="form-group">
                 <label for="save-profile-name">Profile Name <span class="required">*</span></label>
                 <input type="text" id="save-profile-name" placeholder="e.g., AMBOSS Surgery">
@@ -555,6 +626,7 @@
         </div>
     </div>
 
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/session_setup.js"></script>
     <script src="../js/session_import.js"></script>
 </body>

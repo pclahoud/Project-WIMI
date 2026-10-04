@@ -159,6 +159,13 @@ app_data/
 # wimi-test (CDP regression suite) writes its own isolated app_data dir
 # so live tests don't trample the developer's real data.
 app_data_test/
+# ...and any per-agent variant. Parallel agents each need their own scratch
+# app_data (WIMI_TEST_APP_DATA_DIR) so concurrent runs do not contend over one
+# users.db, and `app_data_test/` alone does not cover `app_data_test_<tag>/`.
+# `*.db` hides the databases, which is what makes the gap easy to miss -- but
+# a real run also writes media/ and browser_pane/Cookies, and `git add -A`
+# would stage those.
+app_data_test*/
 *.db-shm
 *.db-wal
 *.lbdb
@@ -228,3 +235,12 @@ coverage.xml
 /node_modules/
 /package.json
 /package-lock.json
+
+# Owner-supplied reference data: a real WIMI profile, exported archives, media.
+# Ignored as a WHOLE DIRECTORY on purpose. `*.db` above already covers a
+# database, and that is a trap: a `.wimi` archive and a media/*.png are NOT
+# covered by it, so a `git add -A` would stage somebody's real entries and
+# publish_release.py would then snapshot them onto the public GitHub mirror.
+# Ignore the container, not the file types, so adding a new kind of file here
+# cannot quietly fall outside the rule.
+/reference/

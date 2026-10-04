@@ -19,7 +19,22 @@ class SharedHelpersMixin:
     # ------------------------------------------------------------------
 
     def _build_subject_path(self, node_id: int) -> str:
-        """Build full path string for a subject node.
+        """The canonical breadcrumb path as a display string.
+
+        Thin wrapper over :meth:`_build_subject_path_info`, which owns the
+        walk. **There is deliberately only one walk** — #301 existed because
+        this helper had its own, and two independent traversals of the same
+        table drift apart silently (that is the whole shape of the bug).
+        Anything that needs to know *what the walk removed* must call
+        ``_build_subject_path_info``; re-walking unfiltered at the call site
+        to recover the archived names would reintroduce the disagreement.
+        """
+        return self._build_subject_path_info(node_id)['path']
+
+    def _build_subject_path_info(self, node_id: int) -> Dict[str, Any]:
+        """The canonical breadcrumb path, plus what was left out of it.
+
+        Returns ``{'path', 'parts', 'omitted_ancestors', 'shortened'}``.
 
         Polyhierarchy migration: walks UPWARD via ``subject_edges``
         following only ``is_primary=TRUE`` edges — this yields the
@@ -27,6 +42,43 @@ class SharedHelpersMixin:
         available via :meth:`EdgesMixin.get_paths_to_root`. Falls back
         to ``subject_nodes.parent_id`` if the ``subject_edges`` table
         doesn't exist (very old DBs predating m004).
+
+        **An archived ancestor is not named, and the walk says so (#301,
+        owner's decision 2026-10-03).** Both steps filter
+        ``status = 'active'``, so this agrees with the #262-fixed
+        ``get_paths_to_root`` / ``_primary_path_to_root`` and with
+        ``RelationsMixin._ancestor_sets`` — *an edge from an archived node
+        is not a live context*. Before that it had no status predicate in
+        either step, so an active ``Child`` under an archived ``Parent``
+        rendered ``'Parent > Child'`` while ``get_paths_to_root`` returned
+        ``[[Child]]``: one of them named a subject the tree no longer shows,
+        and this one is the string a student reads.
+
+        The owner's decision was **neither** of the options #301 offered:
+        filter *and* explain. The objection to filtering alone was that a
+        shortened path "can look wrong without explaining why", so
+        ``omitted_ancestors`` carries the archived names up to the UI for a
+        hover tooltip. One rule for the path, a second channel for the
+        caveat — rather than putting archived names back into the primary
+        reading line, which is what #15's soft delete was getting away from.
+
+        ``omitted_ancestors`` is **empty unless the walk was actually cut
+        short**, because an affordance that always appears means nothing. It
+        names the archived parent the walk refused to step onto — the
+        *reason* the path is short — and does not continue above it to
+        reconstruct the whole historical chain. Reconstruction is the
+        Archived subjects panel's job (#37); this is an explanation.
+
+        ``node_id`` itself is emitted whatever its status, because the
+        caller named it — the same rule ``get_paths_to_root`` states, and
+        without it the deep dive of an archived subject would render an
+        empty breadcrumb.
+
+        **Not delegated to ``_primary_path_to_root``**, close as the two
+        now are: that one has no legacy ``subject_nodes.parent_id``
+        fallback, and this is the one helper that still handles pre-m004
+        data and fixtures that seed ``parent_id`` without an edge row
+        (``tests/database/test_descendant_walk_sources.py`` pins it).
 
         SQLite is authoritative here — see the note on
         :meth:`_get_descendant_node_ids` for why the former
@@ -43,6 +95,7 @@ class SharedHelpersMixin:
         # subject_nodes.parent_id when no primary edge exists (legacy
         # nodes / tests that seed parent_id but not subject_edges).
         parts: List[str] = []
+        omitted: List[str] = []
         seen: set = set()
         current_id = node_id
 
@@ -61,24 +114,130 @@ class SharedHelpersMixin:
             parts.insert(0, row['name'])
 
             next_id = None
+            has_primary_edge = False
             if edges_available:
+                # The parent-status JOIN is the #301 fix, and it has to be
+                # in the JOIN rather than applied afterwards: a NULL row
+                # here means "no live parent", which is the same answer as
+                # "no parent at all" and makes this node a root -- the
+                # predicate #260 gave the root finders.
                 parent_row = self.fetchone(
-                    "SELECT parent_id FROM subject_edges "
-                    "WHERE child_id = ? AND is_primary = TRUE LIMIT 1",
+                    "SELECT se.parent_id AS parent_id FROM subject_edges se "
+                    "JOIN subject_nodes p "
+                    "  ON p.id = se.parent_id AND p.status = 'active' "
+                    "WHERE se.child_id = ? AND se.is_primary = TRUE LIMIT 1",
                     (current_id,),
                 )
                 if parent_row is not None:
                     next_id = parent_row['parent_id']
-            # Fall back to subject_nodes.parent_id when no primary edge
-            # exists (legacy / partially-migrated data).
+                else:
+                    # Does a primary edge exist AT ALL? Status-blind on
+                    # purpose, and it decides precedence rather than
+                    # membership -- see the fallback below.
+                    has_primary_edge = self.fetchone(
+                        "SELECT 1 FROM subject_edges "
+                        "WHERE child_id = ? AND is_primary = TRUE LIMIT 1",
+                        (current_id,),
+                    ) is not None
+            # Fall back to subject_nodes.parent_id ONLY where the junction
+            # table has nothing to say (legacy / partially-migrated data).
+            #
+            # `not has_primary_edge` is the load-bearing half. Without it,
+            # a node whose primary edge points at an ARCHIVED parent would
+            # fall through to the legacy column -- and that column is a
+            # mirror that is allowed to diverge (`add_parent` writes edges
+            # and not `parent_id`; this method's own docstring describes a
+            # node "whose primary edge no longer matches its legacy
+            # parent_id"). So the walk would cross from the canonical
+            # source to a stale one mid-path and report a chain that no
+            # edge supports, which is the defect class
+            # `_get_descendant_node_ids` is wholly about. `subject_edges`
+            # having an archived answer IS an answer.
+            #
+            # The legacy target is itself status-filtered: #301 called that
+            # a second decision; it is the same decision reached through
+            # pre-m004 data, and leaving it would make the guarantee hold
+            # only for databases new enough to carry `subject_edges`.
+            if (next_id is None and not has_primary_edge
+                    and row['parent_id'] is not None):
+                legacy_row = self.fetchone(
+                    "SELECT id FROM subject_nodes "
+                    "WHERE id = ? AND status = 'active'",
+                    (row['parent_id'],),
+                )
+                if legacy_row is not None:
+                    next_id = legacy_row['id']
+
             if next_id is None:
-                next_id = row['parent_id']
+                # Nothing live above this node. Name the archived parent the
+                # walk declined to step onto, if there is one -- that is the
+                # tooltip's whole content, and it is read with no status
+                # filter on purpose.
+                omitted = self._archived_ancestor_names(current_id)
             current_id = next_id
 
             if len(parts) > 32:  # Safety check; deep DAGs allowed but bounded.
                 break
 
-        return ' > '.join(parts)
+        return {
+            'path': ' > '.join(parts),
+            'parts': parts,
+            'omitted_ancestors': omitted,
+            'shortened': bool(omitted),
+        }
+
+    def _archived_ancestor_names(self, node_id: int) -> List[str]:
+        """Names of the archived parents that cut ``node_id``'s path short.
+
+        The tooltip's content (#301). Call it on the **topmost** node of a
+        rendered path: a non-empty answer means that path really was
+        shortened, an empty one means the node is a genuine root and the
+        path is complete. Any path built from a status-filtered upward walk
+        can be explained this way, which is why
+        ``get_subject_deep_dive`` uses it for ``path_via_parent`` (built
+        from the #262-filtered ``get_paths_to_root``) as well as for
+        ``full_path``.
+
+        Deliberately status-blind: it exists to report what the status
+        filter removed, so filtering it would make it return nothing,
+        always. It names the immediate archived parent — the *reason* the
+        path stops — and does not climb further to reconstruct the whole
+        historical chain; that is the Archived subjects panel's job (#37).
+        """
+        node = self.fetchone(
+            "SELECT parent_id FROM subject_nodes WHERE id = ?", (node_id,))
+        if node is None:
+            return []
+        legacy_parent_id = node['parent_id']
+        edges_available = self.fetchone(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='subject_edges'"
+        ) is not None
+
+        names: List[str] = []
+        if edges_available:
+            rows = self.fetchall(
+                # includes-archived (#301): this read is the tooltip's
+                # content -- it reports exactly the ancestors the filtered
+                # walk above refused to step onto, so filtering it would
+                # make it return nothing, always.
+                "SELECT p.name AS name FROM subject_edges se "
+                "JOIN subject_nodes p ON p.id = se.parent_id "
+                "WHERE se.child_id = ? AND se.is_primary = TRUE "
+                "  AND p.status != 'active' "
+                "ORDER BY p.name",
+                (node_id,),
+            )
+            names = [row['name'] for row in rows]
+        if not names and legacy_parent_id is not None:
+            row = self.fetchone(
+                "SELECT name FROM subject_nodes "
+                "WHERE id = ? AND status != 'active'",
+                (legacy_parent_id,),
+            )
+            if row is not None:
+                names = [row['name']]
+        return names
 
     # ------------------------------------------------------------------
     # Descendant helpers
@@ -525,19 +684,32 @@ class SharedHelpersMixin:
             subject: SubjectNode object or object with id, name attributes
 
         Returns:
-            Dict with id, name, path, and dimension info if available
+            Dict with id, name, path, and dimension info if available.
+
+        ``path_omitted_ancestors`` is present **only when the path was
+        actually shortened** by #301's status filter, because an affordance
+        that always appears means nothing — a reader of the payload can treat
+        the key's absence as "nothing to explain" rather than having to
+        compare an empty list. This is the per-entry subject dict, so it is
+        also the broadest payload carrying a path: the entry browser's subject
+        chips and the entry detail breadcrumb both read it.
         """
+        path_info = self._build_subject_path_info(subject.id)
         subject_dict = {
             'id': subject.id,
             'name': subject.name,
-            'path': self._build_subject_path(subject.id)
+            'path': path_info['path']
         }
+        if path_info['omitted_ancestors']:
+            subject_dict['path_omitted_ancestors'] = \
+                path_info['omitted_ancestors']
 
         # Try to get dimension info for this subject
         dim_info = self.fetchone("""
             SELECT sn.dimension_id, d.name as dimension_name
             FROM subject_nodes sn
-            LEFT JOIN exam_dimensions d ON sn.dimension_id = d.id
+            LEFT JOIN exam_dimensions d
+                   ON sn.dimension_id = d.id AND d.status = 'active'
             WHERE sn.id = ?
         """, (subject.id,))
 

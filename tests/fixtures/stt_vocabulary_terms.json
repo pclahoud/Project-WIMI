@@ -1,0 +1,1078 @@
+{
+  "schema_version": 1,
+  "corpus_id": "wimi-stt-usmle-v1",
+  "issue": 59,
+  "description": "Read-aloud corpus and marked domain terms for the #59 speech-to-text accuracy measurement (task T3, plan section 6). The reference text of each utterance is what the reader says; the marked terms are the spans the recall metric is about. Scored by scripts/stt_measure.py.",
+  "authoring_rules": [
+    "Every marked term and every priming term is drawn from tests/fixtures/usmle_step1_outline.txt (the 2025 USMLE Step 1 content outline) or from the drug/abbreviation supplement that plan section 6 asks for. tests/test_stt_measure.py enforces the outline half.",
+    "Priming terms are chosen by TOPIC, never by which words were marked. Priming built from the marked-terms list would be an oracle prompt and would measure nothing. The overlap that remains is reported per run as primed_marked_terms so it can be seen rather than assumed.",
+    "Marked terms never overlap inside one utterance. Where a short term sits inside a long one (ACE inside ACE inhibitor, thrombocytopenia inside heparin-induced thrombocytopenia) only the longer span is marked. The scorer refuses a corpus that breaks this.",
+    "Variants were written before any audio was recorded. A variants list edited after seeing results is not a measurement."
+  ],
+  "normalisation": {
+    "applied_in_this_order": [
+      "nfkc: Unicode NFKC, curly quotes and dashes folded to ASCII",
+      "lowercase",
+      "split_joiners: '/', '-' and '_' become spaces (mL/kg, X-ray, heparin-induced)",
+      "drop_punctuation: apostrophes deleted, all other punctuation becomes a space, except '.' between two digits",
+      "numbers: number words become digits (zero..twenty, tens, hundred, thousand, and 'point' between numbers)",
+      "units: unit words canonicalised through unit_map",
+      "letter_runs: a run of two or more single-letter tokens is joined, so 'c o p d' and 'C.O.P.D.' both become 'copd'",
+      "disfluencies: filler tokens removed from both sides",
+      "collapse_whitespace"
+    ],
+    "unit_map": {
+      "milligram": "mg",
+      "milligrams": "mg",
+      "milliliter": "ml",
+      "milliliters": "ml",
+      "millilitre": "ml",
+      "millilitres": "ml",
+      "kilogram": "kg",
+      "kilograms": "kg",
+      "milliequivalent": "meq",
+      "milliequivalents": "meq",
+      "millimeter": "mm",
+      "millimeters": "mm",
+      "microgram": "mcg",
+      "micrograms": "mcg"
+    },
+    "disfluencies": [
+      "um",
+      "uh",
+      "erm",
+      "hmm",
+      "mm",
+      "mhm",
+      "eh"
+    ]
+  },
+  "term_variants": {
+    "ACE inhibitor": [
+      "ace inhibitors",
+      "A.C.E. inhibitor",
+      "A C E inhibitor",
+      "ace-inhibitor"
+    ],
+    "COPD": [
+      "C.O.P.D.",
+      "C O P D",
+      "copd"
+    ],
+    "GERD": [
+      "G.E.R.D.",
+      "G E R D",
+      "gerd"
+    ],
+    "ITP": [
+      "I.T.P.",
+      "I T P"
+    ],
+    "ARDS": [
+      "A.R.D.S.",
+      "A R D S",
+      "ards"
+    ],
+    "NSTEMI": [
+      "N-STEMI",
+      "non-STEMI",
+      "N STEMI",
+      "nstemi"
+    ],
+    "MRSA": [
+      "M.R.S.A.",
+      "M R S A",
+      "mersa"
+    ],
+    "CABG": [
+      "C.A.B.G.",
+      "C A B G",
+      "cabbage"
+    ],
+    "GFR": [
+      "G.F.R.",
+      "G F R"
+    ],
+    "BUN": [
+      "B.U.N.",
+      "B U N"
+    ],
+    "ATN": [
+      "A.T.N.",
+      "A T N"
+    ],
+    "IgA nephropathy": [
+      "I.G.A. nephropathy",
+      "IGA nephropathy",
+      "I G A nephropathy",
+      "iga nephropathy"
+    ],
+    "hemoglobin A1c": [
+      "hemoglobin A one C",
+      "haemoglobin A1c",
+      "hemoglobin A1C",
+      "hba1c",
+      "hemoglobin a 1 c"
+    ],
+    "HLA B27": [
+      "HLA-B27",
+      "HLA B twenty seven",
+      "H.L.A. B27",
+      "hla b 27"
+    ],
+    "INR": [
+      "I.N.R.",
+      "I N R"
+    ],
+    "QT": [
+      "Q.T.",
+      "Q T",
+      "QT interval"
+    ],
+    "x ray": [
+      "X-ray",
+      "xray",
+      "X ray",
+      "radiograph"
+    ],
+    "ST segments": [
+      "ST segment",
+      "S.T. segments",
+      "ST-segments"
+    ],
+    "Wolff Parkinson White": [
+      "Wolff-Parkinson-White",
+      "Wolf Parkinson White",
+      "WPW"
+    ],
+    "electrocardiogram": [
+      "EKG",
+      "ECG",
+      "E.K.G.",
+      "E.C.G."
+    ],
+    "creatine kinase": [
+      "CK",
+      "C.K.",
+      "creatinine kinase"
+    ],
+    "6 ml per kg": [
+      "six milliliters per kilogram",
+      "6 mL/kg",
+      "six ml per kilo",
+      "6 ml kg"
+    ],
+    "0.9": [
+      "zero point nine",
+      "point nine",
+      ".9"
+    ],
+    "6.4": [
+      "six point four"
+    ],
+    "9.4": [
+      "nine point four"
+    ],
+    "deep venous thrombosis": [
+      "deep vein thrombosis"
+    ],
+    "Coumadin": [
+      "coumadin",
+      "Couamadin",
+      "Coumadine"
+    ],
+    "Lasix": [
+      "lasix"
+    ],
+    "Lopressor": [
+      "lopressor"
+    ],
+    "beta lactamase": [
+      "beta-lactamase",
+      "betalactamase"
+    ],
+    "proton pump inhibitor": [
+      "proton-pump inhibitor",
+      "PPI"
+    ],
+    "calcium channel blocker": [
+      "calcium-channel blocker"
+    ],
+    "poststreptococcal glomerulonephritis": [
+      "post-streptococcal glomerulonephritis",
+      "post streptococcal glomerulonephritis"
+    ],
+    "heparin induced thrombocytopenia": [
+      "heparin-induced thrombocytopenia",
+      "HIT"
+    ],
+    "acute tubular necrosis": [
+      "acute tubular necrosis"
+    ],
+    "lower esophageal sphincter": [
+      "lower oesophageal sphincter"
+    ],
+    "hematuria": [
+      "haematuria"
+    ],
+    "catecholamines": [
+      "catecholamine"
+    ],
+    "hepatic gluconeogenesis": [
+      "hepatic gluconeogenesis"
+    ],
+    "ventricular fibrillation": [
+      "v fib",
+      "vfib",
+      "VF"
+    ]
+  },
+  "priming": {
+    "frame": "A student is explaining a medical exam question out loud, in their own words. Terms:",
+    "token_budget": 223,
+    "ordering": "least relevant first, most relevant last, because whisper.cpp truncates the prompt from the FRONT and keeps the tail (plan section 3.6, verified by task T1). base_terms are the imported exam-context subject tree; entry_terms are the subjects the open entry is tagged with and therefore go last.",
+    "source_note": "Every string below appears verbatim in tests/fixtures/usmle_step1_outline.txt. That is the honesty guard: the priming prompt is built from the published blueprint a student would have imported, not from the answer key.",
+    "base_terms": [
+      "Human Development",
+      "Immune System",
+      "Behavioral Health",
+      "Skin & Subcutaneous Tissue",
+      "Musculoskeletal System",
+      "Endocrine System",
+      "Social Sciences",
+      "Nervous System & Special Senses",
+      "Blood & Lymphoreticular System",
+      "Gastrointestinal System",
+      "Respiratory System",
+      "Renal & Urinary System",
+      "Cardiovascular System",
+      "Multisystem Processes & Disorders",
+      "osteomyelitis",
+      "septic arthritis",
+      "necrotizing fasciitis",
+      "ankylosing spondylitis",
+      "rheumatoid arthritis",
+      "psoriatic arthropathy",
+      "osteoarthritis",
+      "osteoporosis",
+      "spondylolisthesis",
+      "rhabdomyolysis",
+      "malignant hyperthermia",
+      "bacterial endocarditis",
+      "myocarditis",
+      "atherosclerosis",
+      "atrial flutter",
+      "multifocal atrial tachycardia",
+      "ventricular tachycardia",
+      "torsades de pointes",
+      "sick sinus syndrome",
+      "Wolff-Parkinson-White syndrome",
+      "congestive heart failure",
+      "cor pulmonale",
+      "diastolic dysfunction",
+      "systolic dysfunction",
+      "acute coronary syndrome",
+      "acute myocardial infarction",
+      "angina pectoris",
+      "coronary artery disease",
+      "cardiomyopathy",
+      "left ventricular hypertrophy",
+      "acute pericarditis",
+      "pericardial effusion",
+      "rheumatic heart disease",
+      "orthostatic hypotension",
+      "essential hypertension",
+      "hypertensive emergency",
+      "secondary hypertension",
+      "hypercholesterolemia",
+      "hyperlipidemia",
+      "hypertriglyceridemia",
+      "claudication",
+      "peripheral arterial disease",
+      "thromboangiitis obliterans",
+      "deep venous thrombosis",
+      "venous thromboembolism",
+      "thrombophlebitis",
+      "venous insufficiency",
+      "asthma",
+      "bronchiectasis",
+      "chronic obstructive pulmonary disease",
+      "chronic bronchitis",
+      "emphysema",
+      "pneumoconiosis",
+      "asbestosis",
+      "silicosis",
+      "hypersensitivity pneumonitis",
+      "acute respiratory distress syndrome",
+      "pulmonary hypertension",
+      "pulmonary edema",
+      "pulmonary embolism",
+      "hypoventilation",
+      "hypoxia",
+      "pleural effusion",
+      "pneumothorax",
+      "Crohn disease",
+      "peptic ulcer",
+      "gastritis",
+      "gastroparesis",
+      "cirrhosis",
+      "primary sclerosing cholangitis",
+      "pyelonephritis",
+      "cystitis",
+      "glomerulonephritis",
+      "IgA nephropathy",
+      "lupus nephritis",
+      "minimal change disease",
+      "nephrotic syndrome",
+      "acute tubular necrosis",
+      "acute interstitial nephritis",
+      "polycystic kidney disease",
+      "renal cell carcinoma",
+      "thrombocytopenia",
+      "immune thrombocytopenic purpura",
+      "heparin-induced thrombocytopenia",
+      "hypersplenism",
+      "methemoglobinemia",
+      "tumor lysis syndrome",
+      "pheochromocytoma",
+      "diabetes mellitus",
+      "hypoglycemia",
+      "sepsis",
+      "bacteremia",
+      "warfarin",
+      "furosemide",
+      "spironolactone",
+      "amiodarone",
+      "albuterol",
+      "prednisone",
+      "azathioprine",
+      "penicillin",
+      "insulin",
+      "statins",
+      "MRSA",
+      "ACE inhibitor"
+    ]
+  },
+  "utterances": [
+    {
+      "id": "u01",
+      "file": "u01.wav",
+      "category": "control",
+      "note": "Control. No domain vocabulary at all. If WER is bad here the problem is the recording, not the model.",
+      "priming_entry_terms": [],
+      "reference": "Okay, so the reason I got this one wrong is that I was rushing and I read the last line of the question first. I knew the material, I just answered the question I expected instead of the question that was actually on the screen.",
+      "terms": []
+    },
+    {
+      "id": "u02",
+      "file": "u02.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "essential hypertension",
+        "ACE inhibitor"
+      ],
+      "reference": "So essential hypertension is usually managed by lowering the volume first, which is why hydrochlorothiazide comes early. If that is not enough you add an ACE inhibitor like lisinopril, and the reason you check a creatinine afterwards is that the ACE inhibitor drops the filtration pressure inside the glomerulus.",
+      "terms": [
+        {
+          "text": "essential hypertension",
+          "category": "disease"
+        },
+        {
+          "text": "hydrochlorothiazide",
+          "category": "drug_generic"
+        },
+        {
+          "text": "ACE inhibitor",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "lisinopril",
+          "category": "drug_generic"
+        },
+        {
+          "text": "creatinine",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "glomerulus",
+          "category": "anatomy"
+        }
+      ]
+    },
+    {
+      "id": "u03",
+      "file": "u03.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Blood & Lymphoreticular System",
+        "deep venous thrombosis",
+        "warfarin"
+      ],
+      "reference": "The thing I missed is that warfarin takes about five days to actually work, so in a deep venous thrombosis you bridge with heparin until the INR is between two and three. If you start warfarin alone the protein C drops first and the patient clots more, not less.",
+      "terms": [
+        {
+          "text": "warfarin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "deep venous thrombosis",
+          "category": "disease"
+        },
+        {
+          "text": "heparin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "INR",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "protein C",
+          "category": "lab_or_measure"
+        }
+      ]
+    },
+    {
+      "id": "u04",
+      "file": "u04.wav",
+      "category": "abbrev_letters",
+      "priming_entry_terms": [
+        "Respiratory System",
+        "chronic obstructive pulmonary disease",
+        "emphysema"
+      ],
+      "reference": "COPD is really two diseases wearing one name. Chronic bronchitis is a mucus problem and emphysema is a destruction problem, and the reason that matters is that the emphysema patient is the one whose chest stays hyperinflated even after you have treated the bronchitis.",
+      "terms": [
+        {
+          "text": "COPD",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "chronic bronchitis",
+          "category": "disease"
+        },
+        {
+          "text": "emphysema",
+          "category": "disease"
+        },
+        {
+          "text": "hyperinflated",
+          "category": "concept"
+        }
+      ]
+    },
+    {
+      "id": "u05",
+      "file": "u05.wav",
+      "category": "abbrev_letters",
+      "priming_entry_terms": [
+        "Gastrointestinal System",
+        "peptic ulcer",
+        "gastritis"
+      ],
+      "reference": "GERD is a pressure problem at the lower esophageal sphincter, not an acid overproduction problem, which is why a proton pump inhibitor helps the symptoms but does not fix the mechanism. That is also why the question asked about the hiatal hernia rather than about the acid.",
+      "terms": [
+        {
+          "text": "GERD",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "lower esophageal sphincter",
+          "category": "anatomy"
+        },
+        {
+          "text": "proton pump inhibitor",
+          "category": "drug_generic"
+        },
+        {
+          "text": "hiatal hernia",
+          "category": "disease"
+        }
+      ]
+    },
+    {
+      "id": "u06",
+      "file": "u06.wav",
+      "category": "disease_multisyllable",
+      "priming_entry_terms": [
+        "Blood & Lymphoreticular System",
+        "thrombocytopenia",
+        "heparin-induced thrombocytopenia"
+      ],
+      "reference": "Heparin induced thrombocytopenia confused me because the platelet count falls and yet the patient clots. The antibody activates the platelets rather than destroying them, so it is nothing like immune thrombocytopenic purpura, or ITP, where the platelets are simply cleared by the spleen.",
+      "terms": [
+        {
+          "text": "heparin induced thrombocytopenia",
+          "category": "disease"
+        },
+        {
+          "text": "immune thrombocytopenic purpura",
+          "category": "disease"
+        },
+        {
+          "text": "ITP",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "spleen",
+          "category": "anatomy"
+        }
+      ]
+    },
+    {
+      "id": "u07",
+      "file": "u07.wav",
+      "category": "disease_multisyllable",
+      "priming_entry_terms": [
+        "Renal & Urinary System",
+        "glomerulonephritis",
+        "IgA nephropathy"
+      ],
+      "reference": "The difference I keep forgetting is the timing. Poststreptococcal glomerulonephritis shows up about two weeks after the sore throat, whereas IgA nephropathy gives you blood in the urine during the infection itself. Same hematuria, completely different story.",
+      "terms": [
+        {
+          "text": "poststreptococcal glomerulonephritis",
+          "category": "disease"
+        },
+        {
+          "text": "IgA nephropathy",
+          "category": "disease"
+        },
+        {
+          "text": "hematuria",
+          "category": "lab_or_measure"
+        }
+      ]
+    },
+    {
+      "id": "u08",
+      "file": "u08.wav",
+      "category": "abbrev_word",
+      "note": "ARDS is spoken as a word, not as letters: say 'ards'. Read '6 ml per kg' as 'six milliliters per kilogram'.",
+      "priming_entry_terms": [
+        "Respiratory System",
+        "acute respiratory distress syndrome",
+        "pulmonary edema"
+      ],
+      "reference": "Acute respiratory distress syndrome, which everyone just says as ARDS, is a permeability problem, so the fluid is protein rich and the wedge pressure stays under eighteen. You ventilate with a low tidal volume, around 6 ml per kg, to keep the lung from tearing itself further.",
+      "terms": [
+        {
+          "text": "acute respiratory distress syndrome",
+          "category": "disease"
+        },
+        {
+          "text": "ARDS",
+          "category": "abbrev_word"
+        },
+        {
+          "text": "wedge pressure",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "eighteen",
+          "category": "number_unit"
+        },
+        {
+          "text": "tidal volume",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "6 ml per kg",
+          "category": "number_unit"
+        }
+      ]
+    },
+    {
+      "id": "u09",
+      "file": "u09.wav",
+      "category": "abbrev_word",
+      "note": "NSTEMI is spoken as a word: 'en-stemmy'. Read '0.9' as 'zero point nine'.",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "acute coronary syndrome",
+        "acute myocardial infarction"
+      ],
+      "reference": "An NSTEMI means the troponin is up but the ST segments are not, so the artery is only partly closed. The reason I got it wrong is that I treated a troponin of 0.9 as a rule out, when the trend over three hours is what actually matters.",
+      "terms": [
+        {
+          "text": "NSTEMI",
+          "category": "abbrev_word"
+        },
+        {
+          "text": "troponin",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "ST segments",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "0.9",
+          "category": "number_unit"
+        },
+        {
+          "text": "three hours",
+          "category": "number_unit"
+        }
+      ]
+    },
+    {
+      "id": "u10",
+      "file": "u10.wav",
+      "category": "abbrev_word",
+      "note": "MRSA is spoken as a word: 'mersa'.",
+      "priming_entry_terms": [
+        "Skin & Subcutaneous Tissue",
+        "MRSA",
+        "necrotizing fasciitis"
+      ],
+      "reference": "If the wound culture grows MRSA, nafcillin is useless, because the resistance lives in the binding protein and not in a beta lactamase. You go to vancomycin, and you check a trough, because the kidney is what pays for it.",
+      "terms": [
+        {
+          "text": "MRSA",
+          "category": "abbrev_word"
+        },
+        {
+          "text": "nafcillin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "beta lactamase",
+          "category": "concept"
+        },
+        {
+          "text": "vancomycin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "trough",
+          "category": "lab_or_measure"
+        }
+      ]
+    },
+    {
+      "id": "u11",
+      "file": "u11.wav",
+      "category": "abbrev_word",
+      "note": "CABG is spoken as a word: 'cabbage'.",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "coronary artery disease",
+        "acute coronary syndrome"
+      ],
+      "reference": "The thing that clicked for me is that a CABG goes around the blockage and a stent goes through it. Left main disease and diabetes both push you towards the bypass, which is why the answer was surgery and not the catheterization lab.",
+      "terms": [
+        {
+          "text": "CABG",
+          "category": "abbrev_word"
+        },
+        {
+          "text": "stent",
+          "category": "concept"
+        },
+        {
+          "text": "left main disease",
+          "category": "disease"
+        },
+        {
+          "text": "catheterization",
+          "category": "concept"
+        }
+      ]
+    },
+    {
+      "id": "u12",
+      "file": "u12.wav",
+      "category": "number_unit",
+      "priming_entry_terms": [
+        "Musculoskeletal System",
+        "rhabdomyolysis",
+        "acute tubular necrosis"
+      ],
+      "reference": "In rhabdomyolysis the muscle dumps myoglobin and potassium into the blood at the same time, so a potassium of 6.4 is the thing that kills the patient long before the kidney ever fails. Fluids first, and you watch the electrocardiogram, not the creatine kinase.",
+      "terms": [
+        {
+          "text": "rhabdomyolysis",
+          "category": "disease"
+        },
+        {
+          "text": "myoglobin",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "potassium",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "6.4",
+          "category": "number_unit"
+        },
+        {
+          "text": "electrocardiogram",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "creatine kinase",
+          "category": "lab_or_measure"
+        }
+      ],
+      "note": "Read '6.4' as 'six point four'."
+    },
+    {
+      "id": "u13",
+      "file": "u13.wav",
+      "category": "disease_multisyllable",
+      "note": "Read HLA B27 as 'H L A B twenty seven'.",
+      "priming_entry_terms": [
+        "Musculoskeletal System",
+        "ankylosing spondylitis",
+        "rheumatoid arthritis"
+      ],
+      "reference": "Ankylosing spondylitis is the one where the back pain gets better with movement, which is backwards from every other kind of back pain. It is HLA B27 associated, and the reason they showed the chest x ray is that the same disease scars the upper lobes.",
+      "terms": [
+        {
+          "text": "ankylosing spondylitis",
+          "category": "disease"
+        },
+        {
+          "text": "HLA B27",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "x ray",
+          "category": "concept"
+        },
+        {
+          "text": "upper lobes",
+          "category": "anatomy"
+        }
+      ]
+    },
+    {
+      "id": "u14",
+      "file": "u14.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Endocrine System",
+        "pheochromocytoma",
+        "secondary hypertension"
+      ],
+      "reference": "Pheochromocytoma is episodic because the tumor releases catecholamines in bursts, so the blood pressure is normal in between the attacks. You block alpha first with phenoxybenzamine and only then beta, because if you block beta first the unopposed alpha makes the pressure worse.",
+      "terms": [
+        {
+          "text": "pheochromocytoma",
+          "category": "disease"
+        },
+        {
+          "text": "catecholamines",
+          "category": "concept"
+        },
+        {
+          "text": "phenoxybenzamine",
+          "category": "drug_generic"
+        }
+      ]
+    },
+    {
+      "id": "u15",
+      "file": "u15.wav",
+      "category": "number_unit",
+      "note": "Read 'A1c' as 'A one C' and '9.4' as 'nine point four'.",
+      "priming_entry_terms": [
+        "Endocrine System",
+        "diabetes mellitus",
+        "hypoglycemia"
+      ],
+      "reference": "Metformin works mostly by shutting down hepatic gluconeogenesis, which is why it does not cause hypoglycemia on its own. With a hemoglobin A1c of 9.4 you are well past the point where one drug will do it, and that is what the question was really asking.",
+      "terms": [
+        {
+          "text": "metformin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "hepatic gluconeogenesis",
+          "category": "concept"
+        },
+        {
+          "text": "hypoglycemia",
+          "category": "disease"
+        },
+        {
+          "text": "hemoglobin A1c",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "9.4",
+          "category": "number_unit"
+        }
+      ]
+    },
+    {
+      "id": "u16",
+      "file": "u16.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "amiodarone",
+        "torsades de pointes"
+      ],
+      "reference": "Amiodarone is the drug that does a little of every class, so it prolongs the QT and it can throw the patient into torsades de pointes. The fix in the moment is magnesium, and the longer term problem is the thyroid and the lung, which is where the pulmonary fibrosis comes from.",
+      "terms": [
+        {
+          "text": "amiodarone",
+          "category": "drug_generic"
+        },
+        {
+          "text": "QT",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "torsades de pointes",
+          "category": "disease"
+        },
+        {
+          "text": "magnesium",
+          "category": "drug_generic"
+        },
+        {
+          "text": "pulmonary fibrosis",
+          "category": "disease"
+        }
+      ]
+    },
+    {
+      "id": "u17",
+      "file": "u17.wav",
+      "category": "disease_multisyllable",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "Wolff-Parkinson-White syndrome",
+        "ventricular tachycardia"
+      ],
+      "reference": "In Wolff Parkinson White there is an accessory pathway, so if you give a node blocker like adenosine or a calcium channel blocker you push everything down the accessory pathway instead. That is how a stable patient ends up in ventricular fibrillation.",
+      "terms": [
+        {
+          "text": "Wolff Parkinson White",
+          "category": "disease"
+        },
+        {
+          "text": "accessory pathway",
+          "category": "anatomy"
+        },
+        {
+          "text": "adenosine",
+          "category": "drug_generic"
+        },
+        {
+          "text": "calcium channel blocker",
+          "category": "drug_generic"
+        },
+        {
+          "text": "ventricular fibrillation",
+          "category": "disease"
+        }
+      ]
+    },
+    {
+      "id": "u18",
+      "file": "u18.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Renal & Urinary System",
+        "pyelonephritis",
+        "cystitis"
+      ],
+      "reference": "Pyelonephritis is a cystitis that climbed, so the giveaway is the flank tenderness and the fever, not the burning. You treat it for fourteen days rather than three, and ceftriaxone is reasonable while you are waiting for the urine culture.",
+      "terms": [
+        {
+          "text": "pyelonephritis",
+          "category": "disease"
+        },
+        {
+          "text": "cystitis",
+          "category": "disease"
+        },
+        {
+          "text": "flank tenderness",
+          "category": "concept"
+        },
+        {
+          "text": "fourteen days",
+          "category": "number_unit"
+        },
+        {
+          "text": "ceftriaxone",
+          "category": "drug_generic"
+        },
+        {
+          "text": "urine culture",
+          "category": "lab_or_measure"
+        }
+      ]
+    },
+    {
+      "id": "u19",
+      "file": "u19.wav",
+      "category": "drug_generic",
+      "priming_entry_terms": [
+        "Gastrointestinal System",
+        "cirrhosis",
+        "spironolactone"
+      ],
+      "reference": "In cirrhosis the ascites comes from portal hypertension plus a low albumin, so the diuretic pair is spironolactone together with furosemide. Spironolactone on its own is too slow, and furosemide on its own drops the potassium straight through the floor.",
+      "terms": [
+        {
+          "text": "cirrhosis",
+          "category": "disease"
+        },
+        {
+          "text": "ascites",
+          "category": "disease"
+        },
+        {
+          "text": "portal hypertension",
+          "category": "disease"
+        },
+        {
+          "text": "albumin",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "spironolactone",
+          "category": "drug_generic"
+        },
+        {
+          "text": "furosemide",
+          "category": "drug_generic"
+        },
+        {
+          "text": "potassium",
+          "category": "lab_or_measure"
+        }
+      ]
+    },
+    {
+      "id": "u20",
+      "file": "u20.wav",
+      "category": "control",
+      "note": "Control. No domain vocabulary.",
+      "priming_entry_terms": [],
+      "reference": "I actually understood the concept here. What went wrong is that there were two answers that were both true, and I picked the one that was true in general instead of the one that was true for this particular patient. That is a reading problem, not a knowledge problem.",
+      "terms": []
+    },
+    {
+      "id": "u21",
+      "file": "u21.wav",
+      "category": "drug_brand",
+      "priming_entry_terms": [
+        "Cardiovascular System",
+        "essential hypertension",
+        "warfarin"
+      ],
+      "reference": "The trap in this one was the brand names. Lopressor is metoprolol, Coumadin is warfarin, and Lasix is furosemide, and the stem used the brand name for one of them and the generic name for the other two, so that you would not notice they were all the same question.",
+      "terms": [
+        {
+          "text": "Lopressor",
+          "category": "drug_brand"
+        },
+        {
+          "text": "metoprolol",
+          "category": "drug_generic"
+        },
+        {
+          "text": "Coumadin",
+          "category": "drug_brand"
+        },
+        {
+          "text": "warfarin",
+          "category": "drug_generic"
+        },
+        {
+          "text": "Lasix",
+          "category": "drug_brand"
+        },
+        {
+          "text": "furosemide",
+          "category": "drug_generic"
+        }
+      ]
+    },
+    {
+      "id": "u22",
+      "file": "u22.wav",
+      "category": "abbrev_letters",
+      "note": "GFR, BUN and ATN are all spoken as letters. Read '10 to 1' as 'ten to one'.",
+      "priming_entry_terms": [
+        "Renal & Urinary System",
+        "acute tubular necrosis",
+        "acute interstitial nephritis"
+      ],
+      "reference": "A GFR of thirty means you have to redose almost everything, and the reason they gave the BUN to creatinine ratio was to separate a prerenal picture from acute tubular necrosis. In ATN the ratio is closer to 10 to 1, because the tubule has stopped reabsorbing.",
+      "terms": [
+        {
+          "text": "GFR",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "thirty",
+          "category": "number_unit"
+        },
+        {
+          "text": "BUN",
+          "category": "abbrev_letters"
+        },
+        {
+          "text": "creatinine",
+          "category": "lab_or_measure"
+        },
+        {
+          "text": "acute tubular necrosis",
+          "category": "disease"
+        },
+        {
+          "text": "ATN",
+          "category": "abbrev_letters"
+        }
+      ]
+    },
+    {
+      "id": "u23",
+      "file": "u23.wav",
+      "category": "disease_multisyllable",
+      "priming_entry_terms": [
+        "Musculoskeletal System",
+        "necrotizing fasciitis",
+        "osteomyelitis"
+      ],
+      "reference": "Necrotizing fasciitis hurts far more than it looks like it ought to, and that mismatch is the whole diagnosis. Osteomyelitis is the slower version of the same idea, where the imaging lags the infection by about two weeks, so a normal x ray early does not rule it out.",
+      "terms": [
+        {
+          "text": "necrotizing fasciitis",
+          "category": "disease"
+        },
+        {
+          "text": "osteomyelitis",
+          "category": "disease"
+        },
+        {
+          "text": "two weeks",
+          "category": "number_unit"
+        },
+        {
+          "text": "x ray",
+          "category": "concept"
+        }
+      ]
+    },
+    {
+      "id": "u24",
+      "file": "u24.wav",
+      "category": "control",
+      "note": "Control. No domain vocabulary. Deliberately last, so the reader finishes on an easy one.",
+      "priming_entry_terms": [],
+      "reference": "So what I am going to do differently is slow down on the last two lines of the stem. Every single time I have missed one of these it has been because I answered quickly and confidently, and confidence is not the same thing as being right.",
+      "terms": []
+    }
+  ]
+}

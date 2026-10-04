@@ -250,6 +250,102 @@ def test_tree_weight_badge_ships_no_icon_either() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Issue #289 -- the counters, on both list pages
+# ---------------------------------------------------------------------------
+
+# A **third** category, which #83's and #89's reasoning between them did not
+# cover, and the comment at `ENTRY_DETAIL_POPULATED_IDS` says why in passing:
+# `attachment-count` is exempt there because its `0` is "a true zero-state
+# rather than a stand-in for unknown data". These five are the opposite -- a
+# count nothing has taken yet -- but they look identical in the markup. #89's
+# own note draws its line between a real possible *word* (listed) and literal
+# field-name filler (left alone); a `0` is neither. It is a real possible
+# *number*.
+#
+# Two reasons it is more than cosmetic, both from #289:
+#
+# * `0` is the most plausible wrong answer there is. **#2 was this exact
+#   reading as a genuine defect** -- `0 entries - 0 drafts` in the header with
+#   11 cards rendered below it -- and
+#   `tests/wimi_test/scenarios/test_entry_browser_header_counter.py` exists for
+#   it. No reader, and no screenshot in a bug report, can tell the shipped
+#   literal from that.
+# * It is #83's test hazard verbatim: a scenario that waits for a counter with
+#   `textContent.trim() != ''` is satisfied the instant the document commits
+#   and then reads `0`. The tell would be that the wrong value is *always* `0`,
+#   which also looks like a real counting bug.
+#
+# Decided here, because #289 asks: **empty, not a dash.** A `-` or an em dash
+# would avoid the false number and read better in the toolbar, but it still
+# satisfies non-empty, so it keeps the second failure mode alive while fixing
+# only the first. Emptiness is also what `weight-config-badge` settled on in
+# this very file after #89.
+COUNTER_IDS = {
+    'entry_browser.html': [
+        'totalEntries',
+        'draftCount',
+        'showingStart',
+        'showingEnd',
+        'totalCount',
+    ],
+    'tree_editor.html': [
+        'node-count',
+        'total-weight',
+        'dimension-info-stats',
+    ],
+}
+
+COUNTER_CASES = [(page, element_id)
+                 for page, ids in COUNTER_IDS.items()
+                 for element_id in ids]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('page,element_id', COUNTER_CASES,
+                         ids=lambda v: v if isinstance(v, str) else str(v))
+def test_a_counter_ships_no_count(page: str, element_id: str) -> None:
+    """A node a counter writes into ships no digit."""
+    text = _served_text(page, COUNTER_IDS[page])[element_id]
+    assert not _READABLE.search(text), (
+        f'{page} ships #{element_id} carrying {text!r}. It is a count no '
+        f'code has taken yet, and `0` is indistinguishable from a measured '
+        f'zero -- issue #2 was that reading arriving as a real defect. Ship '
+        f'it empty and let the writer supply the first value. See issue #289.'
+    )
+
+
+# The two toolbar counters are the only ones of the five that are **visible**
+# at first paint -- #paginationArea ships `display: none` and #dimension-info
+# ships `hidden`, so emptying those is enough. Emptying these two alone would
+# trade "0 subjects - Total: 0%" for two bare bullets in the toolbar, so they
+# follow the weight badge below: ship `hidden`, and let `updateStats()` reveal
+# them once it has counted. `styles.css` hides the orphaned separator via
+# `:has(+ .tree-toolbar-stat.hidden)`, which is why the class is in this list
+# too -- drop it and the declarative half stops matching, silently.
+TREE_TOOLBAR_COUNTER_IDS = ['node-count', 'total-weight']
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('element_id', TREE_TOOLBAR_COUNTER_IDS)
+def test_the_tree_toolbar_counters_ship_hidden(element_id: str) -> None:
+    """Empty is not enough for a node that is visible at first paint."""
+    classes = _served_classes('tree_editor.html',
+                              TREE_TOOLBAR_COUNTER_IDS)[element_id]
+    assert 'hidden' in classes, (
+        f'#{element_id} ships visible. Empty, it paints a bare bullet beside '
+        f'an empty gap for the whole of the load; the page\'s idiom is to '
+        f'ship `hidden` and have JavaScript reveal it once there is something '
+        f'true to show. See issue #289.'
+    )
+    assert 'tree-toolbar-stat' in classes, (
+        f'#{element_id} has lost the `tree-toolbar-stat` class. '
+        f'styles.css hides the separator in front of it with '
+        f'`:has(+ .tree-toolbar-stat.hidden)`, so without the class the '
+        f'separator stays and the toolbar shows a stray bullet. See #289.'
+    )
+
+
 @pytest.mark.unit
 def test_tree_weight_badge_ships_hidden() -> None:
     """The badge must not paint an empty pill while the answer is in flight.

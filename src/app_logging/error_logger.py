@@ -212,15 +212,21 @@ class ErrorLogger(QObject):
         # thread can both reach flush().
         self._flush_lock = threading.RLock()
         self._cleaned_up = False
+        self._shutdown_hook_installed = False
 
         # Initialize
         self._initialize_logging()
         self._start_flush_timer()
 
-        # Last-resort drain. The Qt aboutToQuit hook covers a normal app
-        # exit, but nothing covered a headless run, a test, or an exit
-        # that bypasses the event loop -- and an undrained queue means a
-        # 0-byte log file, which is exactly how this failure hid.
+        # Last-resort drain, and the ONLY one until #278. The Qt
+        # aboutToQuit hook is meant to cover a normal app exit -- three
+        # comments here, one test and CLAUDE.md all said it did -- and
+        # nothing connected it; ``install_shutdown_hook`` now does, from
+        # the two places that build a QApplication. This registration
+        # still covers everything that hook cannot see: a headless run, a
+        # test, the MCP server, and any exit that bypasses the event loop.
+        # An undrained queue means a 0-byte log file, which is exactly how
+        # this module's failures have always hidden.
         #
         # wait=False is load-bearing: joining the executor from an atexit
         # handler races concurrent.futures' own atexit hook and hangs the
@@ -554,17 +560,48 @@ class ErrorLogger(QObject):
         # Emit stats update for UI
         self.stats_updated.emit(dict(self.stats[hour_key]))
     
-    def flush(self):
+    # Records one periodic pass will write before yielding the lock.
+    FLUSH_BATCH = 100
+
+    def flush(self, *, drain_all: bool = False):
         """Flush queued errors to disk.
 
         Serialized: the periodic ticker runs on a daemon thread while
         cleanup() and ERROR-level self-flushes run on the caller's, so
         without the lock two threads can interleave writes into the same
         file handle.
+
+        ``drain_all`` empties the queue instead of stopping after
+        ``FLUSH_BATCH``, and only the shutdown drain passes it.
+
+        **The bound was silently losing records at shutdown** (#278).
+        ``cleanup()`` called this once, so a queue holding more than
+        ``FLUSH_BATCH`` entries had its tail discarded with no error
+        anywhere -- measured at 250 records logged, 100 on disk, 150 gone,
+        on every exit path including ``atexit``. 100-plus records inside
+        one flush window is not exotic: a profile import alone emits 46
+        (CLAUDE.md, Logging invariant 2), so a startup burst followed by a
+        crash -- precisely when the log is worth having -- is the shape
+        that loses the most.
+
+        The bound stays for the periodic path on purpose. The ticker is a
+        daemon thread firing every ``flush_interval`` seconds, and a
+        producer logging faster than it writes must not be able to hold it
+        inside one call for ever. At shutdown there is no next pass, so
+        there is nothing for the bound to protect.
+
+        The drain is still bounded, just generously: the queue cannot hold
+        more than ``buffer_size`` entries, so that many iterations plus one
+        batch of headroom is enough to empty whatever was present on entry
+        without letting a live producer livelock a shutdown.
         """
         with self._flush_lock:
             processed = 0
-            while not self.error_queue.empty() and processed < 100:
+            limit = (
+                self.buffer_size + self.FLUSH_BATCH
+                if drain_all else self.FLUSH_BATCH
+            )
+            while not self.error_queue.empty() and processed < limit:
                 try:
                     entry = self.error_queue.get_nowait()
                     self._process_error(entry)
@@ -663,6 +700,71 @@ class ErrorLogger(QObject):
         
         return stats
     
+    def install_shutdown_hook(self, app) -> bool:
+        """Drain and close the log from Qt's ``aboutToQuit`` (#278).
+
+        Called from the two places that construct a ``QApplication`` --
+        ``app.main_window.run_application`` and ``app.main._run_test_mode``
+        -- because this object is deliberately built *before* any
+        QApplication exists (Logging invariant 4: a ``QTimer`` created
+        without an event loop never fires, which is why the periodic flush
+        is a daemon thread). So the hook cannot be installed in
+        ``__init__``; it has to be offered to whoever owns the app.
+
+        Takes the app as an argument rather than calling
+        ``QApplication.instance()``: ``app_logging`` imports no GUI class
+        and should not start, and a module that reaches for a global
+        singleton is one that cannot be tested without one.
+
+        Returns True when the connection was made. A ``False`` is not a
+        failure to propagate -- ``atexit`` still drains -- and raising
+        would make a logging detail able to stop a launch, which is the
+        opposite of this module's job.
+
+        **What the hook buys, since ``atexit`` already drains.** It drains
+        and closes the file *inside the event loop*, while the process is
+        healthy. ``atexit`` does not run on a fatal signal, on
+        ``os._exit``, or when the interpreter dies in C -- and Qt teardown
+        dying in C is measured in this repo, not hypothetical: #153's
+        forced wrong profile-release order **dumped core**. A core dump in
+        Qt teardown takes the whole log with it, including the records
+        describing whatever caused it.
+
+        **What it does not buy, so that nobody re-derives it wrongly.**
+        ``cleanup``'s ``wait`` parameter joins the *executor*, which only
+        runs recovery strategies; a record logged from one of those arrives
+        after ``cleanup`` has already flushed and closed the handle, so
+        ``wait=True`` protects nothing about the file. The synchronous part
+        that matters is the queue drain, and that is synchronous on every
+        path.
+
+        **Why closing the file here does not truncate the log early.**
+        ``cleanup`` closes the handle and detaches the package-root
+        handler, so anything logged after ``aboutToQuit`` is dropped (the
+        handler's ``_cleaned_up`` guard drops it quietly rather than
+        raising). Checked rather than assumed: every quit path in this app
+        reaches ``aboutToQuit`` *through* ``MainWindow.closeEvent`` -- the
+        File > Exit action is wired to ``self.close``, and nothing anywhere
+        calls ``QApplication.quit`` directly -- so the database closes and
+        their log lines are queued before the drain. If a future menu item
+        or signal ever calls ``quit()`` without closing the window, that
+        stops being true.
+        """
+        if self._shutdown_hook_installed:
+            return True
+
+        connect = getattr(getattr(app, 'aboutToQuit', None), 'connect', None)
+        if connect is None:
+            return False
+
+        try:
+            connect(self.cleanup)
+        except Exception:  # noqa: BLE001 - never block a launch
+            return False
+
+        self._shutdown_hook_installed = True
+        return True
+
     def _atexit_drain(self):
         """Non-blocking drain for interpreter shutdown."""
         self.cleanup(wait=False)
@@ -670,10 +772,18 @@ class ErrorLogger(QObject):
     def cleanup(self, wait: bool = True):
         """Cleanup resources on shutdown.
 
-        Idempotent: reachable from the Qt aboutToQuit hook, the atexit
-        hook, and tests. A second call must not raise on an already-closed
-        handle, or the atexit pass would print a spurious traceback after
-        a normal shutdown.
+        Idempotent, and that is what lets both drains coexist: reachable
+        from the Qt ``aboutToQuit`` hook (``install_shutdown_hook``), from
+        the ``atexit`` hook, and from tests. After a normal GUI exit the
+        ``atexit`` pass is a no-op; after a SIGTERM -- which Qt does not
+        handle, so no ``aboutToQuit`` is emitted and no ``closeEvent``
+        runs -- ``atexit`` is the only pass there is. A second call must
+        not raise on an already-closed handle, or a normal shutdown would
+        print a spurious traceback.
+
+        Connected to ``aboutToQuit`` as-is, so Qt calls it with no
+        arguments and ``wait`` defaults to True. See
+        ``install_shutdown_hook`` for what that does and does not buy.
         """
         if self._cleaned_up:
             return
@@ -687,7 +797,10 @@ class ErrorLogger(QObject):
                 pass
 
         try:
-            self.flush()
+            # drain_all: this is the last pass, so the FLUSH_BATCH bound
+            # has no next pass to protect and would simply discard the
+            # queue's tail (#278).
+            self.flush(drain_all=True)
         except Exception:  # noqa: BLE001
             pass
 
@@ -715,7 +828,16 @@ class ErrorLogger(QObject):
                         pass
         self.python_loggers = []
 
-        self.executor.shutdown(wait=wait)
+        # cancel_futures so a recovery strategy that has been QUEUED but
+        # not started is discarded rather than run while the app is
+        # quitting. This matters because aboutToQuit calls us with the
+        # default wait=True: NetworkRetryRecovery sleeps up to 16 s per
+        # attempt and DatabaseLockRecovery up to ~2 s, so without this a
+        # burst of ERROR records just before exit could stall the quit by
+        # seconds -- and a backoff-and-retry begun during shutdown cannot
+        # accomplish anything anyway. Anything already running is still
+        # joined, bounding the wait to one in-flight strategy per worker.
+        self.executor.shutdown(wait=wait, cancel_futures=True)
     
     # Convenience methods for different error levels
     def trace(self, message: str, **kwargs):

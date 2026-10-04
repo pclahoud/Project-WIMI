@@ -353,6 +353,172 @@ def test_attribute_returns_none_when_value_is_none() -> None:
     assert wl.attribute("data-missing") is None
 
 
+# ------------------------------------------------- click: stability (#117)
+#
+# A click is measured in one ``Runtime.evaluate`` and dispatched in three
+# further CDP commands. An element still moving between them receives
+# ``mousePressed`` and ``mouseReleased`` at different elements, and the
+# browser then produces **no ``click`` event at all** -- silently. #117
+# was that: WIMI's Add Subject modal animates its Save button 41.8 px
+# over ~200 ms, and 4 of 20 clicks into that window never reached the
+# bridge.
+
+
+def _moving_sample(y: float) -> dict:
+    """A ready readiness reply whose rect tracks ``y``."""
+    return _eval_value(
+        {"ready": True, "x": 10.0, "y": y, "rect": [0.0, y - 5.0, 20.0, 10.0]}
+    )
+
+
+def test_click_waits_for_a_moving_target_to_come_to_rest() -> None:
+    """A target whose rect is still changing is not clicked yet."""
+    tab = _make_tab()
+    tab.Runtime.evaluate.side_effect = [
+        _moving_sample(20.0), _moving_sample(40.0),
+        _moving_sample(90.0), _moving_sample(90.0),
+    ]
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    # The dispatched point must be the SETTLED one. Dispatching at the
+    # first reading is the bug: by the time the events arrive the target
+    # has moved 70 px and the press lands on whatever is there instead.
+    for call in tab.Input.dispatchMouseEvent.call_args_list:
+        assert call.kwargs["y"] == 90.0, (
+            "click dispatched at a coordinate read while the target was "
+            "still moving -- that is #117 exactly"
+        )
+
+
+def test_the_rect_must_match_the_previous_sample_not_merely_exist() -> None:
+    """One reading cannot establish stability; two matching ones can.
+
+    A single sample is what the pre-#117 code had, and it was always
+    self-consistent -- the rect and the hit test came from the same
+    evaluate. The information is only in the comparison.
+    """
+    tab = _make_tab()
+    tab.Runtime.evaluate.side_effect = [
+        _moving_sample(20.0), _moving_sample(30.0), _moving_sample(40.0),
+        _moving_sample(50.0), _moving_sample(50.0),
+    ]
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    assert tab.Runtime.evaluate.call_count == 5
+    assert tab.Input.dispatchMouseEvent.call_args_list[0].kwargs["y"] == 50.0
+
+
+def test_a_stationary_target_is_clicked_without_extra_polling() -> None:
+    """Negative control: the wait must not fire on a target that is still.
+
+    Without this, "wait until it stops moving" could be satisfied by any
+    delay at all, and the fix would be a sleep wearing a predicate's
+    clothes. Two readings is the minimum that can establish a rect has
+    not changed, so two is what a stationary target costs.
+    """
+    tab = _make_tab()
+    tab.Runtime.evaluate.return_value = _eval_value(
+        {"ready": True, "x": 42.0, "y": 84.0, "rect": [32.0, 79.0, 20.0, 10.0]}
+    )
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    assert tab.Runtime.evaluate.call_count == 2
+    assert tab.Input.dispatchMouseEvent.call_count == 3
+
+
+def test_a_target_that_never_settles_is_still_clicked() -> None:
+    """Failing to settle delays a click; it must never refuse one.
+
+    An element inside a container with a perpetual animation would never
+    satisfy the predicate. Raising there would turn passing scenarios red
+    in order to fix a flake, so the budget expiring falls back to the
+    pre-#117 behaviour: dispatch at the last measured point.
+    """
+    tab = _make_tab()
+    counter = {"n": 0}
+
+    def forever(**_kwargs: object) -> dict:
+        counter["n"] += 1
+        return _eval_value(
+            {"ready": True, "x": 1.0, "y": float(counter["n"]),
+             "rect": [0.0, float(counter["n"]), 5.0, 5.0]}
+        )
+
+    tab.Runtime.evaluate.side_effect = forever
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click(timeout_ms=200)
+
+    assert tab.Input.dispatchMouseEvent.call_count == 3
+
+
+def test_a_readiness_reply_without_a_rect_still_clicks() -> None:
+    """Backward compatibility with a reply that predates the #117 field.
+
+    Every other test in this file answers ``{ready, x, y}`` and nothing
+    else. Treating a missing rect as "stationary" is what keeps those --
+    and any fake elsewhere in the suite -- from hanging until the budget.
+    """
+    tab = _make_tab()
+    tab.Runtime.evaluate.return_value = _eval_value(
+        {"ready": True, "x": 7.0, "y": 9.0}
+    )
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    assert tab.Runtime.evaluate.call_count == 1
+    assert tab.Input.dispatchMouseEvent.call_count == 3
+
+
+def test_the_readiness_scriptlet_sends_the_rect_back() -> None:
+    """The JS half must actually return the rect.
+
+    The Python loop can only compare what the page sends it, so a
+    refactor that dropped the field would leave every stability test
+    above passing (missing rect means "stationary") against a locator
+    that no longer waits for anything.
+    """
+    tab = _make_tab()
+    tab.Runtime.evaluate.return_value = _eval_value(
+        {"ready": True, "x": 1.0, "y": 1.0}
+    )
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    expression = tab.Runtime.evaluate.call_args.kwargs["expression"]
+    assert "rect: [rect.left, rect.top, rect.width, rect.height]" in expression
+
+
+def test_the_stability_wait_does_not_use_getanimations() -> None:
+    """``document.getAnimations()`` was measured and rejected (#117).
+
+    It blocked 150 ms on every ``.dictation-btn`` press for three colour
+    transitions that cannot move the button, which pushed
+    ``test_a_dictated_answer_survives_the_autosave`` across its own
+    1200 ms autosave boundary -- 8 failures in 8 runs. Re-adding it would
+    be a silent retiming of every scenario that clicks a button with a
+    ``transition`` on it, which is most of them.
+    """
+    tab = _make_tab()
+    tab.Runtime.evaluate.return_value = _eval_value(
+        {"ready": True, "x": 1.0, "y": 1.0}
+    )
+    wl = WimiLocator(tab, LocatorStrategy.TESTID, "document.querySelector('#x')")
+
+    wl.click()
+
+    expression = tab.Runtime.evaluate.call_args.kwargs["expression"]
+    assert "getAnimations" not in expression
+
+
 # ---------------------------------------------------------------- fill
 
 

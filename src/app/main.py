@@ -262,7 +262,7 @@ def main(args: Optional[argparse.Namespace] = None):
     from app import test_mode
 
     print("=" * 50)
-    print("WIMI - What I Missed It")
+    print("WIMI - Why I Missed It")
     print("   Metacognitive Exam Preparation Tool")
     print("=" * 50)
     if IS_FROZEN:
@@ -402,6 +402,20 @@ def _run_test_mode(
         app_data_dir=app_data_dir,
         plugin_manager=plugin_manager,
     )
+
+    # The same hook ``run_application`` installs, for the same reason
+    # (#278): this function deliberately replicates that flow, so a drain
+    # wired into only one of them leaves the other exactly as #278 found
+    # it.
+    #
+    # Read off the window because nothing passes a logger in here -- which
+    # is its own defect, filed as #294: MainWindow therefore mints a
+    # SECOND ErrorLogger with its own file on this path, the very thing the
+    # comment above the ``run_application`` call warns about. So on this
+    # path the hook lands on the minted logger and the one ``main()`` built
+    # is still drained only by ``atexit``. Fixing #294 makes the two paths
+    # equivalent.
+    window.error_logger.install_shutdown_hook(app)
 
     # Install the buffering page subclass before ``window.show()`` so
     # the ring buffer captures every console message starting with the

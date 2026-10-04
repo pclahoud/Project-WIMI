@@ -3,7 +3,7 @@
 import json
 import math
 import uuid
-from typing import Optional, List, Dict, Any, Callable, Tuple
+from typing import Optional, List, Dict, Any, Callable, Mapping, Sequence, Tuple
 from datetime import date
 from decimal import Decimal
 from ..base_db import DatabaseIntegrityError
@@ -59,16 +59,36 @@ class HierarchyMixin:
         Returns:
             Created SubjectNode object
         """
-        # Check for duplicates manually (since UNIQUE constraint doesn't work with NULL parent_id)
+        # Checked here as well as by the table's
+        # `UNIQUE(exam_context, name, parent_id)`, because that constraint
+        # cannot see two ROOTS of the same name: `parent_id` is NULL in both
+        # rows and SQLite treats NULLs as distinct in an index. So for roots
+        # this query is the only duplicate check there is.
+        #
+        # **Scoped by dimension (#246).** A subject's identity is exam context
+        # plus dimension, never the exam alone. The axes of a real blueprint
+        # are overlapping partitions of one item pool -- USMLE publishes
+        # Behavioral Health as both a System and a Discipline -- so a name
+        # shared across axes is ordinary data, not a duplicate. Without the
+        # dimension this refused the second one with "Subject node already
+        # exists", from the tree editor as well as from an import.
+        #
+        # m020's index on the stable id already had this right
+        # (`COALESCE(dimension_id, -1)`); this check predates dimensions and
+        # was not revisited. `IS ?` rather than `COALESCE` because `IS` is
+        # NULL-safe in a query -- the COALESCE there is only needed because an
+        # index expression has no equivalent.
         if parent_id is None:
             existing = self.fetchone(
-                "SELECT id FROM subject_nodes WHERE exam_context = ? AND name = ? AND parent_id IS NULL AND status = 'active'",
-                (exam_context, name)
+                "SELECT id FROM subject_nodes WHERE exam_context = ? AND name = ? "
+                "AND parent_id IS NULL AND dimension_id IS ? AND status = 'active'",
+                (exam_context, name, dimension_id)
             )
         else:
             existing = self.fetchone(
-                "SELECT id FROM subject_nodes WHERE exam_context = ? AND name = ? AND parent_id = ? AND status = 'active'",
-                (exam_context, name, parent_id)
+                "SELECT id FROM subject_nodes WHERE exam_context = ? AND name = ? "
+                "AND parent_id = ? AND dimension_id IS ? AND status = 'active'",
+                (exam_context, name, parent_id, dimension_id)
             )
 
         if existing:
@@ -122,7 +142,11 @@ class HierarchyMixin:
 
                 result_node = self.get_subject_node(node_id)
 
-                # Graph dual-write
+                # Graph dual-write. #301's table in the issue called this a
+                # "tree payload ... a breadcrumb" -- it is not: the string
+                # goes into a LadybugDB node property and reaches no UI. So
+                # it takes the filtered path and NO tooltip machinery; a
+                # display concern does not belong in a data path.
                 full_path = self._build_subject_path(node_id)
                 _exam_context = exam_context
                 _parent_id = parent_id
@@ -213,7 +237,19 @@ class HierarchyMixin:
             List of SubjectNode objects
         """
         if parent_id is None:
-            # Roots: nodes with no incoming edge.
+            # Roots: nodes with no incoming edge **from an active parent**
+            # (#260). The parent status join is load-bearing, not tidiness.
+            #
+            # This predicate used to be "no incoming edge at all", which made
+            # a node whose every parent is archived render *nowhere*: not a
+            # root, because it holds an edge; and not anybody's child, because
+            # the traversal below starts from roots and an archived parent is
+            # never one. #15 removes archived-parent-to-surviving-child edges
+            # specifically to stop that state arising -- i.e. it was deleting
+            # structure to satisfy this query. `dimensions.py`'s cascade root
+            # finder always had the join; these two did not, and three
+            # predicates answering the same question differently is how the
+            # hole stayed open (#260, found while building #37's restore).
             query = """
                 SELECT sn.*, 0 AS _is_alias_appearance
                 FROM subject_nodes sn
@@ -221,7 +257,9 @@ class HierarchyMixin:
                   AND sn.status = 'active'
                   AND NOT EXISTS (
                       SELECT 1 FROM subject_edges se
+                      JOIN subject_nodes p ON p.id = se.parent_id
                       WHERE se.child_id = sn.id
+                        AND p.status = 'active'
                   )
                 ORDER BY sn.sort_order, sn.name
             """
@@ -2473,8 +2511,15 @@ class HierarchyMixin:
         is_adaptive = length_kind == 'range'
 
         # Roots: nodes belonging to this exam_context with no incoming
-        # edge. These are the System-level nodes that carry official
-        # range semantics on ``subject_nodes.exam_weight_low/high``.
+        # edge **from an active parent** (#260). These are the System-level
+        # nodes that carry official range semantics on
+        # ``subject_nodes.exam_weight_low/high``.
+        #
+        # The parent status join matches `get_subject_hierarchy` above and
+        # `dimensions.py`'s cascade. Keeping the two in step is the point: a
+        # node the tree editor draws at the top level must also be a top-level
+        # share of the Q budget, or the student sees a subject whose questions
+        # are allocated to nobody. Visible and counted are the same predicate.
         root_rows = self.fetchall(
             """
             SELECT sn.id, sn.name, sn.sort_order,
@@ -2484,7 +2529,10 @@ class HierarchyMixin:
             WHERE sn.exam_context = ?
               AND sn.status = 'active'
               AND NOT EXISTS (
-                  SELECT 1 FROM subject_edges se WHERE se.child_id = sn.id
+                  SELECT 1 FROM subject_edges se
+                  JOIN subject_nodes p ON p.id = se.parent_id
+                  WHERE se.child_id = sn.id
+                    AND p.status = 'active'
               )
             ORDER BY sn.sort_order ASC, sn.id ASC
             """,
@@ -2887,7 +2935,11 @@ class HierarchyMixin:
 
                 result_node = self.get_subject_node(node_id)
 
-                # Graph dual-write
+                # Graph dual-write. #301's table in the issue called this a
+                # "tree payload ... a breadcrumb" -- it is not: the string
+                # goes into a LadybugDB node property and reaches no UI. So
+                # it takes the filtered path and NO tooltip machinery; a
+                # display concern does not belong in a data path.
                 full_path = self._build_subject_path(node_id)
                 _exam_context = exam_context
                 _parent_id = parent_id
@@ -2958,10 +3010,44 @@ class HierarchyMixin:
     # and get_effective_question_counts above.
     # =====================================================================
 
+    @staticmethod
+    def _index_q_ranges(
+        counts: Sequence[Mapping[str, Any]],
+    ) -> Dict[int, Tuple[Optional[int], Optional[int], Optional[int]]]:
+        """Collapse ``get_effective_question_counts`` rows to one range per node.
+
+        The three bounds are maximised **independently**, which is what
+        the per-parent scan in :meth:`_resolve_parent_q_range` did when
+        it read the same rows one parent at a time. A polyhierarchy node
+        appears once per incoming edge, and the convention is the most
+        generous bound (matching ``_compute_parent_q_budget``'s
+        chip-stamping); this reproduces it exactly rather than
+        approximating it with, say, the row having the largest
+        ``q_typical``.
+        """
+        index: Dict[int, Tuple[Optional[int], Optional[int], Optional[int]]] = {}
+        for row in counts:
+            child_id = row['child_id']
+            best_low, best_high, best_typical = index.get(child_id, (None, None, None))
+            q_low = row.get('q_low')
+            q_high = row.get('q_high')
+            q_typical = row.get('q_typical')
+            if q_low is not None and (best_low is None or q_low > best_low):
+                best_low = q_low
+            if q_high is not None and (best_high is None or q_high > best_high):
+                best_high = q_high
+            if q_typical is not None and (best_typical is None or q_typical > best_typical):
+                best_typical = q_typical
+            index[child_id] = (best_low, best_high, best_typical)
+        return index
+
     def _resolve_parent_q_range(
         self,
         parent_id: int,
         length_typical: int,
+        q_range_index: Optional[
+            Dict[int, Tuple[Optional[int], Optional[int], Optional[int]]]
+        ] = None,
     ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Return ``(parent_low_q, parent_high_q, parent_typical_q)`` for a parent.
 
@@ -2982,6 +3068,18 @@ class HierarchyMixin:
         weight set, no edge weights propagated yet), returns
         ``(None, None, None)``. The caller treats that as ``'ok'``
         because there's no constraint to violate.
+
+        ``q_range_index`` is the whole-exam answer, precomputed once by
+        :meth:`_index_q_ranges`. **It exists because the non-root branch
+        below is the most expensive line in the tree editor** (#177):
+        ``get_effective_question_counts`` walks the entire tree through
+        the Hamilton allocator, and calling it per parent recomputed the
+        identical table once for every parent, keeping one node's rows
+        and discarding the rest. Measured on the owner's profile (425
+        parents, 10,453 nodes): **403 calls, 16.81 s, 98.9% of a 17 s
+        total**. Pass the index when validating more than one parent of
+        the same exam; omit it and the behaviour is unchanged, which is
+        what every single-parent caller still does.
         """
         # System-level: read the absolute range straight off subject_nodes.
         node_row = self.fetchone(
@@ -3020,6 +3118,14 @@ class HierarchyMixin:
         # have multiple rows; pick the largest for the most generous
         # bound — matches _compute_parent_q_budget's chip-stamping
         # convention).
+        #
+        # A precomputed index answers this without touching the database
+        # at all. A parent absent from the index has no row in the
+        # counts table, which is the same "no constraint to violate"
+        # case the scan below reaches by finding no match.
+        if q_range_index is not None:
+            return q_range_index.get(parent_id, (None, None, None))
+
         exam_row = self.fetchone(
             """
             SELECT ec.id AS exam_context_id
@@ -3061,6 +3167,9 @@ class HierarchyMixin:
         self,
         parent_id: int,
         length_typical: int,
+        q_range_index: Optional[
+            Dict[int, Tuple[Optional[int], Optional[int], Optional[int]]]
+        ] = None,
     ) -> Dict[str, Any]:
         """Validate that a parent's child weights are feasible.
 
@@ -3103,6 +3212,12 @@ class HierarchyMixin:
                 When ``length_typical <= 0`` the rounding-class check
                 is skipped and the status is decided on percentages
                 alone.
+            q_range_index: Optional precomputed parent q-ranges for the
+                whole exam (see :meth:`_index_q_ranges`). Only an
+                optimisation, and only worth passing when validating
+                many parents of one exam — it removes a whole-tree
+                Hamilton walk per parent (#177). Omitting it is
+                behaviourally identical.
 
         Returns:
             ``{
@@ -3135,7 +3250,7 @@ class HierarchyMixin:
         # exam_weight_*, or orphaned non-root with no propagation),
         # collapse to 'ok' — there's no constraint to violate.
         parent_low_q, parent_high_q, _parent_typical_q = self._resolve_parent_q_range(
-            parent_id, length_typical
+            parent_id, length_typical, q_range_index
         )
 
         # Each child's percent low/high. We read absolute % ranges from
@@ -3364,12 +3479,37 @@ class HierarchyMixin:
             (exam_name,),
         )
 
+        # The whole exam's parent q-ranges, computed ONCE. Every non-root
+        # parent needs them, and before #177 each one re-derived the
+        # entire table for itself: 403 identical whole-tree Hamilton
+        # walks for 425 parents, 16.81 s of a 17.0 s call on the owner's
+        # profile. The result does not depend on which parent is asking,
+        # so asking once is not a cache -- it is the same computation
+        # stopped from being repeated.
+        #
+        # A failure here must not lose the whole report: the per-parent
+        # path degrades to computing its own range, which is slow but
+        # correct, and that is strictly better than 425 stub 'ok's.
+        try:
+            q_range_index = self._index_q_ranges(
+                self.get_effective_question_counts(exam_context_id)
+            )
+        except Exception as e:
+            if getattr(self, 'error_logger', None):
+                self.error_logger.warning(
+                    f"effective question counts unavailable for exam "
+                    f"{exam_context_id}; feasibility falls back to the "
+                    f"per-parent walk: {e}",
+                    category=ErrorCategory.DATABASE,
+                )
+            q_range_index = None
+
         reports: Dict[int, Dict[str, Any]] = {}
         for row in parent_rows:
             pid = row['parent_id']
             try:
                 reports[pid] = self.validate_hierarchy_feasibility(
-                    pid, effective_length
+                    pid, effective_length, q_range_index
                 )
             except Exception as e:
                 # Defensive — a malformed parent shouldn't poison the

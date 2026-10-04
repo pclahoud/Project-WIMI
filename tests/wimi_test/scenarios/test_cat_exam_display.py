@@ -35,6 +35,8 @@ import pytest
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+from _helpers.tree_expand import expand_whole_tree
+
 
 # Stage 8 chip text: float + " (planning estimate)" qualifier.
 # Tolerates surrounding whitespace and the dual-unit `XX.X% • ~Y.Y q's ...`
@@ -222,6 +224,11 @@ def test_cat_exam_chip_shows_planning_estimate(
         f"Parent weight chip [data-testid=tree-node-weight-{parent.id}] "
         f"not found after loadHierarchy — the tree did not render."
     )
+
+    # #177: the tree renders only expanded subtrees now, so these child
+    # rows must be opened before they exist. Before #177 they were in the
+    # DOM but CSS-hidden, so this scenario was reading invisible state.
+    expand_whole_tree(wimi_page)
 
     chip_texts = wimi_page.eval_js(
         f"""

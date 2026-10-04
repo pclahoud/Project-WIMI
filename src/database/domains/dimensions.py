@@ -1,6 +1,7 @@
 """WIMI Multi-dimensional analysis database operations."""
 
 import json
+import uuid
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, date, timedelta
@@ -56,13 +57,13 @@ class DimensionsMixin:
             >>> print(dimension_id)
             1
         """
-        cursor = self.execute("""
-            INSERT INTO exam_dimensions (
-                exam_id, name, display_order, is_required, allow_multiple, description
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        """, (exam_id, name, display_order, int(is_required), int(allow_multiple), description))
+        with self.transaction():
+            cursor = self.execute("""
+                INSERT INTO exam_dimensions (
+                    exam_id, name, display_order, is_required, allow_multiple, description
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (exam_id, name, display_order, int(is_required), int(allow_multiple), description))
 
-        self.conn.commit()
         dimension_id = cursor.lastrowid
 
         # Dual-write to graph database
@@ -108,9 +109,9 @@ class DimensionsMixin:
         """
         cursor = self.conn.execute("""
             SELECT id, exam_id, name, display_order, is_required,
-                   allow_multiple, description, created_at
+                   allow_multiple, description, created_at, import_id
             FROM exam_dimensions
-            WHERE exam_id = ?
+            WHERE exam_id = ? AND status = 'active'
             ORDER BY display_order ASC
         """, (exam_id,))
 
@@ -137,9 +138,9 @@ class DimensionsMixin:
         """
         cursor = self.conn.execute("""
             SELECT id, exam_id, name, display_order, is_required,
-                   allow_multiple, description, created_at
+                   allow_multiple, description, created_at, import_id
             FROM exam_dimensions
-            WHERE id = ?
+            WHERE id = ? AND status = 'active'
         """, (dimension_id,))
 
         row = cursor.fetchone()
@@ -207,13 +208,12 @@ class DimensionsMixin:
             return 0
 
         params.append(dimension_id)
-        cursor = self.execute(f"""
-            UPDATE exam_dimensions
-            SET {', '.join(updates)}
-            WHERE id = ?
-        """, tuple(params))
-
-        self.conn.commit()
+        with self.transaction():
+            cursor = self.execute(f"""
+                UPDATE exam_dimensions
+                SET {', '.join(updates)}
+                WHERE id = ?
+            """, tuple(params))
 
         # Dual-write to graph database
         def _graph_write():
@@ -226,229 +226,328 @@ class DimensionsMixin:
 
         return cursor.rowcount
 
-    def delete_dimension(self, dimension_id: int) -> int:
-        """
-        Delete a dimension. Cascades to delete all tags in that dimension.
+    def reorder_dimensions(self, exam_id: int, dimension_ids: List[int]) -> int:
+        """Assign ``display_order`` 1..N to an exam's dimensions, atomically.
 
-        WARNING: This will also delete all question_hierarchy_tags entries
-        for this dimension due to the foreign key CASCADE constraint.
+        **Why this is not a loop of `update_dimension` calls (#211).**
+        ``exam_dimensions`` carries ``UNIQUE(exam_id, display_order)``, and
+        SQLite checks a UNIQUE index **per row, as the statement runs** -- it
+        has no deferred constraints. So assigning 1, 2, 3 one row at a time
+        collides the moment a dimension moves into a slot another dimension
+        still holds, and a single ``UPDATE ... CASE`` collides the same way
+        for the same reason. Moving the third dimension to the top of three
+        fails on the first write.
+
+        The fix is two passes. Every row for this exam is first shifted into a
+        range nothing can occupy, then given its final order. The shift
+        preserves uniqueness (it is the same offset for every row), and the
+        offset is computed from the data rather than assumed, because a
+        previous crash could in principle have left a negative order behind.
+
+        **Every dimension of the exam must be listed.** A partial list would
+        leave unlisted rows in the 1..N range this is about to assign into,
+        which is the collision again by another route. The caller gets a
+        ``ValueError`` naming the difference rather than an ``IntegrityError``
+        from three frames down.
 
         Args:
-            dimension_id (int): ID of dimension to delete
+            exam_id: the exam whose dimensions are being reordered.
+            dimension_ids: every dimension id of that exam, in the new order.
 
         Returns:
-            int: Number of rows affected (1 if success, 0 if not found)
+            int: the number of dimensions reordered.
 
-        Note:
-            This operation is irreversible. All tags in this dimension
-            will be permanently deleted.
-
-        Example:
-            >>> rows = db.delete_dimension(dimension_id=3)
-            >>> print(f"Deleted {rows} dimension(s)")
-            Deleted 1 dimension(s)
+        Raises:
+            ValueError: if ``dimension_ids`` is not exactly the exam's
+                dimensions, or contains a duplicate.
         """
-        cursor = self.execute("""
-            DELETE FROM exam_dimensions WHERE id = ?
-        """, (dimension_id,))
-
-        self.conn.commit()
-
-        # Dual-write to graph database
-        if cursor.rowcount > 0:
-            def _graph_write():
-                self._graph_execute(
-                    "MATCH (d:Dimension {sqlite_id: $id}) DETACH DELETE d",
-                    {"id": dimension_id}
-                )
-            self._dual_write_graph("delete_dimension", _graph_write)
-
-        if cursor.rowcount > 0 and hasattr(self, 'error_logger') and self.error_logger:
-            self.error_logger.info(
-                f"Deleted dimension {dimension_id} and its tags",
-                category=ErrorCategory.DATABASE
+        if len(set(dimension_ids)) != len(dimension_ids):
+            raise ValueError(
+                'reorder_dimensions was given the same dimension twice: '
+                f'{dimension_ids}'
             )
 
-        return cursor.rowcount
+        with self.transaction():
+            rows = self.fetchall(
+                'SELECT id, display_order FROM exam_dimensions '
+                "WHERE exam_id = ? AND status = 'active'",
+                (exam_id,)
+            )
+            existing = {row['id'] for row in rows}
+            requested = set(dimension_ids)
+
+            if requested != existing:
+                missing = sorted(existing - requested)
+                foreign = sorted(requested - existing)
+                raise ValueError(
+                    f'reorder_dimensions must be given every dimension of exam '
+                    f'{exam_id} and no others. Not listed: {missing or "none"}; '
+                    f'not in this exam: {foreign or "none"}. A partial reorder '
+                    f'would collide with UNIQUE(exam_id, display_order).'
+                )
+
+            if not dimension_ids:
+                return 0
+
+            # Park every active row strictly below 1, where no target can
+            # reach it, keeping the rows distinct by shifting them all by one
+            # offset.
+            #
+            # Two things have to be avoided, not one. The 1..N range being
+            # assigned into is the obvious one, and `highest + 1` handles it.
+            # The other is the **archived** rows (#210): archiving parks a
+            # dimension at `display_order = -id`, those rows keep their slot
+            # in the same UNIQUE index, and they are deliberately not in
+            # `rows` because this reorder is scoped to the active set. Parking
+            # purely by `highest + 1` put an active row on -1 and collided
+            # with an archived one sitting there.
+            #
+            # So the floor comes from every row of the exam, archived
+            # included, and the parked range starts below it. `min(lowest, 1)`
+            # keeps the guarantee when nothing is archived and the orders are
+            # gapped upwards, where the lowest is itself above the target
+            # range.
+            highest = max((row['display_order'] or 0) for row in rows)
+            lowest = self.fetchone(
+                '-- includes-archived (#210): the floor must account for '
+                'parked rows\n'
+                'SELECT MIN(display_order) AS lo FROM exam_dimensions '
+                'WHERE exam_id = ?', (exam_id,)
+            )['lo']
+            offset = highest - min(lowest if lowest is not None else 1, 1) + 1
+            self.execute(
+                'UPDATE exam_dimensions SET display_order = display_order - ? '
+                "WHERE exam_id = ? AND status = 'active'",
+                (offset, exam_id)
+            )
+
+            for new_order, dimension_id in enumerate(dimension_ids, start=1):
+                self.execute(
+                    'UPDATE exam_dimensions SET display_order = ? WHERE id = ?',
+                    (new_order, dimension_id)
+                )
+
+        return len(dimension_ids)
+
+    def get_dimension_delete_preview(self, dimension_id: int) -> Dict[str, Any]:
+        """What archiving this dimension would take with it (#210).
+
+        The student is told the subject count **before** it happens, which the
+        hard delete never did. Same shape as
+        ``get_subject_delete_preview``: the preview and the mutation are
+        derived from the same query, so they cannot disagree.
+
+        Returns ``{dimension_id, dimension_name, root_node_ids,
+        subject_count, entry_count}``. ``subject_count`` is every active
+        subject in the dimension, not only the roots, because that is the
+        number the student cares about.
+
+        **``dimension_name`` is the name the student chose, even once the row
+        is archived (#244).** Archiving parks the name to free
+        ``UNIQUE(exam_id, name)``, so the row itself no longer spells it; the
+        journal recorded it before the parking write, and this read prefers
+        the journal for an archived row. Without that, the one caller that
+        looks at an archived dimension -- the ``already_archived`` short
+        circuit below -- would report the parked spelling as its name.
+        """
+        dimension = self.fetchone(
+            "SELECT d.id AS id, "
+            "       COALESCE(b.dimension_name, d.name) AS name, "
+            "       d.exam_id AS exam_id, d.status AS status "
+            "FROM exam_dimensions d "
+            "LEFT JOIN dimension_delete_batches b ON b.id = d.archived_batch_id "
+            "WHERE d.id = ?",
+            (dimension_id,),
+        )
+        if dimension is None:
+            raise ValidationError(f"Dimension {dimension_id} not found")
+
+        subjects = self.fetchall(
+            "SELECT id FROM subject_nodes "
+            "WHERE dimension_id = ? AND status = 'active'",
+            (dimension_id,),
+        )
+        subject_ids = [row['id'] for row in subjects]
+
+        entry_count = 0
+        if subject_ids:
+            placeholders = ','.join('?' * len(subject_ids))
+            entry_count = self.fetchone(
+                "SELECT COUNT(DISTINCT question_entry_id) AS n "
+                f"FROM entry_subject_mappings WHERE subject_node_id IN ({placeholders})",
+                tuple(subject_ids),
+            )['n']
+
+        return {
+            'dimension_id': dimension_id,
+            'dimension_name': dimension['name'],
+            'already_archived': dimension['status'] != 'active',
+            'root_node_ids': self._dimension_root_node_ids(dimension_id),
+            'subject_count': len(subject_ids),
+            'entry_count': entry_count,
+        }
+
+    def _dimension_root_node_ids(self, dimension_id: int) -> List[int]:
+        """Active subjects in this dimension with no active parent inside it.
+
+        The cascade starts from these. "No incoming edge from an active node
+        **in the same dimension**" rather than "no incoming edge at all",
+        because a subject whose only parent lives in another dimension is a
+        root as far as this dimension is concerned and would otherwise be
+        skipped -- leaving exactly the orphan this issue is about.
+        """
+        rows = self.fetchall(
+            """
+            SELECT sn.id
+            FROM subject_nodes sn
+            WHERE sn.dimension_id = ?
+              AND sn.status = 'active'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM subject_edges se
+                  JOIN subject_nodes parent ON parent.id = se.parent_id
+                  WHERE se.child_id = sn.id
+                    AND parent.status = 'active'
+                    AND parent.dimension_id = sn.dimension_id
+              )
+            ORDER BY sn.id
+            """,
+            (dimension_id,),
+        )
+        return [row['id'] for row in rows]
+
+    def archive_dimension(self, dimension_id: int) -> Dict[str, Any]:
+        """Soft-delete a dimension **and the subject trees inside it** (#210).
+
+        Replaces the hard ``DELETE FROM exam_dimensions``, which left every
+        subject in the dimension pointing at a row that no longer existed --
+        absent from every dimension's view because the dimension was gone, and
+        absent from the no-dimension view because ``dimension_id`` was not
+        ``NULL``. The subjects kept their entries and became editable by
+        nobody.
+
+        **The cascade is not optional.** A ``status`` column on
+        ``exam_dimensions`` alone does not fix that bug, it changes its shape:
+        an archived dimension whose subjects are still ``'active'`` leaves the
+        same unreachable state, reached differently. Worse, archiving the
+        *last* dimension of an exam flips ``exam_uses_dimensions`` false, and
+        the tree editor's plain path filters only on exam and status -- so it
+        would cheerfully display the trees the student just archived.
+
+        Each root goes through :meth:`delete_subject_subtree`, the **same**
+        path a manual delete takes (#67: "never a second path"), so the whole
+        of #15 comes with it -- the fixpoint cascade, shared children detached
+        rather than deleted, archived-parent-to-surviving-child edges removed,
+        orphaned ``primary_parent_id`` nulled, and a journal per root.
+
+        Everything runs in **one** transaction. A failure part-way leaving a
+        dimension archived with its trees still active is the exact state this
+        method exists to prevent.
+
+        **Archiving frees both unique slots, not one (#244).**
+        ``exam_dimensions`` constrains ``UNIQUE(exam_id, name)`` *and*
+        ``UNIQUE(exam_id, display_order)``, and SQLite checks both against
+        archived rows. Parking only the order left the name occupied forever.
+
+        **This does not deliver undo.** #37 is what reads a journal and it is
+        open, so a dimension archived today is as restorable as a subject
+        archived today: journalled, and not yet restorable. The gain is that
+        the state is now *consistent* rather than *broken*.
+
+        Returns the preview dict plus ``batch_id`` and ``subject_batch_ids``.
+        """
+        preview = self.get_dimension_delete_preview(dimension_id)
+        if preview['already_archived']:
+            # Mirrors #57's handling for subjects: archiving an archived
+            # thing opens a batch that archives nothing, and #37 would list
+            # it and then undo nothing.
+            return {**preview, 'batch_id': None, 'subject_batch_ids': []}
+
+        batch_id = str(uuid.uuid4())
+        subject_batch_ids: List[str] = []
+
+        with self.transaction():
+            for root_id in preview['root_node_ids']:
+                result = self.delete_subject_subtree(root_id)
+                if result.get('batch_id'):
+                    subject_batch_ids.append((result['batch_id'], root_id))
+
+            self.execute(
+                "INSERT INTO dimension_delete_batches "
+                "(id, dimension_id, dimension_name, exam_id) "
+                "SELECT ?, id, name, exam_id FROM exam_dimensions "
+                "WHERE id = ? AND status = 'active'",
+                (batch_id, dimension_id),
+            )
+            for subject_batch_id, root_id in subject_batch_ids:
+                self.execute(
+                    "INSERT INTO dimension_delete_batch_subjects "
+                    "(dimension_batch_id, subject_batch_id, root_node_id) "
+                    "VALUES (?, ?, ?)",
+                    (batch_id, subject_batch_id, root_id),
+                )
+
+            # `display_order = -id` frees the positive slot. An archived
+            # dimension holding one would block a new dimension taking it and
+            # would collide with #211's reorder, which assigns 1..N over the
+            # active set. Negative can never meet that range, and `id` is
+            # unique so the UNIQUE(exam_id, display_order) still holds.
+            #
+            # **The name is parked for exactly the same reason (#244).**
+            # `exam_dimensions` carries TWO unique table constraints, and both
+            # are checked against archived rows. #210 freed one and left the
+            # other, so archiving "System" meant no dimension in that exam
+            # could ever be called "System" again -- a `DatabaseIntegrityError`
+            # from three frames down, with no way out, because restore (#37)
+            # and purge (#38) are both open. Uniqueness comes from `id`, the
+            # same way it does for the order.
+            #
+            # The journal already holds the real name: the INSERT into
+            # `dimension_delete_batches` above runs BEFORE this UPDATE and
+            # takes `name` straight from the row, so #37 restores the name the
+            # student chose rather than the parked spelling.
+            self.execute(
+                "UPDATE exam_dimensions "
+                "SET status = 'archived', archived_batch_id = ?, "
+                "    display_order = -id, "
+                "    name = name || ' (archived #' || id || ')' "
+                "WHERE id = ?",
+                (batch_id, dimension_id),
+            )
+
+        def _graph_write():
+            self._graph_execute(
+                "MATCH (d:Dimension {sqlite_id: $id}) DETACH DELETE d",
+                {"id": dimension_id},
+            )
+        self._dual_write_graph("archive_dimension", _graph_write)
+
+        return {
+            **preview,
+            'batch_id': batch_id,
+            'subject_batch_ids': [b for b, _ in subject_batch_ids],
+        }
+
+    def delete_dimension(self, dimension_id: int) -> int:
+        """Deprecated alias for :meth:`archive_dimension` (#210).
+
+        Kept because ``deleteDimension`` is a registered bridge slot and
+        `import_export.js` is not the only caller shape in this codebase that
+        outlives a rename. It no longer deletes anything: the hard
+        ``DELETE FROM exam_dimensions`` is gone, and with it the orphaned
+        subject trees it left behind.
+
+        Returns 1 if a dimension was archived, 0 if it was already archived.
+        """
+        result = self.archive_dimension(dimension_id)
+        return 0 if result['batch_id'] is None else 1
 
     # ==================== Tag CRUD Methods ====================
 
-    def create_hierarchy_tag(
-        self,
-        entry_id: int,
-        hierarchy_id: int,
-        dimension_id: int
-    ) -> int:
-        """
-        Tag a question entry with a hierarchy node in a specific dimension.
 
-        This creates a link between a question entry and a hierarchy node,
-        within the context of a specific dimension.
 
-        Args:
-            entry_id (int): ID of the question entry (from question_entries table)
-            hierarchy_id (int): ID of the hierarchy node (from subject_nodes table)
-            dimension_id (int): ID of the dimension (from exam_dimensions table)
 
-        Returns:
-            int: tag_id of the created tag
 
-        Raises:
-            sqlite3.IntegrityError: If tag already exists (same entry + dimension + hierarchy)
-            sqlite3.IntegrityError: If entry_id, hierarchy_id, or dimension_id don't exist
-
-        Example:
-            >>> tag_id = db.create_hierarchy_tag(
-            ...     entry_id=123,
-            ...     hierarchy_id=45,  # "Emergency Department"
-            ...     dimension_id=1    # "Site of Care"
-            ... )
-            >>> print(f"Created tag with ID: {tag_id}")
-            Created tag with ID: 1
-        """
-        cursor = self.execute("""
-            INSERT INTO question_hierarchy_tags (entry_id, hierarchy_id, dimension_id)
-            VALUES (?, ?, ?)
-        """, (entry_id, hierarchy_id, dimension_id))
-
-        self.conn.commit()
-        return cursor.lastrowid
-
-    def get_entry_tags(self, entry_id: int) -> List[Dict[str, Any]]:
-        """
-        Get all tags for a question entry, with dimension and hierarchy names.
-
-        Returns tags ordered by dimension display_order, allowing consistent
-        display of tags across the UI.
-
-        Args:
-            entry_id (int): ID of the question entry
-
-        Returns:
-            list: List of tag dicts with keys:
-                  - id, entry_id, hierarchy_id, dimension_id, tagged_at
-                  - dimension_name (from exam_dimensions join)
-                  - hierarchy_name (from subject_nodes join)
-
-        Example:
-            >>> tags = db.get_entry_tags(entry_id=123)
-            >>> for tag in tags:
-            ...     print(f"{tag['dimension_name']}: {tag['hierarchy_name']}")
-            Site of Care: Emergency Department
-            Physician Task: Diagnosis
-            System: Cardiovascular
-        """
-        cursor = self.conn.execute("""
-            SELECT
-                qht.id,
-                qht.entry_id,
-                qht.hierarchy_id,
-                qht.dimension_id,
-                qht.tagged_at,
-                d.name as dimension_name,
-                h.name as hierarchy_name
-            FROM question_hierarchy_tags qht
-            JOIN exam_dimensions d ON qht.dimension_id = d.id
-            JOIN subject_nodes h ON qht.hierarchy_id = h.id
-            WHERE qht.entry_id = ?
-            ORDER BY d.display_order ASC
-        """, (entry_id,))
-
-        columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-    def get_tags_by_dimension(self, exam_id: int, dimension_id: int) -> List[Dict[str, Any]]:
-        """
-        Get all tags for a specific dimension across all entries in an exam.
-
-        Useful for analytics to see how questions are distributed across
-        hierarchy nodes within a dimension.
-
-        Args:
-            exam_id (int): ID of the exam context
-            dimension_id (int): ID of the dimension
-
-        Returns:
-            list: List of tag dicts with entry and hierarchy info
-
-        Example:
-            >>> tags = db.get_tags_by_dimension(exam_id=5, dimension_id=1)
-            >>> # Count entries per hierarchy node
-            >>> from collections import Counter
-            >>> counts = Counter(t['hierarchy_name'] for t in tags)
-            >>> print(counts)
-            Counter({'Emergency': 45, 'Inpatient': 30, 'Ambulatory': 25})
-        """
-        cursor = self.conn.execute("""
-            SELECT
-                qht.id,
-                qht.entry_id,
-                qht.hierarchy_id,
-                qht.dimension_id,
-                qht.tagged_at,
-                h.name as hierarchy_name
-            FROM question_hierarchy_tags qht
-            JOIN subject_nodes h ON qht.hierarchy_id = h.id
-            JOIN question_entries qe ON qht.entry_id = qe.id
-            JOIN review_sessions rs ON qe.review_session_id = rs.id
-            WHERE rs.exam_context_id = ? AND qht.dimension_id = ?
-            ORDER BY qht.tagged_at DESC
-        """, (exam_id, dimension_id))
-
-        columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-    def delete_hierarchy_tag(self, tag_id: int) -> int:
-        """
-        Delete a single hierarchy tag.
-
-        Args:
-            tag_id (int): ID of the tag to delete
-
-        Returns:
-            int: Number of rows affected (1 if success, 0 if not found)
-
-        Example:
-            >>> rows = db.delete_hierarchy_tag(tag_id=1)
-            >>> print(f"Deleted {rows} tag(s)")
-            Deleted 1 tag(s)
-        """
-        cursor = self.execute("""
-            DELETE FROM question_hierarchy_tags WHERE id = ?
-        """, (tag_id,))
-
-        self.conn.commit()
-        return cursor.rowcount
-
-    def delete_entry_tags_by_dimension(self, entry_id: int, dimension_id: int) -> int:
-        """
-        Delete all tags for a question entry in a specific dimension.
-
-        This is useful when a user changes their selection for a dimension,
-        allowing the old selection(s) to be removed before adding new one(s).
-
-        Args:
-            entry_id (int): ID of the question entry
-            dimension_id (int): ID of the dimension
-
-        Returns:
-            int: Number of rows affected
-
-        Example:
-            >>> # User wants to change from "Emergency" to "Inpatient"
-            >>> deleted = db.delete_entry_tags_by_dimension(entry_id=123, dimension_id=1)
-            >>> print(f"Removed {deleted} old tag(s)")
-            Removed 1 old tag(s)
-            >>> # Now add the new tag
-            >>> db.create_hierarchy_tag(entry_id=123, hierarchy_id=46, dimension_id=1)
-        """
-        cursor = self.execute("""
-            DELETE FROM question_hierarchy_tags
-            WHERE entry_id = ? AND dimension_id = ?
-        """, (entry_id, dimension_id))
-
-        self.conn.commit()
-        return cursor.rowcount
 
     # ==================== Detection Method ====================
 
@@ -478,7 +577,8 @@ class DimensionsMixin:
             Multi-dimensional exam - show dimension selectors
         """
         cursor = self.conn.execute("""
-            SELECT COUNT(*) FROM exam_dimensions WHERE exam_id = ?
+            SELECT COUNT(*) FROM exam_dimensions
+            WHERE exam_id = ? AND status = 'active'
         """, (exam_id,))
 
         count = cursor.fetchone()[0]
@@ -486,34 +586,6 @@ class DimensionsMixin:
 
     # ==================== Convenience Methods ====================
 
-    def get_entry_tags_by_dimension(self, entry_id: int) -> Dict[int, List[Dict[str, Any]]]:
-        """
-        Get all tags for an entry, grouped by dimension.
-
-        Args:
-            entry_id (int): ID of the question entry
-
-        Returns:
-            dict: Dictionary mapping dimension_id to list of tags for that dimension
-
-        Example:
-            >>> tags_by_dim = db.get_entry_tags_by_dimension(entry_id=123)
-            >>> for dim_id, tags in tags_by_dim.items():
-            ...     print(f"Dimension {dim_id}: {len(tags)} tags")
-            Dimension 1: 1 tags
-            Dimension 2: 1 tags
-            Dimension 3: 1 tags
-        """
-        tags = self.get_entry_tags(entry_id)
-
-        grouped = {}
-        for tag in tags:
-            dim_id = tag['dimension_id']
-            if dim_id not in grouped:
-                grouped[dim_id] = []
-            grouped[dim_id].append(tag)
-
-        return grouped
 
     def validate_entry_dimensions_complete(
         self,
@@ -527,11 +599,41 @@ class DimensionsMixin:
             entry_id (int): ID of the question entry
             exam_id (int): ID of the exam context
 
+        **Reads mechanism A, the live one (#209, owner's decision 2').** An
+        entry reaches a dimension because the *subject* it is tagged with
+        belongs to that dimension: ``entry_subject_mappings`` ->
+        ``subject_nodes.dimension_id``. It used to read
+        ``question_hierarchy_tags``, a parallel table that nothing ever wrote
+        to, so this returned "every required dimension is missing" for every
+        entry in the application. It had no callers, which is the only reason
+        that was survivable.
+
+        **Counting is primary-only (#13).** ``mapping_type = 'primary'``, so a
+        secondary "also tested" tag neither satisfies a required dimension nor
+        counts towards over-tagging. A secondary tag is not a classification.
+
+        **This reports; it does not refuse.** ``over_tagged_dimensions`` names
+        the dimensions carrying more than one primary subject where
+        ``allow_multiple`` is off. Multi-tagging has been unconditionally
+        permitted for the whole life of the feature, so existing profiles
+        already hold data a hard rule would make unsaveable -- #64 decision 2,
+        a checkable thing real data can violate is a warning, never a hard
+        failure. Nothing here raises, and no caller may turn this into a save
+        gate without reopening #209.
+
+        Args:
+            entry_id (int): ID of the question entry
+            exam_id (int): ID of the exam context
+
         Returns:
             dict: Validation result with keys:
-                  - is_complete (bool): True if all required dimensions are tagged
-                  - missing_dimensions (list): List of missing required dimension IDs
-                  - tagged_dimensions (list): List of tagged dimension IDs
+                  - is_complete (bool): True if all required dimensions carry
+                    at least one primary subject
+                  - missing_dimensions (list): required dimension IDs with none
+                  - tagged_dimensions (list): dimension IDs carrying at least one
+                  - over_tagged_dimensions (list): dicts of
+                    ``{dimension_id, dimension_name, count}`` for dimensions
+                    with >1 primary subject and ``allow_multiple`` off
 
         Example:
             >>> result = db.validate_entry_dimensions_complete(entry_id=123, exam_id=5)
@@ -541,17 +643,39 @@ class DimensionsMixin:
             ...     print(f"Missing: {result['missing_dimensions']}")
         """
         dimensions = self.get_exam_dimensions(exam_id)
-        entry_tags = self.get_entry_tags(entry_id)
 
-        tagged_dim_ids = {tag['dimension_id'] for tag in entry_tags}
+        rows = self.fetchall("""
+            SELECT sn.dimension_id AS dimension_id,
+                   COUNT(DISTINCT sn.id) AS n
+            FROM entry_subject_mappings esm
+            JOIN subject_nodes sn ON sn.id = esm.subject_node_id
+            WHERE esm.question_entry_id = ?
+              AND esm.mapping_type = 'primary'
+              AND sn.dimension_id IS NOT NULL
+              AND sn.status = 'active'
+            GROUP BY sn.dimension_id
+        """, (entry_id,))
+
+        counts = {row['dimension_id']: row['n'] for row in rows}
+        tagged_dim_ids = set(counts)
         required_dim_ids = {d['id'] for d in dimensions if d['is_required']}
-
         missing = required_dim_ids - tagged_dim_ids
+
+        over_tagged = [
+            {
+                'dimension_id': d['id'],
+                'dimension_name': d['name'],
+                'count': counts[d['id']],
+            }
+            for d in dimensions
+            if not d['allow_multiple'] and counts.get(d['id'], 0) > 1
+        ]
 
         return {
             'is_complete': len(missing) == 0,
             'missing_dimensions': list(missing),
-            'tagged_dimensions': list(tagged_dim_ids)
+            'tagged_dimensions': list(tagged_dim_ids),
+            'over_tagged_dimensions': over_tagged,
         }
 
     def get_hierarchy_nodes_by_dimension(
@@ -883,21 +1007,76 @@ class DimensionsMixin:
             # rolls up through that branch only (§5.4). Without this a
             # mistake on a subject with two parents inside the dimension
             # reached both.
-            node_ids = [n['id'] for n in nodes_data]
-            placeholders = ','.join(['?'] * len(node_ids))
-            bucket_rows = self.fetchall(f"""
+            #
+            # Scope it by JOINing subject_nodes on the same three
+            # predicates the node query above uses -- NOT by an IN list
+            # of the ids that query returned (#208).
+            #
+            # This is #199's fix, arrived at from the opposite
+            # direction. There the IN list was *redundant*, so it was
+            # deleted. Here it is a genuine filter: drop it and the
+            # buckets carry every dimension's subjects, which is a
+            # wrong sunburst rather than a slow one. So the predicate
+            # moves into a join instead of going away.
+            #
+            # All three predicates, deliberately. The scoping is only
+            # safe if the join sees the same subjects the query above
+            # sees, and the cheap way to know that is to filter on the
+            # same columns rather than argue that some of them are
+            # implied. dimension_id alone looks sufficient -- a
+            # dimension belongs to one exam and dimension ids are
+            # globally unique -- but subject_nodes.dimension_id has no
+            # foreign key and no writer validates it against
+            # exam_context, so the two can disagree. status = 'active'
+            # looked obviously safe too, right up until it wasn't:
+            # without it an archived subject that still carries entries
+            # (#15 leaves its mappings in place) arrives in a bucket
+            # that the node query excluded.
+            #
+            # One asymmetry to know about, because it is the only place
+            # the two node sets differ: the query above additionally
+            # drops a node via AND (rs.id IS NOT NULL OR qe.id IS NULL)
+            # -- a subject whose every primary mapping belongs to some
+            # other exam's session. The join keeps such a node, and it
+            # contributes no rows anyway, because this query's own
+            # rs.exam_context_id / rs.user_id filter excludes exactly
+            # those entries. Superset in, identical rows out.
+            #
+            # Why this is worth doing when the IN list returns the same
+            # rows: the list changes the PLAN. With it SQLite picks the
+            # composite idx_unique_entry_subject (question_entry_id,
+            # subject_node_id) and probes it once per element, per
+            # entry. Measured at 3,118 entries with no sqlite_stat1 --
+            # a profile that has never been closed cleanly, which
+            # includes every first launch after a create or an import:
+            # 119 ms / 454 ms / 1,111 ms at 200 / 800 / 2,000 nodes in
+            # the dimension, against 3.6 / 4.6 / 6.6 ms for this join.
+            # With statistics present SQLite plans the IN list sanely
+            # and the two are within noise; the join's plan does not
+            # depend on the statistics either way, which is the part
+            # that is actually worth having.
+            #
+            # Parameter order follows the SQL text: the join's three
+            # bind before the WHERE clause's two.
+            bucket_rows = self.fetchall("""
                 SELECT esm.subject_node_id AS sid,
                        esm.primary_parent_id AS ppid,
                        COUNT(DISTINCT qe.id) AS n
                 FROM entry_subject_mappings esm
                 JOIN question_entries qe ON qe.id = esm.question_entry_id
                 JOIN review_sessions rs ON rs.id = qe.review_session_id
+                JOIN subject_nodes sn
+                    ON sn.id = esm.subject_node_id
+                    AND sn.exam_context = (
+                        SELECT exam_name FROM exam_contexts WHERE id = ?
+                    )
+                    AND sn.dimension_id = ?
+                    AND sn.status = 'active'
                 WHERE esm.mapping_type = 'primary'
                   AND rs.exam_context_id = ?
                   AND rs.user_id = ?
-                  AND esm.subject_node_id IN ({placeholders})
                 GROUP BY esm.subject_node_id, esm.primary_parent_id
-            """, tuple([exam_context_id, self.user_id] + node_ids))
+            """, (exam_context_id, dimension_id, exam_context_id, self.user_id))
 
             context_buckets = {}
             for brow in bucket_rows:
@@ -994,19 +1173,41 @@ class DimensionsMixin:
         # Filtered to 'primary' to agree with the subject sunburst, Top
         # Subjects and the weight quadrant -- this query used to count
         # secondary "also tested" tags as mistakes too.
-        bucket_rows = self.fetchall(f"""
+        #
+        # Scoped by JOINing subject_nodes on the same three predicates
+        # node_rows above selects on, NOT by an IN list of the ids it
+        # returned (#208). Here the two node sets are identical by
+        # construction -- same table, same three predicates, no LIMIT --
+        # so this is the clean half of the pair; see the longer note at
+        # get_dimension_performance for why all three predicates are
+        # restated rather than reasoned away, and for the numbers.
+        #
+        # node_ids stays: the edge query below still needs it, and that
+        # one is a plain index scan over subject_edges with no join or
+        # DISTINCT to interact with -- the same shape #199 measured at
+        # 12-15 ms and deliberately left alone.
+        #
+        # Parameter order follows the SQL text: the join's three bind
+        # before the WHERE clause's two.
+        bucket_rows = self.fetchall("""
             SELECT esm.subject_node_id AS sid,
                    esm.primary_parent_id AS ppid,
                    COUNT(DISTINCT qe.id) AS n
             FROM entry_subject_mappings esm
             JOIN question_entries qe ON qe.id = esm.question_entry_id
             JOIN review_sessions rs ON rs.id = qe.review_session_id
+            JOIN subject_nodes sn
+                ON sn.id = esm.subject_node_id
+                AND sn.exam_context = (
+                    SELECT exam_name FROM exam_contexts WHERE id = ?
+                )
+                AND sn.dimension_id = ?
+                AND sn.status = 'active'
             WHERE esm.mapping_type = 'primary'
               AND rs.exam_context_id = ?
               AND rs.user_id = ?
-              AND esm.subject_node_id IN ({placeholders})
             GROUP BY esm.subject_node_id, esm.primary_parent_id
-        """, tuple([exam_context_id, self.user_id] + node_ids))
+        """, (exam_context_id, dimension_id, exam_context_id, self.user_id))
 
         buckets: Dict[int, Dict[Any, int]] = {}
         for row in bucket_rows:

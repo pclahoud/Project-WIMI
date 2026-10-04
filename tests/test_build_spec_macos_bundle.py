@@ -16,6 +16,7 @@ built at all (#143). These assertions are the only guard until it is.
 from __future__ import annotations
 
 import ast
+import plistlib
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,36 @@ def test_microphone_usage_description_is_present_and_explains_itself():
     assert 'never leaves' in reason.lower(), (
         "the prompt is the one place the student is told the audio stays "
         "on their machine; say so there"
+    )
+
+
+@pytest.mark.unit
+def test_microphone_entitlement_accompanies_the_usage_string():
+    """The plist string is what the student is shown; this is what is allowed.
+
+    They are a pair (#59). `NSMicrophoneUsageDescription` alone stops macOS
+    terminating the process, and under the Hardened Runtime
+    `com.apple.security.device.audio-input` is what actually permits the
+    device. Nothing enforces the entitlements file while the build is
+    unsigned, which is exactly why its absence would go unnoticed until
+    somebody signs the bundle and the feature stops working for a reason that
+    is nowhere in this repository.
+    """
+    entitlements = MACOS_SPEC.parent / 'entitlements.plist'
+    with open(entitlements, 'rb') as handle:
+        keys = plistlib.load(handle)
+
+    assert keys.get('com.apple.security.device.audio-input') is True, (
+        'entitlements.plist must grant com.apple.security.device.audio-input '
+        'beside NSMicrophoneUsageDescription in the spec (#59).'
+    )
+    # The vendored whisper binary is built on the build host and not signed by
+    # us; this is what lets it load at all.
+    assert keys.get('com.apple.security.cs.disable-library-validation') is True
+
+    assert _call_kwargs('EXE').get('entitlements_file') == 'entitlements.plist', (
+        'the entitlements file has to be wired into EXE, or it is a file '
+        'nothing reads'
     )
 
 

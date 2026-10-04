@@ -206,35 +206,69 @@ class DimensionBridgeMixin:
 
     @pyqtSlot(int, result=str)
     @instrumented_slot
-    def deleteDimension(self, dimension_id: int) -> str:
-        """
-        Delete a dimension.
+    def getDimensionDeletePreview(self, dimension_id: int) -> str:
+        """What archiving this dimension would take with it (#210).
 
-        WARNING: This cascades to delete all question_hierarchy_tags for
-        this dimension. This operation is irreversible.
+        The counterpart of `getSubjectDeletePreview`. Call this before
+        `deleteDimension` and show the student the numbers -- the old hard
+        delete told them nothing, and took the dimension's whole subject tree
+        with it irreversibly.
 
-        Args:
-            dimension_id: ID of dimension to delete
-
-        Returns:
-            JSON response with success/failure
+        Returns `{dimension_name, subject_count, entry_count, root_node_ids,
+        already_archived}`.
         """
         if not self.user_db:
             return serialize_response(False, error='No user database connected')
 
         try:
-            rows_affected = self.user_db.delete_dimension(dimension_id)
+            return serialize_response(
+                True, data=self.user_db.get_dimension_delete_preview(dimension_id))
+        except Exception as e:
+            self._log_error(f'Error previewing dimension delete: {e}', {
+                'dimension_id': dimension_id
+            })
+            return serialize_response(
+                False, error=f'Failed to preview dimension delete: {e}')
 
-            if rows_affected == 0:
-                return serialize_response(False, error='Dimension not found')
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
+    def deleteDimension(self, dimension_id: int) -> str:
+        """Archive a dimension and the subject trees inside it (#210).
+
+        **No longer a hard delete.** It used to run
+        `DELETE FROM exam_dimensions`, and `subject_nodes.dimension_id` has no
+        foreign key, so every subject in the dimension was left pointing at a
+        row that no longer existed: invisible in every dimension's view and in
+        the no-dimension view, still carrying entries, editable by nobody.
+
+        The slot name is unchanged because it is registered on the web channel
+        and `import_export.js` is not the only caller shape here that outlives
+        a rename. What changed is what it does.
+
+        Call `getDimensionDeletePreview` first -- the response's
+        `subject_count` is what the student needs to see before agreeing.
+
+        Returns the archive result, including `batch_id` and the per-root
+        `subject_batch_ids` that #37 will need to restore it.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            result = self.user_db.archive_dimension(dimension_id)
+
+            if result['batch_id'] is None:
+                return serialize_response(
+                    False, error='Dimension is already archived')
 
             return serialize_response(True, data={
                 'id': dimension_id,
-                'deleted': True
+                'archived': True,
+                **result,
             })
 
         except Exception as e:
-            self._log_error(f'Error deleting dimension: {e}', {
+            self._log_error(f'Error archiving dimension: {e}', {
                 'dimension_id': dimension_id
             })
             return serialize_response(False, error=f'Failed to delete dimension: {e}')
@@ -263,13 +297,13 @@ class DimensionBridgeMixin:
             if not isinstance(dimension_ids, list):
                 return serialize_response(False, error='order_json must be an array of dimension IDs')
 
-            # Update each dimension's display_order
-            with self.user_db.transaction():
-                for new_order, dim_id in enumerate(dimension_ids, start=1):
-                    self.user_db.update_dimension(
-                        dimension_id=dim_id,
-                        display_order=new_order
-                    )
+            # One atomic call, not a loop of update_dimension (#211). The loop
+            # committed on its first iteration -- update_dimension used to end
+            # in a bare conn.commit(), which ends the transaction opened here
+            # -- and then collided with UNIQUE(exam_id, display_order) the
+            # moment a dimension moved into an occupied slot, leaving the
+            # earlier writes committed and unrollbackable.
+            self.user_db.reorder_dimensions(exam_context_id, dimension_ids)
 
             # Fetch updated dimensions to return
             dimensions = self.user_db.get_exam_dimensions(exam_context_id)

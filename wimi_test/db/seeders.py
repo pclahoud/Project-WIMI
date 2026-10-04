@@ -12,7 +12,7 @@ entries, etc.). Seeders are registered by name so test code can ask for
 them symbolically (``user.seed("usmle_step1_outline")``) without
 importing private helpers.
 
-Two seeders ship in this module:
+Three seeders ship in this module:
 
 * ``seed_minimal`` — one empty exam context, nothing else. Intended
   for smoke tests that just want a non-empty database.
@@ -24,6 +24,13 @@ Two seeders ship in this module:
   outline lists under more than one section — hypertension under
   seven systems, deep venous thrombosis under both Cardiovascular
   and Pregnancy, etc.
+* ``seed_multi_dimensional`` — one exam carrying two dimensions, with
+  entries in both, an archived subject that still carries an entry, a
+  subject with no dimension at all, and a subject under two parents.
+  Added for #208; the dimensional code paths had **no** seeder before
+  it — ``grep -c dimension`` over this file returned 0 — so every test
+  of one was written against a database that could not express the
+  failure mode.
 
 Public API:
 
@@ -34,11 +41,21 @@ Public API:
   ``"minimal"``.
 * :func:`seed_usmle_step1_outline` — direct callable, also registered
   as ``"usmle_step1_outline"``.
+* :func:`seed_multi_dimensional` — direct callable, also registered
+  as ``"multi_dimensional"``.
+
+One asymmetry to know about: ``seed_multi_dimensional`` returns a
+:class:`MultiDimensionalFixture` of ids, where the other two return
+``None``. :meth:`TestUser.seed` discards the return value either way;
+a direct caller in ``tests/database/`` needs it. See that class for
+why.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -51,6 +68,8 @@ __all__ = [
     "get_seeder",
     "seed_minimal",
     "seed_usmle_step1_outline",
+    "seed_multi_dimensional",
+    "MultiDimensionalFixture",
 ]
 
 
@@ -372,4 +391,267 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
         edge_added,
         edge_skipped,
         exam_name,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-dimensional seeder
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MultiDimensionalFixture:
+    """Handle onto everything :func:`seed_multi_dimensional` created.
+
+    The two seeders above return ``None`` because their callers only ever
+    needed "a database with stuff in it". A multi-dimensional fixture is
+    not usable that way: every assertion about it has to name a dimension
+    or a subject, and looking those back up by name in each test is how
+    a test ends up asserting against the wrong row. So this one returns
+    its ids.
+
+    :meth:`wimi_test.db.test_user.TestUser.seed` discards the return
+    value, which is fine — a UI scenario navigates by name. Direct
+    callers (``tests/database/``) use the handle.
+    """
+
+    exam_name: str
+    exam_context_id: int
+    #: dimension name -> ``exam_dimensions.id``
+    dimensions: dict
+    #: subject name -> ``subject_nodes.id``, active and archived alike
+    nodes: dict
+    #: ids of the subjects left ``status='archived'``
+    archived_node_ids: tuple
+    #: the subject sitting under two parents inside one dimension
+    shared_node_id: int
+    #: the subject carrying ``dimension_id IS NULL``
+    undimensioned_node_id: int
+    review_session_id: int
+    #: subject name -> the entry ids mapped to it as ``mapping_type='primary'``
+    entries_by_subject: dict
+
+
+@seeder("multi_dimensional")
+def seed_multi_dimensional(
+    db: "UserDatabase",
+    *,
+    exam_name: str = "Multi-Dimensional Exam (Test Fixture)",
+    filler_topics_per_dimension: int = 0,
+    filler_entries: int = 0,
+) -> MultiDimensionalFixture:
+    """Seed one exam carrying **two** dimensions, with entries in both.
+
+    There was no multi-dimensional seeder in this module at all before
+    #208 — ``grep -c dimension wimi_test/db/seeders.py`` returned 0 —
+    which meant every test of a dimensional code path was written
+    against a single-dimension or dimensionless database and passed for
+    the wrong reason. This project has been bitten by that shape three
+    times in two days: a tree seeded without entries hid a deep-dive N+1
+    at 0.17 ms/child against its real 4.5 (#201), a seed with one review
+    session hid DOM growth at 412 elements against 4,463 (#202), and a
+    400-entry seed hid a 2.8 s page (#199).
+
+    So the four things here are chosen to be the ones a dimensional
+    query can get wrong, not to look realistic:
+
+    * **Two dimensions**, each with its own subjects and its own
+      entries. A query that forgets ``dimension_id`` counts the other
+      dimension's mistakes, and with one dimension nothing notices.
+    * **An archived subject inside a dimension that still carries an
+      entry.** Archived-but-empty proves nothing: the row has to be able
+      to *arrive* in a result for a missing ``status = 'active'`` to be
+      visible. Archived through :meth:`delete_subject_subtree`, the real
+      path (#15), rather than an ``UPDATE`` that skips its journal.
+    * **A subject with ``dimension_id IS NULL``** carrying an entry —
+      the dimensionless leftovers a part-converted exam really has.
+      ``IS NULL`` never equals a dimension id, so this one is caught by
+      the same predicate as the point above, from the other side.
+    * **A shared subject under two parents inside one dimension**, with
+      one entry pinned to each parent and one left unpinned, so §5.4's
+      three-way bucket split (#13) is exercised rather than assumed.
+
+    Parameters
+    ----------
+    exam_name
+        Lets a test seed two of these into one database without
+        colliding on ``exam_contexts.exam_name``.
+    filler_topics_per_dimension
+        Extra leaf topics under each dimension's first root. Zero by
+        default: the named fixture above is what tests assert on, and
+        every filler node costs a ``create_subject_node`` round trip.
+        Raise it to make a dimension large enough to measure a query
+        plan against (#208's A/B used 200/800/2,000).
+    filler_entries
+        Entries spread round-robin over the **first** dimension's filler
+        topics. Zero by default. Ignored when there are no filler
+        topics.
+
+    Returns
+    -------
+    MultiDimensionalFixture
+        Ids for everything created. See that class for why this seeder
+        returns a value when the others do not.
+    """
+    if filler_entries and not filler_topics_per_dimension:
+        raise ValueError(
+            "filler_entries=%d with filler_topics_per_dimension=0 has "
+            "nowhere to put them. Ask for filler topics too." % filler_entries
+        )
+
+    db._ensure_phase2_schema()
+    db._ensure_phase4_schema()
+
+    exam = db.create_exam_context(
+        exam_name=exam_name,
+        exam_description=(
+            "Two dimensions, entries in both, one archived subject that "
+            "still carries an entry, one subject with no dimension at "
+            "all, and one subject under two parents (#208)."
+        ),
+        hierarchy_levels=["System", "Topic"],
+    )
+
+    dimensions = {
+        "System": db.create_dimension(
+            exam_id=exam.id, name="System", display_order=1,
+            description="Organ system the item is coded to",
+        ),
+        "Physician Task": db.create_dimension(
+            exam_id=exam.id, name="Physician Task", display_order=2,
+            description="What the item asks the candidate to do",
+        ),
+    }
+    sys_dim = dimensions["System"]
+    task_dim = dimensions["Physician Task"]
+
+    nodes: dict = {}
+
+    def _node(name, level_type, parent_id=None, dimension_id=None, sort_order=1):
+        node = db.create_subject_node(
+            exam_context=exam.exam_name,
+            name=name,
+            level_type=level_type,
+            parent_id=parent_id,
+            dimension_id=dimension_id,
+            sort_order=sort_order,
+        )
+        nodes[name] = node.id
+        return node.id
+
+    # --- dimension 1: System -------------------------------------------
+    cardio = _node("Cardiovascular System", "System", dimension_id=sys_dim, sort_order=1)
+    renal = _node("Renal System", "System", dimension_id=sys_dim, sort_order=2)
+    # The shared subject: created under Cardiovascular, then given Renal
+    # as a second parent. Both parents are inside this dimension, which
+    # is what makes the §5.4 split observable here rather than a
+    # cross-dimension question.
+    hypertension = _node("Hypertension", "Topic", parent_id=cardio,
+                         dimension_id=sys_dim, sort_order=1)
+    db.add_edge(parent_id=renal, child_id=hypertension, is_primary=False)
+    heart_failure = _node("Heart Failure", "Topic", parent_id=cardio,
+                          dimension_id=sys_dim, sort_order=2)
+    aki = _node("Acute Kidney Injury", "Topic", parent_id=renal,
+                dimension_id=sys_dim, sort_order=1)
+    retired = _node("Retired Cardiology Topic", "Topic", parent_id=cardio,
+                    dimension_id=sys_dim, sort_order=3)
+
+    # --- dimension 2: Physician Task ------------------------------------
+    diagnosis = _node("Diagnosis", "System", dimension_id=task_dim, sort_order=1)
+    management = _node("Management", "System", dimension_id=task_dim, sort_order=2)
+    labs = _node("Interpreting Laboratory Data", "Topic", parent_id=diagnosis,
+                 dimension_id=task_dim, sort_order=1)
+    pharm = _node("Pharmacotherapy", "Topic", parent_id=management,
+                  dimension_id=task_dim, sort_order=1)
+
+    # --- no dimension at all --------------------------------------------
+    undimensioned = _node("Unsorted Leftovers", "System", dimension_id=None,
+                          sort_order=99)
+
+    # --- filler ----------------------------------------------------------
+    filler_by_dimension: dict = {"System": [], "Physician Task": []}
+    for dim_name, dim_id, root in (
+        ("System", sys_dim, cardio),
+        ("Physician Task", task_dim, diagnosis),
+    ):
+        for i in range(filler_topics_per_dimension):
+            filler_by_dimension[dim_name].append(
+                _node(f"{dim_name} Filler {i}", "Topic", parent_id=root,
+                      dimension_id=dim_id, sort_order=100 + i)
+            )
+
+    # --- entries ----------------------------------------------------------
+    named_targets = [
+        ("Hypertension", hypertension, cardio),
+        ("Hypertension", hypertension, renal),
+        ("Hypertension", hypertension, None),   # never disambiguated
+        ("Heart Failure", heart_failure, None),
+        ("Acute Kidney Injury", aki, None),
+        ("Retired Cardiology Topic", retired, None),
+        ("Interpreting Laboratory Data", labs, None),
+        ("Pharmacotherapy", pharm, None),
+        ("Diagnosis", diagnosis, None),
+        ("Unsorted Leftovers", undimensioned, None),
+    ]
+    filler_targets = []
+    first_dim_filler = filler_by_dimension["System"]
+    if first_dim_filler and filler_entries:
+        for i in range(filler_entries):
+            target = first_dim_filler[i % len(first_dim_filler)]
+            filler_targets.append((f"System Filler {i % len(first_dim_filler)}",
+                                   target, None))
+
+    all_targets = named_targets + filler_targets
+    session = db.create_review_session(
+        exam_context_id=exam.id,
+        total_questions=len(all_targets),
+        total_incorrect=len(all_targets),
+        session_name="Multi-dimensional fixture session",
+        date_encountered=date.today(),
+    )
+
+    entries_by_subject: dict = {}
+    for subject_name, node_id, pinned_parent in all_targets:
+        entry = db.create_question_entry(
+            review_session_id=session.id,
+            user_answer="a",
+            correct_answer="b",
+            primary_subject_ids=[node_id],
+        )
+        entries_by_subject.setdefault(subject_name, []).append(entry.id)
+        if pinned_parent is not None:
+            # No database-layer setter exists for this column — the
+            # bridge's setPrimaryParentForEntry writes it directly, so
+            # the fixture issues the same statement rather than
+            # inventing an API. Same choice as #199's guard test.
+            with db.transaction():
+                db.execute(
+                    "UPDATE entry_subject_mappings SET primary_parent_id = ? "
+                    "WHERE question_entry_id = ? AND subject_node_id = ?",
+                    (pinned_parent, entry.id, node_id),
+                )
+
+    # Archive last, so the entry above is already attached to it. The
+    # real delete path, not an UPDATE: it also removes the edge from the
+    # surviving parent and nulls the orphaned primary_parent_id, which
+    # is the state a genuinely archived subject is in (#15).
+    db.delete_subject_subtree(retired)
+
+    _logger.info(
+        "seed_multi_dimensional: exam %r, dimensions %s, %d subjects "
+        "(%d filler/dimension), %d entries",
+        exam.exam_name, sorted(dimensions), len(nodes),
+        filler_topics_per_dimension, len(all_targets),
+    )
+
+    return MultiDimensionalFixture(
+        exam_name=exam.exam_name,
+        exam_context_id=exam.id,
+        dimensions=dimensions,
+        nodes=nodes,
+        archived_node_ids=(retired,),
+        shared_node_id=hypertension,
+        undimensioned_node_id=undimensioned,
+        review_session_id=session.id,
+        entries_by_subject=entries_by_subject,
     )

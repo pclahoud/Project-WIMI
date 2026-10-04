@@ -38,6 +38,7 @@ exists so a later QThread upgrade doesn't require a signature redesign.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -53,6 +54,12 @@ from database.master_db import MasterDatabase
 from database.user_db import UserDatabase
 from database.migration_runner import MigrationRunner, MigrationChecksumMismatchError
 from database.migrations.user import MIGRATIONS as USER_MIGRATIONS
+
+# Reaches the log file through the handler `ErrorLogger` attaches to the
+# `app` package root — see CLAUDE.md, Logging invariant 1. This module has
+# no instance to carry an `error_logger`, and a rollback that cannot say
+# what it failed to remove is how #292 stayed hidden.
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------- constants
@@ -128,6 +135,92 @@ def _snapshot_database(source_db_path: Path, dest_path: Path) -> None:
             dst.close()
     finally:
         src.close()
+
+
+def _question_entry_count(db_path: Path) -> int:
+    """``question_entries`` count, read THROUGH a connection.
+
+    Reading through a connection rather than off the file is the point: in
+    WAL mode the newest commits may still be in the ``-wal``, and this number
+    is used to decide whether a safety copy is complete. ``_count_rows``
+    answers 0 for a table that is not there, which keeps this usable on a
+    profile whose schema predates it.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        return _count_rows(conn, 'question_entries')
+    finally:
+        conn.close()
+
+
+def _safety_backup_database(source_db_path: Path, dest_path: Path) -> None:
+    """Take a VERIFIED safety copy of a database that may be live (#155).
+
+    Uses ``Connection.backup()`` rather than ``PRAGMA wal_checkpoint`` plus a
+    file copy. Three reasons, measured on Python 3.12.3 / SQLite 3.45.1:
+
+    * **A checkpoint can be blocked, and says so in a return value.** With a
+      read snapshot pinned on a second connection,
+      ``PRAGMA wal_checkpoint(TRUNCATE)`` returns
+      ``(busy=1, log_frames=1, checkpointed=0)`` -- it copies *nothing*. A
+      checkpoint may not copy WAL frames past the oldest reader's mark, so
+      this is not a race that retrying wins: a reader that stays put keeps it
+      blocked for as long as it likes. Copying the ``.db`` alone afterwards
+      loses every commit still in the WAL (measured: 200 of 201 rows, the
+      newest missing).
+    * **``backup()`` reads through a connection**, so it sees the WAL tail and
+      does not care whether a snapshot is pinned. That also makes it immune to
+      the transaction-control question: it would still be correct if
+      ``BaseDatabase._connect`` ever moved off
+      ``LEGACY_TRANSACTION_CONTROL``, where any bare ``SELECT`` pins a
+      snapshot and this rare race becomes the normal case. Export has always
+      done it this way (``_snapshot_database``); this path was the only one
+      that did not.
+    * **It writes ONE self-contained file.** ``replace_profile``'s rollback
+      restores the backup with a single ``os.replace``, so a ``.db`` + ``-wal``
+      + ``-shm`` triplet would need a three-file restore -- and a ``.db``
+      paired with a WAL from another generation is a worse failure than the
+      one being fixed. Copying a triplet is not even atomic: the two files are
+      read at different instants, so they can be mutually inconsistent.
+
+    The copy is then **read back**. A backup that silently lacks recent
+    commits is worse than a refused backup, because the only moment it is ever
+    opened is a moment when something has already gone wrong. So a shortfall
+    raises here, before the caller touches anything.
+
+    Raises:
+        ProfileImportError: the copy could not be made, or came back short.
+            Nothing is left behind at ``dest_path`` in either case -- a
+            truncated ``pre_replace_*.db`` reads as a real safety backup to
+            anyone browsing the folder.
+    """
+    live_entries = _question_entry_count(source_db_path)
+    try:
+        _snapshot_database(source_db_path, dest_path)
+        copied_entries = _question_entry_count(dest_path)
+    except Exception as exc:
+        _discard_partial_backup(dest_path)
+        raise ProfileImportError(
+            f"Could not take a safety backup of the profile database, so "
+            f"nothing was changed: {exc}"
+        ) from exc
+
+    if copied_entries < live_entries:
+        _discard_partial_backup(dest_path)
+        raise ProfileImportError(
+            f"The safety backup of the profile database came back incomplete "
+            f"({copied_entries} entries instead of {live_entries}), so "
+            f"nothing was changed. Nothing was deleted; try again."
+        )
+
+
+def _discard_partial_backup(dest_path: Path) -> None:
+    """Remove a safety copy that failed, so it cannot be mistaken for one."""
+    try:
+        if dest_path.exists():
+            dest_path.unlink()
+    except OSError:
+        pass
 
 
 def _count_rows(conn: sqlite3.Connection, table: str) -> int:
@@ -284,7 +377,27 @@ def _reject_path_traversal(names) -> None:
 
 
 def _remove_db_artifacts(db_path: Path) -> None:
-    """Remove a user DB file and its WAL/SHM/graph side files (best-effort)."""
+    """Remove a user DB file and its WAL/SHM/graph side files (best-effort).
+
+    Best-effort means *it does not raise*; it does not mean it says
+    nothing. Each branch below used to be a bare ``except OSError: pass``,
+    and that silence is the whole reason #292 went unnoticed through every
+    Windows run: the import rollback left an orphan ``user_NNN_<name>.db``
+    behind, with the registry row already removed, so the file was
+    invisible to the application and nothing anywhere recorded it.
+
+    ``PermissionError`` is an ``OSError``, so the old handler caught
+    exactly the Windows failure — *the process cannot access the file
+    because it is being used by another process* — that this function
+    exists to survive. **The silence is platform-independent**: on POSIX
+    the unlink happens to succeed, so a future failure of any other kind
+    would have been equally invisible there.
+
+    A module logger rather than ``error_logger``: this is a module-level
+    function with no instance to carry one. ``logging.getLogger(__name__)``
+    is ``app.profile_archive``, which the handler attached to the ``app``
+    package root picks up (CLAUDE.md, Logging invariant 1).
+    """
     for candidate in (
         db_path,
         Path(str(db_path) + "-wal"),
@@ -293,8 +406,11 @@ def _remove_db_artifacts(db_path: Path) -> None:
         try:
             if candidate.exists():
                 candidate.unlink()
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning(
+                f"Could not remove {candidate}: {exc}. A failed profile "
+                f"operation has left this file behind."
+            )
     # Optional LadybugDB sibling (file or directory) — see GraphMixin.
     graph_path = db_path.with_suffix('.lbdb')
     try:
@@ -302,19 +418,11 @@ def _remove_db_artifacts(db_path: Path) -> None:
             shutil.rmtree(str(graph_path), ignore_errors=True)
         elif graph_path.exists():
             graph_path.unlink()
-    except OSError:
-        pass
-
-
-def _checkpoint_wal(db_path: Path) -> None:
-    """Checkpoint a database's WAL (if any) so the .db file is self-contained."""
-    if not Path(str(db_path) + "-wal").exists():
-        return
-    conn = sqlite3.connect(str(db_path))
-    try:
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    finally:
-        conn.close()
+    except OSError as exc:
+        logger.warning(
+            f"Could not remove {graph_path}: {exc}. A failed profile "
+            f"operation has left this file behind."
+        )
 
 
 def _ensure_disk_space(dest_dir: Path, required_bytes: int) -> None:
@@ -805,8 +913,18 @@ def install_profile_as_new(
             # Verify-open: runs pending migrations for older-schema archives.
             # That upgrade is also what mints a profile id for an archive
             # built before m021 — inside the new copy, where it belongs.
+            #
+            # error_logger is load-bearing here specifically (#131).
+            # MigrationRunner._log returns immediately when it is None, and
+            # the runner has no stdlib logger of its own, so WITHOUT it the
+            # whole migration narrative of this upgrade is lost: which
+            # versions were applied, and — on the path that reaches the
+            # rollback below — the "Migration user/vNNN (name) failed ...
+            # Rolled back." line naming the version that failed. The
+            # exception text that survives names the archive, not the step.
             verify_db = UserDatabase(
                 db_path=dest_db, user_id=user.id, username=user.username,
+                error_logger=master_db.error_logger,
                 device_id=master_db.get_device_id(),
             )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")
@@ -963,17 +1081,25 @@ def replace_profile(
         try:
             # ---- Safety backups (before any destructive step) ----
             if target_db.exists():
-                _checkpoint_wal(target_db)
-                backup_db = master_db.archive_dir / (
+                candidate = master_db.archive_dir / (
                     f"pre_replace_{user.database_filename}.{ts}.db"
                 )
                 counter = 1
-                while backup_db.exists():
-                    backup_db = master_db.archive_dir / (
+                while candidate.exists():
+                    candidate = master_db.archive_dir / (
                         f"pre_replace_{user.database_filename}.{ts}_{counter}.db"
                     )
                     counter += 1
-                shutil.copy2(str(target_db), str(backup_db))
+                # `backup_db` is assigned only once that file exists AND has
+                # been read back (#155), because the rollback below reads a
+                # non-None `backup_db` as authority to delete the live
+                # database before restoring from it. A name reserved before
+                # the copy succeeded therefore turned a FAILED backup into a
+                # destroyed profile -- measured: the half-written file was
+                # moved on top of the live database, which then was not a
+                # database at all (#297).
+                _safety_backup_database(target_db, candidate)
+                backup_db = candidate
 
             if media_dir.exists() and not keep_existing_media:
                 media_backup = media_dir.with_name(
@@ -1027,8 +1153,12 @@ def replace_profile(
             row_updated = True
 
             # ---- Verify-open (auto-migrates older schemas) ----
+            # error_logger for the same reason as install_profile_as_new's
+            # verify-open above (#131): the migration runner logs through it
+            # and through nothing else.
             verify_db = UserDatabase(
                 db_path=target_db, user_id=user.id, username=user.username,
+                error_logger=master_db.error_logger,
                 device_id=master_db.get_device_id(),
             )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")

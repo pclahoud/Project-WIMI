@@ -18,8 +18,32 @@ dict``, ``get_status() -> dict``.
 Teardown ordering: the pane's ``QWebEnginePage`` must be detached and
 deleted *before* its profile is released, otherwise QtWebEngine warns
 "Release of profile requested but WebEnginePage still not deleted.
-Expect troubles!" on exit. ``MainWindow.closeEvent`` calls
-:meth:`BrowserPaneController.teardown` to enforce this.
+Expect troubles !" on exit. ``MainWindow.closeEvent`` calls
+:meth:`BrowserPaneController.teardown` to enforce this -- since #153,
+which is the commit that made this paragraph true. It had claimed the
+call existed since the pane was written and **nothing called it**.
+
+What the invariant is actually worth, measured on Qt 6.9.0 / PyQt 6.9.1
+rather than inferred (#153):
+
+- Release the profile with a page alive and the warning fires, once per
+  live page. In the control that forced that order inside a live
+  ``MainWindow``, the process then **dumped core** -- "Expect troubles"
+  is not only a log line.
+- And yet the warning was *not* reachable through ``MainWindow`` before
+  #153, which is why the bug went unnoticed for the pane's whole life.
+  Qt destroys a parent's children in child-list order, and
+  ``MainWindow.__init__`` runs ``_setup_web_view()`` (central widget ->
+  splitter -> tab widget -> views -> pages, child 1) before
+  ``_setup_browser_pane()`` (the controller, which owns the profile,
+  child 2). So the pages were already gone by the time the profile went.
+  **The ordering was an accident of two lines of construction order, not
+  a guarantee**, and nothing recorded the dependency. Reordering
+  ``__init__``, or parenting the profile anywhere earlier, would have
+  turned it back on silently. ``teardown()`` from ``closeEvent`` is the
+  guarantee now; the parent chain is a second line of defence.
+- ``teardown()`` is safe with navigations in flight on every tab and
+  safe to call twice (``_torn_down``), both measured.
 """
 
 from __future__ import annotations

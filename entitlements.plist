@@ -7,7 +7,22 @@
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
+    <!-- What lets an unsigned, vendored third-party binary load at all: the
+         whisper.cpp CLI and its dylibs are built on the build host, not signed
+         by us (#59). -->
     <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Microphone (#59). Under the Hardened Runtime this is the resource-access
+         entitlement that has to accompany NSMicrophoneUsageDescription in
+         wimi_macos.spec's info_plist. The plist string is what the student is
+         SHOWN; this is what the process is ALLOWED. The build is unsigned
+         today, so nothing enforces this file yet. It is here so that signing
+         the bundle later cannot silently remove a permission the feature
+         needs: the two are a pair, and keeping only one of them is no use.
+         (Note for anyone editing this file: an XML comment may not contain two
+         consecutive hyphens, which is why none of these read like the prose in
+         the .spec files.) -->
+    <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>
 </plist>

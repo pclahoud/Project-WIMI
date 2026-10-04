@@ -99,6 +99,21 @@ class SubjectNodeError(DatabaseError):
     pass
 
 
+class SubjectRestoreError(DatabaseError):
+    """Raised when a delete batch cannot be restored (#37).
+
+    Distinct from :class:`SubjectNodeError` because the failure is about
+    the *batch* rather than a node: the batch is unknown, every member was
+    deleted again afterwards, it belongs to a dimension archive that must
+    be restored as a whole, or restoring it would leave a node with only
+    archived parents -- invisible, the state #15 removes edges to prevent
+    (#260). Every one of those is a sentence the student can act on, which
+    is why they are raised here rather than surfacing as an IntegrityError
+    from three frames down.
+    """
+    pass
+
+
 class QuestionAnalysisError(DatabaseError):
     """Raised when question analysis operation fails"""
     pass

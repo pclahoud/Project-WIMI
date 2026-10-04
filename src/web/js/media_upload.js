@@ -109,8 +109,10 @@ class MediaUpload {
             <!-- Full-size image modal -->
             <div class="media-modal" id="media-modal" style="display: none;" data-testid="entry-form-media-modal">
                 <div class="media-modal-backdrop"></div>
-                <div class="media-modal-content">
-                    <button type="button" class="media-modal-close" id="media-modal-close" data-testid="entry-form-media-modal-close-button">×</button>
+                <!-- No visible title: the dialog IS the image. -->
+                <div class="media-modal-content" data-modal-surface role="dialog"
+                     aria-modal="true" aria-label="Image viewer">
+                    <button type="button" class="media-modal-close" id="media-modal-close" data-testid="entry-form-media-modal-close-button" aria-label="Close image viewer">×</button>
                     <img id="media-modal-image" src="" alt="Full size image">
                     <div class="media-modal-caption" id="media-modal-caption"></div>
                 </div>
@@ -119,8 +121,9 @@ class MediaUpload {
             <!-- Rename modal -->
             <div class="media-rename-modal" id="media-rename-modal" style="display: none;" data-testid="entry-form-media-rename-modal">
                 <div class="media-modal-backdrop"></div>
-                <div class="media-rename-content">
-                    <h4>Rename Image</h4>
+                <div class="media-rename-content" data-modal-surface role="dialog"
+                     aria-modal="true" aria-labelledby="media-rename-title">
+                    <h2 id="media-rename-title">Rename Image</h2>
                     <input type="text" id="media-rename-input" class="form-input" placeholder="Enter new name" data-testid="entry-form-media-rename-input">
                     <div class="media-rename-actions">
                         <button type="button" class="btn btn-secondary btn-sm" id="media-rename-cancel" data-testid="entry-form-media-rename-cancel-button">Cancel</button>
@@ -132,8 +135,9 @@ class MediaUpload {
             <!-- Delete confirmation modal -->
             <div class="media-delete-modal" id="media-delete-modal" style="display: none;" data-testid="entry-form-media-delete-modal">
                 <div class="media-modal-backdrop"></div>
-                <div class="media-delete-content">
-                    <h4>Remove Image</h4>
+                <div class="media-delete-content" data-modal-surface role="dialog"
+                     aria-modal="true" aria-labelledby="media-delete-title">
+                    <h2 id="media-delete-title">Remove Image</h2>
                     <p class="media-delete-filename" id="media-delete-filename"></p>
                     <p>How would you like to remove this image?</p>
                     <div class="media-delete-options">
@@ -161,8 +165,9 @@ class MediaUpload {
             <!-- Subject Assignment Modal -->
             <div class="media-subject-modal" id="media-subject-modal" style="display: none;" data-testid="entry-form-media-subject-modal">
                 <div class="media-modal-backdrop"></div>
-                <div class="media-subject-content">
-                    <h4>Assign Subjects to Image</h4>
+                <div class="media-subject-content" data-modal-surface role="dialog"
+                     aria-modal="true" aria-labelledby="media-subject-title">
+                    <h2 id="media-subject-title">Assign Subjects to Image</h2>
                     <div class="media-subject-preview" id="media-subject-preview"></div>
                     <p class="media-subject-hint">Select which subjects this image relates to:</p>
                     <div class="media-subject-list" id="media-subject-list"></div>

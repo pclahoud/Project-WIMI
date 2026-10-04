@@ -16,12 +16,12 @@
     /* Answer colors */
     --wrong-bg: var(--color-error-bg, #fef2f2);
     --wrong-border: var(--color-error-bg, #fecaca);
-    --wrong-text: var(--color-error, #dc2626);
+    --wrong-text: var(--color-error-text);
     --wrong-label-bg: var(--color-error-bg, #fee2e2);
     
     --correct-bg: var(--color-success-bg, #f0fdf4);
     --correct-border: var(--color-success);
-    --correct-text: var(--color-success, #16a34a);
+    --correct-text: var(--color-success-text);
     --correct-label-bg: var(--color-success-bg, #dcfce7);
     
     /* Difficulty colours are the shared five-step ramp in difficulty.css,
@@ -30,7 +30,7 @@
     /* Related topics */
     --related-bg: var(--color-warning-bg, #fffbeb);
     --related-border: var(--color-warning);
-    --related-accent: var(--color-warning, #f59e0b);
+    --related-accent: var(--color-warning-text);
 }
 
 /* ============================================
@@ -60,6 +60,21 @@
 
 .header-left {
     flex: 1;
+    min-width: 0; /* lets .detail-title's ellipsis work inside the flex row */
+}
+
+/* The page's h1 (#317). Its SIZE is declared here precisely so the heading
+   level stays free to be the one the document outline implies -- h1 because
+   it is the top of this page's outline, not because of how large it should
+   look. A long session name truncates rather than growing the sticky header. */
+.detail-title {
+    margin: var(--space-xs) 0 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-center {
@@ -87,7 +102,7 @@
 }
 
 .back-link:hover {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .back-arrow {
@@ -689,7 +704,7 @@
     gap: 0.25rem;
     padding: 0.25rem 0.625rem;
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -765,7 +780,7 @@
 .nav-btn:hover:not(:disabled) {
     background: var(--bg-secondary);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .nav-btn:active:not(:disabled) {

@@ -122,7 +122,7 @@
 .tox .tox-tbtn--enabled:hover,
 .tox .tox-tbtn:focus {
     background-color: var(--color-primary-bg) !important;
-    color: var(--color-primary) !important;
+    color: var(--color-primary-text) !important;
 }
 
 .tox .tox-tbtn--disabled,
@@ -419,7 +419,7 @@
     gap: var(--space-sm);
     padding: var(--space-lg);
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
     border-radius: var(--radius-md);
 }
 
@@ -488,7 +488,7 @@
     border-bottom: 1px solid var(--border-light);
 }
 
-.rich-editor-math-header h4 {
+.rich-editor-math-header h2 {
     margin: 0;
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
@@ -573,7 +573,7 @@
 }
 
 .rich-editor-math-preview .error {
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: var(--font-size-sm);
 }
 
@@ -610,7 +610,7 @@
 .rich-editor-math-examples button:hover {
     background: var(--color-primary-bg);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .rich-editor-math-footer {
@@ -694,6 +694,27 @@
 .tox .tox-tbtn:focus-visible {
     outline: 3px solid var(--color-primary) !important;
     outline-offset: 2px !important;
+}
+
+/* #304: the editing iframe itself was a focus stop that drew nothing, so a
+   keyboard user tabbing through the entry form could not tell the caret had
+   arrived in the reflection editor.
+
+   `:focus-within` on the wrapper, NOT `iframe:focus-visible`, and this is
+   measured rather than preferred. Focusing TinyMCE's iframe makes it
+   `document.activeElement` in the parent document, yet
+   `iframe.matches(':focus')` is FALSE and `:focus-visible` is FALSE --
+   focus is inside the child document. `.tox-edit-area:focus-within` is
+   true. So an `iframe:focus-visible` rule is one that can never match: it
+   would read as a fix, pass review, and do nothing.
+
+   `:focus-within` rather than `:focus-visible` also means the ring shows
+   for a mouse click into the editor, which is right here -- a text editing
+   surface showing where the caret is is not the same as a button flashing
+   on click. */
+.tox-edit-area:focus-within {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
 }
 
 /* High contrast mode adjustments */

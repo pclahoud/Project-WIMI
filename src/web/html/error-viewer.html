@@ -25,7 +25,10 @@
         </div>
         
         <div class="viewer-filters">
-            <select class="filter-select" id="level-filter" onchange="errorViewer.filterErrors()">
+            <!-- The buttons above already carry aria-labels and are #306's
+                 named counter-example; these three filters never got the
+                 same treatment and announced unnamed (#305). -->
+            <select class="filter-select" id="level-filter" aria-label="Filter by log level" onchange="errorViewer.filterErrors()">
                 <option value="">All Levels</option>
                 <option value="TRACE">Trace</option>
                 <option value="DEBUG">Debug</option>
@@ -36,7 +39,7 @@
                 <option value="FATAL">Fatal</option>
             </select>
             
-            <select class="filter-select" id="category-filter" onchange="errorViewer.filterErrors()">
+            <select class="filter-select" id="category-filter" aria-label="Filter by category" onchange="errorViewer.filterErrors()">
                 <option value="">All Categories</option>
                 <option value="javascript">JavaScript</option>
                 <option value="network">Network</option>
@@ -47,7 +50,8 @@
                 <option value="custom">Custom</option>
             </select>
             
-            <input type="text" class="search-input" id="search-filter" 
+            <input type="text" class="search-input" id="search-filter"
+                   aria-label="Search errors"
                    placeholder="Search errors..." onkeyup="errorViewer.filterErrors()">
         </div>
         

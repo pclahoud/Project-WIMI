@@ -133,16 +133,23 @@ TREE_EDITOR_TARGETS = {
 
 ENTRY_BROWSER_TARGETS = {
     # browser.css
+    #
+    # These three expected `var(--color-warning)` until #303, which split the
+    # status palette into a fill and a label because one value cannot do both:
+    # `#f59e0b` as text on `--color-warning-bg` measured 2.07:1. They are TEXT,
+    # so they follow `--color-warning-text` now. The repoint they were written
+    # to guard is unaffected — both names are palette tokens that theme, and
+    # the pre-fix control `#92400e` still discriminates against either.
     'draft toggle text':
         ['.draft-toggle:has(input:checked)', 'color', 'color',
-         'var(--color-warning)', 'var(--warning-dark, #92400e)'],
+         'var(--color-warning-text)', 'var(--warning-dark, #92400e)'],
     'draft badge text':
         ['.draft-badge', 'color', 'color',
-         'var(--color-warning)', 'var(--warning-dark, #92400e)'],
+         'var(--color-warning-text)', 'var(--warning-dark, #92400e)'],
     # export_dialog.css
     'export warning text':
         ['.export-warning', 'color', 'color',
-         'var(--color-warning)', 'var(--warning-dark, #92400e)'],
+         'var(--color-warning-text)', 'var(--warning-dark, #92400e)'],
     'export warning background':
         ['.export-warning', 'background', 'backgroundColor',
          'var(--color-warning-bg)', 'var(--warning-light, #fef3c7)'],
@@ -220,10 +227,19 @@ def test_entry_browser_repoints_follow_the_palette(
 ) -> None:
     """browser.css's two and export_dialog.css's four.
 
-    All six are the house tinted-badge pattern — ``--color-X`` text on
-    ``--color-X-bg`` — which 69 other rules already use. Pinned at ``#92400e``
-    the draft badge was dark amber on Midnight's ``--color-warning-bg``
-    (``#451a03``): dark on dark.
+    All six are the house tinted-badge pattern — a status colour as text on
+    its own ``--color-X-bg`` — which 69 other rules already use. Pinned at
+    ``#92400e`` the draft badge was dark amber on Midnight's
+    ``--color-warning-bg`` (``#451a03``): dark on dark.
+
+    **The pattern itself was then found to be the bug** (#303): the *same*
+    token used as the fill and as the label cannot clear 4.5:1 on both, and
+    ``#f59e0b`` on ``#fffbeb`` measured 2.07:1. So the three text targets here
+    now name ``--color-warning-text`` and the background and fill targets
+    still name ``--color-warning`` / ``--color-warning-bg``. That split is the
+    point, and this scenario is where it is visible side by side — if a future
+    change makes a text target follow a fill token again, this file is what
+    should go red.
     """
     wimi_page.goto('entry-browser')
     check_across_themes(wimi_page, ENTRY_BROWSER_TARGETS, 'the entry browser')

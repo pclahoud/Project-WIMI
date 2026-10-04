@@ -35,11 +35,20 @@ class ExportQuestionIdsDialog {
         modal.className = 'modal';
         modal.style.maxWidth = '520px';
 
-        // Title
-        const titleEl = document.createElement('h3');
+        // Title. The dialog is named by pointing at this heading rather than
+        // by copying `title` into aria-label, so the two cannot drift.
+        const titleEl = document.createElement('h2');
         titleEl.className = 'modal-title';
+        titleEl.id = 'export-ids-modal-title';
         titleEl.textContent = title;
         modal.appendChild(titleEl);
+
+        // The dialog semantics go on the SURFACE, never on the backdrop --
+        // see docs/guides/MODAL_DIALOG.md.
+        modal.setAttribute('data-modal-surface', '');
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', titleEl.id);
 
         // Delimiter options
         const delimGroup = document.createElement('div');

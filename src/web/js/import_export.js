@@ -35,6 +35,178 @@ const ImportExportState = {
 // =========================================================================
 
 /**
+ * Fetch the exam's aliases once, keyed by subject row id.
+ *
+ * One call for the whole exam rather than one per dimension: a whole-exam
+ * export would otherwise repeat it per axis for a map that is already
+ * exam-wide.
+ */
+async function fetchExportAliasMap(examContextId) {
+    const aliasMap = new Map();
+    try {
+        const subjects = await api.getAllSubjectsWithAliasesForExam(examContextId);
+        if (subjects) {
+            for (const subj of subjects) {
+                if (subj.aliases && subj.aliases.length > 0) {
+                    aliasMap.set(subj.id, subj.aliases);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch aliases for export:', e);
+    }
+    return aliasMap;
+}
+
+/**
+ * The stable, portable id of a dimension, or undefined (#237).
+ *
+ * `exam_dimensions.import_id` (m025), never `exam_dimensions.id`. The row id
+ * means something different in every profile, so writing it as an identifier
+ * would claim to identify dimensions that were never imported — the #67 rule
+ * for subjects, one level up, where getting it wrong costs an entire subject
+ * tree rather than one subject.
+ *
+ * Absent when the dimension has none, exactly as a hand-built subject tree
+ * exports id-free. A dimension adopts an id the first time a file supplies
+ * one (#66 2.3), and until then there is nothing portable to write.
+ */
+function portableDimensionId(dimension) {
+    return (dimension && dimension.import_id) || undefined;
+}
+
+/**
+ * Build the file a per-dimension (or no-dimension) export writes. Pure.
+ *
+ * Separated from the download so the result can be asserted on at all: this
+ * whole module had no test covering what it writes, which is how the
+ * dimension-level version of #67's "NOT the row id" rule came to be violated
+ * (#237).
+ *
+ * **This form deliberately carries no dimension id.** The import it feeds is
+ * *targeted* — the tree view supplies the dimension — so the file does not
+ * need to identify one. And it must not: a file declaring a `dimensions` list
+ * is authoritative about exam structure (#241), so a one-axis file says "this
+ * exam has one dimension" and archives the rest. Measured on a three-axis
+ * exam: importing a one-axis file archived the other two axes and their
+ * trees. The whole-exam form below is the one that carries ids, because it
+ * declares every axis and is therefore a no-op on re-import.
+ */
+function buildSingleTreeExport(params) {
+    const {
+        hierarchyData, examContext, examContextId, hierarchyLevels,
+        dimension = null, includeMetadata = true, includeWeights = true,
+        aliasMap = new Map(),
+    } = params;
+
+    const rootNodes = cleanNodesForExport(
+        hierarchyData?.root_nodes || [], includeWeights, aliasMap);
+
+    return {
+        ...(includeMetadata && {
+            _metadata: {
+                export_version: '1.2',
+                exported_at: new Date().toISOString(),
+                exported_from: 'WIMI Desktop',
+                exam_name: examContext?.exam_name || 'Unknown',
+                exam_id: examContextId,
+                total_nodes: countNodesInHierarchy(hierarchyData?.root_nodes || []),
+                hierarchy_levels: hierarchyLevels?.map(l => l.level_name) || [],
+                // `dimension_name` is a human label and says so. The raw
+                // `exam_dimensions.id` that used to sit beside it is gone
+                // (#237): nothing read it, and a number that looks like an
+                // identifier invites being used as one in the next profile,
+                // where it names a different dimension or none.
+                ...(dimension && {
+                    dimension_name: dimension.name || 'Unknown',
+                    ...(portableDimensionId(dimension) && {
+                        dimension_import_id: portableDimensionId(dimension),
+                    }),
+                }),
+            },
+        }),
+        root_nodes: rootNodes,
+    };
+}
+
+/**
+ * Build a whole-exam file: every axis, each with its own tree (#237, #66 2.3).
+ *
+ * **Every axis, or none.** Omitting one would archive it on re-import, so a
+ * whole-exam export is only correct when it is complete — which is also what
+ * makes the per-axis `id` safe to write here.
+ */
+function buildWholeExamExport(params) {
+    const {
+        axes, examContext, examContextId, hierarchyLevels,
+        includeMetadata = true, includeWeights = true, aliasMap = new Map(),
+    } = params;
+
+    const dimensions = axes.map(({ dimension, hierarchyData }) => {
+        const axis = { name: dimension.name };
+        const id = portableDimensionId(dimension);
+        if (id) axis.id = id;
+        if (dimension.display_order !== undefined && dimension.display_order !== null) {
+            axis.display_order = dimension.display_order;
+        }
+        // Written out even though the importer leaves an omitted flag alone:
+        // a whole-exam file is a description of the exam, and a round trip
+        // that quietly dropped these would make the file a worse description
+        // of the exam than the thing it came from.
+        axis.is_required = !!dimension.is_required;
+        axis.allow_multiple = !!dimension.allow_multiple;
+        if (dimension.description) axis.description = dimension.description;
+        axis.root_nodes = cleanNodesForExport(
+            hierarchyData?.root_nodes || [], includeWeights, aliasMap);
+        return axis;
+    });
+
+    const totalNodes = axes.reduce(
+        (sum, { hierarchyData }) =>
+            sum + countNodesInHierarchy(hierarchyData?.root_nodes || []), 0);
+
+    return {
+        ...(includeMetadata && {
+            _metadata: {
+                export_version: '1.2',
+                exported_at: new Date().toISOString(),
+                exported_from: 'WIMI Desktop',
+                exam_name: examContext?.exam_name || 'Unknown',
+                exam_id: examContextId,
+                total_nodes: totalNodes,
+                dimension_count: dimensions.length,
+                hierarchy_levels: hierarchyLevels?.map(l => l.level_name) || [],
+            },
+        }),
+        dimensions,
+    };
+}
+
+/**
+ * Turn a built export object into a download.
+ */
+function downloadExportFile(data, filename, prettyPrint = true) {
+    const jsonString = prettyPrint
+        ? JSON.stringify(data, null, 2)
+        : JSON.stringify(data);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function exportFilenameBase(examContext) {
+    return (examContext?.exam_name || 'hierarchy')
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase();
+}
+
+/**
  * Export hierarchy with enhanced options
  * @param {Object} options - Export options
  */
@@ -63,57 +235,26 @@ async function exportHierarchyEnhanced(options = {}) {
             hierarchyData = await api.getSubjectHierarchy(TreeState.examContextId);
         }
 
-        // Fetch aliases for all subjects in this exam (keyed by node ID)
-        const aliasMap = new Map();
-        try {
-            const subjects = await api.getAllSubjectsWithAliasesForExam(TreeState.examContextId);
-            if (subjects) {
-                for (const subj of subjects) {
-                    if (subj.aliases && subj.aliases.length > 0) {
-                        aliasMap.set(subj.id, subj.aliases);
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('Could not fetch aliases for export:', e);
-        }
+        const aliasMap = await fetchExportAliasMap(TreeState.examContextId);
 
-        // Build export object
-        const exportData = {
-            // Metadata section
-            ...(includeMetadata && {
-                _metadata: {
-                    export_version: '1.1',
-                    exported_at: new Date().toISOString(),
-                    exported_from: 'WIMI Desktop',
-                    exam_name: TreeState.examContext?.exam_name || 'Unknown',
-                    exam_id: TreeState.examContextId,
-                    total_nodes: countNodesInHierarchy(hierarchyData?.root_nodes || []),
-                    hierarchy_levels: TreeState.hierarchyLevels?.map(l => l.level_name) || [],
-                    ...(isDimensionMode && {
-                        dimension_id: TreeState.currentDimensionId,
-                        dimension_name: TreeState.currentDimension?.name || 'Unknown'
-                    })
-                }
-            }),
-
-            // Root nodes
-            root_nodes: cleanNodesForExport(hierarchyData?.root_nodes || [], includeWeights, aliasMap)
-        };
-
-        // Create blob and download
-        const jsonString = prettyPrint
-            ? JSON.stringify(exportData, null, 2)
-            : JSON.stringify(exportData);
-
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+        const exportData = buildSingleTreeExport({
+            hierarchyData,
+            examContext: TreeState.examContext,
+            examContextId: TreeState.examContextId,
+            hierarchyLevels: TreeState.hierarchyLevels,
+            dimension: isDimensionMode ? TreeState.currentDimension : null,
+            includeMetadata,
+            includeWeights,
+            aliasMap,
+        });
 
         // Generate filename - include dimension name for multi-dimensional exams
-        const examName = (TreeState.examContext?.exam_name || 'hierarchy')
-            .replace(/[^a-z0-9]/gi, '_')
-            .toLowerCase();
-        const date = new Date().toISOString().split('T')[0];
+        const examName = exportFilenameBase(TreeState.examContext);
+        // The day the student made the export, not the UTC one (#286). This
+        // site is cosmetic on its own -- but a file saved at 21:00 and named
+        // with tomorrow is the sort of inconsistency somebody later "fixes"
+        // in the wrong direction, so it moves with the other four.
+        const date = LocalDate.today();
         let filename;
         if (isDimensionMode) {
             const dimName = (TreeState.currentDimension?.name || 'dimension')
@@ -123,17 +264,9 @@ async function exportHierarchyEnhanced(options = {}) {
         } else {
             filename = `${examName}_subjects_${date}.json`;
         }
-        
-        // Trigger download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        URL.revokeObjectURL(url);
-        
+
+        downloadExportFile(exportData, filename, prettyPrint);
+
         Toast.success('Exported', `Downloaded ${filename}`);
         
     } catch (error) {
@@ -144,6 +277,81 @@ async function exportHierarchyEnhanced(options = {}) {
         const exportBtn = document.getElementById('btn-export');
         if (exportBtn) {
             exportBtn.innerHTML = '<span>📤</span> Export';
+            exportBtn.disabled = false;
+        }
+    }
+}
+
+/**
+ * Export every dimension of the exam as one whole-exam file (#237, #66).
+ *
+ * A separate action from `exportHierarchyEnhanced` rather than a mode of it.
+ * The two produce files that mean different things — one is a tree to merge
+ * into the dimension you are looking at, the other is a description of the
+ * whole exam that will create, rename and archive dimensions — and silently
+ * changing what the existing button writes would be the more surprising of
+ * the two options.
+ */
+async function exportWholeExamHierarchy(options = {}) {
+    const {
+        includeMetadata = true,
+        prettyPrint = true,
+        includeWeights = true
+    } = options;
+
+    const exportBtn = document.getElementById('btn-export-whole-exam');
+    try {
+        if (exportBtn) {
+            exportBtn.innerHTML = '<span>⏳</span> Exporting...';
+            exportBtn.disabled = true;
+        }
+
+        const dimensions = await api.getDimensions(TreeState.examContextId);
+        if (!dimensions || dimensions.length === 0) {
+            Toast.error('Nothing to export',
+                'This exam has no dimensions. Use Export for its subject tree.');
+            return;
+        }
+
+        const aliasMap = await fetchExportAliasMap(TreeState.examContextId);
+
+        // Sequential on purpose: the bridge is a single channel and the
+        // trees can be large, so firing every dimension at once buys nothing
+        // and makes a failure harder to attribute.
+        const axes = [];
+        for (const dimension of dimensions) {
+            axes.push({
+                dimension,
+                hierarchyData: await api.getDimensionHierarchy(
+                    TreeState.examContextId, dimension.id),
+            });
+        }
+
+        const exportData = buildWholeExamExport({
+            axes,
+            examContext: TreeState.examContext,
+            examContextId: TreeState.examContextId,
+            hierarchyLevels: TreeState.hierarchyLevels,
+            includeMetadata,
+            includeWeights,
+            aliasMap,
+        });
+
+        const date = LocalDate.today();  // #286, as above
+        const filename =
+            `${exportFilenameBase(TreeState.examContext)}_whole_exam_${date}.json`;
+
+        downloadExportFile(exportData, filename, prettyPrint);
+
+        Toast.success('Exported',
+            `Downloaded ${filename} (${axes.length} dimensions)`);
+
+    } catch (error) {
+        console.error('Whole-exam export error:', error);
+        Toast.error('Export Failed', error.message);
+    } finally {
+        if (exportBtn) {
+            exportBtn.innerHTML = '<span>\u{1F4E6}</span> Export all';
             exportBtn.disabled = false;
         }
     }
@@ -267,12 +475,27 @@ async function handleImportFileEnhanced(event) {
         // Store pending import data. `rootNodes` is kept alongside the
         // untouched file so the preview and the count don't have to
         // guess which key it used (issue #61).
-        const rootNodes = api.getImportRootNodes(data).nodes || [];
+        //
+        // A whole-exam file (#241) has no top-level `root_nodes`, so reading
+        // one would put **0 subjects to import** on the modal for a file
+        // carrying three trees — the same "reads like success" failure #240
+        // fixed at the bridge. The count is therefore pooled over the axes.
+        // Drawing those trees is a separate matter: `renderImportPreviewTree`
+        // recurses on depth alone and `countNodesInHierarchy` walks every
+        // subtree again per internal node, so it does not scale to several
+        // trees as written (#212). Wave 4 owns the rendering; this only makes
+        // sure the number is not a lie in the meantime.
+        const rootNodes = validation.isWholeExam
+            ? (data.dimensions || []).flatMap(
+                  axis => (axis && api.getImportRootNodes(axis).nodes) || [])
+            : (api.getImportRootNodes(data).nodes || []);
         ImportExportState.pendingImport = {
             filename: file.name,
             data: data,
             rootNodes: rootNodes,
             nodeCount: countNodesInHierarchy(rootNodes),
+            isWholeExam: validation.isWholeExam,
+            axisCount: validation.isWholeExam ? (data.dimensions || []).length : 0,
             metadata: data._metadata || null
         };
         
@@ -303,46 +526,122 @@ function validateImportData(data) {
     // is the single shared reader — the tree editor's own handler uses
     // it too, and importSubjectHierarchy accepts either key, so nothing
     // here rewrites the caller's file.
-    const { nodes: rootNodes, key: usedKey } = api.getImportRootNodes(data);
+    // A whole-exam file (#66 Wave 3, #241) carries a top-level `dimensions`
+    // list, each entry an axis with its own tree, and `root_nodes` is not
+    // read. Each axis is validated as a tree in its own right, so every
+    // per-node and per-weight check below applies unchanged — and, as in the
+    // planner, the trees never see each other.
+    //
+    // Keyed on the list type rather than the key's presence: `dimensions: 3`
+    // is a malformed file, not a whole-exam file, and belongs to the ordinary
+    // path so the ordinary messages describe it.
+    const isWholeExam = !!data && Array.isArray(data.dimensions);
 
-    if (usedKey === null) {
-        errors.push({
-            type: 'structure',
-            message: 'Missing "root_nodes" or "subjects" array',
-            path: 'root',
-            severity: 'error'
+    // `trees` is what the rest of this function walks: one entry for an
+    // ordinary file, one per axis for a whole-exam file. Collapsing the two
+    // shapes here rather than branching per check is what keeps the axes from
+    // acquiring their own, weaker validation.
+    const trees = [];
+
+    if (isWholeExam) {
+        data.dimensions.forEach((axis, i) => {
+            const label = (axis && typeof axis.name === 'string' && axis.name.trim())
+                ? axis.name.trim()
+                : `#${i + 1}`;
+            if (!axis || typeof axis !== 'object' || Array.isArray(axis)) {
+                errors.push({
+                    type: 'structure',
+                    message: `Dimension ${i + 1} is not an object`,
+                    path: `dimensions[${i}]`,
+                    severity: 'error'
+                });
+                return;
+            }
+            if (!axis.name || typeof axis.name !== 'string' || !axis.name.trim()) {
+                errors.push({
+                    type: 'field',
+                    message: `Dimension ${i + 1} has no "name"`,
+                    path: `dimensions[${i}]`,
+                    severity: 'error'
+                });
+                return;
+            }
+            const { nodes, key } = api.getImportRootNodes(axis);
+            if (key === null) {
+                // A misspelled `root_nodes` inside an axis. A warning, not an
+                // error: an axis listing no subjects removes nothing, exactly
+                // as an empty file removes nothing, and refusing the whole
+                // blueprint over one typo costs the student every other axis.
+                warnings.push({
+                    type: 'empty',
+                    message: `Dimension "${label}" lists no subjects, so nothing `
+                           + `in it will be added, changed or removed`,
+                    path: `dimensions[${i}]`,
+                    severity: 'warning'
+                });
+                return;
+            }
+            trees.push({ nodes, key: `dimensions[${i}].${key}`, spelling: key });
         });
-        return { errors, warnings, hasValidNodes: false };
+
+        if (data.dimensions.length === 0) {
+            warnings.push({
+                type: 'empty',
+                message: 'The file lists no dimensions, so importing it will '
+                       + 'change nothing',
+                path: 'dimensions',
+                severity: 'warning'
+            });
+        }
+    } else {
+        // Issue #61: root_nodes (what export writes) and subjects (what the
+        // import spec documents) are both accepted. api.getImportRootNodes
+        // is the single shared reader — the tree editor's own handler uses
+        // it too, and importSubjectHierarchy accepts either key, so nothing
+        // here rewrites the caller's file.
+        const { nodes: rootNodes, key: usedKey } = api.getImportRootNodes(data);
+
+        if (usedKey === null) {
+            errors.push({
+                type: 'structure',
+                message: 'Missing "root_nodes" or "subjects" array',
+                path: 'root',
+                severity: 'error'
+            });
+            return { errors, warnings, hasValidNodes: false };
+        }
+
+        if (!Array.isArray(rootNodes)) {
+            errors.push({
+                type: 'structure',
+                message: '"root_nodes" (or "subjects") must be an array',
+                path: usedKey,
+                severity: 'error'
+            });
+            return { errors, warnings, hasValidNodes: false };
+        }
+
+        if (usedKey === 'subjects') {
+            warnings.push({
+                type: 'format',
+                message: 'File uses the "subjects" key; "root_nodes" is what export writes',
+                path: 'root',
+                severity: 'info'
+            });
+        }
+
+        if (rootNodes.length === 0) {
+            warnings.push({
+                type: 'empty',
+                message: 'The file contains no subjects to import',
+                path: 'root_nodes',
+                severity: 'warning'
+            });
+        }
+
+        trees.push({ nodes: rootNodes, key: usedKey, spelling: usedKey });
     }
 
-    if (!Array.isArray(rootNodes)) {
-        errors.push({
-            type: 'structure',
-            message: '"root_nodes" (or "subjects") must be an array',
-            path: usedKey,
-            severity: 'error'
-        });
-        return { errors, warnings, hasValidNodes: false };
-    }
-
-    if (usedKey === 'subjects') {
-        warnings.push({
-            type: 'format',
-            message: 'File uses the "subjects" key; "root_nodes" is what export writes',
-            path: 'root',
-            severity: 'info'
-        });
-    }
-
-    if (rootNodes.length === 0) {
-        warnings.push({
-            type: 'empty',
-            message: 'The file contains no subjects to import',
-            path: 'root_nodes',
-            severity: 'warning'
-        });
-    }
-    
     // Validate each node recursively
     function validateNode(node, path, depth = 1) {
         // Check name
@@ -487,10 +786,12 @@ function validateImportData(data) {
         }
     }
     
-    rootNodes.forEach((node, i) => {
-        validateNode(node, `${usedKey}[${i}]`);
+    trees.forEach((tree) => {
+        tree.nodes.forEach((node, i) => {
+            validateNode(node, `${tree.key}[${i}]`);
+        });
     });
-    
+
     // Check sibling weight totals
     function checkWeightTotals(nodes, path) {
         if (!nodes || nodes.length === 0) return;
@@ -516,13 +817,20 @@ function validateImportData(data) {
         });
     }
     
-    checkWeightTotals(rootNodes, usedKey);
-    
+    // Per tree, never pooled. Sibling totals are a statement about one set of
+    // siblings, and the roots of two different axes are not siblings — each
+    // axis's roots describe 100% of the exam on their own, so pooling them
+    // would report every whole-exam file as wildly over 100%.
+    trees.forEach((tree) => {
+        checkWeightTotals(tree.nodes, tree.key);
+    });
+
     return {
         errors,
         warnings,
         hasValidNodes: validNodeCount > 0,
-        validNodeCount
+        validNodeCount,
+        isWholeExam
     };
 }
 
@@ -542,10 +850,37 @@ function showImportPreviewModal() {
     document.getElementById('import-filename').textContent = pending.filename;
     document.getElementById('import-node-count').textContent = pending.nodeCount;
     
-    // Show dimension context notice when in dimension mode
+    // What this file's scope actually is (#66 Wave 4).
+    //
+    // This notice keyed on `TreeState.currentDimension` and never on the file,
+    // so a whole-exam file -- one that creates, renames and archives
+    // dimensions across the exam -- was announced as "Importing into
+    // dimension: System". False in the most expensive direction: the student
+    // would believe the blast radius is one axis when it is all of them.
+    //
+    // The whole-exam branch is first and does NOT depend on a current
+    // dimension, because such a file is equally valid on an exam that has none
+    // yet -- that is how a student sets one up from a document.
     const dimensionNoticeEl = document.getElementById('import-dimension-notice');
     if (dimensionNoticeEl) {
-        if (TreeState.usesDimensions && TreeState.currentDimensionId && TreeState.currentDimension) {
+        if (pending.isWholeExam) {
+            const notOnlyCurrent = TreeState.currentDimension
+                ? ` It does not import only into
+                   <strong>${escapeHtml(TreeState.currentDimension.name)}</strong>.`
+                : '';
+            const howMany = pending.axisCount
+                ? ` (${pending.axisCount} in the file)`
+                : '';
+            dimensionNoticeEl.innerHTML = `
+                <span class="info-icon">📦</span>
+                <span>This file describes <strong>every dimension</strong> of
+                this exam${howMany}, and can create, rename and archive
+                them.${notOnlyCurrent} Read the summary below before
+                confirming.</span>
+            `;
+            dimensionNoticeEl.classList.remove('hidden');
+        } else if (TreeState.usesDimensions && TreeState.currentDimensionId
+                   && TreeState.currentDimension) {
             dimensionNoticeEl.innerHTML = `
                 <span class="info-icon">📂</span>
                 <span>Importing into dimension: <strong>${escapeHtml(TreeState.currentDimension.name)}</strong></span>
@@ -698,20 +1033,245 @@ async function loadImportMergePlan() {
  * @param {Object} plan Payload from `previewSubjectHierarchyImport`.
  * @returns {string} HTML string.
  */
+/**
+ * The axis-level half of the import plan (#252, #66 Wave 4).
+ *
+ * The planner already decided all of this; before this existed the modal
+ * displayed only the subject-level counts, so a file that archived two
+ * dimensions and every subject tree inside them reported **"0 removed"** --
+ * `counts.removed` is the subject figure for the axes the file *declares*, and
+ * subjects removed by a dimension archive go through `archive_dimension`'s
+ * cascade instead. The one number a student reads to answer "will this delete
+ * anything" said zero when the answer was "two whole axes".
+ *
+ * So an archived axis is the loudest thing in this panel. Under #210 the
+ * cascade takes the whole tree.
+ *
+ * It **is** undoable since #37 landed: the tree editor's "Archived subjects"
+ * panel restores the whole archive as one event, dimension and trees
+ * together. This text said "cannot be undone yet" until then, and saying so
+ * after the fact would be worse than the original omission -- it would talk a
+ * student out of an import that is in fact reversible.
+ */
+function renderWholeExamPlanNotes(plan) {
+    const c = plan.counts || {};
+    let notes = '';
+
+    // Loudest first: what is about to be archived.
+    if ((plan.dimensions_removed || []).length) {
+        const rows = plan.dimensions_removed.map(d => `
+            <li>
+                <strong>${escapeHtml(d.name)}</strong>
+                <span class="import-plan-count">${d.subject_count}
+                    ${d.subject_count === 1 ? 'subject' : 'subjects'}</span>
+            </li>
+        `).join('');
+        const n = plan.dimensions_removed.length;
+        const subjects = plan.dimensions_removed.reduce(
+            (sum, d) => sum + (d.subject_count || 0), 0);
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">\u26A0\uFE0F</span>
+                <div>
+                    <p><strong>${n} ${n === 1 ? 'dimension' : 'dimensions'} and
+                    ${subjects === 1 ? 'its' : 'their'} ${subjects}
+                    ${subjects === 1 ? 'subject' : 'subjects'} will be
+                    archived</strong>, because this file does not list
+                    ${n === 1 ? 'it' : 'them'} and nothing is tagged inside
+                    ${n === 1 ? 'it' : 'them'}. You can undo this afterwards
+                    from <strong>Archived subjects</strong> at the foot of the
+                    tree editor.</p>
+                    <ul class="import-plan-kept-list">${rows}</ul>
+                    <p>To keep ${n === 1 ? 'it' : 'them'}, add
+                    ${n === 1 ? 'it' : 'them'} to the file's
+                    <code>dimensions</code> list and import again.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    if ((plan.dimensions_kept_in_use || []).length) {
+        const rows = plan.dimensions_kept_in_use.map(d => `
+            <li>
+                <strong>${escapeHtml(d.name)}</strong>
+                <span class="import-plan-count">${d.entry_count}
+                    ${d.entry_count === 1 ? 'entry' : 'entries'}</span>
+            </li>
+        `).join('');
+        const n = plan.dimensions_kept_in_use.length;
+        notes += `
+            <div class="import-plan-note kept">
+                <span class="info-icon">\u{1F4CC}</span>
+                <div>
+                    <p><strong>${n} ${n === 1 ? 'dimension is' : 'dimensions are'}
+                    kept because your entries are tagged inside
+                    ${n === 1 ? 'it' : 'them'}</strong>, even though this file
+                    does not list ${n === 1 ? 'it' : 'them'}. Your history
+                    wins.</p>
+                    <ul class="import-plan-kept-list">${rows}</ul>
+                </div>
+            </div>
+        `;
+    }
+
+    if ((plan.dimensions_added || []).length) {
+        const names = plan.dimensions_added
+            .map(d => escapeHtml(d.name)).join(', ');
+        const n = plan.dimensions_added.length;
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">\u2795</span>
+                <span>${n} new ${n === 1 ? 'dimension' : 'dimensions'} will be
+                created: <strong>${names}</strong>.</span>
+            </div>
+        `;
+    }
+
+    // A renamed axis is worth saying out loud: without a stable `id` in the
+    // file it would have been an archive plus a create, taking the tree with
+    // it, so seeing "renamed" is the student's evidence that the ids worked.
+    const renamed = (plan.dimensions_updated || [])
+        .filter(d => d.changes && d.changes.name);
+    if (renamed.length) {
+        const rows = renamed.map(d => `
+            <li><strong>${escapeHtml(String(d.changes.name[0]))}</strong>
+                \u2192 <strong>${escapeHtml(String(d.changes.name[1]))}</strong></li>
+        `).join('');
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">\u{1F4DD}</span>
+                <div>
+                    <p><strong>${renamed.length}
+                    ${renamed.length === 1 ? 'dimension is' : 'dimensions are'}
+                    renamed</strong>, and ${renamed.length === 1 ? 'its' : 'their'}
+                    subjects stay where they are.</p>
+                    <ul class="import-plan-kept-list">${rows}</ul>
+                </div>
+            </div>
+        `;
+    }
+
+    if (plan.declares_no_dimensions) {
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">\u26A0\uFE0F</span>
+                <span>This file lists no dimensions, so importing it does
+                nothing. It is <strong>not</strong> read as "remove every
+                dimension" &mdash; a file that lost its
+                <code>dimensions</code> key, or downloaded half-way, looks
+                exactly like this.</span>
+            </div>
+        `;
+    }
+
+    const quiet = (plan.axes || []).filter(a => a.declares_no_subjects);
+    if (quiet.length) {
+        const names = quiet.map(a => escapeHtml(a.name)).join(', ');
+        notes += `
+            <div class="import-plan-note warning">
+                <span class="info-icon">\u26A0\uFE0F</span>
+                <span>${quiet.length === 1 ? 'Dimension' : 'Dimensions'}
+                <strong>${names}</strong>
+                ${quiet.length === 1 ? 'lists' : 'list'} no subjects, so nothing
+                in ${quiet.length === 1 ? 'it' : 'them'} is added, changed or
+                removed. A misspelled <code>root_nodes</code> key looks exactly
+                like this.</span>
+            </div>
+        `;
+    }
+
+    if (plan.dimensionless_subject_count) {
+        const n = plan.dimensionless_subject_count;
+        notes += `
+            <div class="import-plan-note">
+                <span class="info-icon">\u2139\uFE0F</span>
+                <span>${n} ${n === 1 ? 'subject is' : 'subjects are'} not in any
+                dimension. A whole-exam file describes the dimensions, so
+                ${n === 1 ? 'it is' : 'they are'} left exactly as
+                ${n === 1 ? 'it is' : 'they are'} &mdash; neither updated nor
+                removed.</span>
+            </div>
+        `;
+    }
+
+    return notes;
+}
+
+/**
+ * One row per axis: what happens to it, and its own coverage band.
+ *
+ * **Coverage is per axis and never summed** (#64, and #241). The axes are
+ * overlapping partitions of one item pool -- the three real Step 2 CK tables
+ * total 84-153%, 78-113% and 97-142% -- so one combined figure would describe
+ * nothing. That is why this is a table of bands and not a total.
+ */
+function renderWholeExamAxisTable(plan) {
+    const axes = plan.axes || [];
+    if (!axes.length) return '';
+
+    const ACTION = {add: 'new', update: 'updated', unchanged: 'unchanged'};
+    const rows = axes.map(axis => {
+        const ac = axis.counts || {};
+        const cov = axis.coverage || {};
+        const band = cov.weighted_roots
+            ? `${(cov.low || 0)}\u2013${(cov.high || 0)}%`
+            : '\u2014';
+        const spans100 = cov.weighted_roots && !cov.spans_100;
+        return `
+            <tr>
+                <td class="import-axis-name">${escapeHtml(axis.name)}</td>
+                <td>${ACTION[axis.action] || escapeHtml(String(axis.action))}</td>
+                <td>${ac.added || 0}</td>
+                <td>${ac.updated || 0}</td>
+                <td>${ac.removed || 0}</td>
+                <td class="${spans100 ? 'import-axis-coverage-warn' : ''}"
+                    title="${spans100
+                        ? 'This axis\u2019s weights do not span 100%. WIMI imports them as written and never rescales.'
+                        : ''}">${band}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <table class="import-axis-table">
+            <thead>
+                <tr>
+                    <th>Dimension</th><th></th>
+                    <th>added</th><th>updated</th><th>removed</th>
+                    <th title="The summed low\u2013high of this dimension\u2019s top-level weights. Never added across dimensions: they describe the same questions.">coverage</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+}
+
 function renderImportMergePlan(plan) {
     const c = plan.counts || {};
-    const stat = (n, label, cls) => `
+    // `label` may be a plain string, or `[singular, plural]` where the count
+    // makes "1 dimensions added" read badly.
+    const stat = (n, label, cls) => {
+        const count = n || 0;
+        const text = Array.isArray(label)
+            ? (count === 1 ? label[0] : label[1])
+            : label;
+        return `
         <div class="import-plan-stat ${n ? cls : 'is-zero'}">
-            <span class="import-plan-number">${n || 0}</span>
-            <span class="import-plan-label">${label}</span>
+            <span class="import-plan-number">${count}</span>
+            <span class="import-plan-label">${text}</span>
         </div>
     `;
+    };
 
     const detail = [];
     if (c.renamed) detail.push(`${c.renamed} renamed`);
     if (c.moved) detail.push(`${c.moved} moved`);
 
     let notes = '';
+
+    if (plan.whole_exam) {
+        notes += renderWholeExamPlanNotes(plan);
+    }
 
     if (plan.empty_file) {
         notes += `
@@ -752,7 +1312,19 @@ function renderImportMergePlan(plan) {
     }
 
     if (c.kept_in_use) {
-        const links = (plan.kept_in_use || []).map(item => `
+        // On a whole-exam plan the kept subjects live per axis, so reading
+        // `plan.kept_in_use` rendered the explanation with an EMPTY list --
+        // the student was told subjects were kept and shown none of them
+        // (#252). Pooled here rather than at the payload, because the
+        // single-tree shape is the one every other caller expects.
+        const keptItems = plan.whole_exam
+            ? (plan.axes || []).flatMap(a => a.kept_in_use || [])
+            : (plan.kept_in_use || []);
+        const keptTotal = plan.whole_exam
+            ? (plan.axes || []).reduce(
+                (sum, a) => sum + (a.kept_in_use_total || 0), 0)
+            : plan.kept_in_use_total;
+        const links = keptItems.map(item => `
             <li>
                 <a class="import-plan-link"
                    href="entry_browser.html?exam=${encodeURIComponent(plan.exam_context_id)}&subject=${encodeURIComponent(item.id)}">
@@ -761,9 +1333,9 @@ function renderImportMergePlan(plan) {
                     ${item.entry_count === 1 ? 'entry' : 'entries'}</span>
             </li>
         `).join('');
-        const more = plan.kept_in_use_total > (plan.kept_in_use || []).length
+        const more = keptTotal > keptItems.length
             ? `<li class="import-plan-more">and ${
-                plan.kept_in_use_total - plan.kept_in_use.length} more</li>`
+                keptTotal - keptItems.length} more</li>`
             : '';
         notes += `
             <div class="import-plan-note kept">
@@ -824,12 +1396,29 @@ function renderImportMergePlan(plan) {
         `;
     }
 
+    // A whole-exam file leads with its dimensions, because that is the level
+    // at which it can cost the student a whole tree (#252). The subject
+    // figures follow, and are labelled as subjects so the two rows of numbers
+    // cannot be read as one.
+    const axisBlock = plan.whole_exam
+        ? `
+            <div class="import-plan-stats">
+                ${stat(c.dimensions_added, ['dimension added', 'dimensions added'], 'is-added')}
+                ${stat(c.dimensions_updated, ['dimension updated', 'dimensions updated'], 'is-updated')}
+                ${stat(c.dimensions_removed, ['dimension archived', 'dimensions archived'], 'is-removed')}
+                ${stat(c.dimensions_kept_in_use, ['dimension kept', 'dimensions kept'], 'is-unchanged')}
+            </div>
+            ${renderWholeExamAxisTable(plan)}
+        `
+        : '';
+
     return `
+        ${axisBlock}
         <div class="import-plan-stats">
-            ${stat(c.added, 'added', 'is-added')}
-            ${stat(c.updated, 'updated', 'is-updated')}
-            ${stat(c.removed, 'removed', 'is-removed')}
-            ${stat(c.unchanged, 'unchanged', 'is-unchanged')}
+            ${stat(c.added, plan.whole_exam ? ['subject added', 'subjects added'] : 'added', 'is-added')}
+            ${stat(c.updated, plan.whole_exam ? ['subject updated', 'subjects updated'] : 'updated', 'is-updated')}
+            ${stat(c.removed, plan.whole_exam ? ['subject removed', 'subjects removed'] : 'removed', 'is-removed')}
+            ${stat(c.unchanged, plan.whole_exam ? ['subject unchanged', 'subjects unchanged'] : 'unchanged', 'is-unchanged')}
         </div>
         ${detail.length
             ? `<p class="import-plan-detail">Of the updated subjects,
@@ -846,20 +1435,126 @@ function renderImportMergePlan(plan) {
  * @param {number} maxDepth - Maximum depth to render
  * @returns {string} HTML string
  */
-function renderImportPreviewTree(nodes, depth = 0, maxDepth = 3) {
+//: How many subjects the preview will draw before it stops and says how many
+//: it did not. Measured (#212): layout is 10-25x the cost of building the HTML
+//: string and 8-22x the cost of parsing it, so what has to be bounded is the
+//: number of DOM elements, not the depth. A 40x12x5 file materialised 100% of
+//: itself -- 11,680 elements in a 93,440-pixel-tall container, 380 ms of
+//: layout. 300 nodes keeps the modal's own list to roughly a screen and a half
+//: at every file size.
+const _PREVIEW_NODE_BUDGET = 300;
+
+/**
+ * Subtree sizes for every node, in one bottom-up pass.
+ *
+ * Replaces calling `countNodesInHierarchy` per node, which walked each
+ * subtree again for every ancestor -- 1.8-3.8x the file in redundant visits,
+ * measured, and for most nodes the result was then discarded because it is
+ * only read when a branch is truncated (#212).
+ *
+ * Keyed by node object identity, which is safe here because the plan's nodes
+ * are the file's own parsed objects and are not copied between the parse and
+ * the render.
+ */
+function importPreviewSubtreeSizes(nodes) {
+    const sizes = new Map();
+    const visit = (node) => {
+        let size = 0;
+        for (const child of node.children || []) {
+            size += 1 + visit(child);
+        }
+        sizes.set(node, size);
+        return size;
+    };
+    for (const node of nodes || []) visit(node);
+    return sizes;
+}
+
+/**
+ * How a subject's weight reads in the preview (#250).
+ *
+ * The format documents three forms and this drew exactly one of them. A
+ * `{low, high}` object -- the form real blueprints use, and the reason #64
+ * exists -- coerced to NaN in `weight > 0`, so the comparison was false and
+ * **no weight was rendered at all**, silently, for precisely the files this
+ * preview was built for.
+ *
+ * A band reads as a band. Flattening it to a midpoint would state a number
+ * the file does not contain, which is the thing #64 forbids one layer down.
+ */
+function importPreviewWeightLabel(weight) {
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    if (typeof weight === 'number') {
+        return num(weight) ? `${weight.toFixed(1)}%` : '';
+    }
+    if (weight && typeof weight === 'object') {
+        if ('value' in weight) {
+            const v = num(weight.value);
+            return v ? `${v.toFixed(1)}%` : '';
+        }
+        const low = num(weight.low);
+        const high = num(weight.high);
+        if (low === null && high === null) return '';
+        if (low !== null && high !== null && low !== high) {
+            return `${low.toFixed(1)}\u2013${high.toFixed(1)}%`;
+        }
+        const single = low !== null ? low : high;
+        return single ? `${single.toFixed(1)}%` : '';
+    }
+    return '';
+}
+
+/**
+ * Render the import preview's subject list, bounded in the number of nodes
+ * it draws (#212).
+ *
+ * `budget` and `sizes` are threaded through the recursion and default on the
+ * top-level call, so the existing two-argument callers are unchanged.
+ *
+ * **Bounded by node count, not only by depth.** Depth alone is not a limit
+ * when the breadth is what is large: a file 40 wide at the top rendered all
+ * 2,920 of its nodes with `maxDepth = 3` already in force. The depth limit is
+ * kept as well, because it is what keeps a deep narrow tree readable.
+ */
+function renderImportPreviewTree(nodes, depth = 0, maxDepth = 3,
+                                 budget = null, sizes = null) {
     if (!nodes || nodes.length === 0) return '';
-    
+
+    if (budget === null) budget = { left: _PREVIEW_NODE_BUDGET };
+    if (sizes === null) sizes = importPreviewSubtreeSizes(nodes);
+
     const indent = depth * 20;
-    
-    return nodes.map((node, i) => {
+    const parts = [];
+
+    for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (budget.left <= 0) {
+            // Everything still unrendered at this level and below it. Read
+            // from the sizes map rather than walked again, and indexed rather
+            // than searched -- this is a performance fix, so an O(n) lookup
+            // here would be in poor taste even at one call per truncation.
+            let remaining = 0;
+            for (let j = i; j < nodes.length; j++) {
+                remaining += 1 + (sizes.get(nodes[j]) || 0);
+            }
+            parts.push(`
+                <div class="import-preview-more" style="margin-left: ${indent}px;">
+                    ... and ${remaining} more subject${remaining === 1 ? '' : 's'} not shown
+                </div>
+            `);
+            break;
+        }
+        budget.left -= 1;
+
         const hasChildren = node.children && node.children.length > 0;
-        const weight = node.weight || 0;
-        const childCount = hasChildren ? countNodesInHierarchy(node.children) : 0;
-        
+        const childCount = hasChildren ? (sizes.get(node) || 0) : 0;
+        const weightLabel = importPreviewWeightLabel(node.weight);
+
         let childrenHtml = '';
         if (hasChildren) {
             if (depth < maxDepth) {
-                childrenHtml = renderImportPreviewTree(node.children, depth + 1, maxDepth);
+                childrenHtml = renderImportPreviewTree(
+                    node.children, depth + 1, maxDepth, budget, sizes);
             } else {
                 childrenHtml = `
                     <div class="import-preview-more" style="margin-left: ${indent + 20}px;">
@@ -868,18 +1563,21 @@ function renderImportPreviewTree(nodes, depth = 0, maxDepth = 3) {
                 `;
             }
         }
-        
-        return `
+
+        parts.push(`
             <div class="import-preview-node" style="margin-left: ${indent}px;">
-                <span class="preview-icon">${hasChildren ? '📁' : '📄'}</span>
+                <span class="preview-icon">${hasChildren ? '\u{1F4C1}' : '\u{1F4C4}'}</span>
                 <span class="preview-name">${escapeHtml(node.name)}</span>
-                ${weight > 0 ? `<span class="preview-weight">${weight.toFixed(1)}%</span>` : ''}
+                ${weightLabel ? `<span class="preview-weight">${weightLabel}</span>` : ''}
                 ${hasChildren && depth >= maxDepth ? `<span class="preview-children-count">(${childCount})</span>` : ''}
             </div>
             ${childrenHtml}
-        `;
-    }).join('');
+        `);
+    }
+
+    return parts.join('');
 }
+
 
 /**
  * Toggle import warnings visibility
@@ -1034,10 +1732,11 @@ function createImportPreviewModal() {
     modal.id = 'import-preview-modal';
     modal.className = 'modal-backdrop';
     modal.innerHTML = `
-        <div class="modal modal-lg">
+        <div class="modal modal-lg" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="import-preview-modal-title">
             <div class="modal-header">
-                <h3 class="modal-title">📥 Import Preview</h3>
-                <button class="modal-close" onclick="hideImportPreviewModal()">×</button>
+                <h2 class="modal-title" id="import-preview-modal-title">📥 Import Preview</h2>
+                <button class="modal-close" onclick="hideImportPreviewModal()" aria-label="Close">×</button>
             </div>
             
             <div class="modal-body">
@@ -1128,9 +1827,10 @@ function createImportErrorModal() {
     modal.id = 'import-error-modal';
     modal.className = 'modal-backdrop';
     modal.innerHTML = `
-        <div class="modal">
+        <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="import-error-modal-title">
             <div class="modal-icon error">❌</div>
-            <h3 class="modal-title">Import Failed</h3>
+            <h2 class="modal-title" id="import-error-modal-title">Import Failed</h2>
             <p class="modal-message">The file could not be imported due to the following errors:</p>
             
             <div class="import-error-list" id="import-error-list">
@@ -1428,6 +2128,19 @@ if (document.readyState === 'loading') {
 }
 
 window.exportHierarchyEnhanced = exportHierarchyEnhanced;
+window.exportWholeExamHierarchy = exportWholeExamHierarchy;
+// The pure builders, exposed so a scenario can assert on what the export
+// WRITES without going through a browser download (#237). Before this, the
+// only thing guarding "never write the row id" was a comment.
+window.buildSingleTreeExport = buildSingleTreeExport;
+window.buildWholeExamExport = buildWholeExamExport;
+// #212 / #250: pure, and the only way to assert on what the preview draws.
+window.renderImportPreviewTree = renderImportPreviewTree;
+window.renderWholeExamPlanNotes = renderWholeExamPlanNotes;
+window.renderWholeExamAxisTable = renderWholeExamAxisTable;
+window.importPreviewWeightLabel = importPreviewWeightLabel;
+window.importPreviewSubtreeSizes = importPreviewSubtreeSizes;
+window.countNodesInHierarchy = countNodesInHierarchy;
 window.triggerImportEnhanced = triggerImportEnhanced;
 window.handleImportFileEnhanced = handleImportFileEnhanced;
 window.showImportPreviewModal = showImportPreviewModal;

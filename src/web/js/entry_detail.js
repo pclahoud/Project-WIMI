@@ -73,6 +73,7 @@ class EntryDetail {
             // Header
             backLink: document.getElementById('back-link'),
             editBtn: document.getElementById('edit-btn'),
+            entryHeading: document.getElementById('entry-heading'),
             
             // Entry header
             subjectPath: document.getElementById('subject-path'),
@@ -328,6 +329,9 @@ class EntryDetail {
     // =========================================================================
     
     renderEntry() {
+        // Name the page before anything else is drawn (#317)
+        this.renderPageHeading();
+
         // Render subject path
         this.renderSubjectPath();
         
@@ -381,6 +385,22 @@ class EntryDetail {
                 span.textContent = part;
                 this.elements.subjectPath.appendChild(span);
             });
+            // #301: this breadcrumb is the case the issue called "arguably
+            // history" -- the entry really was filed under that chain. The
+            // owner's decision settles it: one rule for the path (filtered,
+            // so it agrees with the tree), and the note carries the history
+            // the student would otherwise have lost without explanation.
+            //
+            // `appendTo` rather than `insertAfter` because this breadcrumb
+            // is a CONTAINER: the path is already several spans with
+            // separators between them, so there is no single value node for
+            // the note to sit beside, and appending still leaves it a
+            // sibling of every part.
+            if (typeof ArchivedAncestorNote !== 'undefined') {
+                ArchivedAncestorNote.appendTo(
+                    this.elements.subjectPath,
+                    subjects[0].path_omitted_ancestors);
+            }
         } else {
             subjects.forEach((subject, index) => {
                 if (index > 0) {
@@ -425,6 +445,43 @@ class EntryDetail {
         this.elements.difficultyBadge.style.display = '';
     }
     
+    /**
+     * Fill the page's h1 (#317).
+     *
+     * The element and its level are #317's; the TEXT follows #314's decision
+     * -- the entry identified by session + question, e.g. "IM Day 11 —
+     * Question 7". Both halves come from data this page already holds:
+     * `context.session.name` and `entry.entry_order`.
+     *
+     * `entry_order` is the question number WITHIN THE SESSION -- 1-based,
+     * MAX+1 on insert and never renumbered (question_entry.js says so), and
+     * it is the same number the entry form's own add-more-entries navigation
+     * counts in. It is deliberately NOT `entry.question_id`, which is free
+     * text for the student's own reference ("Q15", "Page 42" -- see the entry
+     * form's placeholder), is nullable, and already has its own meta item
+     * below. "Question Page 42" is the heading that choice would produce.
+     *
+     * #314 also makes the document title the same text; that half is NOT done
+     * here, because #314 is recorded and not yet approved for implementation.
+     */
+    renderPageHeading() {
+        if (!this.elements.entryHeading) return;
+
+        const session = this.context?.session?.name;
+        const order = this.entry?.entry_order;
+
+        // Each half is omitted when absent rather than substituted for. A
+        // session always has a name and an entry always has an order, so the
+        // fallback is for a malformed payload, not a normal state -- and a
+        // heading reading "undefined" is worse than a generic one.
+        const parts = [];
+        if (session) parts.push(session);
+        if (order) parts.push(`Question ${order}`);
+
+        this.elements.entryHeading.textContent =
+            parts.length ? parts.join(' — ') : 'Entry';
+    }
+
     renderMetaInfo() {
         // Source name
         // getEntryWithContext emits the source and the session under `name`
@@ -1103,6 +1160,12 @@ class EntryDetail {
         this.elements.errorState.style.display = 'flex';
         this.elements.errorMessage.textContent = message;
         this.elements.mainContent.style.display = 'none';
+        // The h1 ships "Loading entry…" and nothing arrived, so leaving it
+        // would have the page's own title still claiming to be loading beside
+        // an error panel (#317). The error state's h2 carries the detail.
+        if (this.elements.entryHeading) {
+            this.elements.entryHeading.textContent = 'Entry';
+        }
     }
     
     showContent() {

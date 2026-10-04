@@ -57,6 +57,11 @@ class EntryBrowser {
         this.selectionMode = false;
         this.selectedEntryIds = new Set();
 
+        // "The page is still markup." Cleared by markPageReady(), which is
+        // the one place that also removes `inert` from .app-container
+        // (#114, #122). Latched so the method is idempotent.
+        this.isPageReady = false;
+
         // Initialize on DOM ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
@@ -65,40 +70,97 @@ class EntryBrowser {
         }
     }
     
+    /**
+     * Hand the browser to the student: clear `inert` and drop isPageReady.
+     *
+     * Until this runs, .app-container ships `inert`, so #searchInput cannot be
+     * focused or typed into and the filter buttons cannot be clicked -- which
+     * is the point. The search `input` handler is bound in
+     * setupEventListeners(), two awaits into init(), so a query typed before
+     * that fired into nothing: the box held the student's text while the grid
+     * showed every entry, unfiltered, and nothing further fired until they
+     * typed another character (#122).
+     *
+     * Released from the `finally` of init(), i.e. AFTER loadInitialData()
+     * rather than after setupEventListeners(). Two reasons, and the second is
+     * the one that matters:
+     *
+     * - the filter dropdowns are empty until loadSubjects()/loadTags()/
+     *   loadSessions() return, and the sort control does not exist until
+     *   `new CustomSelect(...)` inside cacheElements';
+     * - a query typed between the bind and the first load would call
+     *   resetAndLoad() concurrently with loadInitialData()'s own loadEntries(),
+     *   and whichever resolved last would win -- which is #122's wrong answer
+     *   reached by a different route.
+     *
+     * In a `finally` because a permanently gated page is far worse than the
+     * bug the gate fixes (#114's own rule): `api.ready()` REJECTS on a
+     * connection error, and without this the page would be left dead and
+     * silent rather than merely dataless.
+     *
+     * It also owns the announcement (#127): `inert` takes .app-container out
+     * of the accessibility tree, so the gate is silence as well as refusal,
+     * and #loadingState cannot say so because it is inside the gated subtree.
+     */
+    markPageReady() {
+        if (this.isPageReady) return;
+        this.isPageReady = true;
+
+        const page = document.querySelector('.app-container');
+        if (page) page.removeAttribute('inert');
+
+        // AFTER removeAttribute, inside a try, behind a typeof check, and its
+        // return value deliberately ignored. Nothing added for assistive tech
+        // -- a forgotten <script> tag included -- may be able to leave the
+        // page gated (#127, point 5 of page_gate.js's contract).
+        try {
+            if (typeof PageGate !== 'undefined') PageGate.release('Entry browser ready.');
+        } catch (err) {
+            console.warn('PageGate.release failed; the page is released anyway:', err);
+        }
+    }
+
     async init() {
         console.log('📋 Entry Browser initializing...');
-        
-        // Parse URL parameters
-        this.parseUrlParams();
-        
-        // Wait for API
-        await api.ready();
 
-        // Apply user preferences for defaults
         try {
-            const prefs = await api.getUserPreferences();
-            if (prefs) {
-                if (prefs.entry_review_items_per_page) {
-                    this.perPage = prefs.entry_review_items_per_page;
-                }
-                if (prefs.entry_review_default_sort_field) {
-                    this.filters.sortBy = prefs.entry_review_default_sort_field;
-                }
-            }
-        } catch (e) {
-            console.warn('Could not load user preferences, using defaults:', e);
-        }
+            // Parse URL parameters
+            this.parseUrlParams();
 
-        // Cache DOM elements
-        this.cacheElements();
-        
-        // Set up event listeners
-        this.setupEventListeners();
-        
-        // Load initial data
-        await this.loadInitialData();
-        
-        console.log('✅ Entry Browser ready');
+            // Wait for API
+            await api.ready();
+
+            // Apply user preferences for defaults
+            try {
+                const prefs = await api.getUserPreferences();
+                if (prefs) {
+                    if (prefs.entry_review_items_per_page) {
+                        this.perPage = prefs.entry_review_items_per_page;
+                    }
+                    if (prefs.entry_review_default_sort_field) {
+                        this.filters.sortBy = prefs.entry_review_default_sort_field;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load user preferences, using defaults:', e);
+            }
+
+            // Cache DOM elements
+            this.cacheElements();
+
+            // Set up event listeners
+            this.setupEventListeners();
+
+            // Load initial data
+            await this.loadInitialData();
+
+            console.log('✅ Entry Browser ready');
+        } finally {
+            // One release, reached from the happy path and from a rejected
+            // api.ready(). See markPageReady() for why it is here rather than
+            // after the last statement above.
+            this.markPageReady();
+        }
     }
     
     parseUrlParams() {
@@ -802,9 +864,29 @@ class EntryBrowser {
             nameSpan.textContent = item.label;
             chip.appendChild(nameSpan);
 
-            // Add tooltip for full path
+            // Add tooltip for full path.
+            //
+            // #301: the path is filtered now, so an archived ancestor is no
+            // longer in it. This chip ALREADY carries the path in a `title`,
+            // and `title` is the mechanism #301 rejected for the pages that
+            // needed a new affordance -- so the note is appended to the one
+            // that exists rather than nesting a `tabindex="0"` tooltip host
+            // inside a chip that is itself a clickable filter control. A
+            // second tab stop inside each chip would be a worse trade than
+            // the weaker tooltip, and the sentence is identical either way.
+            const chipPathNote = (
+                typeof ArchivedAncestorNote !== 'undefined'
+                && item.subject
+                    ? ArchivedAncestorNote.sentence(
+                        item.subject.path_omitted_ancestors)
+                    : ''
+            );
             if (item.tooltip && item.tooltip !== item.label) {
-                chip.title = item.tooltip;
+                chip.title = chipPathNote
+                    ? `${item.tooltip}\n${chipPathNote}`
+                    : item.tooltip;
+            } else if (chipPathNote) {
+                chip.title = chipPathNote;
             }
 
             // Per-card subject testid
@@ -1335,6 +1417,23 @@ class EntryBrowser {
         this.resetAndLoad();
     }
     
+    /**
+     * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
+     *
+     * A filter chip's label can carry the student's own search text
+     * verbatim (`Search: "<query>"`), so an attribute built from it needs
+     * `"`, `&`, `<` and `>` escaped or the attribute ends early.
+     *
+     * Note the *visible* half of this markup interpolates `chip.label`
+     * unescaped, which predates this change and is filed separately rather
+     * than widened into here.
+     */
+    escapeAttr(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : text;
+        return div.innerHTML.replace(/"/g, '&quot;');
+    }
+
     updateActiveFilters() {
         const chips = [];
 
@@ -1367,10 +1466,16 @@ class EntryBrowser {
         
         this.elements.activeFilters.style.display = chips.length > 0 ? 'flex' : 'none';
 
+        // The remove control is a <button>, not a <span onclick>. That is
+        // #304's defect verbatim -- a span with a click handler and no role,
+        // tabindex or key handler is operable by mouse only -- on an element
+        // the audit did not reach because it walked the page with no filters
+        // applied. Same change, same reason, named in the PR rather than
+        // left for a second pass.
         this.elements.filterChips.innerHTML = chips.map(chip => `
             <span class="filter-chip" data-testid="browser-filter-chip-${chip.type}">
                 ${chip.label}
-                <span class="remove-chip" data-type="${chip.type}" data-testid="browser-filter-chip-${chip.type}-remove">×</span>
+                <button type="button" class="remove-chip" data-type="${chip.type}" data-testid="browser-filter-chip-${chip.type}-remove" aria-label="Remove filter ${this.escapeAttr(chip.label)}">×</button>
             </span>
         `).join('');
         
@@ -1524,9 +1629,10 @@ class EntryBrowser {
     formatDateISO(date) {
         // Local calendar day, not toISOString() (UTC): after 20:00 in
         // UTC-4 the latter names tomorrow, and the "Today" preset filters
-        // on a day that has no entries yet.
-        const pad = n => String(n).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        // on a day that has no entries yet. This file got that right before
+        // the other five sites did; it delegates since #286 so there is one
+        // statement of the rule rather than two that can drift.
+        return LocalDate.toISODate(date);
     }
     
     lightenColor(hex, amount) {

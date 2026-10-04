@@ -52,7 +52,11 @@ def test_registry_has_v22_above_the_m021_floor():
     versions = [m.version for m in MIGRATIONS]
     assert versions == sorted(versions)
     assert 22 in versions
-    assert max(versions) == 22
+    # "Above the m021 floor" is the claim, so it is stated as the step
+    # from 21 rather than as ``max(versions) == 22``. That was a
+    # snapshot of m022 being the newest migration, and m023 (#59) made
+    # it false without anything about m022 changing.
+    assert versions[versions.index(22) - 1] == 21
     # The gaps stay gaps: v8 is the assessments branch, v11-v14 were
     # stamped into real databases by the capture feature branch (paused, #145).
     for skipped in (8, 11, 12, 13, 14):
@@ -71,7 +75,10 @@ def test_apply_pending_adds_the_column_and_stamps_the_ledger(fresh_conn):
 
     applied = _full_runner(fresh_conn).apply_pending()
 
-    assert applied == [22]
+    # v22 is the next one applied after v21. Anything the registry
+    # gained later follows it, so this is an ordering claim rather than
+    # ``== [22]``, which said m022 was last.
+    assert applied[0] == 22
     assert COLUMN in get_column_names(fresh_conn, "user_preferences")
     assert 22 in _ledger_versions(fresh_conn)
 

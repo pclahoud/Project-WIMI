@@ -29,6 +29,23 @@
                     <span class="back-arrow">←</span>
                     <span>Back to Entries</span>
                 </a>
+                <!--
+                  The page's h1 (#317). This page had no heading of any level
+                  above h2, so it had no top to its outline at all.
+
+                  It is in the HEADER rather than in .entry-header-section
+                  because that section lives inside #main-content, which ships
+                  `display: none` until the entry arrives: an h1 there would be
+                  out of the outline for the whole of every load, and would
+                  come after the error state's h2 in document order. The same
+                  shape as tree_editor.html's #exam-name and
+                  session_setup.html's #session-name -- a holding value in the
+                  markup, filled by the page once it knows.
+
+                  The TEXT is #314's decision (the entry named by session +
+                  question). Only the element and its level are #317's.
+                -->
+                <h1 class="detail-title" id="entry-heading" data-testid="detail-entry-heading">Loading entry…</h1>
             </div>
             <div class="header-center">
                 <!-- Entry Navigation -->
@@ -136,20 +153,20 @@
 
             <!-- Reflection Section -->
             <section class="content-section">
-                <h3 class="section-title">REFLECTION</h3>
+                <h2 class="section-title">REFLECTION</h2>
                 <div class="section-content" id="reflection-content" data-testid="detail-reflection-content"></div>
             </section>
 
             <!-- Explanation Section -->
             <section class="content-section">
-                <h3 class="section-title">EXPLANATION</h3>
+                <h2 class="section-title">EXPLANATION</h2>
                 <div class="section-content" id="explanation-content" data-testid="detail-explanation-content"></div>
             </section>
 
             <!-- Attachments and Notes Row -->
             <section class="attachments-notes-section">
                 <div class="attachments-panel">
-                    <h3 class="section-title">ATTACHMENTS (<span id="attachment-count">0</span>)</h3>
+                    <h2 class="section-title">ATTACHMENTS (<span id="attachment-count">0</span>)</h2>
                     <div class="attachments-grid" id="attachments-grid" data-testid="detail-attachments-grid">
                         <!-- Attachment thumbnails will be inserted here -->
                     </div>
@@ -159,10 +176,10 @@
                 </div>
                 
                 <div class="notes-panel">
-                    <h3 class="section-title">
+                    <h2 class="section-title">
                         QUESTION NOTES
                         <span class="notes-count" id="notes-count"></span>
-                    </h3>
+                    </h2>
                     <div class="notes-tabs" id="notes-tabs"></div>
                     <div class="notes-tab-content" id="notes-tab-content" data-testid="detail-notes-tab-content"></div>
                     <div class="notes-content" id="notes-content" style="display: none;"></div>
@@ -174,10 +191,10 @@
 
             <!-- Related Topics Section -->
             <section class="related-topics-section">
-                <h3 class="section-title">
+                <h2 class="section-title">
                     <span class="title-icon">💡</span>
                     RELATED TOPICS TO REVIEW
-                </h3>
+                </h2>
                 <div class="related-topics-grid" id="related-topics-grid" data-testid="detail-related-topics-grid">
                     <!-- Related topics will be inserted here -->
                 </div>
@@ -193,8 +210,13 @@
     <!-- Image Lightbox Modal -->
     <div class="lightbox-modal" id="lightbox-modal" data-testid="detail-lightbox-modal">
         <div class="lightbox-backdrop" data-testid="detail-lightbox-backdrop"></div>
-        <div class="lightbox-content">
-            <button class="lightbox-close" id="lightbox-close" data-testid="detail-lightbox-close">×</button>
+        <!-- No visible title: the dialog IS the image, so the name is
+             spelled out rather than borrowed from a heading. -->
+        <div class="lightbox-content" data-modal-surface role="dialog" aria-modal="true"
+             aria-label="Image viewer">
+            <!-- The two nav arrows beside this already carry aria-labels;
+                 this one announced as "multiplication sign" (#306). -->
+            <button class="lightbox-close" id="lightbox-close" data-testid="detail-lightbox-close" aria-label="Close image viewer">×</button>
             <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous image" data-testid="detail-lightbox-prev">‹</button>
             <img class="lightbox-image" id="lightbox-image" src="" alt="Attachment">
             <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next image" data-testid="detail-lightbox-next">›</button>
@@ -202,9 +224,12 @@
         </div>
     </div>
 
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/toast.js"></script>
     <script src="../js/rich_content_renderer.js"></script>
     <script src="../js/difficulty.js"></script>
+    <!-- #301: the archived-ancestor note on the subject breadcrumb. -->
+    <script src="../js/archived_ancestor_note.js"></script>
     <script src="../js/entry_detail.js"></script>
 </body>
 </html>

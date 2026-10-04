@@ -266,15 +266,28 @@ class AnalyticsPreview {
     
     /**
      * Render loading state
+     *
+     * The "Quick Analytics" title is an `h2` in all four render paths
+     * (loading, error, empty, populated) and must stay one (#317). This
+     * block renders into `#analytics-preview-container`, which sits in
+     * `index.html` ABOVE the `h2` of "Your Exams" -- so an `h3` here made
+     * the dashboard's *rendered* outline skip `h1 -> h3` while the page's
+     * markup stayed clean, which is why `tests/test_heading_order.py`
+     * cannot see it and
+     * `tests/wimi_test/scenarios/test_heading_levels_descend.py` can.
+     *
+     * The size comes from `.analytics-preview-title` in
+     * `analytics_preview.css`, so the level is free to be the one the
+     * outline implies rather than the one that looks right.
      */
     renderLoading() {
         this.container.innerHTML = `
             <div class="analytics-preview analytics-preview--loading">
                 <div class="analytics-preview-header">
-                    <h3 class="analytics-preview-title">
+                    <h2 class="analytics-preview-title">
                         <span class="analytics-preview-icon">📊</span>
                         Quick Analytics
-                    </h3>
+                    </h2>
                 </div>
                 <div class="analytics-preview-content">
                     <div class="analytics-preview-stats">
@@ -304,13 +317,15 @@ class AnalyticsPreview {
      * Render error state
      */
     renderError() {
+        // The h2 below is the level the dashboard's outline implies,
+        // not a size choice -- see renderLoading's note (#317).
         this.container.innerHTML = `
             <div class="analytics-preview analytics-preview--error">
                 <div class="analytics-preview-header">
-                    <h3 class="analytics-preview-title">
+                    <h2 class="analytics-preview-title">
                         <span class="analytics-preview-icon">📊</span>
                         Quick Analytics
-                    </h3>
+                    </h2>
                 </div>
                 <div class="analytics-preview-content">
                     <p class="analytics-preview-error-text">Unable to load analytics data</p>
@@ -328,13 +343,15 @@ class AnalyticsPreview {
     renderEmpty() {
         const selectedExamName = this.getSelectedExamName();
         
+        // The h2 below is the level the dashboard's outline implies,
+        // not a size choice -- see renderLoading's note (#317).
         this.container.innerHTML = `
             <div class="analytics-preview analytics-preview--empty">
                 <div class="analytics-preview-header">
-                    <h3 class="analytics-preview-title">
+                    <h2 class="analytics-preview-title">
                         <span class="analytics-preview-icon">📊</span>
                         Quick Analytics
-                    </h3>
+                    </h2>
                     <div class="analytics-preview-actions">
                         ${this.renderExamDropdown()}
                         <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link">
@@ -467,13 +484,15 @@ class AnalyticsPreview {
             return;
         }
         
+        // The h2 below is the level the dashboard's outline implies,
+        // not a size choice -- see renderLoading's note (#317).
         this.container.innerHTML = `
             <div class="analytics-preview">
                 <div class="analytics-preview-header">
-                    <h3 class="analytics-preview-title">
+                    <h2 class="analytics-preview-title">
                         <span class="analytics-preview-icon">📊</span>
                         Quick Analytics
-                    </h3>
+                    </h2>
                     <div class="analytics-preview-actions">
                         ${this.renderExamDropdown()}
                         <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link">

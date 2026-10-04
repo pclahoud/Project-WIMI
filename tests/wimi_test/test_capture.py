@@ -1,6 +1,6 @@
-"""Phase 3 capture-pipeline verification tests.
+"""The three capture streams flow from a real WIMI subprocess.
 
-These three tests are the **closing gate for Phase 3** of
+These tests are the closing gate for Phase 3 of
 ``docs/planning/TEST_INFRASTRUCTURE.md`` -- specifically Section 6 (the
 three capture streams: console, network, and bridge). After T3.1 - T3.9
 landed the Layer-2 captures, the bundle, the session wiring, and the
@@ -13,38 +13,67 @@ The three scenarios mirror the three streams:
 1. :func:`test_console_log_captures_messages` -- inject a JS
    ``console.warn`` via :meth:`WimiPage.eval_js` and assert the message
    surfaces in :meth:`ConsoleCapture.snapshot`. Proves the
-   ``page.on('console')`` subscription set up by
+   ``Runtime.consoleAPICalled`` subscription set up by
    :meth:`WimiTestSession.start` is live and that the level filter
    (``level_min="warning"``) keeps the entry.
 2. :func:`test_network_log_captures_navigation` -- navigate to the
-   dashboard via :meth:`WimiPage.goto` and assert that the resulting
-   ``Network.*`` CDP events make it into
-   :meth:`NetworkCapture.snapshot`. The dashboard pulls JS, CSS, and
-   bridge-init resources, so even with the default ``file://`` /
-   ``qrc://`` filter applied we expect at least one captured event from
-   the load.
-3. :func:`test_bridge_log_handles_missing_slot_gracefully` -- exercises
-   :class:`BridgeCapture`'s defensive behaviour. The
-   ``getTestModeBridgeCalls`` slot wiring is deferred (per the T3.6
-   note: full operation depends on a follow-up task to expose the
-   helper as a ``@pyqtSlot``), so a freshly-attached capture must
-   tolerate the missing slot, log once, and keep its buffer empty
-   without raising. This test will gain a *positive* assertion (call a
-   bridge method and observe the call appearing in the log) once that
-   follow-up lands; for now we lock in the no-crash contract.
+   dashboard and assert the ``Network.*`` CDP events reach
+   :meth:`NetworkCapture.snapshot`. It attaches its **own** unfiltered
+   capture to do so, because the session's capture applies
+   :func:`~wimi_test.config.default_url_filter` and a local WIMI page
+   emits nothing that survives it -- see that test's docstring.
+3. :func:`test_bridge_log_captures_a_real_call_and_survives_the_slot_vanishing`
+   -- assert a dispatched ``@pyqtSlot`` reaches
+   :meth:`BridgeCapture.snapshot`, then delete the slot out from under
+   the poll thread and assert it logs-and-continues rather than dying.
 
 All three tests are :pytest:mark:`slow` because each spawns a real WIMI
 subprocess (~3-8 s startup on a warm disk). They use the fixtures from
 :mod:`wimi_test.fixtures.core`:
 
 * ``wimi_session`` -- the started :class:`WimiTestSession`.
-* ``wimi_page`` -- the wrapped :class:`WimiPage` (test 2 only).
+* ``wimi_page`` -- the wrapped :class:`WimiPage` (tests 2 and 3).
 * ``console_log`` / ``network_log`` / ``bridge_log`` -- thin views over
   ``wimi_session.captures.{console, network, bridge}``.
+
+History (#152, #257)
+--------------------
+Tests 2 and 3 were both **permanently red on Linux, macOS and Windows**,
+and were filed as one bug under #152 because the issue quoted a single
+traceback for both. They were two unrelated defects, and neither was in
+the code under test:
+
+* Test 3 reached for ``wimi_session.page.pw_page``, the Playwright
+  handle renamed to :attr:`WimiPage.tab` by the pychrome migration
+  (``PYCHROME_MIGRATION.md`` Section 6). That rename was recorded as
+  safe because nothing in ``tests/wimi_test/scenarios/*`` reached into
+  it -- which was true, and this file is not in that directory.
+* Test 2 asserted that "the bridge handshake and any ``media://``
+  requests still survive" the default URL filter. **Neither can.**
+  QWebChannel bridge calls never appear in CDP ``Network`` events (the
+  transport bypasses the network stack -- ``capture/network.py`` says so
+  in its own module docstring), and ``wimi-media://`` was deleted as
+  dead code in #140. So the test asserted a non-empty buffer that the
+  architecture cannot fill, and read as "``get_network_log`` is broken"
+  for as long as it was red.
+
+Test 3's stated premise was stale too: it pinned a *defensive* contract
+("the ``getTestModeBridgeCalls`` slot wiring is deferred, so tolerate
+its absence") and promised to "gain a positive assertion once that
+follow-up lands". The follow-up landed -- the slot is live in
+``src/app/bridge_domains/utility.py`` and exposed by
+``src/web/js/api/utility.js`` -- so the test had stopped exercising the
+branch it named and would have passed trivially. The missing-slot branch
+keeps its unit test against a fake tab
+(``test_bridge_capture.py::test_poll_once_tolerates_null_result_from_missing_slot``);
+what had no test anywhere was the stream's *positive* path against a
+live WIMI, which is what the whole capture exists for.
 """
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import pytest
@@ -52,6 +81,7 @@ import pytest
 from wimi_test.capture.bridge import BridgeCapture, BridgeCall
 from wimi_test.capture.console import ConsoleCapture, ConsoleEntry
 from wimi_test.capture.network import NetworkCapture, NetworkEvent
+from wimi_test.config import default_url_filter
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
@@ -69,7 +99,7 @@ def test_console_log_captures_messages(
     """Inject a ``console.warn`` and assert it appears in the snapshot.
 
     The ``wimi_session`` fixture has already attached
-    :class:`ConsoleCapture` to the live Playwright page (see
+    :class:`ConsoleCapture` to the live tab (see
     :meth:`WimiTestSession.start` step 6). ``console_log`` is the same
     capture instance, exposed as a fixture for ergonomic access.
 
@@ -87,12 +117,11 @@ def test_console_log_captures_messages(
 
     wimi_session.page.eval_js(f"console.warn({sentinel!r})")
 
-    # Playwright dispatches ``console`` events synchronously off the
-    # CDP socket; by the time ``evaluate`` returns, the listener has
-    # appended. No extra wait is needed in practice, but if CI shows
-    # flakiness here, the documented escape hatch is a short
-    # ``wimi_session.page.pw_page.wait_for_timeout(50)`` before the
-    # snapshot call.
+    # CDP dispatches ``Runtime.consoleAPICalled`` off the same socket
+    # the evaluate went out on, so by the time ``eval_js`` returns the
+    # listener has appended. No extra wait is needed in practice, but if
+    # CI shows flakiness here the escape hatch is a short
+    # ``wimi_session.page.wait_for_timeout(50)`` before the snapshot.
     entries: list[ConsoleEntry] = console_log.snapshot(level_min="warning")
 
     matches = [e for e in entries if sentinel in e.text]
@@ -114,96 +143,167 @@ def test_network_log_captures_navigation(
     wimi_page: WimiPage,
     network_log: NetworkCapture,
 ) -> None:
-    """Navigate to the dashboard and assert the network log is non-empty.
+    """A navigation reaches CDP, and nothing in it reaches the network.
 
-    :meth:`WimiPage.goto` triggers a real navigation, and the dashboard
-    page (``src/web/html/index.html``) loads a fan-out of JS bundles,
-    CSS files, and the QWebChannel bridge-init scripts. Each of those
-    fetches surfaces as one or more ``Network.requestWillBeSent`` /
-    ``Network.responseReceived`` events on the per-session CDP session
-    that :class:`NetworkCapture` is subscribed to.
+    Two facts, one measurement, because they are the same story: the
+    reason ``session.captures.network`` is empty after a page load is
+    the URL filter doing its job, not a subscription that failed to
+    attach.
 
-    The default URL filter
-    (:func:`wimi_test.config.default_url_filter`) rejects ``file://``
-    and ``qrc://``, but the bridge handshake and any ``media://``
-    requests still survive. The assertion is therefore intentionally
-    loose: at least one captured event is enough to prove the CDP
-    subscription is live.
+    Measured on this navigation (Linux, 2026-09-28): **80 events** --
+    40 ``requestWillBeSent`` plus 40 ``responseReceived`` -- of which
+    **78 are ``file://`` and 2 are ``qrc://``**, so **zero** survive
+    :func:`~wimi_test.config.default_url_filter`. The session's capture
+    is constructed with that filter
+    (``session.py`` step 6, from :attr:`TestConfig.network_url_filter`),
+    and the filter runs **on ingest** rather than in
+    :meth:`NetworkCapture.snapshot`, so a rejected event is not
+    recoverable later by snapshotting differently. Hence this test
+    attaches its own unfiltered capture instead of reading
+    ``network_log``.
+
+    The second assertion is the valuable one and it is not a
+    limitation: **a dashboard load must make no remote request.** Every
+    frontend dependency is vendored in-repo (D3, Fuse.js, TinyMCE,
+    KaTeX -- see CLAUDE.md *Dependencies*), media reaches the page as
+    base64 data URLs rather than over a scheme (#140), and bridge
+    traffic is QWebChannel, not HTTP. So any URL surviving the filter
+    means WIMI started fetching something off-machine, which for a
+    local-first tool is worth a red test.
+
+    What this test does **not** assert, and why the version it replaces
+    was unfixable: the old docstring claimed "the bridge handshake and
+    any ``media://`` requests still survive" the filter. Bridge calls
+    never appear in CDP Network events at all, and ``wimi-media://`` was
+    deleted in #140 -- see this module's docstring.
     """
-    # Navigate via the wrapper so we go through the full route resolver
-    # plus bridge-readiness wait. This is a more realistic exercise
-    # than ``pw_page.goto(url)`` directly.
-    wimi_page.goto("dashboard")
+    tab = wimi_session.page.tab
 
-    # No since_ts here -- the buffer is freshly attached by ``start()``
-    # and we just want any events captured from the navigation. If a
-    # future test interleaves multiple navigations, switch to
-    # ``since_ts=wimi_session.start_ts`` for per-call segmentation.
-    events: list[NetworkEvent] = network_log.snapshot()
+    # ``WimiTab.set_listener`` is a pass-through to pychrome, which keys
+    # handlers by event name and so **overwrites** rather than chains
+    # (``capture/network.py``, "Detach limitations"). Attaching a second
+    # capture therefore silently unsubscribes the session's one, so
+    # detach it explicitly first -- an intentional handover reads as one,
+    # a race does not -- and restore it afterwards so the failure-report
+    # hook still has the stream it expects.
+    network_log.detach()
+    probe = NetworkCapture(url_filter=None)
+    probe.attach(tab)
+    try:
+        # Navigate via the wrapper so we go through the full route
+        # resolver plus bridge-readiness wait.
+        wimi_page.goto("dashboard")
+        events: list[NetworkEvent] = probe.snapshot()
+    finally:
+        probe.detach()
+        network_log.attach(tab)
 
     assert events, (
-        "Expected at least one network event from dashboard load; "
-        "got an empty buffer. Either NetworkCapture failed to attach, "
-        "or the default URL filter rejected every event "
-        "(unexpected -- bridge handshake usually surfaces)."
+        "Expected CDP Network events from a dashboard load; got an empty "
+        "buffer with the URL filter disabled, so the subscription itself "
+        "did not attach. Check Network.enable() and the set_listener "
+        "registrations in NetworkCapture.attach()."
+    )
+
+    # ``e.url`` is skipped when empty rather than passed to the filter:
+    # ``loadingFailed`` payloads often omit the URL (the ``requestId``
+    # already correlates back to the request), the capture buffers them
+    # unconditionally, and ``default_url_filter("")`` is ``True`` -- so a
+    # single failed request would otherwise be reported here as a remote
+    # fetch to the empty string.
+    remote = sorted({e.url for e in events if e.url and default_url_filter(e.url)})
+    assert not remote, (
+        "A dashboard load made a request that is not file:// or qrc://, "
+        "i.e. WIMI reached off-machine during a plain page load. Every "
+        f"frontend dependency is vendored in-repo, so this is news: {remote}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 3: bridge capture (defensive / pre-slot-wiring)
+# Test 3: bridge capture
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.slow
-def test_bridge_log_handles_missing_slot_gracefully(
+def test_bridge_log_captures_a_real_call_and_survives_the_slot_vanishing(
     wimi_session: WimiTestSession,
+    wimi_page: WimiPage,
     bridge_log: BridgeCapture,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Verify :class:`BridgeCapture` survives the slot being unwired.
+    """A dispatched slot reaches the buffer; losing the slot does not kill it.
 
-    Per the T3.6 status note in ``TEST_INFRASTRUCTURE_TASKS.md``, the
-    JS-side ``window._wimiApi.getTestModeBridgeCalls`` slot is deferred
-    -- the capture pipeline lands, but full operation depends on a
-    follow-up task to expose the helper as a ``@pyqtSlot``. The
-    capture's poll loop is documented to handle that case by:
+    Both halves against a live WIMI, because the fake-tab unit tests in
+    ``test_bridge_capture.py`` already pin the cursor arithmetic and the
+    ``None``-tolerance branch, and what they cannot reach is whether the
+    poll thread can read WIMI's real ring buffer at all.
 
-    * defensively checking for the function in the JS expression and
-      returning ``null`` if absent;
-    * logging *once* via :class:`logging.Logger` on the first miss;
-    * leaving the buffer empty;
-    * **not** raising or killing the daemon poll thread.
+    That is not a formality. :class:`BridgeCapture` is a *second,
+    independent* consumer of ``getTestModeBridgeCalls`` -- it runs on a
+    daemon thread with its own cursor, deliberately not sharing
+    :meth:`WimiPage.wait_for_bridge_call`'s JS
+    (``capture/bridge.py`` says so, and ``test_bridge_call_sync.py``
+    covers only that other consumer). So the stream behind
+    ``get_bridge_log`` and behind every failure report's bridge section
+    had no end-to-end test until this one.
 
-    This test pins that contract. Once the slot is wired up by the
-    follow-up task, this test will be upgraded to call a real bridge
-    method and assert the call name surfaces in
-    :meth:`BridgeCapture.snapshot` (the originally-spec'd Phase 3
-    scenario 3); until then the no-crash assertion is what we can
-    guarantee.
+    Measured (Linux, 2026-09-28): a dashboard load yields **29 calls
+    across 14 distinct slots** -- ``getUserPreferences``,
+    ``getAnalyticsOverview``, ``loadTestUserDatabase``, ... -- with the
+    first visible **~200 ms** after navigation, well inside the 0.5 s
+    default poll interval.
 
-    No exception handling around the snapshot call is appropriate
-    here: if :meth:`BridgeCapture.snapshot` *does* raise, the test
-    must fail loudly because the defensive contract has regressed.
+    The second half deletes ``window.api.getTestModeBridgeCalls`` from
+    the page. That genuinely reproduces the missing-slot condition the
+    previous version of this test only *claimed* to cover: it was
+    written while the slot was unwired, promised to become a positive
+    test "once that follow-up lands", and the follow-up landed -- so it
+    had been asserting nothing for as long as it was named for a branch
+    it could no longer enter. The delete is safe to leave in place: the
+    test performs no further navigation, and nothing after it reads the
+    slot.
+
+    It asserts the warning fires **exactly once** rather than only that
+    the thread survived, because thread-survival alone is nearly
+    untestable here: :meth:`BridgeCapture._poll_loop` wraps every
+    ``_poll_once`` in ``except Exception``, so a regression *inside*
+    ``_poll_once`` leaves the thread alive and the buffer empty either
+    way -- indistinguishable from correct behaviour on both of the
+    signals the old test read.
+
+    The once-only latch is what separates them, and the measured case is
+    not the obvious one. Deleting the ``if result is None`` guard does
+    **not** raise: ``None`` falls through to the payload-type check
+    below it, which logs *"returned unexpected payload type 'NoneType'"*
+    -- naming the slot, and **unlatched**, so it fires on every tick.
+    Verified: that mutation yields 3 warnings across ~3 polls instead of
+    1. A mutation that also removes the loop's catch-all does kill the
+    thread, which the ``is_alive`` assertion below catches. Two
+    different regressions, two different assertions, both verified to
+    fail this test.
     """
-    # Touch the page to give the poll thread at least one tick to
-    # attempt evaluation. Without this, on a very fast machine the
-    # session could tear down before ``_poll_loop`` runs even once,
-    # which would still pass the empty-buffer assertion below but
-    # wouldn't actually exercise the missing-slot branch.
-    wimi_session.page.pw_page.wait_for_timeout(600)
+    # ---- A dispatched slot reaches the buffer -------------------------
+    wimi_page.goto("dashboard")
 
-    # snapshot() must not raise even though the underlying slot is
-    # absent -- the JS expression returns ``null`` and the poll handler
-    # logs-and-continues per the design.
-    calls: list[BridgeCall] = bridge_log.snapshot()
+    # Poll rather than sleeping a fixed span: the capture's own loop
+    # ticks every ``poll_interval_s`` (0.5 s) and the dashboard's bridge
+    # fan-out is not instantaneous, so a single fixed wait is either
+    # flaky or slow. Ceiling is generous because a cold page load on a
+    # loaded CI box is the slow case.
+    deadline = time.time() + 15.0
+    calls: list[BridgeCall] = []
+    while time.time() < deadline:
+        calls = bridge_log.snapshot()
+        if calls:
+            break
+        wimi_page.wait_for_timeout(200)
 
-    # Empty (or near-empty) is the expected state. We allow for a few
-    # entries in case a follow-up task lands between this test's
-    # creation and its execution; the core contract is "no crash".
-    # Any entries that do appear must still be well-formed BridgeCall
-    # instances.
-    assert isinstance(calls, list), (
-        f"BridgeCapture.snapshot() must return a list; "
-        f"got {type(calls).__name__}"
+    assert calls, (
+        "BridgeCapture recorded no slot call 15 s after a dashboard load, "
+        "which fires getUserPreferences, getAnalyticsOverview and a dozen "
+        "others. Either the poll thread is not running, or "
+        "window.api.getTestModeBridgeCalls is unreachable from the CDP "
+        "world (TEST_INFRASTRUCTURE.md 12a)."
     )
     for call in calls:
         assert isinstance(call, BridgeCall), (
@@ -211,15 +311,59 @@ def test_bridge_log_handles_missing_slot_gracefully(
             f"got {type(call).__name__}"
         )
 
-    # Sanity-check the poll thread is still alive -- if a transient
-    # exception had killed it, subsequent polls would silently miss
-    # bridge calls forever, which is a regression we want to catch.
-    # The internal attribute is read defensively; if it ever goes away
-    # in a refactor, this assertion can be relaxed without losing the
-    # core no-crash guarantee above.
-    poll_thread: Any = getattr(bridge_log, "_poll_thread", None)
-    if poll_thread is not None:
-        assert poll_thread.is_alive(), (
-            "BridgeCapture poll thread died unexpectedly; "
-            "the missing-slot path should log-and-continue, not exit."
+    # ---- Losing the slot logs once and keeps the thread alive ---------
+    # The once-only latch may already be spent: the poll thread starts
+    # half a second after ``attach``, which can beat ``window.api`` onto
+    # the page, and that first miss is indistinguishable from the one
+    # being provoked here. Reset it so the count below means what it
+    # says rather than depending on startup timing.
+    bridge_log._warned_about_missing_slot = False
+    caplog.clear()
+
+    # Same JS world as the capture's own poll: both go through CDP
+    # ``Runtime.evaluate`` on this tab. (The disjoint-worlds hazard in
+    # TEST_INFRASTRUCTURE.md 12a is about Qt's ``runJavaScript``, which
+    # is the other side of the bridge and not in play here.)
+    with caplog.at_level(logging.WARNING, logger="wimi_test.capture.bridge"):
+        wimi_page.eval_js("delete window.api.getTestModeBridgeCalls")
+        assert wimi_page.eval_js(
+            "typeof window.api.getTestModeBridgeCalls"
+        ) == "undefined", (
+            "the slot is still present, so the tolerance path is not being tested"
         )
+
+        # Two poll intervals, so the loop is guaranteed to have taken the
+        # missing-slot branch more than once -- which is the point: the
+        # latch must still hold the warning count at one.
+        wimi_page.wait_for_timeout(1500)
+
+    misses = [
+        r for r in caplog.records if "getTestModeBridgeCalls" in r.getMessage()
+    ]
+    assert len(misses) == 1, (
+        f"Expected exactly one missing-slot warning across ~3 polls (the "
+        f"once-only latch in BridgeCapture); got {len(misses)}. More than "
+        f"one means either the latch stopped latching, or the ``result is "
+        f"None`` guard is gone and the unlatched payload-type warning "
+        f"downstream is firing every tick instead. Zero means the poll is "
+        f"raising before it gets there, into _poll_loop's catch-all. "
+        f"Records seen: {[r.getMessage() for r in caplog.records]}"
+    )
+
+    after: list[BridgeCall] = bridge_log.snapshot()
+    assert isinstance(after, list), (
+        f"BridgeCapture.snapshot() must return a list even with the slot "
+        f"gone; got {type(after).__name__}"
+    )
+
+    # The contract is log-and-continue, not exit: a poll thread killed by
+    # a transient exception would silently miss every later bridge call.
+    poll_thread: Any = getattr(bridge_log, "_poll_thread", None)
+    assert poll_thread is not None, (
+        "BridgeCapture._poll_thread is gone; the missing-slot path must "
+        "not tear the capture down"
+    )
+    assert poll_thread.is_alive(), (
+        "BridgeCapture poll thread died after the slot was removed; "
+        "the missing-slot path should log-and-continue, not exit."
+    )

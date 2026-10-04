@@ -217,6 +217,17 @@ class SubjectRelationsPanel {
             path.className = 'relation-path';
             path.textContent = relation.other_subject_path;
             item.appendChild(path);
+            // #301: the other subject's path is filtered, so say when an
+            // archived ancestor has been dropped from it. Only where
+            // something was removed -- the backend sends null otherwise.
+            //
+            // Appended to `item` AFTER the path span rather than inside it,
+            // so `.relation-path`'s own textContent stays the path. See
+            // `insertAfter`'s note in archived_ancestor_note.js.
+            if (typeof ArchivedAncestorNote !== 'undefined') {
+                ArchivedAncestorNote.insertAfter(
+                    path, relation.other_subject_path_omitted_ancestors);
+            }
         }
 
         return item;
@@ -326,10 +337,10 @@ class SubjectRelationsPanel {
         ).join('');
         return `
             <div class="modal-backdrop"></div>
-            <div class="modal-content" role="dialog" aria-modal="true"
-                 aria-label="Link a related topic">
+            <div class="modal-content" data-modal-surface role="dialog"
+                 aria-modal="true" aria-labelledby="relation-modal-title">
                 <div class="modal-header">
-                    <h3>Link a related topic</h3>
+                    <h2 id="relation-modal-title">Link a related topic</h2>
                     <button type="button" class="modal-close"
                             data-testid="relation-modal-close"
                             aria-label="Close">&times;</button>

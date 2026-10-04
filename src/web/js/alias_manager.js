@@ -38,13 +38,15 @@ const AliasManager = {
         // Create modal HTML
         const modalHtml = `
             <div class="modal-backdrop" id="alias-manager-modal">
-                <div class="modal modal-lg alias-manager">
+                <div class="modal modal-lg alias-manager" data-modal-surface
+                     role="dialog" aria-modal="true"
+                     aria-labelledby="alias-manager-title">
                     <div class="modal-header">
-                        <h3 class="modal-title">
+                        <h2 class="modal-title" id="alias-manager-title">
                             <span class="modal-icon">🏷️</span>
                             Manage Aliases
                         </h3>
-                        <button class="modal-close" id="alias-modal-close">×</button>
+                        <button class="modal-close" id="alias-modal-close" aria-label="Close">×</button>
                     </div>
 
                     <div class="alias-manager-subject">

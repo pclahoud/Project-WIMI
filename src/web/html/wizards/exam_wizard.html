@@ -21,10 +21,13 @@
         <div class="wizard-container">
             <!-- Wizard Header -->
             <div class="wizard-header">
-                <button type="button" class="wizard-close-btn" id="btn-cancel" data-testid="wizard-cancel-button" title="Cancel and return home">
+                <!-- #306: both of these announced as their glyph ("✕" and
+                     "books"), because a `title` does not override visible
+                     content in the accessible-name computation. -->
+                <button type="button" class="wizard-close-btn" id="btn-cancel" data-testid="wizard-cancel-button" title="Cancel and return home" aria-label="Cancel setup and return home">
                     ✕
                 </button>
-                <a href="../index.html" class="wizard-logo-link" data-testid="wizard-home-link" title="Return to home">
+                <a href="../index.html" class="wizard-logo-link" data-testid="wizard-home-link" title="Return to home" aria-label="Return to home">
                     <div class="wizard-logo">📚</div>
                 </a>
                 <h1 class="wizard-title">Exam Setup Wizard</h1>
@@ -78,7 +81,19 @@
                             </div>
                             <div class="card-icon">📋</div>
                             <div class="card-content">
-                                <h3>Simple Exam</h3>
+                                <!-- A `<label for>`, not an `aria-label`
+                                     (#305): the card title is what *looks*
+                                     like this radio's label, so associating
+                                     it is what makes the name and the visible
+                                     text the same thing. It also makes the
+                                     title press the radio natively rather
+                                     than only through the card's JS click
+                                     handler. The `<label>` wraps the text
+                                     inside the `<h3>` -- a label may contain
+                                     phrasing content, and an `<h3>` inside a
+                                     label would not be valid the other way
+                                     round. -->
+                                <h3><label for="type-simple">Simple Exam</label></h3>
                                 <p>Single topic hierarchy</p>
                                 <p class="examples">e.g., SAT Math, GRE Verbal, LSAT</p>
                                 <div class="hierarchy-preview">
@@ -100,7 +115,10 @@
                             </div>
                             <div class="card-icon">🎯</div>
                             <div class="card-content">
-                                <h3>Multi-Dimensional Exam <span class="badge-advanced">Advanced</span></h3>
+                                <!-- The badge stays OUTSIDE the label so the
+                                     radio is named "Multi-Dimensional Exam"
+                                     rather than "... Advanced". -->
+                                <h3><label for="type-multi">Multi-Dimensional Exam</label> <span class="badge-advanced">Advanced</span></h3>
                                 <p>Multiple independent categorization dimensions</p>
                                 <p class="examples">e.g., NBME Shelf, USMLE, MCAT</p>
                                 <div class="dimension-preview">
@@ -625,9 +643,10 @@
         
         <!-- Success Modal -->
         <div class="modal-backdrop hidden" id="success-modal" data-testid="wizard-modal-success">
-            <div class="modal">
+            <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="success-modal-title">
                 <div class="modal-icon success">✓</div>
-                <h2 class="modal-title">Exam Created Successfully!</h2>
+                <h2 class="modal-title" id="success-modal-title">Exam Created Successfully!</h2>
                 <p class="modal-message" id="success-message">
                     Your exam context has been created and is ready to use.
                 </p>
@@ -641,9 +660,10 @@
 
         <!-- Error Modal -->
         <div class="modal-backdrop hidden" id="error-modal" data-testid="wizard-modal-error">
-            <div class="modal">
+            <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="error-modal-title">
                 <div class="modal-icon error">✕</div>
-                <h2 class="modal-title">Error Creating Exam</h2>
+                <h2 class="modal-title" id="error-modal-title">Error Creating Exam</h2>
                 <p class="modal-message" id="error-message">
                     An error occurred while creating your exam context.
                 </p>
@@ -657,10 +677,11 @@
 
         <!-- Learn More Modal: Simple Exam -->
         <div class="modal-backdrop hidden learn-more-modal" id="modal-learn-simple" data-testid="wizard-modal-learn-simple">
-            <div class="modal">
+            <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="modal-learn-simple-title">
                 <div class="modal-header">
-                    <h2>Simple Exam Structure</h2>
-                    <button type="button" class="modal-close" data-dismiss="modal">✕</button>
+                    <h2 id="modal-learn-simple-title">Simple Exam Structure</h2>
+                    <button type="button" class="modal-close" data-dismiss="modal" aria-label="Close">✕</button>
                 </div>
                 <div class="learn-more-content">
                     <p>
@@ -669,7 +690,7 @@
                         track progress by topic and subtopic.
                     </p>
                     
-                    <h4>Recommended For:</h4>
+                    <h3>Recommended For:</h3>
                     <ul>
                         <li>SAT Math (Algebra, Geometry, etc.)</li>
                         <li>GRE Verbal (Reading Comprehension, Vocabulary, etc.)</li>
@@ -677,7 +698,7 @@
                         <li>Subject tests with clear topic hierarchies</li>
                     </ul>
                     
-                    <h4>Example Structure:</h4>
+                    <h3>Example Structure:</h3>
                     <div class="example-box">Mathematics
 ├─ Algebra
 │  ├─ Linear Equations
@@ -686,7 +707,7 @@
    ├─ Triangles
    └─ Circles</div>
                     
-                    <h4>Analytics Include:</h4>
+                    <h3>Analytics Include:</h3>
                     <ul>
                         <li>Performance by topic (sunburst, treemap)</li>
                         <li>Mistake type distribution</li>
@@ -704,10 +725,11 @@
         
         <!-- Learn More Modal: Multi-Dimensional Exam -->
         <div class="modal-backdrop hidden learn-more-modal" id="modal-learn-multi" data-testid="wizard-modal-learn-multi">
-            <div class="modal">
+            <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="modal-learn-multi-title">
                 <div class="modal-header">
-                    <h2>Multi-Dimensional Exam Structure</h2>
-                    <button type="button" class="modal-close" data-dismiss="modal">✕</button>
+                    <h2 id="modal-learn-multi-title">Multi-Dimensional Exam Structure</h2>
+                    <button type="button" class="modal-close" data-dismiss="modal" aria-label="Close">✕</button>
                 </div>
                 <div class="learn-more-content">
                     <p>
@@ -715,7 +737,7 @@
                         can be categorized in multiple independent ways simultaneously.
                     </p>
                     
-                    <h4>Recommended For:</h4>
+                    <h3>Recommended For:</h3>
                     <ul>
                         <li>NBME Shelf Exams (Internal Medicine, Surgery, etc.)</li>
                         <li>USMLE Step 1, Step 2 CK</li>
@@ -723,7 +745,7 @@
                         <li>Any exam with official content outlines using multiple dimensions</li>
                     </ul>
                     
-                    <h4>Example: NBME Shelf Exam</h4>
+                    <h3>Example: NBME Shelf Exam</h3>
                     <p>Each question is tagged across 3 independent dimensions:</p>
                     <div class="example-box">Question: "A 68-year-old presents to clinic with palpitations..."
 
@@ -732,7 +754,7 @@ Tags:
 ├─ Physician Task: Diagnosis
 └─ System: Cardiovascular → Arrhythmias</div>
                     
-                    <h4>Advanced Analytics Include:</h4>
+                    <h3>Advanced Analytics Include:</h3>
                     <ul>
                         <li>Everything from Simple exams, plus:</li>
                         <li>Cross-dimension heatmaps (e.g., Site × Task performance)</li>
@@ -751,6 +773,7 @@ Tags:
         </div>
     </div>
     
+    <script src="../../js/modal_dialog.js"></script>
     <script src="../../js/exam_wizard.js"></script>
 </body>
 </html>

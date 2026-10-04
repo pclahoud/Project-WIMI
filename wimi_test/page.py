@@ -40,7 +40,7 @@ from typing import Mapping, Optional
 from urllib.parse import urlencode
 
 from wimi_test._internal.cdp_client import WimiTab
-from wimi_test.config import TestConfig
+from wimi_test.config import TestConfig, warn_if_unresolved
 from wimi_test.errors import (
     BridgeCallsUnavailable,
     BridgeCallTimeout,
@@ -129,6 +129,7 @@ class WimiPage:
         self._tab: WimiTab = tab
         self._app_root: Path = app_root
         self._config: TestConfig = config if config is not None else TestConfig.resolve()
+        warn_if_unresolved(self._config, consumer='WimiPage')
 
     @property
     def tab(self) -> WimiTab:

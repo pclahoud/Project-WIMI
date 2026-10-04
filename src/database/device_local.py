@@ -59,6 +59,12 @@ LEGACY_DEVICE_ID = "__pre_m021__"
 #:   ``anki_cache_refresh_interval_minutes`` — tuning and policy. A
 #:   faster machine might want a different delay, but the value is
 #:   meaningful everywhere; it does not *denote* a machine.
+#: * ``stt_priming_enabled``, ``stt_show_first_use_notice`` (#59) — a
+#:   stated preference about decoding, and a record of what the student
+#:   has been told about their audio. The notice's wording ("never
+#:   leaves *this computer*") invites the opposite reading, but the
+#:   column records the student's knowledge, not a machine's state, and
+#:   the claim holds on every machine.
 DEVICE_LOCAL_SETTING_FIELDS: Tuple[str, ...] = (
     # Browser pane geometry and session state: this machine's display,
     # this machine's window, where this machine was.
@@ -75,6 +81,16 @@ DEVICE_LOCAL_SETTING_FIELDS: Tuple[str, ...] = (
     # one machine's processes.
     "mcp_server_enabled",
     "mcp_server_port",
+    # Speech-to-text (#59). The microphone id names a piece of hardware
+    # plugged into THIS computer; on another machine it selects nothing.
+    # The model size names a weights file in THIS machine's
+    # ``app_data/models/``, which does not travel -- a profile carrying
+    # 'small' onto a machine that only downloaded 'base' names something
+    # that is not there. Note the narrowness of that second argument: it
+    # is NOT "a faster CPU wants a bigger model", which is the form
+    # ``realtime_update_delay_ms`` was rejected on above.
+    "stt_model_size",
+    "stt_input_device_id",
 )
 
 

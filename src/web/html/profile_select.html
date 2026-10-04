@@ -60,8 +60,9 @@
 
     <!-- Rename Modal -->
     <div class="profile-modal-backdrop" id="renameModal" data-testid="profile-rename-modal">
-        <div class="profile-modal">
-            <h3 class="profile-modal-title">Rename profile</h3>
+        <div class="profile-modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="renameModalTitle">
+            <h2 class="profile-modal-title" id="renameModalTitle">Rename profile</h2>
             <p class="profile-modal-message">
                 Change the display name for
                 <span class="profile-modal-name" id="renameModalName">this profile</span>.
@@ -81,8 +82,9 @@
 
     <!-- Delete Confirmation Modal -->
     <div class="profile-modal-backdrop" id="deleteModal" data-testid="profile-delete-modal">
-        <div class="profile-modal">
-            <h3 class="profile-modal-title">Delete profile?</h3>
+        <div class="profile-modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="deleteModalTitle">
+            <h2 class="profile-modal-title" id="deleteModalTitle">Delete profile?</h2>
             <p class="profile-modal-message">
                 Delete <span class="profile-modal-name" id="deleteModalName">this profile</span>?
                 <br><br>
@@ -100,8 +102,9 @@
 
     <!-- Export Options Modal (include media?) -->
     <div class="profile-modal-backdrop" id="exportModal" data-testid="profile-export-modal">
-        <div class="profile-modal">
-            <h3 class="profile-modal-title">Export profile</h3>
+        <div class="profile-modal" data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="exportModalTitle">
+            <h2 class="profile-modal-title" id="exportModalTitle">Export profile</h2>
             <p class="profile-modal-message">
                 Export <span class="profile-modal-name" id="exportModalName">this profile</span>
                 as a portable <code>.wimi</code> file.
@@ -128,8 +131,9 @@
 
     <!-- Import Preview Modal -->
     <div class="profile-modal-backdrop" id="importModal" data-testid="profile-import-modal">
-        <div class="profile-modal profile-modal--wide">
-            <h3 class="profile-modal-title">Import profile</h3>
+        <div class="profile-modal profile-modal--wide" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="importModalTitle">
+            <h2 class="profile-modal-title" id="importModalTitle">Import profile</h2>
 
             <!-- Who -->
             <div class="profile-import-summary">
@@ -196,8 +200,9 @@
          not in Settings. Installs, records the installed generation as the
          profile's base, and links it to the folder it came from. -->
     <div class="profile-modal-backdrop" id="syncInstallModal" data-testid="profile-sync-install-modal">
-        <div class="profile-modal profile-modal--wide">
-            <h3 class="profile-modal-title">Get a profile from a sync folder</h3>
+        <div class="profile-modal profile-modal--wide" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="syncInstallModalTitle">
+            <h2 class="profile-modal-title" id="syncInstallModalTitle">Get a profile from a sync folder</h2>
             <p class="profile-modal-message">
                 Choose the folder your cloud client keeps in sync - the same one your
                 other computer sends to. WIMI installs the newest copy it finds there
@@ -232,6 +237,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/profile_select.js"></script>
 </body>
 </html>

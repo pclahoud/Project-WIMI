@@ -14,28 +14,12 @@
     background: var(--bg-primary);
 }
 
-/* The pre-ready state (#114). `inert` already refuses the click and the
-   keystroke; this is the part that tells the student why, so the form does not
-   simply feel broken while it wires itself up.
-
-   Animated rather than a flat `opacity`, with a delay longer than a normal
-   load: a warm entry form is ready in ~110 ms and must not flash grey every
-   single time it opens. `both` holds the `from` frame through the delay, so
-   the dim appears only when initialisation actually drags -- which is exactly
-   when there is something to communicate. Removing `inert` drops the rule and
-   the page snaps back to full strength, which reads as "ready".
-
-   Opacity and cursor only: no colour, so both themes are covered by whatever
-   the page already paints underneath. */
-@keyframes entry-page-initialising {
-    from { opacity: 1; }
-    to { opacity: 0.55; }
-}
-
-.entry-page[inert] {
-    animation: entry-page-initialising 150ms ease 250ms both;
-    cursor: progress;
-}
+/* The pre-ready state (#114) -- the dim and `cursor: progress` -- is NOT
+   here. It moved to `[data-page-gated][inert]` in styles.css when #119 and
+   #120 gated settings and session setup, because three pages wanting the same
+   affordance from three stylesheets is three places for it to drift. The
+   values are unchanged and this page carries `data-page-gated`, so it renders
+   exactly as it did. Do not reintroduce a per-page copy. */
 
 .entry-header {
     display: flex;
@@ -93,11 +77,11 @@
 }
 
 .auto-save-indicator.saving {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .auto-save-indicator.saved {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 /* Session Timer — Active (green) */
@@ -110,7 +94,7 @@
     border: 1px solid var(--color-success);
     border-radius: 1.25rem;
     font-size: 0.8rem;
-    color: var(--color-success);
+    color: var(--color-success-text);
     transition: background 0.3s, border-color 0.3s, color 0.3s;
 }
 
@@ -122,11 +106,18 @@
     letter-spacing: 0.02em;
 }
 
+/* #306: 24x24 CSS pixels (WCAG 2.2 AA). Measured 19.5x16 and 11.2x14.4
+   before -- the padding was `0 2px` and the glyphs set the height. */
 .session-timer-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0 2px;
+    padding: 0;
     font-size: 0.9rem;
     line-height: 1;
     opacity: 0.7;
@@ -137,18 +128,24 @@
     opacity: 1;
 }
 
+.session-timer-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    opacity: 1;
+}
+
 /* Warning — amber (<5 min) */
 .session-timer.timer-warning {
     background: var(--color-warning-bg);
     border-color: var(--color-warning);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 /* Critical — red (<1 min, pulsing) */
 .session-timer.timer-critical {
     background: var(--color-error-bg);
     border-color: var(--color-error);
-    color: var(--color-error);
+    color: var(--color-error-text);
     animation: timer-pulse 1s ease-in-out infinite;
 }
 
@@ -156,7 +153,7 @@
 .session-timer.timer-paused {
     background: var(--color-primary-bg);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     opacity: 1;
 }
 
@@ -164,14 +161,14 @@
 .session-timer.timer-break {
     background: var(--color-info-bg);
     border-color: var(--color-info);
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 /* Expired — muted red, no animation */
 .session-timer.timer-expired {
     background: var(--color-error-bg);
     border-color: var(--color-error);
-    color: var(--color-error);
+    color: var(--color-error-text);
     animation: none;
 }
 
@@ -232,7 +229,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
-.new-round-dialog h3 {
+.new-round-dialog h2 {
     margin: 0 0 0.75rem;
     font-size: 1rem;
 }
@@ -332,7 +329,7 @@
 }
 
 .entry-nav-btn:hover:not(:disabled) {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-color: var(--color-primary);
 }
 
@@ -369,6 +366,36 @@
     background: var(--text-muted);
 }
 
+/* #304/#306: the pressable control around each dot.
+   The dot used to be a `<div onclick>` -- unreachable by keyboard and 12x12
+   px, half the WCAG 2.2 AA target. The button is the 24 px hit area and
+   carries the name; `.entry-dot` below is now the coloured span inside it,
+   unchanged, so nothing about the look or the existing
+   `.entry-dot.current` lookups moves.
+
+   The 24 px floor is in px, not rem, on purpose: WCAG 2.5.8 is specified in
+   CSS pixels, and 1.5rem is only 24 px while the root font size is 16 --
+   this box measured 1rem = 14.4 px under one of the shipped font settings,
+   which would have left a rem-based target at 21.6 px. */
+.entry-dot-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.entry-dot-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
 .entry-dot {
     width: 0.75rem;
     height: 0.75rem;
@@ -380,7 +407,8 @@
     flex-shrink: 0;
 }
 
-.entry-dot:hover {
+.entry-dot:hover,
+.entry-dot-btn:hover .entry-dot {
     border-color: var(--color-primary);
     transform: scale(1.1);
 }
@@ -445,7 +473,7 @@
 }
 
 .attach-action:not(:disabled):hover {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: var(--color-primary-bg, var(--bg-secondary));
     border-color: var(--color-primary);
 }
@@ -470,7 +498,7 @@
 
 .attach-action .btn-count {
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .attach-action:disabled .btn-count,
@@ -1015,7 +1043,7 @@
 
 .difficulty-dot:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .difficulty-dot.selected {
@@ -1135,7 +1163,7 @@
 .chip.primary {
     background: var(--color-primary-bg);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .chip.secondary {
@@ -1146,12 +1174,18 @@
     background: var(--bg-secondary);
 }
 
+/* #306: 24x24 is the WCAG 2.2 AA target size, and it is in px because the
+   criterion is in CSS pixels -- `1.5rem` measured 21.6 px here, still short.
+   Grown for real rather than padded out with a positioned `::after`: an
+   overlay leaves `getBoundingClientRect` reporting the old 14-16 px, so the
+   next audit finds the same number and the student's bigger target depends
+   on stacking order. Measured 14.4x14.4 before. */
 .chip-remove {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1rem;
-    height: 1rem;
+    width: 24px;
+    height: 24px;
     font-size: 0.75rem;
     color: var(--text-muted);
     background: var(--bg-tertiary);
@@ -1159,11 +1193,17 @@
     border-radius: 50%;
     cursor: pointer;
     transition: all 0.15s;
+    flex-shrink: 0;
 }
 
 .chip-remove:hover {
     background: var(--color-error);
     color: var(--text-inverse, white);
+}
+
+.chip-remove:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 /* =========================================================================
@@ -1203,7 +1243,7 @@
 
 .tag-context-pill:hover,
 .tag-context-pill.open {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-color: var(--color-primary);
     border-style: solid;
     background: var(--color-primary-bg);
@@ -1224,7 +1264,7 @@
 }
 
 .tag-context-pill[data-explicit="true"] .tag-context-pill-value {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .tag-context-menu {
@@ -1264,13 +1304,13 @@
 }
 
 .tag-context-menu-item[aria-checked="true"] {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 600;
 }
 
 .tag-context-menu-item-check {
     font-size: 0.75rem;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     visibility: hidden;
 }
 
@@ -1359,7 +1399,7 @@
 
 .tag-item:hover {
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .tag-item.selected {
@@ -1493,7 +1533,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.875rem;
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     padding: 0.5rem 1rem;
     background: var(--color-warning-bg);
     border-radius: var(--radius-lg);
@@ -1594,7 +1634,7 @@
     margin-bottom: 0.75rem;
 }
 
-.quick-add-header h4 {
+.quick-add-header h2 {
     margin: 0;
     font-size: 0.875rem;
     font-weight: 600;
@@ -1769,7 +1809,7 @@
 }
 
 .form-group.error .form-help {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .form-group.valid input,
@@ -1788,7 +1828,7 @@
 }
 
 .entry-form.show-missing .field-has-error > label {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 /* The two editors are a different shape, so they get a different cue.
@@ -1903,7 +1943,7 @@
 .subject-option-name mark,
 .tag-option-name mark {
     background: color-mix(in srgb, var(--color-primary, #2563eb) 15%, transparent);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     font-weight: 700;
     border-radius: 3px;
 }
@@ -2032,7 +2072,7 @@
 
 .tag-option-check {
     flex-shrink: 0;
-    color: var(--color-success, #059669);
+    color: var(--color-success-text);
     font-weight: bold;
     font-size: var(--font-size-sm);
 }
@@ -2045,7 +2085,7 @@
     cursor: pointer;
     background: var(--bg-secondary, #F9FAFB);
     border-top: 1px solid var(--border-color, #E5E7EB);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     font-weight: 500;
     transition: background 0.15s ease;
 }
@@ -2171,7 +2211,7 @@
 }
 
 .subject-option .alias-match .alias-label {
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     font-weight: 500;
 }
 
@@ -2215,7 +2255,7 @@
     padding: 0.125rem 0.5rem;
     border-radius: 0.75rem;
     background: var(--color-primary-bg, #dbeafe);
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     font-size: 0.75rem;
     font-weight: 500;
 }
@@ -2253,7 +2293,7 @@
 
 .note-card-actions .btn-danger-text:hover {
     background: var(--color-error-bg);
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .note-card .rich-editor-container {
@@ -2504,4 +2544,170 @@
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
+}
+
+/* =========================================================================
+   Dictation — the microphone beside each writing field (#59)
+
+   Rendered by dictation.js into .dictation-mount, which sits under each
+   editor inside .write-block. The control is deliberately quiet: the two
+   fields are what the page is for, and the microphone is an affordance on
+   top of them. It never disables a field, and it never takes the eye away
+   from one.
+
+   No `:empty` anywhere here. The meter is exactly the shape that regression
+   bites -- a container that starts with no children and gains one -- so it
+   always owns its fill element and visibility is the `hidden` attribute
+   (#134, #136, #141; scripts/check_css_empty_selector.py).
+   ========================================================================= */
+
+.dictation-mount {
+    margin-top: 0.5rem;
+}
+
+.dictation-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.dictation-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    padding: 0.3125rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease,
+                border-color 0.15s ease;
+}
+
+.dictation-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-color: var(--border-dark);
+}
+
+.dictation-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.dictation-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.dictation-icon {
+    font-size: 0.625rem;
+    line-height: 1;
+    color: var(--text-muted);
+}
+
+/* Recording is the one state that earns a colour. The dot pulses because a
+   still red dot reads as "armed" and a moving one reads as "running", and
+   the difference matters when the whole point is knowing WHILE you speak
+   that something is being captured. */
+.dictation-btn.is-recording {
+    color: var(--color-error-dark, var(--color-error));
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+}
+
+.dictation-btn.is-recording .dictation-icon {
+    color: var(--color-error-text);
+    animation: dictation-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dictation-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dictation-btn.is-recording .dictation-icon { animation: none; }
+}
+
+/* The level meter, which is not decoration: it is the only thing that tells
+   a student their microphone is muted while they are still speaking, rather
+   than ninety seconds later (plan section 7). */
+.dictation-meter {
+    flex: 0 1 8rem;
+    height: 0.375rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.dictation-meter[hidden] {
+    display: none;
+}
+
+.dictation-meter-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--color-success);
+    border-radius: var(--radius-full);
+    transition: width 0.1s linear;
+}
+
+.dictation-action {
+    padding: 0.25rem 0.625rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-primary-text);
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.dictation-action:hover:not(:disabled) {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+}
+
+.dictation-action:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.dictation-action[hidden] {
+    display: none;
+}
+
+.dictation-action:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* Every message names its remediation, so this line carries real sentences
+   and has to be readable rather than a caption. */
+.dictation-status {
+    margin: 0.375rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.dictation-status--busy {
+    color: var(--text-secondary);
+}
+
+.dictation-status--warn {
+    color: var(--color-warning-dark, var(--color-warning));
+}
+
+.dictation-status--error {
+    color: var(--color-error-dark, var(--color-error));
 }

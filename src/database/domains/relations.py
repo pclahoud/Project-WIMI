@@ -271,7 +271,8 @@ class RelationsMixin:
         try:
             return {
                 row['id']: row['name']
-                for row in self.fetchall("SELECT id, name FROM exam_dimensions")
+                for row in self.fetchall(
+                    "SELECT id, name FROM exam_dimensions WHERE status = 'active'")
             }
         except Exception:
             return {}
@@ -352,6 +353,7 @@ class RelationsMixin:
         for row, other_id in zip(rows, other_ids):
             other = other_rows.get(other_id)
             other_dim = other['dimension_id'] if other else None
+            other_path = self._build_subject_path_info(other_id)
             # The other subject's live contexts that are also *this*
             # subject's parents. Order follows parent_ids so the panel
             # can name them predictably.
@@ -365,7 +367,14 @@ class RelationsMixin:
                 'to_subject_id': row['to_subject_id'],
                 'other_subject_id': other_id,
                 'other_subject_name': other['name'] if other else f'#{other_id}',
-                'other_subject_path': self._build_subject_path(other_id),
+                'other_subject_path': other_path['path'],
+                # #301: present only when the path was actually shortened, so
+                # the panel's tooltip appears only where it has something to
+                # say. The panel already labels the other subject's dimension
+                # when it differs; this is the same shape of caveat.
+                'other_subject_path_omitted_ancestors': (
+                    other_path['omitted_ancestors'] or None
+                ),
                 'other_dimension_id': other_dim,
                 'other_dimension_name': dimension_names.get(other_dim),
                 # Decision 6 — a rendering fact, never a filter. True
@@ -498,6 +507,12 @@ class RelationsMixin:
             {
                 'id': row['id'],
                 'name': row['name'],
+                # #301 filters this; no omitted-ancestors key travels with
+                # it, for the same reason as the entry form's subject
+                # search -- these are the relation picker's result buttons,
+                # and a tooltip host inside each would add a tab stop per
+                # result. The panel that renders the *chosen* relation does
+                # carry the note (`other_subject_path_omitted_ancestors`).
                 'path': self._build_subject_path(row['id']),
                 'dimension_id': row['dimension_id'],
                 'dimension_name': dimension_names.get(row['dimension_id']),

@@ -10,11 +10,53 @@
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
+    <!-- The page gate's voice (#127). Before settings.js, which calls
+         PageGate.release() from markSettingsPageReady(). -->
+    <script src="../js/page_gate.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
 </head>
 <body>
-    <div class="app-container">
+    <!--
+      The gate's voice (#127), and the ONE thing about it that is easy to get
+      wrong: it sits OUTSIDE .app-container. `inert` removes its whole subtree
+      from the accessibility tree, so a status message placed inside the thing
+      being gated is as invisible to a screen reader as the page is.
+
+      The holding message is in the markup for the same reason the `inert`
+      attribute is -- there must be no window in which the page is gated and
+      silent. A live region does not announce text that was already in it when
+      it was registered, which is wanted here: on a warm load nothing is said
+      at all, and this is simply what a reader finds if it reads the document
+      during the gate. PageGate.release() then CHANGES the text, and a change
+      is announced.
+
+      docs/guides/PAGE_GATE.md is the pattern; src/web/js/page_gate.js holds
+      the contract. Styled in styles.css, which every page already links.
+    -->
+    <div class="page-gate" data-page-gate role="status" aria-live="polite"
+        >Preparing the settings page&hellip;</div>
+
+    <!--
+      Ships `inert` (#119, the #114 defect on this page). Until
+      SettingsPage.init() has finished, every control here is markup with a
+      hardcoded default baked in: populateForm() overwrites `value` / `checked`
+      on EVERY [data-field] element from the stored preferences, and the
+      speech-to-text and question-bank pickers are rebuilt from their own
+      bridge calls in the tail of init() -- after loadSettings() has returned.
+      A theme, a colour or a microphone chosen in that window was silently
+      reverted, and clearDirty() ran immediately afterwards so the
+      unsaved-changes guard did not fire either.
+
+      The attribute is in the markup rather than set from JS so there is no gap
+      before the first script runs. markSettingsPageReady() removes it, from a
+      `finally` so a failed init cannot leave the page permanently dead.
+
+      `data-page-gated` names this as the container the gate covers. It carries
+      no behaviour; tests/test_page_gate_markup.py reads it to check that the
+      gate's voice is not inside it.
+    -->
+    <div class="app-container" inert data-page-gated>
         <!-- Header -->
         <header class="settings-header">
             <div class="header-left">
@@ -53,6 +95,10 @@
                     <span class="nav-icon">&#127760;</span>
                     <span class="nav-label">Question Banks</span>
                 </button>
+                <button class="settings-nav-item" data-panel="speech" data-testid="settings-nav-speech">
+                    <span class="nav-icon">&#127897;&#65039;</span>
+                    <span class="nav-label">Speech to Text</span>
+                </button>
                 <button class="settings-nav-item" data-panel="calendar">
                     <span class="nav-icon">&#128197;</span>
                     <span class="nav-label">Calendar</span>
@@ -83,6 +129,10 @@
                     <span class="nav-label">Addons</span>
                 </button>
                 <div id="pluginSubNav"></div>
+                <button class="settings-nav-item" data-panel="about" data-testid="settings-nav-about">
+                    <span class="nav-icon">&#8505;</span>
+                    <span class="nav-label">About</span>
+                </button>
             </nav>
 
             <!-- Right Main Area -->
@@ -126,7 +176,11 @@
                         <label for="primary_color_hex">Primary Color</label>
                         <p class="field-description">The main accent color used for buttons, links, and highlights.</p>
                         <div class="color-input-group">
-                            <input type="color" id="primary_color_hex_picker" data-testid="settings-appearance-primary-color-picker" data-field="primary_color_hex" value="#2563eb">
+                            <!-- The visible `<label for="primary_color_hex">`
+                                 belongs to the text box beside this; the
+                                 swatch had no name of its own and announced
+                                 empty (#305, role='ColorWell' name=''). -->
+                            <input type="color" id="primary_color_hex_picker" aria-label="Primary color swatch" data-testid="settings-appearance-primary-color-picker" data-field="primary_color_hex" value="#2563eb">
                             <input type="text" id="primary_color_hex" data-testid="settings-appearance-primary-color-hex" data-field="primary_color_hex" placeholder="#2563eb" maxlength="7">
                         </div>
                     </div>
@@ -135,7 +189,7 @@
                         <label for="secondary_color_hex">Secondary Color</label>
                         <p class="field-description">Used for secondary buttons, borders, and muted UI elements.</p>
                         <div class="color-input-group">
-                            <input type="color" id="secondary_color_hex_picker" data-testid="settings-appearance-secondary-color-picker" data-field="secondary_color_hex" value="#64748b">
+                            <input type="color" id="secondary_color_hex_picker" aria-label="Secondary color swatch" data-testid="settings-appearance-secondary-color-picker" data-field="secondary_color_hex" value="#64748b">
                             <input type="text" id="secondary_color_hex" data-testid="settings-appearance-secondary-color-hex" data-field="secondary_color_hex" placeholder="#64748b" maxlength="7">
                         </div>
                     </div>
@@ -436,6 +490,174 @@
                             <option value="current">Open in the current tab</option>
                             <option value="new">Open in a new tab</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Panel 5b: Speech to Text (#59)
+
+                     "The mic button is greyed out and I don't know why" is the
+                     failure this panel prevents, and there are three separate
+                     reasons it can happen: the engine is missing from the
+                     build, the model has not been downloaded, or the
+                     microphone is unusable. Three different fixes, so three
+                     status lines driven by getSttStatus()'s three independent
+                     flags -- never one `available` boolean.
+
+                     The three settings are ordinary `data-field` inputs, so
+                     setupInputHandlers / populateForm / saveSettings carry
+                     them with no special casing. Everything else here --
+                     status, the device list, the download -- is live state
+                     rather than a preference, and is driven by
+                     initSpeechToText() in settings.js.
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="speech">
+                    <h2 class="panel-title">Speech to Text</h2>
+                    <p class="field-description">
+                        Speak into the two writing fields on an entry instead of typing them.
+                        The recording, the recognition and the text all happen on this
+                        computer &mdash; your voice is never uploaded anywhere, at any point.
+                    </p>
+
+                    <!-- Three states, three lines. Collapsing them is the bug. -->
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div class="stt-status" data-testid="settings-stt-status">
+                            <div class="stt-status-row" data-testid="settings-stt-engine-row">
+                                <span class="stt-status-dot unknown" id="sttEngineDot"></span>
+                                <div class="stt-status-body">
+                                    <div class="stt-status-title">Speech engine</div>
+                                    <div class="stt-status-text" id="sttEngineText"
+                                         data-testid="settings-stt-engine">Checking&hellip;</div>
+                                </div>
+                            </div>
+                            <div class="stt-status-row" data-testid="settings-stt-model-row">
+                                <span class="stt-status-dot unknown" id="sttModelDot"></span>
+                                <div class="stt-status-body">
+                                    <div class="stt-status-title">Speech model</div>
+                                    <div class="stt-status-text" id="sttModelText"
+                                         data-testid="settings-stt-model">Checking&hellip;</div>
+                                </div>
+                            </div>
+                            <div class="stt-status-row" data-testid="settings-stt-mic-row">
+                                <span class="stt-status-dot unknown" id="sttMicDot"></span>
+                                <div class="stt-status-body">
+                                    <div class="stt-status-title">Microphone</div>
+                                    <div class="stt-status-text" id="sttMicText"
+                                         data-testid="settings-stt-mic">Checking&hellip;</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stt-actions">
+                            <button class="btn-cancel" id="sttRefreshBtn"
+                                    data-testid="settings-stt-refresh">Check again</button>
+                            <!-- Only ever shown for an undetermined permission.
+                                 Once macOS has been told no it will not ask
+                                 again, so a button here would be a lie. -->
+                            <button class="btn-cancel" id="sttPermissionBtn"
+                                    data-testid="settings-stt-permission"
+                                    style="display: none;">Ask for microphone access</button>
+                        </div>
+                    </div>
+
+                    <hr class="settings-divider">
+                    <h3 class="subsection-title">Microphone</h3>
+
+                    <div class="form-group">
+                        <label for="stt_input_device_id">Record from</label>
+                        <p class="field-description">
+                            Which microphone WIMI records through. This choice stays on
+                            this computer: it names a piece of hardware plugged in here,
+                            so it is not carried to your other machines.
+                        </p>
+                        <select id="stt_input_device_id" data-field="stt_input_device_id"
+                                data-testid="settings-stt-input-device">
+                            <option value="" selected>System default</option>
+                        </select>
+                    </div>
+
+                    <hr class="settings-divider">
+                    <h3 class="subsection-title">Speech model</h3>
+
+                    <p class="field-description">
+                        The model does the recognising, and it is downloaded once rather
+                        than shipped with WIMI. A bigger one recognises more technical
+                        terms and takes longer to run. Measured on this project's own
+                        corpus: <code>small.en-q5_1</code> recognised 84% of the terms
+                        at about half of real time, <code>small.en</code> 85% for two and
+                        a half times the download, and <code>base.en</code> 75% for a
+                        third of the size. Like the microphone, the choice stays on this
+                        computer &mdash; the file it names lives here.
+                    </p>
+
+                    <div class="form-group">
+                        <label for="stt_model_size">Model</label>
+                        <select id="stt_model_size" data-field="stt_model_size"
+                                data-testid="settings-stt-model-size"></select>
+                        <p class="field-description" id="sttModelSelectionNote"
+                           data-testid="settings-stt-model-note"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="stt-actions">
+                            <button class="btn-save" id="sttDownloadBtn"
+                                    data-testid="settings-stt-download">Download</button>
+                            <button class="btn-cancel" id="sttCancelDownloadBtn"
+                                    data-testid="settings-stt-cancel-download"
+                                    style="display: none;">Cancel</button>
+                        </div>
+                        <!-- Hidden until a download is running. `total` may be
+                             null (a response with no Content-Length is legal),
+                             in which case the bar goes indeterminate and the
+                             text reports bytes alone. -->
+                        <div class="stt-progress" id="sttDownloadProgress"
+                             data-testid="settings-stt-progress" style="display: none;">
+                            <div class="stt-progress-track">
+                                <div class="stt-progress-bar" id="sttDownloadBar"
+                                     style="width: 0%;"></div>
+                            </div>
+                            <div class="stt-progress-text" id="sttDownloadText"
+                                 data-testid="settings-stt-progress-text">Starting&hellip;</div>
+                        </div>
+                        <p class="field-description stt-problem" id="sttDownloadError"
+                           data-testid="settings-stt-download-error" style="display: none;"></p>
+                    </div>
+
+                    <!-- Changing size downloads the new model and leaves the
+                         old one alone, so switching back is free. Removal is
+                         therefore explicit and lives here rather than
+                         happening quietly behind the picker. Hidden outright
+                         while nothing is downloaded -- an empty list is not
+                         information. -->
+                    <div class="form-group" id="sttInstalledGroup" style="display: none;">
+                        <label>On this computer</label>
+                        <p class="field-description">
+                            Changing model keeps the old one, so changing back
+                            costs nothing. Remove one when you are sure you are
+                            finished with it.
+                        </p>
+                        <div class="stt-model-list" id="sttInstalledModels"
+                             data-testid="settings-stt-installed"></div>
+                    </div>
+
+                    <hr class="settings-divider">
+                    <h3 class="subsection-title">Recognition</h3>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="stt_priming_enabled"
+                                   data-field="stt_priming_enabled"
+                                   data-testid="settings-stt-priming">
+                            <span>Prime the recogniser with my own subject names</span>
+                        </label>
+                        <p class="field-description">
+                            Before each recording WIMI gives the recogniser a short piece
+                            of prose built from the subjects on the entry you are writing,
+                            so it knows to expect those words. It is the difference between
+                            hearing a drug or an eponym correctly and getting something that
+                            sounds like it. Turn it off only if it is putting words into
+                            your transcripts that you did not say.
+                        </p>
                     </div>
                 </div>
 
@@ -792,6 +1014,177 @@
                         <button class="btn-save" id="installPluginBtn">Install from .zip</button>
                     </div>
                     <div id="addonList" class="addon-list"></div>
+                </div>
+
+                <!-- ==========================================================
+                     About / third-party notices (#195, owner's decision (a))
+
+                     This panel IS the notices document. There is deliberately
+                     no second copy in docs/: a frozen build has no docs/
+                     directory, and the one thing hand-synced copies of a
+                     document reliably do in this repo is drift (#61 and #62
+                     both landed in an embed and never reached docs/, which is
+                     why the import guide is generated now). If a markdown
+                     export is ever wanted, generate it FROM here the way
+                     scripts/check_import_guide_sync.py does.
+
+                     Every licence and version below was read from installed
+                     metadata or from the vendored file itself, not from
+                     memory. The versions are pinned in requirements-prod.txt
+                     and the vendored ones carry their version in the file.
+                     ========================================================== -->
+                <div class="settings-panel" data-panel="about" data-testid="settings-panel-about">
+                    <h2 class="panel-title">About</h2>
+
+                    <div class="form-group">
+                        <h3 class="about-subhead about-section">WIMI</h3>
+                        <p class="field-description">
+                            <strong>Why I Missed It</strong> &mdash; version
+                            <span id="aboutAppVersion" data-testid="about-app-version">&hellip;</span>.
+                            A metacognitive exam preparation tool.
+                        </p>
+                        <p class="field-description">
+                            Copyright &copy; 2026 pclahoud. WIMI is free software:
+                            you can redistribute it and/or modify it under the terms
+                            of the <strong>GNU General Public License, version 3</strong>,
+                            as published by the Free Software Foundation.
+                        </p>
+                        <p class="field-description">
+                            WIMI is distributed in the hope that it will be useful, but
+                            <strong>WITHOUT ANY WARRANTY</strong> &mdash; without even the
+                            implied warranty of merchantability or fitness for a particular
+                            purpose. See the GNU General Public License for more details, in
+                            the <code>LICENSE</code> file distributed with WIMI or at
+                            https://www.gnu.org/licenses/gpl-3.0.html
+                        </p>
+                        <!--
+                            #272: the two bullets below name files that are REALLY THERE.
+                            This sentence above said the GPL text was "in the LICENSE file
+                            distributed with WIMI" while wimi.spec carried no reference to
+                            it at all -- the only LICENSE in dist/ was whisper.cpp's MIT,
+                            and only because the fetcher drops it in vendor/. A notices
+                            document that misstates where its own licence is, is the one
+                            kind of error it cannot afford. scripts/stage_license_files.py
+                            now puts both texts in the bundle root from BOTH build scripts,
+                            and scripts/check_bundled_licenses.py is the gate.
+
+                            Keep these paths and the stager's LICENSE_FILES in step. A
+                            scenario asserts this list is present, so renaming a file here
+                            without renaming it there goes red rather than silent.
+                        -->
+                        <p class="field-description">
+                            Licence texts conveyed with this build, in the folder
+                            containing the application:
+                        </p>
+                        <ul class="field-description" data-testid="about-licence-files">
+                            <li><code>LICENSE</code> &mdash; GNU GPL v3, WIMI itself</li>
+                            <li><code>licenses/LGPL-3.0.txt</code> &mdash; GNU LGPL v3,
+                                Qt&nbsp;6 and QtWebEngine. LGPL-3.0 incorporates the terms
+                                of GPL-3.0 and adds permissions to them, so both texts are
+                                needed to read either.</li>
+                        </ul>
+                        <p class="field-description">
+                            Source code: https://github.com/pclahoud/Project-WIMI
+                            &mdash; see <code>CORRESPONDING-SOURCE.txt</code> beside the
+                            application for the source matching this specific build.
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <h3 class="about-subhead about-section">Third-party notices</h3>
+                        <p class="field-description">
+                            WIMI is distributed with the components below. Each is
+                            the property of its own copyright holders and is used
+                            under the licence shown. Several of these licences
+                            require that this notice accompany the software.
+                        </p>
+
+                        <h4 class="about-subhead">Application framework and Python libraries</h4>
+                        <table class="about-notices-table" data-testid="about-notices-python">
+                            <thead>
+                                <tr><th>Component</th><th>Version</th><th>Licence</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>PyQt6 &mdash; Riverbank Computing</td><td>6.9.1</td><td>GPL v3</td></tr>
+                                <tr><td>PyQt6-WebEngine &mdash; Riverbank Computing</td><td>6.9.0</td><td>GPL v3</td></tr>
+                                <tr><td>PyQt6-sip &mdash; Riverbank Computing</td><td>13.12.0</td><td>BSD 2-Clause</td></tr>
+                                <tr><td>Qt 6 &mdash; The Qt Company and contributors</td><td>6.9.2</td><td>LGPL v3</td></tr>
+                                <tr><td>Qt WebEngine (includes Chromium)</td><td>6.9.2</td><td>LGPL v3</td></tr>
+                                <tr><td>Pillow &mdash; Jeffrey A. Clark and contributors</td><td>11.3.0</td><td>MIT-CMU</td></tr>
+                                <tr><td>python-json-logger</td><td>4.2.0</td><td>BSD 2-Clause</td></tr>
+                                <tr><td>MCP Python SDK &mdash; Anthropic, PBC</td><td>1.27.0</td><td>MIT</td></tr>
+                                <tr><td>PyInstaller (bootloader)</td><td>6.19.0</td><td>GPL v2 or later, with the bundling exception</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="field-description">
+                            PyInstaller's licence carries an explicit exception
+                            permitting the distribution of applications built
+                            with it, including under other terms. That exception
+                            is what covers the bootloader embedded in WIMI's
+                            executable.
+                        </p>
+
+                        <h4 class="about-subhead">Web libraries bundled with the interface</h4>
+                        <table class="about-notices-table" data-testid="about-notices-web">
+                            <thead>
+                                <tr><th>Component</th><th>Version</th><th>Licence</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>D3.js &mdash; Mike Bostock</td><td>7.9.0</td><td>ISC</td></tr>
+                                <tr><td>Fuse.js &mdash; Kiro Risk</td><td>7.1.0</td><td>Apache License 2.0</td></tr>
+                                <tr><td>KaTeX &mdash; Khan Academy and contributors</td><td>0.16.47</td><td>MIT</td></tr>
+                                <tr><td>TinyMCE &mdash; Ephox Corporation DBA Tiny Technologies</td><td>&mdash;</td><td>GPL v2 or later</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="field-description">
+                            TinyMCE ships its own additional notices alongside
+                            its licence, in <code>tinymce/notices.txt</code>
+                            inside the installation.
+                        </p>
+
+                        <h4 class="about-subhead">Speech-to-text</h4>
+                        <table class="about-notices-table" data-testid="about-notices-stt">
+                            <thead>
+                                <tr><th>Component</th><th>Version</th><th>Licence</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>whisper.cpp / ggml &mdash; The ggml authors</td><td>&mdash;</td><td>MIT</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4 class="about-subhead">Windows builds only</h4>
+                        <table class="about-notices-table" data-testid="about-notices-windows">
+                            <thead>
+                                <tr><th>Component</th><th>Files</th><th>Terms</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Microsoft Visual C++ Runtime</td>
+                                    <td><code>MSVCP140</code>, <code>VCRUNTIME140</code>, <code>VCRUNTIME140_1</code>, <code>VCOMP140</code></td>
+                                    <td>Microsoft Distributable Code terms</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="field-description">
+                            These are redistributed app-locally, which is one of
+                            the two deployment routes Microsoft documents. They
+                            are present only in Windows builds.
+                        </p>
+
+                        <h4 class="about-subhead">Where the full licence texts are</h4>
+                        <p class="field-description">
+                            Full texts for the web libraries and for whisper.cpp
+                            are installed alongside WIMI:
+                            <code>web/js/lib/d3.LICENSE</code>,
+                            <code>web/lib/katex/LICENSE</code>,
+                            <code>web/lib/tinymce/license.md</code> and
+                            <code>vendor/whisper/&lt;platform&gt;/LICENSE</code>.
+                            The GNU GPL and LGPL texts named above are published
+                            by the Free Software Foundation at
+                            <code>gnu.org/licenses</code>, and the Qt and PyQt
+                            sources are available from their respective projects.
+                        </p>
+                    </div>
                 </div>
 
                 <div id="pluginSettingsPanels"></div>

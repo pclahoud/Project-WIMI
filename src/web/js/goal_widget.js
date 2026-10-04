@@ -325,10 +325,11 @@ class GoalWidget {
         modal.className = 'modal goal-modal';
         modal.innerHTML = `
             <div class="modal-backdrop" onclick="window.goalWidget?.closeModal()"></div>
-            <div class="modal-content">
+            <div class="modal-content" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="goalEditModalTitle">
                 <div class="modal-header">
-                    <h3>Set Weekly Goal</h3>
-                    <button class="modal-close" onclick="window.goalWidget?.closeModal()">×</button>
+                    <h2 id="goalEditModalTitle">Set Weekly Goal</h2>
+                    <button class="modal-close" onclick="window.goalWidget?.closeModal()" aria-label="Close">×</button>
                 </div>
                 <div class="modal-body">
                     <p class="goal-modal-description">How many entries do you want to log each week?</p>

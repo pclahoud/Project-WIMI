@@ -26,6 +26,7 @@ from .dimensions import DimensionsMixin
 from .aliases import AliasesMixin
 from .import_export import ImportExportMixin
 from .subject_import import SubjectImportMixin
+from .subject_restore import SubjectRestoreMixin
 from .plugin_data import PluginDataMixin
 from .graph import GraphMixin
 
@@ -52,6 +53,7 @@ __all__ = [
     'AliasesMixin',
     'ImportExportMixin',
     'SubjectImportMixin',
+    'SubjectRestoreMixin',
     'PluginDataMixin',
     'GraphMixin',
 ]

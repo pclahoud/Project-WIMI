@@ -9,7 +9,62 @@ from app_logging import ErrorLogger, ErrorLevel, ErrorCategory, ErrorContext
 
 
 class SchemaMigrationMixin:
-    """Mixin providing all schema migration and ensure methods for UserDatabase."""
+    """Mixin providing all schema migration and ensure methods for UserDatabase.
+
+    **Nothing in here may commit on its own (#232).** These ``_ensure_*``
+    methods are pre-migration-runner survivors, and the thing that makes a
+    bare commit unsafe is exactly their shape: they are called both at the top
+    level (``UserDatabase.__init__``) *and* from inside other people's
+    transactions. ``TagsMixin`` alone calls ``_ensure_phase4_schema()``
+    unconditionally from six entry points, two of which ``seed_default_tags``
+    invokes inside ``with self.transaction():``.
+
+    Before #232 that meant creating one tag group committed the caller's
+    transaction, so a later failure logged ``Transaction failed, rolled back``
+    and rolled nothing back.
+    """
+
+    def _commit_if_top_level(self) -> None:
+        """Commit, unless a caller's transaction is open (#232).
+
+        At depth 0 this is the bare commit these methods always did. Nested,
+        it does nothing and the DDL rides on the enclosing transaction --
+        SQLite's DDL is transactional, so an ``ALTER TABLE ADD COLUMN`` rolls
+        back with everything else.
+
+        Using this rather than wrapping each method in ``self.transaction()``
+        is deliberate: a wrap would open and close a *savepoint* around work
+        that the caller's transaction should own, and would read as though it
+        made the method atomic on its own, which is the belief that produced
+        #232 in the first place.
+        """
+        if getattr(self, '_txn_depth', 0) == 0:
+            self.conn.commit()
+
+    def _executescript_at_top_level(self, schema_sql: str, what: str) -> None:
+        """Run a schema-creation script, refusing to do it inside a transaction.
+
+        ``sqlite3``'s ``executescript`` **issues an implicit COMMIT before it
+        runs**. Measured, not assumed: with a pending ``INSERT`` open, an
+        ``executescript`` then a ``rollback()`` leaves the inserted row behind.
+
+        So this is the one form of #232 that ``_commit_if_top_level`` cannot
+        fix -- the damage is done by ``executescript`` itself, before any
+        commit of ours. Deferring our commit would hide it, not repair it.
+
+        These branches only fire when the tables are absent, which is
+        first-run work at depth 0. If that ever stops being true, this refuses
+        loudly instead of quietly ending somebody else's transaction.
+        """
+        if getattr(self, '_txn_depth', 0) > 0:
+            raise DatabaseIntegrityError(
+                f"Refusing to create the {what} schema from inside a "
+                f"transaction (depth {self._txn_depth}). executescript() "
+                "commits implicitly, which would end the caller's transaction "
+                "and make its rollback a no-op -- see #232. Create the schema "
+                "before opening the transaction."
+            )
+        self.conn.executescript(schema_sql)
 
     def _ensure_phase2_schema(self) -> None:
         """
@@ -41,8 +96,8 @@ class SchemaMigrationMixin:
                 schema_sql = f.read()
 
             try:
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'Phase 2')
+                self._commit_if_top_level()
 
                 if self.error_logger:
                     self.error_logger.info(
@@ -120,8 +175,8 @@ class SchemaMigrationMixin:
                 schema_sql = f.read()
 
             try:
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'Phase 4')
+                self._commit_if_top_level()
 
                 # Add hierarchy columns to tags table if not present
                 self._ensure_tags_hierarchy_columns()
@@ -173,7 +228,7 @@ class SchemaMigrationMixin:
         if 'display_order' not in column_names:
             self.execute("ALTER TABLE tags ADD COLUMN display_order INTEGER DEFAULT 0")
 
-        self.conn.commit()
+        self._commit_if_top_level()
 
     def _ensure_media_dimension_column(self) -> None:
         """Add dimension_id column to entry_media table if it doesn't exist"""
@@ -182,7 +237,7 @@ class SchemaMigrationMixin:
 
         if 'dimension_id' not in column_names:
             self.execute("ALTER TABLE entry_media ADD COLUMN dimension_id INTEGER NULL")
-            self.conn.commit()
+            self._commit_if_top_level()
 
     def _ensure_media_active_column(self) -> None:
         """Add is_active column to entry_media table if it doesn't exist"""
@@ -191,7 +246,7 @@ class SchemaMigrationMixin:
 
         if 'is_active' not in column_names:
             self.execute("ALTER TABLE entry_media ADD COLUMN is_active INTEGER DEFAULT 1")
-            self.conn.commit()
+            self._commit_if_top_level()
 
     def _ensure_media_decoupling_schema(self, table_names: set) -> None:
         """
@@ -284,7 +339,7 @@ class SchemaMigrationMixin:
             FROM question_entries qe
         """)
 
-        self.conn.commit()
+        self._commit_if_top_level()
 
     def _ensure_richtext_json_columns(self) -> None:
         """
@@ -304,7 +359,7 @@ class SchemaMigrationMixin:
             if col_name not in column_names:
                 self.execute(f"ALTER TABLE question_entries ADD COLUMN {col_name} {col_type}")
 
-        self.conn.commit()
+        self._commit_if_top_level()
 
     def _ensure_entry_notes_table(self, table_names: set = None) -> None:
         """
@@ -324,8 +379,8 @@ class SchemaMigrationMixin:
             if schema_path.exists():
                 with open(schema_path, 'r') as f:
                     schema_sql = f.read()
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'entry notes')
+                self._commit_if_top_level()
 
             # One-time migration: copy existing notes to entry_notes
             if 'question_entries' in table_names:
@@ -350,7 +405,7 @@ class SchemaMigrationMixin:
                 INSERT INTO entry_notes (question_entry_id, content_html, content_json, sort_order, is_migrated)
                 VALUES (?, ?, ?, 0, 1)
             """, (row['id'], row['notes'], row.get('notes_json')))
-        self.conn.commit()
+        self._commit_if_top_level()
 
     def _ensure_saved_delimiters_table(self, table_names: set = None) -> None:
         """Create saved_delimiters table if missing."""
@@ -365,8 +420,8 @@ class SchemaMigrationMixin:
             if schema_path.exists():
                 with open(schema_path, 'r') as f:
                     schema_sql = f.read()
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'saved delimiters')
+                self._commit_if_top_level()
 
     def _ensure_import_mappings_table(self, table_names: set = None) -> None:
         """Create import_mapping_profiles table if missing."""
@@ -381,8 +436,8 @@ class SchemaMigrationMixin:
             if schema_path.exists():
                 with open(schema_path, 'r') as f:
                     schema_sql = f.read()
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'import mapping profiles')
+                self._commit_if_top_level()
 
     def _ensure_timer_rounds_table(self, table_names: set = None) -> None:
         """Create session_timer_rounds table if missing and migrate existing sessions."""
@@ -397,8 +452,8 @@ class SchemaMigrationMixin:
             if schema_path.exists():
                 with open(schema_path, 'r') as f:
                     schema_sql = f.read()
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'timer rounds')
+                self._commit_if_top_level()
             # Only migrate if review_sessions already exists (skip on fresh DB)
             if 'review_sessions' in table_names:
                 self._migrate_existing_timed_sessions()
@@ -429,7 +484,7 @@ class SchemaMigrationMixin:
                 row['timer_paused_at'],
             ))
         if rows:
-            self.conn.commit()
+            self._commit_if_top_level()
 
     def _ensure_session_duration_column(self) -> None:
         """Ensure session_duration_minutes column exists in review_sessions table."""
@@ -441,7 +496,7 @@ class SchemaMigrationMixin:
                 self.execute(
                     "ALTER TABLE review_sessions ADD COLUMN session_duration_minutes INTEGER DEFAULT NULL"
                 )
-                self.conn.commit()
+                self._commit_if_top_level()
                 if self.error_logger:
                     self.error_logger.debug(
                         f"Added session_duration_minutes column for user {self.username}",
@@ -469,7 +524,7 @@ class SchemaMigrationMixin:
                     self.execute(
                         f"ALTER TABLE review_sessions ADD COLUMN {col_name} {col_def}"
                     )
-                    self.conn.commit()
+                    self._commit_if_top_level()
                     if self.error_logger:
                         self.error_logger.debug(
                             f"Added {col_name} column for user {self.username}",
@@ -493,7 +548,7 @@ class SchemaMigrationMixin:
                 self.execute(
                     "ALTER TABLE exam_contexts ADD COLUMN analytics_config TEXT DEFAULT NULL"
                 )
-                self.conn.commit()
+                self._commit_if_top_level()
                 if self.error_logger:
                     self.error_logger.debug(
                         f"Added analytics_config column for user {self.username}",
@@ -539,8 +594,8 @@ class SchemaMigrationMixin:
                 schema_sql = f.read()
 
             try:
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'Phase 6')
+                self._commit_if_top_level()
 
                 if self.error_logger:
                     self.error_logger.info(
@@ -591,8 +646,8 @@ class SchemaMigrationMixin:
                 schema_sql = f.read()
 
             try:
-                self.conn.executescript(schema_sql)
-                self.conn.commit()
+                self._executescript_at_top_level(schema_sql, 'Phase 7')
+                self._commit_if_top_level()
 
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.info(
@@ -626,6 +681,18 @@ class SchemaMigrationMixin:
                 allow_multiple INTEGER DEFAULT 0,
                 description TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                -- Soft delete (#210, m024). These MUST match m024's columns.
+                -- This CREATE runs when the table is absent, which is also
+                -- when m024 skips it, so a database that reaches Phase 7
+                -- through this path and never through the migration would
+                -- otherwise get a table with no status column and every
+                -- status-filtered read would fail on it.
+                status TEXT NOT NULL DEFAULT 'active',
+                archived_batch_id TEXT,
+                -- The whole-exam import's stable id (#66 2.3, m025). Same
+                -- reason as the two above: this CREATE runs exactly when
+                -- m025 skips the table.
+                import_id TEXT,
                 FOREIGN KEY (exam_id) REFERENCES exam_contexts(id) ON DELETE CASCADE,
                 UNIQUE(exam_id, name),
                 UNIQUE(exam_id, display_order)
@@ -640,6 +707,10 @@ class SchemaMigrationMixin:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_dimensions_order
             ON exam_dimensions(exam_id, display_order)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_exam_dimensions_exam_status
+            ON exam_dimensions(exam_id, status)
         """)
 
         # Create question_hierarchy_tags table
@@ -675,7 +746,7 @@ class SchemaMigrationMixin:
             ON question_hierarchy_tags(entry_id, dimension_id)
         """)
 
-        self.conn.commit()
+        self._commit_if_top_level()
 
     def _ensure_dimension_id_column(self) -> None:
         """Ensure dimension_id column exists in subject_nodes table"""
@@ -687,14 +758,14 @@ class SchemaMigrationMixin:
                 self.execute("""
                     ALTER TABLE subject_nodes ADD COLUMN dimension_id INTEGER
                 """)
-                self.conn.commit()
+                self._commit_if_top_level()
 
                 # Create index
                 self.execute("""
                     CREATE INDEX IF NOT EXISTS idx_subject_nodes_dimension
                     ON subject_nodes(dimension_id)
                 """)
-                self.conn.commit()
+                self._commit_if_top_level()
 
                 if hasattr(self, 'error_logger') and self.error_logger:
                     self.error_logger.info(

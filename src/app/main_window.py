@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
     def _update_window_title(self):
         """Set the window title, including the open profile's display name."""
         if self.user_db is None:
-            self.setWindowTitle('WIMI - What I Missed It')
+            self.setWindowTitle('WIMI - Why I Missed It')
             return
         display_name = self.user_db.username
         if self.master_db is not None:
@@ -362,14 +362,18 @@ class MainWindow(QMainWindow):
             self.media_manager = MediaManager(
                 base_path=self.app_data_dir,
                 user_id=self.user_db.user_id,
-                username=self.user_db.username
+                username=self.user_db.username,
+                # Thumbnail failures are reported through this and nowhere
+                # else (#139). All three construction sites pass it.
+                error_logger=self.error_logger
             )
         else:
             # Create a placeholder manager (will be updated when user_db is set)
             self.media_manager = MediaManager(
                 base_path=self.app_data_dir,
                 user_id=0,
-                username='temp'
+                username='temp',
+                error_logger=self.error_logger
             )
         
         # Store reference in bridge for access from JavaScript
@@ -534,7 +538,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             'About WIMI',
-            '<h2>WIMI - What I Missed It</h2>'
+            '<h2>WIMI - Why I Missed It</h2>'
             f'<p>Version {APP_VERSION}</p>'
             '<p>A metacognitive exam preparation tool for analyzing '
             'mistakes and improving learning outcomes.</p>'
@@ -551,7 +555,8 @@ class MainWindow(QMainWindow):
         self.media_manager = MediaManager(
             base_path=self.app_data_dir,
             user_id=user_db.user_id,
-            username=user_db.username
+            username=user_db.username,
+            error_logger=self.error_logger
         )
         self.db_bridge.media_manager = self.media_manager
 
@@ -593,7 +598,30 @@ class MainWindow(QMainWindow):
         # Clean up resources
         if hasattr(self, 'dev_tools'):
             self.dev_tools.close()
-        
+
+        # Detach and delete the browser pane's pages before its persistent
+        # QWebEngineProfile is released (#153). Two things about this call:
+        #
+        # getattr, not self.browser_pane: the pane is an OPTIONAL feature --
+        # the bridge slots degrade to 'browser pane not available' when no
+        # controller is attached -- and teardown must not be the one thing
+        # that assumes it exists.
+        #
+        # try/except, because a window that cannot close is worse than a
+        # profile released in the wrong order: the databases below still have
+        # to be closed, or a SQLite WAL handle keeps the profile file locked.
+        pane = getattr(self, 'browser_pane', None)
+        if pane is not None:
+            try:
+                pane.teardown()
+            except Exception as exc:  # noqa: BLE001 - close must not raise
+                logger = getattr(self, 'error_logger', None)
+                if logger is not None:
+                    logger.error(
+                        f"Browser pane teardown failed on close: {exc}",
+                        context={'phase': 'closeEvent'}
+                    )
+
         # Stop the folder-sync worker and discard anything it staged but
         # never handed back. A push whose job was never polled -- the window
         # closed mid-sync -- otherwise leaves a sealed copy of the whole
@@ -650,6 +678,18 @@ def run_application(
         plugin_manager=plugin_manager,
         initial_page=initial_page
     )
+    # Drain the log from aboutToQuit (#278). Installed here because this
+    # is the first point where both halves exist: the ErrorLogger is built
+    # before any QApplication (Logging invariant 4), so it cannot connect
+    # itself.
+    #
+    # window.error_logger, not the error_logger parameter: the parameter is
+    # Optional and MainWindow falls through to minting its own, so
+    # connecting the argument would leave the minted logger -- the one
+    # actually receiving records -- with no hook at all. Reading it back off
+    # the window attaches to whichever logger won.
+    window.error_logger.install_shutdown_hook(app)
+
     window.show()
 
     # Auto-start MCP SSE server if enabled in preferences

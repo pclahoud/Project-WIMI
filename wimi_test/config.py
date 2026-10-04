@@ -22,11 +22,17 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
-__all__ = ["TestConfig", "default_url_filter"]
+__all__ = [
+    "TestConfig",
+    "default_url_filter",
+    "warn_if_unresolved",
+    "UnresolvedConfigWarning",
+]
 
 
 # Truthy strings recognised by every boolean env-var override below.
@@ -46,8 +52,27 @@ def default_url_filter(url: str) -> bool:
     drops ``file://`` and ``qrc://`` requests because those schemes are
     used internally by Qt/QtWebEngine for asset loading and produce a
     great deal of noise that is rarely interesting for test assertions.
-    HTTP(S), the custom ``media://`` scheme, and any other scheme are
-    captured. See ``TEST_INFRASTRUCTURE.md`` section 6.2.
+    HTTP(S) and every other scheme are captured. See
+    ``TEST_INFRASTRUCTURE.md`` section 6.2.
+
+    **There is no ``media://`` scheme.** This docstring named one as
+    captured until 2026-09-28; the handler was deleted as dead code in
+    #140 and nothing ever built such a URL.
+
+    **A WIMI page loads entirely over ``file://``, so on WIMI's own
+    pages this predicate rejects everything** — measured at 80 events
+    in, 0 out (78 ``file://``, 2 ``qrc://``). That is the filter working,
+    not a capture that failed to attach, and the stream carries signal
+    only when something fetches remote content (i.e. the browser pane).
+    An empty ``get_network_log`` was twice read as a broken capability
+    and written up as one (#152, #257). It is not.
+
+    Note the filter runs **on ingest**, inside ``NetworkCapture``'s event
+    handlers — not in ``snapshot()``. A rejected event is never buffered,
+    so a caller cannot recover ``file://`` traffic afterwards by
+    snapshotting differently; construct ``NetworkCapture(url_filter=None)``
+    for that, and see the ``set_listener`` overwrite hazard in
+    ``capture/network.py`` before attaching a second one to a live tab.
     """
     if url.startswith("file://") or url.startswith("qrc://"):
         return False
@@ -142,6 +167,23 @@ class TestConfig:
     # #135's Chromium drift could not be caught by any test.
     wimi_binary: Optional[Path] = None
 
+    #: True only on instances built by :meth:`resolve`. Nothing reads it to
+    #: change behaviour -- it exists so a session can tell a config that has
+    #: seen the environment from one that has not, and say so (#185).
+    #:
+    #: A bare ``TestConfig()`` carries pure dataclass defaults, because every
+    #: environment variable is read inside ``resolve()``. That made the
+    #: *explicit-looking* construction the broken one while omitting ``config=``
+    #: entirely worked, which inverts the usual safety gradient: being careful
+    #: was the unsafe move. It cost a real investigation -- a probe built with
+    #: ``TestConfig()`` silently ignored ``WIMI_TEST_BINARY``, ran the dev
+    #: launcher instead of the frozen bundle, and reported a dev path as
+    #: evidence of a #138-class frozen-mode defect that did not exist.
+    #:
+    #: Direct construction stays legal: a unit test wanting hermetic defaults
+    #: is a real case, so this warns rather than refuses.
+    resolved_from_environment: bool = False
+
     @classmethod
     def resolve(cls, cli_overrides: Optional[dict] = None) -> "TestConfig":
         """Build a ``TestConfig`` by layering defaults, env vars, and CLI overrides.
@@ -225,4 +267,43 @@ class TestConfig:
         isolation = values.get("test_user_isolation", cls.test_user_isolation)
         _validate_user_isolation(isolation)
 
+        values["resolved_from_environment"] = True
         return cls(**values)
+
+
+class UnresolvedConfigWarning(UserWarning):
+    """A session was handed a ``TestConfig`` that never read the environment."""
+
+
+def warn_if_unresolved(config: "TestConfig", *, consumer: str) -> None:
+    """Warn when a directly-constructed config reaches a live session (#185).
+
+    ``TestConfig()`` is not a lighter ``TestConfig.resolve()``. Every
+    environment variable -- ``WIMI_TEST_BINARY`` among them -- is read inside
+    ``resolve()``, so a bare construction silently discards all of them and
+    the session runs against ``python run_wimi.py`` no matter what the
+    environment asked for.
+
+    The failure is maximally deceptive: it does not raise, it does not warn,
+    and it yields a *plausible wrong answer* -- a real path to a real binary,
+    differing from the expected one in exactly the direction an investigation
+    into frozen-mode behaviour would be looking for. One such probe reported a
+    dev path as evidence of a #138-class defect that did not exist, and
+    invalidated a model-download measurement that had to be redone.
+
+    A warning rather than a refusal, because direct construction is legitimate
+    for a unit test wanting hermetic defaults. What is never legitimate is
+    handing one to something that spawns a real WIMI.
+    """
+    if getattr(config, "resolved_from_environment", False):
+        return
+    warnings.warn(
+        f"{consumer} was given a TestConfig built directly, so no environment "
+        f"variable was read -- WIMI_TEST_BINARY included. This session will "
+        f"spawn `python run_wimi.py` regardless of what the environment asked "
+        f"for, and will report dev paths that look like real findings (#185). "
+        f"Pass no config at all, or pass TestConfig.resolve(); never "
+        f"TestConfig().",
+        UnresolvedConfigWarning,
+        stacklevel=3,
+    )

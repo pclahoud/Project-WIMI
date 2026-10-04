@@ -10,6 +10,7 @@
         'hierarchy.js',
         'edges.js',
         'relations.js',
+        'subject_restore.js',
         'weights.js',
         'sessions.js',
         'timer.js',
@@ -30,6 +31,7 @@
         'mcp_server.js',
         'browser_pane.js',
         'foldersync.js',
+        'stt.js',
         'utility.js',
         'plugins.js'
     ];

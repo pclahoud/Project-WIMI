@@ -27,6 +27,12 @@ const TreeState = {
     selectedNodeId: null,
     expandedNodes: new Set(),
     isLoading: true,
+
+    // "The page is still markup." Cleared by markTreeEditorReady(), which is
+    // the one place that also removes `inert` from .tree-page (#114, #121).
+    // Latched so the function is idempotent; it is called from the init
+    // chain's `finally` and from the no-exam-id early return.
+    isPageReady: false,
     editingNodeId: null,
     originalWeight: null,
 
@@ -132,6 +138,53 @@ const Toast = {
 // Initialization
 // =========================================================================
 
+/**
+ * Hand the tree editor to the student: clear `inert` and drop isLoading.
+ *
+ * Until this runs, .tree-page ships `inert`, so a click has nowhere to land
+ * and the search box cannot be typed into -- which is the point. The toolbar
+ * (Collapse All, Expand All, Import, Export), #btn-add-root and
+ * #tree-search-input are all bound in setupEventListeners(), five awaits into
+ * initializeTreeEditor(), and every click before that is swallowed with no
+ * toast, no console error and no other sign (#114's shape, filed as #121).
+ *
+ * Called from the `finally` of initializeTreeEditor() and from its
+ * no-exam-id early return, which is before the `try`. That placement is
+ * load-bearing twice over:
+ *
+ * - **Both load paths are inside the try.** A dimensioned exam goes
+ *   loadDimensions() -> selectDimension() -> loadDimensionHierarchy(); a
+ *   plain one goes loadHierarchy(). Releasing from the end of one branch
+ *   would leave the other permanently gated, and the dimensioned path is the
+ *   common case, not the edge case (CLAUDE.md, *Dimension code path
+ *   symmetry*).
+ * - **Every failure exit releases too.** A permanently gated page is far
+ *   worse than the bug the gate fixes (#114's own rule), so the release sits
+ *   in a `finally` rather than after the last statement of the happy path.
+ *
+ * It also owns the announcement (#127): `inert` takes .tree-page out of the
+ * accessibility tree, so the gate is silence as well as refusal, and
+ * #tree-loading cannot say so because it is inside the gated subtree.
+ */
+function markTreeEditorReady() {
+    if (TreeState.isPageReady) return;
+    TreeState.isPageReady = true;
+    TreeState.isLoading = false;
+
+    const page = document.querySelector('.tree-page');
+    if (page) page.removeAttribute('inert');
+
+    // AFTER removeAttribute, inside a try, behind a typeof check, and its
+    // return value deliberately ignored. Nothing added for assistive tech --
+    // a forgotten <script> tag included -- may be able to leave the page
+    // gated (#127, point 5 of page_gate.js's contract).
+    try {
+        if (typeof PageGate !== 'undefined') PageGate.release('Subject hierarchy ready.');
+    } catch (err) {
+        console.warn('PageGate.release failed; the page is released anyway:', err);
+    }
+}
+
 async function initializeTreeEditor() {
     console.log('🌳 Initializing tree editor...');
 
@@ -141,6 +194,10 @@ async function initializeTreeEditor() {
 
     if (!examId) {
         showError('No exam ID provided. Please select an exam from the landing page.');
+        // This return is before the `try`, so the `finally` below cannot
+        // reach it. A page left `inert` here would refuse the "Back to Exams"
+        // link showError() just drew (#114).
+        markTreeEditorReady();
         return;
     }
 
@@ -166,6 +223,15 @@ async function initializeTreeEditor() {
             // Select first dimension by default
             if (TreeState.dimensions.length > 0) {
                 await selectDimension(TreeState.dimensions[0].id);
+            } else {
+                // An exam flagged as dimensioned with no active dimension
+                // reaches NEITHER load path, so nothing here would ever clear
+                // the loading state the page now ships visible (#121). It
+                // used to land on #tree-empty by default, which was wrong for
+                // a different reason. renderTree() on an empty tree is the
+                // honest answer: there is nothing to draw.
+                showLoading(false);
+                renderTree();
             }
         } else {
             // Simple exam - load hierarchy normally
@@ -180,6 +246,12 @@ async function initializeTreeEditor() {
     } catch (error) {
         console.error('Error initializing tree editor:', error);
         showError(`Failed to load exam: ${error.message}`);
+    } finally {
+        // One release, reached from the happy path, from a thrown exam load,
+        // and from both the dimensioned and the plain hierarchy branch above.
+        // See markTreeEditorReady() for why it is here and not at the end of
+        // the try.
+        markTreeEditorReady();
     }
 }
 
@@ -245,6 +317,14 @@ async function loadHierarchy() {
         if (TreeState.usesDimensions) {
             updateDimensionStats();
         }
+        // The Archived panel (#37) is refreshed from BOTH load paths on
+        // purpose. This one is the common case, not the edge case, and the
+        // dimension/plain split is exactly where enrichment gets forgotten
+        // (see the "Dimension code path symmetry" note in CLAUDE.md).
+        // Deliberately not awaited: the panel is supplementary, and blocking
+        // the tree render on it would make a slow journal read look like a
+        // slow tree.
+        refreshArchivedPanel();
         return;
     }
 
@@ -288,6 +368,8 @@ async function loadHierarchy() {
         showExamOverview();
     } finally {
         showLoading(false);
+        // Mirrored from the dimension branch above -- see the note there.
+        refreshArchivedPanel();
     }
 }
 
@@ -497,12 +579,19 @@ function renderDimensionSelector() {
 
     if (!selector || !tabsContainer) return;
 
+    // #237: "Export all" writes a whole-exam file, which only means anything
+    // for an exam that has dimensions. Revealed here rather than at wiring
+    // time because `usesDimensions` is not known until they are loaded.
+    const exportAllBtn = document.getElementById('btn-export-whole-exam');
+
     if (!TreeState.usesDimensions || TreeState.dimensions.length === 0) {
         selector.classList.add('hidden');
+        exportAllBtn?.classList.add('hidden');
         return;
     }
 
     selector.classList.remove('hidden');
+    exportAllBtn?.classList.remove('hidden');
 
     tabsContainer.innerHTML = TreeState.dimensions.map(dim => `
         <button class="dimension-tab ${dim.id === TreeState.currentDimensionId ? 'active' : ''}"
@@ -573,10 +662,20 @@ function updateDimensionInfo(dimension) {
     if (descEl) descEl.textContent = dimension.description || 'No description provided';
 
     if (badgeEl) {
+        // `allow_multiple` states what is EXPECTED, not what is enforced
+        // (#209). Nothing blocks a second subject; the entry form reports an
+        // over-tagged dimension as a warning. Showing "Multi-select" when the
+        // flag is on and nothing when it is off implied the opposite -- that
+        // off meant single-select -- while the live path has always permitted
+        // any number of subjects per dimension.
         const badges = [];
         if (dimension.is_required) badges.push('Required');
-        if (dimension.allow_multiple) badges.push('Multi-select');
+        badges.push(dimension.allow_multiple ? 'Multi-select' : 'One expected');
         badgeEl.textContent = badges.join(' • ') || 'Optional';
+        badgeEl.title = dimension.allow_multiple
+            ? 'More than one subject from this dimension is expected on an entry.'
+            : 'One subject from this dimension is expected. WIMI warns if an entry '
+              + 'carries more, it does not block saving.';
         badgeEl.className = `dimension-info-badge ${dimension.is_required ? '' : 'optional'}`;
     }
 
@@ -698,6 +797,13 @@ function renderTree() {
     const container = document.getElementById('tree-container');
     const emptyState = document.getElementById('tree-empty');
 
+    // #304: this replaces the whole tree markup, destroying any focused row
+    // control. Selecting a row with children expands it, which lands here,
+    // so without putting focus back a keyboard user is returned to the top
+    // of the document by their own Enter press -- a route you cannot use
+    // twice is not a route. Captured before the write, restored after.
+    const focusedRowId = focusedTreeRowId();
+
     if (TreeState.rootNodes.length === 0) {
         container.innerHTML = '';
         emptyState.classList.remove('hidden');
@@ -709,6 +815,52 @@ function renderTree() {
         } else {
             container.innerHTML = html;
         }
+    }
+
+    if (focusedRowId !== null) focusTreeRow(focusedRowId);
+}
+
+/**
+ * The node id of the row control that currently has keyboard focus, or null.
+ *
+ * Reads `document.activeElement` rather than tracking focus in `TreeState`,
+ * because the question being asked is "is the keyboard in the tree right
+ * now" and the DOM is the only thing that knows.
+ */
+function focusedTreeRowId() {
+    const active = document.activeElement;
+    if (!active || !active.classList
+        || !active.classList.contains('tree-node-name')) {
+        return null;
+    }
+    const match = /^name-(\d+)$/.exec(active.id || '');
+    return match ? Number(match[1]) : null;
+}
+
+/** Put keyboard focus on a subject row's control. No-op if it is gone. */
+function focusTreeRow(nodeId) {
+    const el = document.getElementById(`name-${nodeId}`);
+    if (el && typeof el.focus === 'function') el.focus();
+}
+
+/**
+ * Keyboard equivalents for the row's mouse gestures (#304).
+ *
+ * Enter / Space mirror the single click (select), F2 mirrors the double
+ * click (inline rename) -- F2 because that is what every tree view the
+ * student already uses binds rename to, and because Enter is taken by
+ * select. `preventDefault` on Space is not optional: without it the page
+ * scrolls instead.
+ */
+function handleTreeRowKeydown(event, nodeId) {
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        event.stopPropagation();
+        selectNode(nodeId);
+    } else if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        startInlineEdit(nodeId);
     }
 }
 
@@ -792,6 +944,24 @@ function renderNode(node, level) {
     // are insensitive to which appearance was clicked, so the duplication isn't
     // currently functionally broken — just an HTML-validity / locator-ambiguity
     // issue. See docs/testing/UI_AUDIT.md and POLYHIERARCHY_MIGRATION.md §7.1.
+    //
+    // #304/#306 in the markup below:
+    //   - `.tree-node-name` carries role="button" + tabindex="0" + a keydown
+    //     handler, because the row was mouse-only. It is the name span rather
+    //     than `.tree-node-content` because role="button" on the container
+    //     makes the row's accessible name the concatenation of everything in
+    //     it -- measured as "> [folder] Cardio System 0.0% + [bin]".
+    //   - the two action buttons carry aria-labels. A title attribute does
+    //     NOT override visible content, so they announced as "+" and
+    //     "wastebasket"; the subject's name is in the label because a tree of
+    //     31 rows otherwise offers 31 identically-named Delete buttons.
+    //
+    // NOTE: everything from here to the closing backtick is ONE template
+    // literal, so an HTML comment inside it may not contain a backtick -- a
+    // backtick ends the literal. That is not hypothetical: writing this
+    // paragraph as an inline `<!-- ... `title` ... -->` produced
+    // "SyntaxError: Unexpected identifier 'title'" and left the tree editor
+    // permanently gated with an empty tree and no other symptom.
     return `
         <div class="tree-node ${isExpanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}"
              data-id="${node.id}"
@@ -807,7 +977,11 @@ function renderNode(node, level) {
                     <span class="tree-toggle-icon">▶</span>
                 </button>
                 <span class="tree-node-icon">${icon}</span>
-                <span class="tree-node-name" id="name-${node.id}" data-testid="tree-node-name-${node.id}">${TreeState.searchMatchIds.has(node.id) ? highlightSearchMatch(node.name, TreeState.searchQuery) : escapeHtml(node.name)}</span>
+                <span class="tree-node-name" id="name-${node.id}" data-testid="tree-node-name-${node.id}"
+                      role="button" tabindex="0"
+                      aria-keyshortcuts="Enter F2"
+                      ${isSelected ? 'aria-current="true"' : ''}
+                      onkeydown="handleTreeRowKeydown(event, ${node.id})">${TreeState.searchMatchIds.has(node.id) ? highlightSearchMatch(node.name, TreeState.searchQuery) : escapeHtml(node.name)}</span>
                 ${node.is_alias_appearance ? `
                     <span class="tree-node-alias-chip"
                           data-testid="tree-node-alias-${node.id}"
@@ -838,13 +1012,13 @@ function renderNode(node, level) {
                     ${lockIcon}${node.is_anchor ? '<span class="weight-anchor-pin filled" data-testid="tree-node-anchor-pin-' + node.id + '" title="Anchored — won\'t auto-adjust on rebalance">⚓</span>' : ''}${weightDisplay}
                 </span>
                 <div class="tree-node-actions">
-                    <button class="tree-action-btn" data-testid="tree-node-add-child-${node.id}" onclick="event.stopPropagation(); addChild(${node.id})" title="Add Child">+</button>
-                    <button class="tree-action-btn danger" data-testid="tree-node-delete-${node.id}" onclick="event.stopPropagation(); confirmDeleteNode(${node.id})" title="Delete">🗑️</button>
+                    <button class="tree-action-btn" data-testid="tree-node-add-child-${node.id}" onclick="event.stopPropagation(); addChild(${node.id})" title="Add Child" aria-label="Add a child subject under ${escapeAttr(node.name)}">+</button>
+                    <button class="tree-action-btn danger" data-testid="tree-node-delete-${node.id}" onclick="event.stopPropagation(); confirmDeleteNode(${node.id})" title="Delete" aria-label="Delete subject ${escapeAttr(node.name)}">🗑️</button>
                 </div>
             </div>
             ${hasChildren ? `
                 <div class="tree-node-children" data-testid="tree-node-children-${node.id}">
-                    ${renderNodes(node.children, level + 1)}
+                    ${isExpanded ? renderNodes(node.children, level + 1) : ''}
                 </div>
             ` : ''}
         </div>
@@ -912,10 +1086,24 @@ function getWeightTooltip(node) {
 function updateStats() {
     const nodeCount = TreeState.flatNodes.size;
     const totalWeight = TreeState.rootNodes.reduce((sum, node) => sum + (node.weight || node.exam_weight_low || 0), 0);
-    
-    document.getElementById('node-count').textContent = `${nodeCount} subject${nodeCount !== 1 ? 's' : ''}`;
-    document.getElementById('total-weight').textContent = `Root Total: ${totalWeight.toFixed(1)}%`;
-    
+
+    // Both spans ship empty and `hidden` (#289), because "0 subjects /
+    // Total: 0%" in the markup is indistinguishable from a measured zero.
+    // This is the one place that has counted, so it is the one place that may
+    // show a number.
+    //
+    // Write, THEN reveal. The order is not observable today -- the browser
+    // cannot paint between two statements of one synchronous function, so
+    // revealing first would show nothing either -- but it is the order that
+    // stays correct if either half ever gains an await, and it reads as what
+    // it means: there is something true to show now.
+    const nodeCountEl = document.getElementById('node-count');
+    const totalWeightEl = document.getElementById('total-weight');
+    nodeCountEl.textContent = `${nodeCount} subject${nodeCount !== 1 ? 's' : ''}`;
+    totalWeightEl.textContent = `Root Total: ${totalWeight.toFixed(1)}%`;
+    nodeCountEl.classList.remove('hidden');
+    totalWeightEl.classList.remove('hidden');
+
     // Update weight config badge
     updateWeightConfigBadge();
 }
@@ -1035,10 +1223,22 @@ function showExamOverview() {
     // Generate pie chart SVG for root nodes
     const pieChart = generatePieChart(rootNodes);
     
-    // Build overview HTML
+    // Build overview HTML.
+    //
+    // `.overview-title` is an h2 and `.overview-section-title`s are h3 (#317).
+    // This replaces `.details-placeholder`'s content, so the title is the
+    // details panel's own top-level heading and sits directly under the page's
+    // h1 (`#exam-name`) -- the same slot `.details-title` occupies, which is
+    // already an h2. An h3 here made the tree editor's RENDERED outline skip
+    // h1 -> h3 in the state the page opens in (subjects exist, nothing
+    // selected), which is what the #317 audit screenshotted. The markup's own
+    // two h3s are a different pair and neither is visible in that state, so
+    // only tests/wimi_test/scenarios/test_heading_levels_descend.py sees this
+    // one. Sizes live on both classes in tree.css, which is what leaves the
+    // level free to be the one the outline implies.
     placeholder.innerHTML = `
         <div class="exam-overview">
-            <h3 class="overview-title">📊 Exam Overview</h3>
+            <h2 class="overview-title">📊 Exam Overview</h2>
             
             <div class="overview-stats">
                 <div class="overview-stat">
@@ -1056,7 +1256,7 @@ function showExamOverview() {
             </div>
             
             <div class="overview-section">
-                <h4 class="overview-section-title">Subjects by Level</h4>
+                <h3 class="overview-section-title">Subjects by Level</h3>
                 <div class="level-counts">
                     ${orderedLevelCounts.map(([level, count]) => `
                         <div class="level-count-item">
@@ -1069,7 +1269,7 @@ function showExamOverview() {
             
             ${rootNodes.length > 0 ? `
                 <div class="overview-section">
-                    <h4 class="overview-section-title">Weight Distribution</h4>
+                    <h3 class="overview-section-title">Weight Distribution</h3>
                     <div class="pie-chart-container">
                         ${pieChart}
                     </div>
@@ -1934,18 +2134,45 @@ function toggleNode(nodeId, forceExpand = false) {
         TreeState.expandedNodes.add(nodeId);
     }
     
-    const nodeEl = document.querySelector(`.tree-node[data-id="${nodeId}"]`);
-    if (nodeEl) {
-        nodeEl.classList.toggle('expanded', TreeState.expandedNodes.has(nodeId));
-    }
+    // Re-render rather than flipping the CSS class, because a collapsed
+    // subtree is no longer IN the DOM to reveal (#177). This used to cost
+    // 0.1 ms against a tree where every node was always rendered and
+    // `expanded` was decoration; it now costs one render of whatever is
+    // actually open, which on a freshly loaded outline is a few dozen rows
+    // rather than 2,752.
+    //
+    // Deliberately not a targeted DOM patch. `TreeState.flatNodes` keeps
+    // only the LAST occurrence of a node id (see buildFlatNodeMap), so on a
+    // polyhierarchy node `flatNodes.get(id).children` may belong to a
+    // different appearance than the one that was clicked -- filling a
+    // container from it would render the primary's descendants under an
+    // alias, or nothing under the primary. Rendering from the root cannot
+    // get that wrong.
+    renderTree();
 }
 
 function expandAll() {
-    TreeState.flatNodes.forEach((node, id) => {
-        if (node.children && node.children.length > 0) {
-            TreeState.expandedNodes.add(id);
+    // Walk the tree, not TreeState.flatNodes. flatNodes keeps only the
+    // LAST appearance of each id (see buildFlatNodeMap), so a subject that
+    // appears twice -- once as an alias leaf, once as the primary with
+    // descendants -- may be stored under the childless appearance and then
+    // never expanded. Measured on the seeded USMLE outline: 325 parents by
+    // appearance, 315 by flatNodes, so 10 subtrees stayed shut.
+    //
+    // This was always wrong and was always invisible, because collapsing
+    // used to be cosmetic -- every node sat in the DOM whatever
+    // expandedNodes said, so an unexpanded parent still had its children
+    // there to reveal. Now that rendering follows expansion (#177), those
+    // 10 subtrees would simply not appear.
+    const expandParents = (nodes) => {
+        for (const node of nodes) {
+            if (node.children && node.children.length > 0) {
+                TreeState.expandedNodes.add(node.id);
+                expandParents(node.children);
+            }
         }
-    });
+    };
+    expandParents(TreeState.rootNodes);
     renderTree();
 }
 
@@ -1980,14 +2207,22 @@ function startInlineEdit(nodeId) {
 }
 
 async function finishInlineEdit(nodeId, newName) {
+    // #304: whether to hand focus back to the row afterwards. Only when the
+    // rename input still HAS focus -- this function is also reached from the
+    // input's own `onblur`, i.e. because the student clicked somewhere else,
+    // and focusing the row then would yank them back out of wherever they
+    // just went. Read before the await, because the await is where focus
+    // moves.
+    const cameFromTheKeyboard = inlineEditHasFocus();
+
     if (!newName.trim()) {
-        cancelInlineEdit(nodeId);
+        cancelInlineEdit(nodeId, cameFromTheKeyboard);
         return;
     }
     
     const node = TreeState.flatNodes.get(nodeId);
     if (!node || node.name === newName.trim()) {
-        cancelInlineEdit(nodeId);
+        cancelInlineEdit(nodeId, cameFromTheKeyboard);
         return;
     }
     
@@ -2001,14 +2236,28 @@ async function finishInlineEdit(nodeId, newName) {
     
     TreeState.editingNodeId = null;
     renderTree();
+    if (cameFromTheKeyboard) focusTreeRow(nodeId);
     if (TreeState.selectedNodeId === nodeId) {
         showNodeDetails(nodeId);
     }
 }
 
-function cancelInlineEdit(nodeId) {
+/** Does the inline rename input currently hold keyboard focus? */
+function inlineEditHasFocus() {
+    const active = document.activeElement;
+    return !!(active && active.classList
+              && active.classList.contains('tree-node-name-input'));
+}
+
+function cancelInlineEdit(nodeId, restoreFocus) {
+    // Default to the DOM's answer so the one-argument callers (the Escape
+    // key handler, and anything outside this module) still behave.
+    const giveFocusBack = restoreFocus === undefined
+        ? inlineEditHasFocus()
+        : restoreFocus;
     TreeState.editingNodeId = null;
     renderTree();
+    if (giveFocusBack) focusTreeRow(nodeId);
 }
 
 // =========================================================================
@@ -2456,6 +2705,185 @@ async function executeDeleteNode() {
     }
 }
 
+
+// =========================================================================
+// Archived subjects panel (#37)
+// =========================================================================
+//
+// A flat list, not a "show archived" toggle inside the tree: an archived
+// subject frequently has no valid position any more -- that is the whole of
+// #15 -- so drawing it in place would be a lie.
+//
+// Collapsed by default, and the whole section is hidden when nothing is
+// archived, so a healthy tree pays no attention for it.
+//
+// Restore is offered per *event*, not per row: one deletion archived a
+// subtree, stripped edges, cleared entry contexts and hid relations, and
+// restore undoes that operation. A dimension archive is one event too, even
+// though it produced several subject batches underneath -- the backend
+// refuses to restore those individually, so they are never listed.
+
+const ARCHIVED_PANEL_STATE = { batches: [], busy: null };
+
+async function refreshArchivedPanel() {
+    const panel = document.getElementById('archived-panel');
+    const list = document.getElementById('archived-list');
+    const count = document.getElementById('archived-panel-count');
+    if (!panel || !list || !count) return;
+
+    let batches = [];
+    try {
+        const payload = await api.getArchivedBatches(TreeState.examContextId);
+        batches = (payload && payload.batches) || [];
+    } catch (error) {
+        // A panel that cannot load is not worth a toast on every page load --
+        // the tree itself is fine and this is supplementary. Say it in the
+        // panel, where somebody looking for it will see it.
+        ARCHIVED_PANEL_STATE.batches = [];
+        panel.classList.remove('hidden');
+        count.textContent = '!';
+        list.innerHTML =
+            '<li class="archived-empty">Could not load archived deletions: ' +
+            escapeHtml(error.message || String(error)) + '</li>';
+        return;
+    }
+
+    ARCHIVED_PANEL_STATE.batches = batches;
+    count.textContent = String(batches.length);
+
+    if (!batches.length) {
+        // Hidden rather than shown-empty: nothing archived is the normal
+        // state and does not need a row of its own.
+        panel.classList.add('hidden');
+        panel.classList.remove('open');
+        setArchivedPanelExpanded(false);
+        list.innerHTML = '';
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    list.innerHTML = batches.map(renderArchivedItem).join('');
+}
+
+function renderArchivedItem(batch) {
+    const isDimension = batch.kind === 'dimension';
+    const name = isDimension
+        ? (batch.dimension_name || 'a dimension')
+        : (batch.root_node_name || 'a subject');
+
+    // "was under Cardiovascular System" -- the listing carries `parents` for
+    // exactly this, so no second round trip is needed.
+    let where;
+    if (isDimension) {
+        const trees = batch.tree_count || 0;
+        where = `dimension, ${trees} ${trees === 1 ? 'tree' : 'trees'}`;
+    } else if (batch.parents && batch.parents.length) {
+        where = 'was under ' + batch.parents
+            .map(parent => escapeHtml(parent.name))
+            .join(', ');
+    } else {
+        where = 'was a top-level subject';
+    }
+
+    const subjects = batch.node_count || 0;
+    const subjectLabel = `${subjects} ${subjects === 1 ? 'subject' : 'subjects'}`;
+    const when = formatArchivedWhen(batch.deleted_at);
+
+    return `
+        <li class="archived-item${isDimension ? ' archived-item-dimension' : ''}"
+            data-batch-id="${escapeHtml(batch.batch_id)}"
+            data-testid="tree-archived-item">
+            <span class="archived-item-main">
+                <span class="archived-item-name">${escapeHtml(name)}</span>
+                <span class="archived-item-meta">${where} &middot; ${subjectLabel}${when}</span>
+            </span>
+            <button class="archived-restore-btn"
+                    onclick="restoreArchivedBatch('${escapeHtml(batch.batch_id)}', '${escapeHtml(batch.kind)}')"
+                    data-testid="tree-archived-restore">Restore</button>
+        </li>`;
+}
+
+function formatArchivedWhen(deletedAt) {
+    if (!deletedAt) return '';
+    // SQLite writes `YYYY-MM-DD HH:MM:SS` in UTC with no zone marker, which
+    // `new Date()` reads as local time -- enough to land "just now" a few
+    // hours out. Parse as UTC explicitly.
+    const parsed = new Date(String(deletedAt).replace(' ', 'T') + 'Z');
+    if (isNaN(parsed.getTime())) return '';
+
+    const days = Math.floor((Date.now() - parsed.getTime()) / 86400000);
+    if (days < 1) return ', deleted today';
+    if (days === 1) return ', deleted yesterday';
+    if (days < 30) return `, deleted ${days} days ago`;
+    return `, deleted ${parsed.toLocaleDateString()}`;
+}
+
+async function restoreArchivedBatch(batchId, kind) {
+    if (ARCHIVED_PANEL_STATE.busy) return;
+    ARCHIVED_PANEL_STATE.busy = batchId;
+
+    const button = document.querySelector(
+        `.archived-item[data-batch-id="${batchId}"] .archived-restore-btn`);
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Restoring...';
+    }
+
+    try {
+        const result = await api.restoreBatch(batchId, kind);
+
+        // The summary names what was skipped and why -- the owner's decision
+        // that a partial restore must not read as a complete one. Showing
+        // only "Restored" would be the same defect #240 fixed at the bridge.
+        Toast.success('Restored', result.summary || 'Restored.');
+
+        // #260's note: a subject whose parent is still archived comes back at
+        // the top level. Not an error, but the student would otherwise go
+        // looking for it in the wrong place.
+        (result.notes || []).forEach(note => {
+            Toast.info('Where it went', note.message);
+        });
+
+        if (TreeState.usesDimensions && TreeState.currentDimensionId) {
+            invalidateDimensionCache(TreeState.currentDimensionId);
+        }
+        // A dimension restore changes which dimensions exist, so the selector
+        // has to be rebuilt rather than just the tree redrawn.
+        if (kind === 'dimension' && typeof loadDimensions === 'function') {
+            await loadDimensions();
+        }
+        await loadHierarchy();
+        reapplySearchIfActive();
+    } catch (error) {
+        // Every refusal from the planner is a sentence the student can act on
+        // ("another dimension is already called X", "restore that parent's
+        // deletion first"), so it is shown verbatim.
+        Toast.error('Could not restore', error.message || String(error));
+    } finally {
+        ARCHIVED_PANEL_STATE.busy = null;
+        await refreshArchivedPanel();
+    }
+}
+
+function setArchivedPanelExpanded(expanded) {
+    const panel = document.getElementById('archived-panel');
+    const toggle = document.getElementById('archived-panel-toggle');
+    const body = document.getElementById('archived-panel-body');
+    if (!panel || !toggle || !body) return;
+
+    panel.classList.toggle('open', expanded);
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    // `hidden` as well as the class: the panel must be out of the a11y tree
+    // when collapsed, not merely invisible (#127's lesson, other direction).
+    body.hidden = !expanded;
+}
+
+function toggleArchivedPanel() {
+    const panel = document.getElementById('archived-panel');
+    if (!panel) return;
+    setArchivedPanelExpanded(!panel.classList.contains('open'));
+}
+
 // =========================================================================
 // Weight Operations
 // =========================================================================
@@ -2760,6 +3188,14 @@ function setupEventListeners() {
     document.getElementById('btn-expand-all').onclick = expandAll;
     document.getElementById('btn-collapse-all').onclick = collapseAll;
     document.getElementById('btn-export').onclick = exportHierarchy;
+    // #237. `import_export.js` replaces `window.exportHierarchy` with its own
+    // enhanced version at load; the whole-exam export has no legacy
+    // counterpart, so it is read off `window` at click time rather than
+    // captured here, for the same reason.
+    const exportAllBtn = document.getElementById('btn-export-whole-exam');
+    if (exportAllBtn) {
+        exportAllBtn.onclick = () => window.exportWholeExamHierarchy?.();
+    }
     document.getElementById('btn-import').onclick = triggerImport;
 
     // Polyhierarchy: parent-management picker controls. Listeners wired
@@ -2903,6 +3339,13 @@ function setupEventListeners() {
             }
         }
     });
+
+    // Archived subjects panel (#37). Collapsed by default; the list itself is
+    // loaded by `loadHierarchy` so it tracks the exam and dimension on screen.
+    const archivedToggle = document.getElementById('archived-panel-toggle');
+    if (archivedToggle) {
+        archivedToggle.addEventListener('click', toggleArchivedPanel);
+    }
 }
 
 // =========================================================================
@@ -2926,6 +3369,11 @@ function showLoading(show) {
 
 function showError(message) {
     const container = document.getElementById('tree-container');
+    // #tree-container ships `hidden` since #121 (so the first load looks like
+    // every later one), and showLoading(true) hides it as well. An error
+    // written into a hidden container is an error nobody reads, and the
+    // no-exam-id path reaches here before any showLoading(false).
+    container.classList.remove('hidden');
     container.innerHTML = `
         <div class="alert alert-error" style="margin: 20px;">
             <strong>Error:</strong> ${escapeHtml(message)}
@@ -2944,11 +3392,26 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
+ *
+ * `escapeHtml` round-trips through `textContent` -> `innerHTML`, which
+ * escapes `&`, `<` and `>` but leaves `"` alone. That is correct for text
+ * content and wrong inside an attribute: a subject called
+ * `Cardio "fast" track` would close the attribute early and the rest of
+ * the name would be parsed as markup. Used by the #306 aria-labels, which
+ * are the first attributes here to carry a user-typed subject name.
+ */
+function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, '&quot;');
+}
+
 // =========================================================================
 // Expose Global Functions for onclick handlers
 // =========================================================================
 
 window.selectNode = selectNode;
+window.handleTreeRowKeydown = handleTreeRowKeydown;
 window.toggleNode = toggleNode;
 window.startInlineEdit = startInlineEdit;
 window.addChild = addChild;
@@ -2969,6 +3432,11 @@ window.performRemoveParentEdge = performRemoveParentEdge;
 window.addParentEdgeFromPicker = addParentEdgeFromPicker;
 
 // Multi-dimensional support exports
+// Archived panel (#37) -- invoked from an inline onclick in renderArchivedItem.
+window.restoreArchivedBatch = restoreArchivedBatch;
+window.refreshArchivedPanel = refreshArchivedPanel;
+window.toggleArchivedPanel = toggleArchivedPanel;
+
 window.selectDimension = selectDimension;
 window.TreeState = TreeState;
 

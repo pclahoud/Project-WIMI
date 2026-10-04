@@ -390,9 +390,10 @@ class RichEditor {
         modal.className = 'rich-editor-math-modal';
         modal.innerHTML = `
             <div class="rich-editor-math-backdrop"></div>
-            <div class="rich-editor-math-dialog">
+            <div class="rich-editor-math-dialog" data-modal-surface role="dialog"
+                 aria-modal="true" aria-labelledby="rich-editor-math-title">
                 <div class="rich-editor-math-header">
-                    <h4>${existingFormula ? 'Edit' : 'Insert'} Math Equation</h4>
+                    <h2 id="rich-editor-math-title">${existingFormula ? 'Edit' : 'Insert'} Math Equation</h2>
                     <button type="button" class="rich-editor-math-close" aria-label="Close">&times;</button>
                 </div>
                 <div class="rich-editor-math-body">
@@ -983,6 +984,120 @@ class RichEditor {
             // Queue empty content if not initialized yet
             this._pendingContent = '';
         }
+    }
+
+    /**
+     * Remember where the caret is, for text that will arrive seconds later.
+     *
+     * The student's model of dictation is "I put the cursor here and started
+     * talking" (#59, §3.5). By the time whisper.cpp has finished they may
+     * have clicked elsewhere, or into the other field, so the insertion
+     * point is captured when recording STARTS and restored when the
+     * transcript lands.
+     *
+     * A type-2 non-intrusive bookmark is the one TinyMCE documents as
+     * surviving intervening content changes, which is exactly the condition
+     * here: the student may well keep typing while they wait.
+     *
+     * @param {Object} [options]
+     * @param {boolean} [options.atEnd] move to the end of the document
+     *     first. Pass this when the editor has never been focused: TinyMCE's
+     *     default selection is the START of the document, so inserting there
+     *     would PREPEND the transcript to whatever is already written.
+     * @returns {Object|null} an opaque bookmark, or null if there is no
+     *     editor to take one from.
+     */
+    captureInsertionPoint(options = {}) {
+        if (!this.editor || !this.isInitialized) return null;
+        try {
+            if (options.atEnd) {
+                this.editor.selection.select(this.editor.getBody(), true);
+                this.editor.selection.collapse(false);
+            }
+            return this.editor.selection.getBookmark(2, true);
+        } catch (e) {
+            console.warn('[RichEditor] could not capture an insertion point', e);
+            return null;
+        }
+    }
+
+    /**
+     * Put dictated text in at the insertion point (#59, §3.5).
+     *
+     * **Throws if the editor is not mounted, and never queues.**
+     * `setContent()` stashes into `_pendingContent` when `!isInitialized`,
+     * and `clear()` queues a `''` that the `init` handler flushes over it --
+     * so a transcript parked in that queue would be destroyed by the next
+     * `clear()` with no toast and no console error. That queue IS #114's
+     * mechanism. The assertion should never fire: the mic buttons live
+     * inside `.entry-page`, which ships `inert` and is released only by
+     * `markEntryFormReady()`, which does not run until both editors report
+     * `isInitialized`. If it does fire, the gate is broken and that is the
+     * bug to fix -- not this.
+     *
+     * Insert, never replace and never append-to-end: the student may speak,
+     * then type, then speak again, and a dictation control that clobbers
+     * what is already written is hostile. `insertContent` adds an undo
+     * level, so Ctrl+Z removes a transcript they did not want.
+     *
+     * @param {string} text the transcript, as plain text.
+     * @param {Object} [bookmark] from {@link captureInsertionPoint}.
+     * @returns {boolean} true once the text is in.
+     */
+    insertTranscript(text, bookmark = null) {
+        if (!this.editor || !this.isInitialized) {
+            throw new Error(
+                'RichEditor.insertTranscript called before the editor was '
+                + 'initialized; refusing to queue the transcript because '
+                + 'clear() would destroy it (#59, #114)');
+        }
+        const body = String(text == null ? '' : text).trim();
+        if (!body) return false;
+
+        this.editor.focus();
+        if (bookmark) {
+            try {
+                this.editor.selection.moveToBookmark(bookmark);
+            } catch (e) {
+                // A bookmark into content that has since been restructured
+                // can fail to resolve. The caret is then wherever TinyMCE
+                // left it, which is a placement problem and not a data one.
+                console.warn('[RichEditor] the insertion point could not be '
+                    + 'restored; inserting at the current caret', e);
+            }
+        }
+
+        // Spacing is not a detail: without it the transcript welds onto the
+        // word beside it. Both sides, because the caret is not always at the
+        // end -- the whole point of inserting at the caret is that it may be
+        // mid-sentence. Scoped to the caret's own block, so the start of a
+        // fresh paragraph does not get a leading space it does not need.
+        let leading = '';
+        let trailing = '';
+        try {
+            const rng = this.editor.selection.getRng();
+            const dom = this.editor.dom;
+            const block = dom.getParent(rng.startContainer, dom.isBlock)
+                || this.editor.getBody();
+
+            const before = dom.createRng();
+            before.setStart(block, 0);
+            before.setEnd(rng.startContainer, rng.startOffset);
+            const textBefore = before.toString();
+            if (textBefore.length > 0 && !/\s$/.test(textBefore)) leading = ' ';
+
+            const after = dom.createRng();
+            after.setStart(rng.endContainer, rng.endOffset);
+            after.setEnd(block, block.childNodes.length);
+            const textAfter = after.toString();
+            if (textAfter.length > 0 && !/^\s/.test(textAfter)) trailing = ' ';
+        } catch (e) {
+            console.warn('[RichEditor] could not inspect the text around the '
+                + 'insertion point; inserting without added spacing', e);
+        }
+
+        this.editor.insertContent(leading + this._escapeHtml(body) + trailing);
+        return true;
     }
 
     /**

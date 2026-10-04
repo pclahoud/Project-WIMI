@@ -15,6 +15,30 @@ GRAPH_SCHEMA_VERSION = "1.0.0"
 class GraphMixin:
     """Mixin for LadybugDB graph database operations."""
 
+    # Class-level defaults so these attributes exist on an instance whose
+    # ``__init__`` never reached ``_init_graph``, which assigns them.
+    #
+    # ``UserDatabase.__init__`` runs the migration runner first, so any
+    # failure there aborts with ``_graph_conn`` absent — and the object is
+    # still garbage-collected, so ``__del__`` -> ``close()`` ->
+    # ``_close_graph()`` read a missing attribute and raised
+    # ``AttributeError`` on stderr immediately after a genuine failure,
+    # naming the *graph* subsystem, which is never what went wrong (#281).
+    #
+    # Two things make this more than cosmetic. ``UserDatabase.close()``
+    # calls ``_close_graph()`` **first**, so the AttributeError also
+    # stopped ``BaseDatabase.close()`` from ever running — the SQLite
+    # handle stayed open (#292). And the fix for that calls ``close()``
+    # from the constructor's own failure path, which needs this to work at
+    # every stage of construction.
+    #
+    # Same pattern and same reason as ``BaseDatabase._txn_depth``: a
+    # class-level default covers every future field of this kind, where a
+    # ``getattr`` guard at each read site covers one.
+    _graph_db = None
+    _graph_conn = None
+    _graph_path = None
+
     def _init_graph(self):
         """Initialize graph database connection. Called after SQLite init."""
         self._graph_db = None
@@ -451,7 +475,8 @@ class GraphMixin:
     def _etl_dimensions(self):
         """ETL Step 1: Create :Dimension nodes from exam_dimensions."""
         try:
-            rows = self.fetchall("SELECT id, name FROM exam_dimensions")
+            rows = self.fetchall(
+                "SELECT id, name FROM exam_dimensions WHERE status = 'active'")
         except Exception:
             # Table may not exist if Phase 7 schema was never applied
             logger.debug("ETL: exam_dimensions table not found, skipping")
@@ -488,7 +513,8 @@ class GraphMixin:
         # Link dimensions to exam contexts via HAS_DIMENSION
         try:
             dim_rows = self.fetchall(
-                "SELECT id AS dim_id, exam_id FROM exam_dimensions"
+                "SELECT id AS dim_id, exam_id FROM exam_dimensions "
+                "WHERE status = 'active'"
             )
         except Exception:
             return

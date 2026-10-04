@@ -13,11 +13,58 @@
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
+    <!-- #286. import_export.js names the export file after LocalDate.today(). -->
+    <script src="../js/local_date.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
+    <!-- The page gate's voice (#127). Before tree_editor.js, which calls
+         PageGate.release() from markTreeEditorReady(). -->
+    <script src="../js/page_gate.js"></script>
 </head>
 <body>
-    <div class="tree-page">
+    <!--
+      The gate's voice (#127), and the ONE thing about it that is easy to get
+      wrong: it sits OUTSIDE .tree-page. `inert` removes its whole subtree
+      from the accessibility tree, so a status message placed inside the
+      thing being gated is as invisible to a screen reader as the page is.
+
+      #tree-loading below is NOT a candidate for this job and was measured not
+      to be: it lives inside .tree-page, so it goes out of the accessibility
+      tree with everything else. It keeps its old role as the *sighted*
+      loading affordance; this element is the announced one.
+
+      The holding message is in the markup for the same reason the `inert`
+      attribute is -- there must be no window in which the page is gated and
+      silent. docs/guides/PAGE_GATE.md is the pattern; styled in styles.css,
+      which every page already links.
+    -->
+    <div class="page-gate" data-page-gate role="status" aria-live="polite"
+        >Preparing the subject hierarchy&hellip;</div>
+
+    <!--
+      Ships `inert` (#114, #121). Until initializeTreeEditor() has wired it,
+      this page is markup and nothing else: the toolbar (Collapse All, Expand
+      All, Import, Export), #btn-add-root and #tree-search-input are all bound
+      in setupEventListeners(), which runs after five awaits, so every click
+      in that window is swallowed with no feedback.
+
+      #121 is worse than a dead click, which is why the two `hidden` classes
+      further down were swapped in the same change: the page used to paint
+      #tree-empty -- "No Subjects Yet" plus a large primary "Add Your First
+      Subject" -- on an exam that may have a full hierarchy, and offer an
+      action that does nothing. Refusing the click is necessary but not
+      sufficient; the page must also not assert something false while it
+      loads.
+
+      markTreeEditorReady() removes the attribute, from the `finally` of the
+      init chain and from the no-exam-id early return, so BOTH load paths
+      (loadHierarchy and loadDimensionHierarchy) and every failure exit
+      release it. A permanently gated page is far worse than #121.
+
+      `data-page-gated` names this as the container the gate covers; it
+      carries no behaviour and tests/test_page_gate_markup.py reads it.
+    -->
+    <div class="tree-page" inert data-page-gated>
         <!-- Header -->
         <header class="tree-header">
             <div class="tree-header-left">
@@ -40,11 +87,22 @@
                 <button class="btn btn-secondary btn-sm" id="btn-import" data-testid="tree-import" title="Import Hierarchy">
                     <span>📥</span> Import
                 </button>
-                <button class="btn btn-icon btn-sm" id="btn-import-help" data-testid="tree-import-help" title="Import Format Help">
+                <!-- The `title` does NOT become the accessible name here:
+                     visible content wins, so this announced as "question mark"
+                     (#306, measured name='❓'). -->
+                <button class="btn btn-icon btn-sm" id="btn-import-help" data-testid="tree-import-help" title="Import Format Help" aria-label="Import format help">
                     <span>❓</span>
                 </button>
-                <button class="btn btn-secondary btn-sm" id="btn-export" data-testid="tree-export" title="Export Hierarchy">
+                <button class="btn btn-secondary btn-sm" id="btn-export" data-testid="tree-export" title="Export the dimension you are editing, as a subject tree">
                     <span>📤</span> Export
+                </button>
+                <!-- #237: a separate action, not a mode of Export. The two
+                     write files that mean different things - one is a tree to
+                     merge into this dimension, the other describes the whole
+                     exam and will create, rename and archive dimensions.
+                     Hidden unless the exam uses dimensions. -->
+                <button class="btn btn-secondary btn-sm hidden" id="btn-export-whole-exam" data-testid="tree-export-whole-exam" title="Export every dimension of this exam as one whole-exam file">
+                    <span>📦</span> Export all
                 </button>
             </div>
         </header>
@@ -67,15 +125,38 @@
             </button>
             <div class="tree-search-bar" id="tree-search-bar">
                 <span class="tree-search-icon">&#128269;</span>
+                <!-- aria-label, not just the placeholder: a placeholder is not
+                     announced as the name by every assistive technology and it
+                     disappears the moment the student types (#305). Measured
+                     before the fix: name='Filter subjects...' from
+                     name_from=['placeholder']. -->
                 <input type="text" id="tree-search-input" class="tree-search-input" data-testid="tree-search-input"
+                       aria-label="Filter subjects"
                        placeholder="Filter subjects..." autocomplete="off" spellcheck="false">
                 <span class="tree-search-count hidden" id="tree-search-count" data-testid="tree-search-count"></span>
                 <button class="tree-search-clear hidden" id="tree-search-clear" data-testid="tree-search-clear" title="Clear filter">&times;</button>
             </div>
             <div class="tree-toolbar-info">
-                <span id="node-count" data-testid="tree-node-count">0 subjects</span>
+                <!-- Both counters ship EMPTY and `hidden`, revealed by
+                     updateStats() (#289). They shipped "0 subjects" and
+                     "Total: 0%", so during the load this toolbar read
+                     "0 subjects - Total: 0%" on an exam with subjects in it --
+                     and the shipped string was not even the writer's format,
+                     which is "Root Total: N%".
+
+                     `hidden` rather than merely empty, unlike the entry
+                     browser's header, because here the *words* are inside the
+                     node updateStats() overwrites: there is no filler to leave
+                     behind, so emptying alone would paint two bare bullets.
+                     This is #89's idiom one element over -- the same "ship
+                     hidden, let JS reveal it once there is something true to
+                     show" the weight badge below uses, and the separators
+                     follow declaratively via the `:has(+ .tree-toolbar-stat.hidden)`
+                     rule in styles.css. updateStats() is called from BOTH load
+                     paths (see "Dimension code path symmetry"). -->
+                <span id="node-count" class="tree-toolbar-stat hidden" data-testid="tree-node-count"></span>
                 <span class="separator">•</span>
-                <span id="total-weight" data-testid="tree-total-weight">Total: 0%</span>
+                <span id="total-weight" class="tree-toolbar-stat hidden" data-testid="tree-total-weight"></span>
                 <span class="separator">•</span>
                 <!-- Ships hidden and empty: the badge names the exam's weight
                      source, which only `updateWeightConfigBadge` knows once
@@ -110,20 +191,46 @@
                     <p class="dimension-info-description" id="dimension-info-description" data-testid="tree-dimension-info-description">
                         Dimension description will appear here
                     </p>
-                    <div class="dimension-info-stats" id="dimension-info-stats" data-testid="tree-dimension-info-stats">
-                        <span class="dimension-stat"><strong>0</strong> subjects</span>
-                        <span class="dimension-stat"><strong>0%</strong> total weight</span>
-                    </div>
+                    <!-- Empty (#289). #dimension-info ships `hidden` and
+                         updateDimensionInfo() reveals it in the same
+                         synchronous call that runs updateDimensionStats(), so
+                         nothing paints between the two -- but the markup still
+                         asserted "0 subjects, 0% total weight" to anyone
+                         reading the document or querying it by id. -->
+                    <div class="dimension-info-stats" id="dimension-info-stats" data-testid="tree-dimension-info-stats"></div>
                 </div>
 
-                <div class="tree-container" id="tree-container" data-testid="tree-container">
+                <!--
+                  Ships HIDDEN, so the parse-time state of this panel is
+                  exactly what showLoading(true) produces: spinner shown,
+                  tree and empty state hidden (#121). Before that, the first
+                  load looked different from every later one -- an empty
+                  200px-tall container (min-height, tree.css) above the
+                  spinner. showLoading(false) and showError() are the two
+                  things that reveal it.
+                -->
+                <div class="tree-container hidden" id="tree-container" data-testid="tree-container">
                     <!-- Tree nodes will be rendered here -->
                 </div>
 
-                <!-- Empty State -->
-                <div class="tree-empty" id="tree-empty" data-testid="tree-empty-state">
+                <!--
+                  Empty State. Ships HIDDEN (#121).
+
+                  It used to be the visible-at-parse default, so before any JS
+                  ran the page claimed "No Subjects Yet" and offered "Add Your
+                  First Subject" on an exam that may have a full hierarchy --
+                  an assertion the page had no way to have checked, replaced
+                  without comment when the real tree arrived. renderTree() is
+                  the only thing that knows whether this is true, and it is
+                  the only thing that may show this block.
+                -->
+                <div class="tree-empty hidden" id="tree-empty" data-testid="tree-empty-state">
                     <div class="tree-empty-icon">🌳</div>
-                    <h3 class="tree-empty-title">No Subjects Yet</h3>
+                    <!-- h2 (#317): the tree panel has no heading of its own,
+                         so this is the panel's top-level heading and sits
+                         directly under the page's h1. Size is on
+                         .tree-empty-title in tree.css. -->
+                    <h2 class="tree-empty-title">No Subjects Yet</h2>
                     <p class="tree-empty-text" id="tree-empty-text">
                         Build your exam's subject hierarchy to organize topics and assign weights.
                     </p>
@@ -137,11 +244,57 @@
                     </button>
                 </div>
 
-                <!-- Loading State -->
-                <div class="tree-loading hidden" id="tree-loading" data-testid="tree-loading-state">
+                <!--
+                  Loading State. Ships VISIBLE (#121), which is the honest
+                  answer to "does this exam have subjects?" before anything
+                  has looked. showLoading(false) hides it once renderTree()
+                  has decided between the tree and the empty state above.
+
+                  This is the SIGHTED half of the gate and nothing more: it
+                  sits inside .tree-page, which ships `inert`, so it is
+                  removed from the accessibility tree along with the rest of
+                  the page. The announced half is the .page-gate element at
+                  the top of <body> (#127).
+                -->
+                <div class="tree-loading" id="tree-loading" data-testid="tree-loading-state">
                     <div class="spinner spinner-lg"></div>
                     <p>Loading hierarchy...</p>
                 </div>
+
+                <!--
+                  Archived subjects (#37). Collapsed by default and hidden
+                  entirely when there is nothing archived, so it costs no
+                  attention on a healthy tree.
+
+                  Deliberately a flat list rather than a "show archived"
+                  toggle inside the tree: an archived subject frequently has
+                  no valid position any more -- that is the whole of #15 --
+                  so drawing it in place would be a lie. Each row says what
+                  it was under and when it went, which is the information a
+                  student needs to recognise their own deletion.
+                -->
+                <section class="archived-panel hidden" id="archived-panel"
+                         data-testid="tree-archived-panel">
+                    <button class="archived-panel-toggle" id="archived-panel-toggle"
+                            type="button" aria-expanded="false"
+                            aria-controls="archived-panel-body"
+                            data-testid="tree-archived-toggle">
+                        <span class="archived-panel-arrow" aria-hidden="true">&#9656;</span>
+                        <span class="archived-panel-title">Archived subjects</span>
+                        <span class="archived-panel-count" id="archived-panel-count"
+                              data-testid="tree-archived-count">0</span>
+                    </button>
+                    <div class="archived-panel-body" id="archived-panel-body"
+                         data-testid="tree-archived-body" hidden>
+                        <p class="archived-panel-hint">
+                            Restoring brings back the subjects that deletion
+                            archived, with their weights and their place in the
+                            tree.
+                        </p>
+                        <ul class="archived-list" id="archived-list"
+                            data-testid="tree-archived-list"></ul>
+                    </div>
+                </section>
             </div>
             
             <!-- Details Panel -->
@@ -157,7 +310,12 @@
                         <rect x="14" y="28" width="34" height="6" rx="2" fill="currentColor" opacity="0.42"/>
                         <rect x="22" y="42" width="34" height="6" rx="2" fill="currentColor" opacity="0.7"/>
                     </svg>
-                    <h3 class="details-placeholder-title">No subject selected</h3>
+                    <!-- h2 (#317): this occupies the same slot as
+                         .details-title below, which is already an h2 -- the
+                         details panel's own heading. showOverview() replaces
+                         this whole block, so its h2 matches (tree_editor.js).
+                         Size is on .details-placeholder-title in tree.css. -->
+                    <h2 class="details-placeholder-title">No subject selected</h2>
                     <p class="details-placeholder-text">
                         Pick a subject from the tree to inspect and edit it.
                     </p>
@@ -303,8 +461,10 @@
     
     <!-- Add/Edit Node Modal -->
     <div class="modal-backdrop" id="node-modal" data-testid="tree-node-modal">
-        <div class="modal modal-lg" data-testid="tree-node-modal-container">
-            <h3 class="modal-title" id="node-modal-title" data-testid="tree-node-modal-title">Add Subject</h3>
+        <div class="modal modal-lg" data-testid="tree-node-modal-container"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="node-modal-title">
+            <h2 class="modal-title" id="node-modal-title" data-testid="tree-node-modal-title">Add Subject</h2>
 
             <!-- Dimension Context (shown for multi-dimensional exams) -->
             <div class="modal-dimension-context hidden" id="modal-dimension-context" data-testid="tree-node-modal-dimension-context">
@@ -389,9 +549,11 @@
 
     <!-- Delete Confirmation Modal -->
     <div class="modal-backdrop" id="delete-node-modal" data-testid="tree-delete-modal">
-        <div class="modal" data-testid="tree-delete-modal-container">
+        <div class="modal" data-testid="tree-delete-modal-container"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="delete-node-modal-title">
             <div class="modal-icon">⚠️</div>
-            <h3 class="modal-title" data-testid="tree-delete-modal-title">Delete Subject?</h3>
+            <h2 class="modal-title" id="delete-node-modal-title" data-testid="tree-delete-modal-title">Delete Subject?</h2>
             <p class="modal-message">
                 Are you sure you want to delete
                 <span class="modal-exam-name" id="delete-node-name" data-testid="tree-delete-modal-subject-name">this subject</span>?
@@ -479,12 +641,15 @@ multi-dimensional exam into the dimension you are looking at.
 |-----|------|----------|-------------|
 | `root_nodes` | array | Yes, or `subjects` | The top-level subjects. This is what WIMI's own export writes. |
 | `subjects` | array | Yes, or `root_nodes` | The same thing under the older spelling. Accepted so files written to earlier versions of this guide still import. |
-| `dimension_id` | number | No | For a multi-dimensional exam. Ignored when you import from a dimension's tree view, which supplies its own. |
+| `dimensions` | array | No | One entry per dimension, each with its own tree. This is the whole-exam form, described below. A file carrying it describes every dimension at once and `root_nodes` is not read. |
+| `dimension_id` | number | No | For a multi-dimensional exam. Ignored when you import from a dimension's tree view, which supplies its own. Not used by the whole-exam form, where each dimension names itself. |
 | `exam_context` | object | No | Descriptive only. See below. |
 
-**Rule:** the file must be a JSON object carrying `root_nodes` or
-`subjects`, and that key's value must be an array. If a file somehow
-carries both, `root_nodes` wins.
+**Rule:** the file must be a JSON object carrying `root_nodes`,
+`subjects` or `dimensions`, and that key's value must be an array. If a
+file carries both `root_nodes` and `subjects`, `root_nodes` wins. If it
+carries `dimensions`, that wins over both — a file that describes the
+whole exam is not also a single tree.
 
 **A file whose subject array is empty removes nothing.** A misspelled
 `root_nodes` key arrives at the importer as an empty list, and "this
@@ -514,6 +679,151 @@ existing files carry it.
   "root_nodes": [ ]
 }
 ```
+
+## The whole-exam form: one file, every dimension
+
+Some exams classify the same questions several ways at once. USMLE Step 2
+CK publishes three separate tables over one item pool — System,
+Discipline and Physician Task — and a question belongs to one row of each.
+WIMI calls those **dimensions**.
+
+A file with a top-level `dimensions` array describes all of them in one
+go, instead of importing one dimension at a time:
+
+```json
+{
+  "exam_context": { "name": "USMLE Step 2 CK" },
+  "dimensions": [
+    {
+      "id": "axis-system",
+      "name": "System",
+      "display_order": 1,
+      "is_required": true,
+      "allow_multiple": false,
+      "description": "Which organ system the question is about",
+      "root_nodes": [
+        { "id": "sys-cv", "name": "Cardiovascular System", "weight": { "low": 8, "high": 12 } }
+      ]
+    },
+    {
+      "id": "axis-task",
+      "name": "Physician Task",
+      "display_order": 2,
+      "is_required": true,
+      "allow_multiple": false,
+      "description": "What the question asks you to do",
+      "root_nodes": [
+        { "id": "task-dx", "name": "Establishing a Diagnosis", "weight": { "low": 27, "high": 31 } }
+      ]
+    }
+  ]
+}
+```
+
+### Fields on a dimension
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `name` | string | Yes | What the dimension is called. Must be unique within the file, and unique within the exam. |
+| `root_nodes` | array | No | That dimension's top-level subjects, exactly as in a single-tree file. `subjects` is accepted here too. |
+| `id` | string | No | A stable id for the dimension itself. Strongly recommended — see below. |
+| `display_order` | number | No | Where the dimension sits in the list. Leave it out and the file's own order is used. |
+| `is_required` | boolean | No | Whether an entry must be tagged in this dimension. Defaults to true for a new dimension. |
+| `allow_multiple` | boolean | No | Whether an entry may be tagged with several subjects from this dimension. Defaults to false for a new dimension. |
+| `description` | string | No | Help text shown to you when tagging. |
+
+**A dimension's subjects are its own.** Two dimensions may each contain a
+subject called *Immune System* and those are two different subjects.
+Matching never crosses from one dimension into another, so a file cannot
+accidentally move a subject from one axis to another by naming it twice.
+
+**Subjects that are not in any dimension are left completely alone.** If
+you built a tree before the exam used dimensions, a whole-exam file
+neither updates nor removes it. The preview says how many such subjects
+there are.
+
+### `id` on a dimension does the same job as `id` on a subject
+
+Without it, renaming a dimension in the file reads as *remove that
+dimension and add a different one* — and removing a dimension archives
+every subject tree inside it. With it, a rename is a rename and nothing
+moves.
+
+A dimension that WIMI already has **adopts** the id the first time a file
+supplies one, so an exam you set up by hand is not stuck without them.
+
+### Two exports, and which one to use
+
+The tree editor has two export buttons because the two files mean
+different things.
+
+| Button | Writes | Use it when |
+|--------|--------|-------------|
+| **Export** | One dimension's subject tree, under `root_nodes` | You want to edit or share the tree of the dimension you are looking at. |
+| **Export all** | Every dimension, under `dimensions` | You want a copy of the whole exam, or you are moving it to another profile. |
+
+**Use "Export all" for a round trip.** Only the whole-exam file carries each
+dimension's `id`, so only that file can be re-imported and understood as the
+same dimensions. It is also safe to re-import unchanged: it lists every
+dimension, so nothing is treated as dropped.
+
+**A one-dimension file deliberately carries no dimension `id`.** It does not
+need one — you import it *into* the dimension you have open, so WIMI already
+knows which one you mean. And it must not have one: a file with a
+`dimensions` list is a statement about the whole exam, so a file naming one
+dimension would say your exam has exactly one, and the others would be
+removed.
+
+**What WIMI never writes as an `id` is its own internal row number.** Ids in
+an exported file are only ever the ids a file gave WIMI in the first place.
+A tree or a dimension you built by hand exports without an `id`, which is
+honest: there is no stable id to write, and inventing one would claim to
+identify something in another profile that it does not.
+
+### `is_required` and `allow_multiple` you leave out are left as they are
+
+On a dimension WIMI already has, a field the file does not mention is not
+changed. A blueprint describes the exam's structure; it does not describe
+the settings you have since adjusted. On a dimension the file creates
+there is nothing to preserve, so the defaults in the table above apply.
+
+### Coverage is reported for each dimension separately
+
+Never added up. The dimensions are different ways of cutting the *same*
+questions, so their weights all describe 100% of the exam on their own —
+the three real Step 2 CK tables total 84–153%, 78–113% and 97–142%. A
+combined figure would describe nothing. See *Coverage* under **Weight
+semantics** for what WIMI does with a band that does not span 100%.
+
+### Removing a dimension
+
+The same rule as for subjects, one level up. **A dimension carrying
+entries is never removed by an import.**
+
+| Situation | What happens |
+|-----------|--------------|
+| The file lists the dimension | It is kept and updated. |
+| The file does not list it, and entries are tagged to subjects inside it | It is kept, and the preview says why and how many entries are involved. |
+| The file does not list it, and nothing is tagged inside it | It is archived, along with the subject trees inside it. |
+| The file's `dimensions` array is empty | Nothing is removed at all. |
+
+That last row matters for the same reason an empty `root_nodes` removes
+nothing: a misspelled `dimensions` key arrives as an empty array, and
+"this file lists no dimensions" must never be read as "remove every
+dimension". Archiving a dimension takes its whole tree with it, so this is
+the most expensive way for a typo to go wrong.
+
+### Two things a whole-exam file cannot do
+
+**It cannot give two dimensions the same name**, because an exam cannot
+have two dimensions with the same name. WIMI refuses the file and says
+which name is doubled, rather than importing half of it.
+
+**It cannot take a name that a dimension being kept is still using.** If
+the file renames *Discipline* to *System* while an existing *System* is
+being kept because entries point into it, there is nowhere for the new
+name to go. WIMI says so and changes nothing; rename one of them in the
+file.
 
 ## Subject Structure
 
@@ -1313,7 +1623,8 @@ unknown fields, because the importer ignores them.
   "type": "object",
   "anyOf": [
     { "required": ["root_nodes"] },
-    { "required": ["subjects"] }
+    { "required": ["subjects"] },
+    { "required": ["dimensions"] }
   ],
   "properties": {
     "root_nodes": {
@@ -1324,8 +1635,13 @@ unknown fields, because the importer ignores them.
       "description": "The same array under the older spelling. root_nodes wins if both appear.",
       "$ref": "#/$defs/subjectArray"
     },
+    "dimensions": {
+      "description": "The whole-exam form: one entry per dimension, each with its own tree. Wins over root_nodes and subjects when present.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/dimension" }
+    },
     "dimension_id": {
-      "description": "Target dimension for a multi-dimensional exam. Overridden when importing from a dimension view.",
+      "description": "Target dimension for a multi-dimensional exam. Overridden when importing from a dimension view. Not used by the whole-exam form.",
       "type": ["integer", "null"]
     },
     "exam_context": {
@@ -1418,6 +1734,46 @@ unknown fields, because the importer ignores them.
         "is_primary": { "type": "boolean" },
         "notes": { "type": ["string", "null"] }
       }
+    },
+    "dimension": {
+      "description": "One dimension of a whole-exam file, with its own subject tree.",
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "Unique within the file and within the exam.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "id": {
+          "description": "Stable id for the dimension. Makes a rename a rename instead of an archive plus a create.",
+          "type": ["string", "number"]
+        },
+        "display_order": {
+          "description": "Where the dimension sits in the list. Omitted, the file's own order is used.",
+          "type": ["integer", "null"]
+        },
+        "is_required": {
+          "description": "Must an entry be tagged in this dimension? Omitted, an existing dimension keeps its value and a new one defaults to true.",
+          "type": "boolean"
+        },
+        "allow_multiple": {
+          "description": "May an entry carry several subjects from this dimension? Omitted, an existing dimension keeps its value and a new one defaults to false.",
+          "type": "boolean"
+        },
+        "description": {
+          "description": "Help text shown while tagging.",
+          "type": ["string", "null"]
+        },
+        "root_nodes": {
+          "description": "This dimension's top-level subjects.",
+          "$ref": "#/$defs/subjectArray"
+        },
+        "subjects": {
+          "description": "The same array under the older spelling.",
+          "$ref": "#/$defs/subjectArray"
+        }
+      }
     }
   }
 }
@@ -1444,10 +1800,12 @@ unknown fields, because the importer ignores them.
     </script>
 
     <div class="modal-backdrop" id="import-help-modal" data-testid="tree-import-help-modal">
-        <div class="modal modal-xl" data-testid="tree-import-help-modal-container">
+        <div class="modal modal-xl" data-testid="tree-import-help-modal-container"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="import-help-modal-title">
             <div class="modal-header">
-                <h3 class="modal-title" data-testid="tree-import-help-modal-title">📖 Import Format Guide</h3>
-                <button class="modal-close" data-testid="tree-import-help-modal-close" onclick="hideImportHelpModal()">×</button>
+                <h2 class="modal-title" id="import-help-modal-title" data-testid="tree-import-help-modal-title">📖 Import Format Guide</h2>
+                <button class="modal-close" data-testid="tree-import-help-modal-close" onclick="hideImportHelpModal()" aria-label="Close">×</button>
             </div>
             <div class="modal-body markdown-content" id="import-help-content" data-testid="tree-import-help-modal-content">
                 <div class="loading-spinner">
@@ -1461,6 +1819,7 @@ unknown fields, because the importer ignores them.
         </div>
     </div>
     
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/tree_editor.js"></script>
     <script src="../js/weight_editor.js"></script>
     <script src="../js/import_export.js"></script>

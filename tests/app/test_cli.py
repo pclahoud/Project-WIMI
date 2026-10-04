@@ -21,6 +21,7 @@ Two halves are asserted here:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -234,10 +235,53 @@ def test_the_runtime_hook_is_what_marks_a_test_build():
 
 @pytest.mark.parametrize("spec", ["wimi.spec", "wimi_macos.spec"])
 def test_only_the_test_variant_of_each_spec_includes_the_hook(spec):
-    """One spec, two variants: the hook must be conditional, and the only difference."""
+    """One spec, two variants: the hook must be conditional on TEST_BUILD alone.
+
+    #144's invariant, and still exactly that. The assertion is now by
+    **execution** rather than by the text of one line, because #60 added a
+    second, orthogonal flag (``WIMI_BUILD_RELATIONS``) and ``runtime_hooks`` is
+    therefore built by appending rather than by a single conditional
+    expression. The old form asserted that every line mentioning
+    ``rthook_test_build.py`` contained the literal ``if TEST_BUILD else []``,
+    which was true of the one-flag spelling and says nothing about behaviour --
+    it would have passed a spec that appended the hook unconditionally
+    somewhere else, and it failed a spec that is correct.
+
+    Executing the header is both stronger and narrower: it asks the question
+    the invariant is about. The full four-way matrix lives in
+    ``tests/test_build_variant_flags.py``; what is pinned *here* is the half
+    #144 cares about -- a release bundle has no test hook, so nothing at
+    runtime can turn test mode on.
+    """
     text = (PROJECT_ROOT / spec).read_text()
-    hook_lines = [l for l in text.splitlines() if "rthook_test_build.py" in l]
-    assert hook_lines and all("if TEST_BUILD else []" in l for l in hook_lines), hook_lines
     assert "runtime_hooks=runtime_hooks" in text
     assert "os.environ.get('WIMI_BUILD_VARIANT', 'release')" in text, (
         "a spec that defaults to anything but release would ship the hook")
+
+    header = text.split("# Collect all web assets")[0]
+
+    def hooks_for(variant: str, relations: str) -> list[str]:
+        namespace = {"SPECPATH": str(PROJECT_ROOT)}
+        saved = os.environ.copy()
+        os.environ["WIMI_BUILD_VARIANT"] = variant
+        os.environ["WIMI_BUILD_RELATIONS"] = relations
+        try:
+            exec(compile(header, spec, "exec"), namespace)
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+        return [Path(h).name for h in namespace["runtime_hooks"]]
+
+    # The test hook appears if and only if this is a test build -- in both
+    # settings of the relations flag, which is what "orthogonal" has to mean.
+    for relations in ("0", "1"):
+        assert "rthook_test_build.py" not in hooks_for("release", relations), (
+            f"{spec}: a RELEASE build carries the test hook "
+            f"(WIMI_BUILD_RELATIONS={relations}), so --test-mode would be "
+            f"accepted in a distributed artifact (#144)"
+        )
+        assert "rthook_test_build.py" in hooks_for("test", relations), (
+            f"{spec}: a TEST build is missing the test hook "
+            f"(WIMI_BUILD_RELATIONS={relations}), so WIMI_TEST_BINARY cannot "
+            f"drive it"
+        )

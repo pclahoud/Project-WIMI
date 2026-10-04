@@ -112,10 +112,10 @@ class WimiTab:
     responsible for that.
 
     Attribute delegation: :attr:`Page`, :attr:`Runtime`, :attr:`Network`,
-    :attr:`DOM`, :attr:`Input`, and :attr:`Target` are pass-throughs to
-    the underlying pychrome ``GenericAttr`` proxy objects, so callers can
-    write ``wt.Runtime.evaluate(...)`` exactly as they would on a raw
-    :class:`pychrome.Tab`.
+    :attr:`DOM`, :attr:`Input`, :attr:`Accessibility` and :attr:`Target`
+    are pass-throughs to the underlying pychrome ``GenericAttr`` proxy
+    objects, so callers can write ``wt.Runtime.evaluate(...)`` exactly as
+    they would on a raw :class:`pychrome.Tab`.
     """
 
     def __init__(self, tab: pychrome.Tab) -> None:
@@ -152,6 +152,29 @@ class WimiTab:
     def Input(self) -> Any:
         """The pychrome ``Input`` domain proxy."""
         return self._tab.Input
+
+    @property
+    def Accessibility(self) -> Any:
+        """The pychrome ``Accessibility`` domain proxy.
+
+        Qt's CDP **does** implement this one, which is not obvious and was
+        worth measuring (#127). ``Accessibility.enable()`` succeeds and
+        ``getFullAXTree()`` returns the real tree, so a scenario can assert on
+        what assistive technology is handed rather than on the `aria-*`
+        attributes that are supposed to produce it. On the entry form, with
+        the page's bridge calls held open:
+
+            while `inert` is up   72 nodes, 71 ignored -- ONE non-ignored
+                                  node, the document root
+            after release        461 nodes, 290 non-ignored
+
+        That is the whole of #127 in two numbers, and no attribute read can
+        show it. Call ``enable()`` before ``getFullAXTree()``: the protocol
+        requires the domain to be enabled first, and every measurement quoted
+        here was taken that way. What an un-enabled call returns here has not
+        been measured, so do not rely on it either way.
+        """
+        return self._tab.Accessibility
 
     @property
     def Target(self) -> Any:

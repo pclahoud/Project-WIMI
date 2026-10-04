@@ -10,6 +10,7 @@ from .profiles import ProfileBridgeMixin
 from .profile_transfer import ProfileTransferBridgeMixin
 from .browser_pane import BrowserPaneBridgeMixin
 from .foldersync import FolderSyncBridgeMixin
+from .stt import SttBridgeMixin
 from .utility import UtilityBridgeMixin
 from .tags import TagBridgeMixin
 from .timer import TimerBridgeMixin
@@ -23,7 +24,7 @@ from .media import MediaBridgeMixin
 from .hierarchy import HierarchyBridgeMixin
 from .edges import EdgesBridgeMixin
 from .relations import RelationsBridgeMixin
-from .hierarchy_tags import HierarchyTagBridgeMixin
+from .subject_restore import SubjectRestoreBridgeMixin
 from .exam_contexts import ExamContextBridgeMixin
 from .weights import WeightBridgeMixin
 from .browsing import BrowsingBridgeMixin
@@ -41,6 +42,7 @@ __all__ = [
     'ProfileTransferBridgeMixin',
     'BrowserPaneBridgeMixin',
     'FolderSyncBridgeMixin',
+    'SttBridgeMixin',
     'UtilityBridgeMixin',
     'TagBridgeMixin',
     'TimerBridgeMixin',
@@ -54,7 +56,7 @@ __all__ = [
     'HierarchyBridgeMixin',
     'EdgesBridgeMixin',
     'RelationsBridgeMixin',
-    'HierarchyTagBridgeMixin',
+    'SubjectRestoreBridgeMixin',
     'ExamContextBridgeMixin',
     'WeightBridgeMixin',
     'BrowsingBridgeMixin',

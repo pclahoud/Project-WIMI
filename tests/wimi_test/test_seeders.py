@@ -19,14 +19,16 @@ import pytest
 from wimi_test.db.seeders import (
     get_seeder,
     seed_minimal,
+    seed_multi_dimensional,
     seed_usmle_step1_outline,
 )
 
 
 def test_get_seeder_lists_known_names() -> None:
-    """Both shipped seeders are discoverable by name from the registry."""
+    """Every shipped seeder is discoverable by name from the registry."""
     assert get_seeder("minimal") is seed_minimal
     assert get_seeder("usmle_step1_outline") is seed_usmle_step1_outline
+    assert get_seeder("multi_dimensional") is seed_multi_dimensional
 
 
 def test_get_seeder_unknown_name_raises_with_valid_list() -> None:

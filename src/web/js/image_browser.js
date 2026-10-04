@@ -68,9 +68,10 @@ class ImageBrowser {
         this.modal.dataset.testid = 'entry-form-image-browser-modal';
         this.modal.innerHTML = `
             <div class="image-browser-backdrop"></div>
-            <div class="image-browser-container">
+            <div class="image-browser-container" data-modal-surface role="dialog"
+                 aria-modal="true" aria-labelledby="image-browser-title">
                 <div class="image-browser-header">
-                    <h3>Select Image</h3>
+                    <h2 id="image-browser-title">Select Image</h2>
                     <button type="button" class="image-browser-close" aria-label="Close" data-testid="entry-form-image-browser-close-button">&times;</button>
                 </div>
                 <div class="image-browser-search">

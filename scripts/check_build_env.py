@@ -47,10 +47,37 @@ Exit codes:
 ``--warn-only`` downgrades failures to warnings and always exits 0. It exists
 for inspecting a machine you are not about to build on. Never wire it into a
 build script — a guard that cannot stop the build is the comment it replaced.
+
+The relations variant (#60)
+---------------------------
+WIMI ships two artifacts per platform (owner's decision, 2026-10-04): the
+default one, and a larger one carrying the relation-extraction runtime. The
+flag is ``WIMI_BUILD_RELATIONS=1`` (``--relations`` here), orthogonal to
+``WIMI_BUILD_VARIANT``.
+
+**The default mode is unchanged and must stay green on a machine with no
+torch.** That is not a nicety — it is the whole reason the runtime went into
+its own requirements file instead of ``requirements-prod.txt``. Adding it there
+would have made this gate demand torch for everybody's build, and both build
+scripts refuse to build on a mismatch.
+
+When the flag IS set, two further things are checked:
+
+5. **``requirements-relations.txt`` is satisfied**, the same way the prod pins
+   are.
+6. **torch is the CPU build.** Not "torch imports" — the CPU build
+   specifically. The #60 spike measured ``gliner2[local]`` resolving from PyPI
+   and pulling 5.6 GB, 3.2 GB of it NVIDIA CUDA libraries, on a machine with
+   no NVIDIA GPU, against 863 MB from ``--index-url
+   https://download.pytorch.org/whl/cpu``. A maintainer who installed the
+   default wheel would ship several gigabytes of GPU libraries that can never
+   execute, and nothing would notice. #135's shape exactly, which is why it is
+   a gate and not a note.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from importlib import metadata
@@ -58,6 +85,15 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = PROJECT_ROOT / "requirements-prod.txt"
+
+# The relation-extraction runtime, checked only when the relations flag is set
+# (#60). Deliberately a separate file: see the module docstring.
+RELATIONS_REQUIREMENTS = PROJECT_ROOT / "requirements-relations.txt"
+
+# Distributions that exist only to serve a GPU. Their presence means the
+# installed torch came from the default PyPI index rather than the CPU one, and
+# they are where the 3.2 GB in the #60 spike went.
+GPU_DIST_PREFIXES = ("nvidia", "triton", "pytorch-triton")
 
 # Minimum supported Python, from docs/BUILD_WINDOWS.md ("Python 3.11+"), and
 # the highest version actually exercised. Above the tested ceiling is a warning
@@ -106,6 +142,34 @@ def installed_version(name: str) -> str | None:
         return metadata.version(name)
     except metadata.PackageNotFoundError:
         return None
+
+
+def _satisfies(actual: str, expected: str) -> bool:
+    """Does *actual* satisfy the ``==expected`` pin?
+
+    Normally this is string equality, and for every pin in
+    ``requirements-prod.txt`` it still is -- none of them carries a local
+    version label, so nothing about the prod check is loosened here.
+
+    The one case that needs more is PEP 440's rule for local version labels:
+    *if the specifier has no local label, the candidate's local label is
+    ignored*. It matters for exactly one pin and it is not cosmetic. The torch
+    wheel from the CPU index reports ``2.14.1+cpu`` on Linux and Windows, while
+    macOS has only one torch build and reports a bare ``2.14.1``. A pin written
+    ``==2.14.1+cpu`` is therefore unsatisfiable on macOS, and a plain string
+    comparison against ``==2.14.1`` would reject the Linux wheel. Implementing
+    the spec's rule makes one portable pin work on all three.
+
+    This is a correctness fix rather than a relaxation: a pin that DOES name a
+    local label is still compared in full, so ``==2.14.1+cpu`` would reject
+    ``2.14.1+cu124``. And it buys nothing for CPU-ness -- that claim is
+    ``check_relations_runtime``'s job, because a version string is not a build.
+    """
+    if actual == expected:
+        return True
+    if "+" in expected:
+        return False
+    return actual.split("+", 1)[0] == expected
 
 
 def check_provenance(notes: list[str]) -> None:
@@ -165,6 +229,61 @@ def check_provenance(notes: list[str]) -> None:
         print(f"  commit  {sha[:10]} on {branch}  (clean{extra})")
 
 
+def check_interpreter(problems: list[str], notes: list[str]) -> None:
+    """Is this the project's venv, or just *a* Python? (#183)
+
+    Both build scripts check that `.venv/Scripts/activate.bat` (or
+    `bin/activate`) **exists**, then call it, then run `python`. That guard is
+    the wrong one: the failure mode is an activate script that is present and
+    broken.
+
+    A venv hardcodes absolute paths. Rename or move the directory and
+    `activate` exports a `VIRTUAL_ENV` that no longer exists, prepends a
+    `Scripts`/`bin` that is not there, and the `python` on the next line is
+    whatever the system has. On a Windows machine here a `.venv` created as
+    `venv` did exactly that, and the build ran on the system interpreter with
+    no warning at all.
+
+    It surfaced only by luck: the system Python happened to differ from the
+    venv in one pinned package, so `check_pins` caught it. **Had the two
+    agreed on every pin, the build would have completed from an environment
+    nobody selected and reported nothing unusual** -- #135 through a different
+    door, where the gate verifies *an* environment and nothing verifies it is
+    the *right* one.
+
+    `sys.prefix` is the honest answer, because the interpreter sets it. A
+    stale `VIRTUAL_ENV` cannot forge it.
+    """
+    venv = PROJECT_ROOT / ".venv"
+    actual = Path(sys.prefix).resolve()
+
+    if not venv.exists():
+        # Not a failure. The gate is runnable outside a checkout that has one
+        # -- a git worktree, or a machine using a different environment
+        # manager -- and refusing there would only teach people to skip it.
+        notes.append(
+            f"No .venv at {venv}, so the interpreter could not be checked "
+            f"against it. Running from {actual}."
+        )
+        print(f"  venv    (none at {venv.name}/)  running {actual}")
+        return
+
+    if actual != venv.resolve():
+        problems.append(
+            f"This is not the project's venv. sys.prefix is {actual}, but the "
+            f"checkout's venv is {venv.resolve()}. Activation did not take -- a "
+            f"venv that has been renamed or moved leaves an activate script "
+            f"that exists, runs, and silently leaves the system Python on PATH "
+            f"(#183). Recreate it with `python -m venv .venv`, or activate the "
+            f"right one. Do not build from here: nothing downstream can tell "
+            f"you which interpreter produced the artifact."
+        )
+        print(f"  venv    MISMATCH     {actual}")
+        return
+
+    print(f"  venv    {venv.name:<12} (sys.prefix matches)")
+
+
 def check_python(problems: list[str], notes: list[str]) -> None:
     current = sys.version_info[:2]
     pretty = f"{current[0]}.{current[1]}"
@@ -183,29 +302,40 @@ def check_python(problems: list[str], notes: list[str]) -> None:
           f"-{MAX_TESTED_PYTHON[0]}.{MAX_TESTED_PYTHON[1]})")
 
 
-def check_pins(problems: list[str]) -> None:
-    if not REQUIREMENTS.exists():
-        problems.append(f"{REQUIREMENTS} is missing; nothing to check against.")
+def check_pins(problems: list[str], requirements: Path = REQUIREMENTS,
+               install_hint: str | None = None) -> None:
+    """Verify every ``==`` pin in *requirements* against what is installed.
+
+    Parameterised by file so the relations requirements go through the same
+    check as the prod ones rather than a second implementation (#60). The
+    default argument keeps every existing caller and the default build path
+    byte-identical in behaviour.
+    """
+    if not requirements.exists():
+        problems.append(f"{requirements} is missing; nothing to check against.")
         return
 
-    pins = parse_pins(REQUIREMENTS)
+    pins = parse_pins(requirements)
     if not pins:
         problems.append(
-            f"{REQUIREMENTS.name} declares no `==` pins. Either the file is "
+            f"{requirements.name} declares no `==` pins. Either the file is "
             f"wrong or this check is reading the wrong file; both are bugs."
         )
         return
 
+    hint = f" Install with: {install_hint}" if install_hint else ""
     for name in sorted(pins):
         expected = pins[name]
         actual = installed_version(name)
         if actual is None:
             print(f"  {name:<24} MISSING      (pinned {expected})")
-            problems.append(f"{name} is pinned at {expected} but is not installed.")
-        elif actual != expected:
+            problems.append(
+                f"{name} is pinned at {expected} but is not installed.{hint}"
+            )
+        elif not _satisfies(actual, expected):
             print(f"  {name:<24} {actual:<12} != pinned {expected}")
             problems.append(
-                f"{name} is {actual}, pinned at {expected}."
+                f"{name} is {actual}, pinned at {expected}.{hint}"
             )
         else:
             print(f"  {name:<24} {actual}")
@@ -218,7 +348,7 @@ def check_runtime_qt(problems: list[str]) -> None:
     that will be copied into the frozen bundle.
     """
     try:
-        from PyQt6.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
+        from PyQt6.QtCore import qVersion, QT_VERSION_STR, PYQT_VERSION_STR
         from PyQt6.QtWebEngineCore import (
             qWebEngineVersion,
             qWebEngineChromiumVersion,
@@ -231,11 +361,46 @@ def check_runtime_qt(problems: list[str]) -> None:
         )
         return
 
+    # `qVersion()` asks the loaded libQt6Core. `QT_VERSION_STR` is a constant
+    # baked into the PyQt6 bindings at *their* build time, and the two differ
+    # on a correctly-pinned machine -- measured 6.9.2 against 6.9.0 here, two
+    # patch versions apart (#188). Printing the constant under the label
+    # "Qt runtime" is the thing this function's own docstring warns against,
+    # and it is the line most likely to miss the next #135 in the Qt layer.
+    #
+    # The bindings constant is still worth showing: a large gap between what
+    # PyQt6 was built against and what it loaded is its own smell. It just
+    # must not be the line called "runtime".
+    qt_runtime = qVersion()
+    webengine = qWebEngineVersion()
     chromium = qWebEngineChromiumVersion()
-    print(f"  Qt runtime               {QT_VERSION_STR}")
+    print(f"  Qt runtime               {qt_runtime}")
+    print(f"  Qt bindings built for    {QT_VERSION_STR}")
     print(f"  PyQt6 runtime            {PYQT_VERSION_STR}")
-    print(f"  QtWebEngine runtime      {qWebEngineVersion()}")
+    print(f"  QtWebEngine runtime      {webengine}")
     print(f"  Chromium                 {chromium}")
+
+    # Reading the right value is only half the job: before #188 these were
+    # printed and never compared, so core Qt was checked by nobody. The wheels
+    # named here are the ones carrying the binaries that get bundled, which is
+    # why CLAUDE.md singles them out.
+    pins = parse_pins(REQUIREMENTS) if REQUIREMENTS.exists() else {}
+    for label, actual, pin_name in (
+        ("Qt", qt_runtime, "pyqt6-qt6"),
+        ("QtWebEngine", webengine, "pyqt6-webengine-qt6"),
+    ):
+        expected = pins.get(pin_name)
+        if expected is None:
+            continue
+        if str(actual) != expected:
+            problems.append(
+                f"{label} runtime is {actual}, but {pin_name} is pinned at "
+                f"{expected}. The loaded library is what gets copied into the "
+                f"bundle, so this is the #135 shape: the thing that ships is "
+                f"not the thing that was tested. If the two legitimately differ "
+                f"in format rather than in substance, loosen this comparison "
+                f"deliberately -- do not delete it."
+            )
 
     try:
         major = int(str(chromium).split(".", 1)[0])
@@ -252,6 +417,89 @@ def check_runtime_qt(problems: list[str]) -> None:
         )
 
 
+CPU_INDEX_HINT = (
+    "pip install -r requirements-relations.txt "
+    "--index-url https://download.pytorch.org/whl/cpu "
+    "--extra-index-url https://pypi.org/simple"
+)
+
+
+def check_relations_runtime(problems: list[str], notes: list[str]) -> None:
+    """Is the relation-extraction runtime present, and is torch the CPU build?
+
+    Only called when the relations flag is set. Two separate claims, and the
+    second is the one with teeth:
+
+    * ``torch.version.cuda`` is the authoritative in-process signal and is
+      ``None`` on a CPU build on every platform. It is preferred over the
+      version string because macOS CPU wheels carry no ``+cpu`` label, so the
+      label is not a portable test (see ``_satisfies``).
+    * **No ``nvidia-*`` or ``triton`` distribution may be installed.** This is
+      not redundant with the first check -- it is the one that measures the
+      cost. It is where the #60 spike's 3.2 GB went, those wheels are what
+      PyInstaller would collect into the artifact, and they can be sitting in
+      the environment from an earlier default-index install even when the
+      currently-imported torch reports no CUDA.
+
+    Importing torch costs about 1.5 s (measured) and happens only on the
+    relations path, so the default build pays nothing for this function
+    existing.
+    """
+    print("Relations runtime (#60)\n")
+    check_pins(problems, RELATIONS_REQUIREMENTS, install_hint=CPU_INDEX_HINT)
+    print()
+
+    # The GPU-wheel scan first: it needs no import, and if torch itself will
+    # not load the scan is still the more actionable of the two findings.
+    gpu_dists: list[tuple[str, str]] = []
+    for dist in metadata.distributions():
+        name = dist.metadata["Name"]
+        if not name:
+            continue
+        if _normalise(name).startswith(GPU_DIST_PREFIXES):
+            gpu_dists.append((name, dist.version))
+
+    if gpu_dists:
+        listed = ", ".join(f"{n}=={v}" for n, v in sorted(gpu_dists))
+        print(f"  GPU wheels               {len(gpu_dists)} FOUND")
+        problems.append(
+            f"{len(gpu_dists)} GPU-only distribution(s) are installed: {listed}. "
+            f"That means torch came from the default PyPI index, not the CPU "
+            f"one. The #60 spike measured this as 5.6 GB with 3.2 GB of CUDA "
+            f"libraries on a machine with no NVIDIA GPU, against 863 MB from "
+            f"the CPU index -- and PyInstaller would collect them into the "
+            f"artifact, where they can never execute. Reinstall with:\n"
+            f"      {CPU_INDEX_HINT}"
+        )
+    else:
+        print("  GPU wheels               none installed")
+
+    try:
+        import torch  # noqa: PLC0415 -- deliberately not at module scope
+    except Exception as exc:
+        problems.append(
+            f"The relations flag is set but torch will not import: {exc}. "
+            f"The relations artifact cannot be built from this environment.\n"
+            f"      {CPU_INDEX_HINT}"
+        )
+        return
+
+    cuda = torch.version.cuda
+    hip = getattr(torch.version, "hip", None)
+    print(f"  torch                    {torch.__version__}")
+    print(f"  torch.version.cuda       {cuda}")
+    print(f"  torch.version.hip        {hip}")
+
+    if cuda is not None or hip is not None:
+        problems.append(
+            f"torch reports an accelerator build (cuda={cuda!r}, hip={hip!r}); "
+            f"the relations artifact must bundle the CPU build. Several "
+            f"gigabytes of GPU libraries that can never execute would ship, "
+            f"and nothing downstream would report it -- #135's shape. "
+            f"Reinstall with:\n      {CPU_INDEX_HINT}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Verify the build environment matches requirements-prod.txt.",
@@ -262,13 +510,28 @@ def main() -> int:
         help="Report mismatches but always exit 0. For inspection only; never "
              "wire this into a build script.",
     )
+    parser.add_argument(
+        "--relations",
+        action="store_true",
+        default=os.environ.get("WIMI_BUILD_RELATIONS") == "1",
+        help="also verify requirements-relations.txt and that torch is the CPU "
+             "build (#60). Defaults to on when WIMI_BUILD_RELATIONS=1, which "
+             "is what the build scripts export, so neither script needs to "
+             "pass it.",
+    )
     args = parser.parse_args()
 
     problems: list[str] = []
     notes: list[str] = []
 
     print("Build environment check (#135)\n")
+    # Say which artifact is being checked. Without this line a reader cannot
+    # tell a green default run from a green relations run, and they are
+    # different claims about different artifacts (#60).
+    print(f"  artifact{'':<8} "
+          f"{'relations (torch bundled)' if args.relations else 'default (no torch)'}")
     check_provenance(notes)
+    check_interpreter(problems, notes)
     check_python(problems, notes)
     print()
     check_pins(problems)
@@ -276,13 +539,33 @@ def main() -> int:
     check_runtime_qt(problems)
     print()
 
+    if args.relations:
+        check_relations_runtime(problems, notes)
+        print()
+    else:
+        # Stated rather than silent: the default artifact deliberately does not
+        # have the relation-extraction runtime, so its absence is not a finding
+        # and must not read as one.
+        print("Relations runtime (#60)\n")
+        print("  not checked -- this is the default artifact, which ships "
+              "without it by design.")
+        print("  Pass --relations (or WIMI_BUILD_RELATIONS=1) to build the "
+              "other one.")
+        print()
+
     for note in notes:
         print(f"NOTE: {note}")
     if notes:
         print()
 
     if not problems:
-        print("OK: environment matches requirements-prod.txt. Safe to build.")
+        if args.relations:
+            print("OK: environment matches requirements-prod.txt and "
+                  "requirements-relations.txt,")
+            print("    and torch is the CPU build. Safe to build the relations "
+                  "artifact.")
+        else:
+            print("OK: environment matches requirements-prod.txt. Safe to build.")
         return 0
 
     print(f"MISMATCH: {len(problems)} problem(s) found.\n")

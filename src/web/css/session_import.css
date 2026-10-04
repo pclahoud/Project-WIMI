@@ -199,7 +199,7 @@
 .import-stat-value {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .import-stat-label {
@@ -276,7 +276,7 @@
     align-items: center;
     gap: var(--space-xs);
     font-size: var(--font-size-xs);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     background: var(--color-warning-bg);
     padding: 0.125rem var(--space-sm);
     border-radius: var(--radius-full);
@@ -363,7 +363,7 @@
 .import-preview-stat-value {
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .import-preview-stat-label {
@@ -486,7 +486,7 @@
 .import-result-stat-value {
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .import-result-stat-label {

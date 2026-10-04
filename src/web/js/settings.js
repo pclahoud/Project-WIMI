@@ -9,6 +9,14 @@ class SettingsPage {
         this.currentPreferences = null;
         this.isDirty = false;
         this.isSaving = false;
+        // Latch so markSettingsPageReady() is idempotent. The page ships
+        // `inert`; that one function is what removes it (#119).
+        this.isPageReady = false;
+        // Incremented by every markDirty(). saveSettings() snapshots it beside
+        // the diff it is about to send and only calls clearDirty() if it has
+        // not moved, so a field changed while a save is in flight is not
+        // reported as saved (#119, the shape #267 fixed on the entry form).
+        this.editGeneration = 0;
 
         // Default preference values (must match UserPreferences dataclass defaults)
         this.DEFAULTS = {
@@ -50,7 +58,27 @@ class SettingsPage {
             backup_retention_days: 30,
             realtime_update_delay_ms: 1500,
             mcp_server_enabled: false,
-            mcp_server_port: 8000
+            mcp_server_port: 8000,
+            // Speech to text (#59). Two of these are device-local --
+            // update_settings() routes stt_model_size and stt_input_device_id
+            // to device_settings -- but DEFAULTS is also what
+            // resetToDefaults() posts wholesale, so a field missing from here
+            // is silently un-resettable whichever store owns it.
+            //
+            // null for both of those is the stored default and not a
+            // placeholder: "whichever model the pin table recommends" and
+            // "whatever the system calls the default microphone" each live in
+            // exactly one place, and restating a size or a device id here
+            // would be a second answer that drifts.
+            //
+            // stt_show_first_use_notice has no control on this page -- the
+            // entry form clears it once the student has been told where their
+            // audio goes -- but it is a stored preference, and a reset that
+            // leaves it alone is a reset that lies.
+            stt_priming_enabled: true,
+            stt_show_first_use_notice: true,
+            stt_model_size: null,
+            stt_input_device_id: null
         };
 
         // Visual fields that trigger live preview
@@ -92,23 +120,104 @@ class SettingsPage {
     }
 
     async init() {
-        await api.ready();
-        this.setupNavigation();
-        this.setupInputHandlers();
-        this.setupActionButtons();
-        this.setupKeyboardShortcuts();
-        this.setupHotkeyCapture();
-        this.setupUnsavedChangesGuard();
-        await this.loadSettings();
-        await this.initExamAnalytics();
-        await this.initProfileSection();
-        await this.initQuestionBanks();
-        await this.initAddons();
-        await this.initFolderSync();
-        await this.refreshMcpStatus();
+        try {
+            await api.ready();
+            this.setupNavigation();
+            this.setupInputHandlers();
+            this.setupActionButtons();
+            this.setupKeyboardShortcuts();
+            this.setupHotkeyCapture();
+            this.setupUnsavedChangesGuard();
+            await this.loadSettings();
+            await this.initExamAnalytics();
+            await this.initProfileSection();
+            await this.initQuestionBanks();
+            await this.initSpeechToText();
+            await this.initAddons();
+            await this.initFolderSync();
+            await this.refreshMcpStatus();
+            await this.initAbout();
 
-        // Handle URL hash navigation (e.g., from gear icon on dashboard)
-        this.handleHashNavigation();
+            // Handle URL hash navigation (e.g., from gear icon on dashboard)
+            this.handleHashNavigation();
+        } finally {
+            // In a `finally`, and that is the load-bearing part: `await
+            // api.ready()` can reject and none of the init sections below it
+            // is individually guaranteed to catch. A permanently gated page
+            // is a far worse bug than the one this gate fixes (#114's own
+            // rule), so every exit from init() releases it.
+            this.markSettingsPageReady();
+        }
+    }
+
+    /**
+     * Hand the page to the student: clear `inert` and say so.
+     *
+     * Until this runs, .app-container ships `inert`, so a click has nowhere to
+     * land and a keystroke cannot be typed -- which is the point.
+     * populateForm() overwrites `value` / `checked` on every [data-field]
+     * element from the stored preferences, and clearDirty() runs on the next
+     * line, so a theme or a colour chosen before that moment was reverted with
+     * the unsaved-changes guard still reading clean: no toast, no console
+     * error, nothing (#119).
+     *
+     * It releases at the END of init(), not after loadSettings(). The two are
+     * different moments and the tail writes controls too: renderPaneOpenMode()
+     * rebuilds #pane_default_source_id, and renderSttDevices() /
+     * renderSttModels() assign `select.value` outright for #stt_input_device_id
+     * and #stt_model_size. All three carry `data-field`, so all three are
+     * saved by the same machinery -- releasing after loadSettings() would
+     * leave the same defect on a narrower window, which is the version of this
+     * fix that looks finished.
+     */
+    markSettingsPageReady() {
+        if (this.isPageReady) return;
+        this.isPageReady = true;
+
+        const page = document.querySelector('.app-container');
+        if (page) page.removeAttribute('inert');
+
+        // Say so (#127). `inert` removes .app-container from the accessibility
+        // tree as well as refusing its input, so until this moment a screen
+        // reader has been reading an empty document. .page-gate is the sibling
+        // element that is not gated, and changing its text is what gets
+        // announced; a gate too brief to be worth announcing clears it
+        // instead. See src/web/js/page_gate.js.
+        //
+        // AFTER removeAttribute, inside a try, behind a typeof check, and its
+        // return value deliberately ignored. Nothing added for assistive tech
+        // -- a forgotten <script> tag included -- may be able to leave the
+        // page gated.
+        try {
+            if (typeof PageGate !== 'undefined') PageGate.release('Settings ready.');
+        } catch (err) {
+            console.warn('PageGate.release failed; the page is released anyway:', err);
+        }
+    }
+
+    /**
+     * Fill in the About panel's version (#195).
+     *
+     * Read from `getAppInfo`, which returns `app.APP_VERSION`, rather than
+     * written into the HTML. A version number is exactly the kind of literal
+     * that goes stale silently -- the notices beside it are only worth
+     * anything if they describe the build the student is actually running.
+     *
+     * Failure is non-fatal and leaves the placeholder: an About panel that
+     * cannot show a version is a cosmetic problem, and throwing here would
+     * take the rest of `init()` with it.
+     */
+    async initAbout() {
+        const el = document.getElementById('aboutAppVersion');
+        if (!el) return;
+        try {
+            const info = await api.getAppInfo();
+            if (info && info.version) {
+                el.textContent = info.version;
+            }
+        } catch (e) {
+            console.warn('Could not read the app version for the About panel:', e);
+        }
     }
 
     // =========================================================================
@@ -373,6 +482,13 @@ class SettingsPage {
             this.originalPreferences = JSON.parse(JSON.stringify(prefs));
             this.currentPreferences = JSON.parse(JSON.stringify(prefs));
             this.populateForm(prefs);
+            // This clearDirty() is only honest because the page ships `inert`
+            // and is not released until init() finishes (#119). populateForm()
+            // above overwrites every [data-field] control, so without the gate
+            // a student's change made during load was reverted here and then
+            // declared clean -- no toast, no console error, and the
+            // unsaved-changes guard silent. Drop the gate and this line is a
+            // lie again.
             this.clearDirty();
         } catch (e) {
             console.error('Failed to load settings:', e);
@@ -459,6 +575,14 @@ class SettingsPage {
 
     markDirty() {
         this.isDirty = true;
+        // A save that started before this edit and finishes after it must not
+        // claim the page is clean -- see the guard at the end of
+        // saveSettings() (#119, #267). Bumping it here rather than in the
+        // input handlers is deliberate: markDirty() is the single funnel every
+        // edit already goes through (_onFieldChange is its only caller, and
+        // every control, the hotkey capture included, routes through that), so
+        // a new edit site cannot forget.
+        this.editGeneration += 1;
         const warning = document.getElementById('previewWarning');
         if (warning) {
             warning.style.display = 'flex';
@@ -495,18 +619,13 @@ class SettingsPage {
             if (window.eventBus) eventBus.emit('theme:changed', { theme: themeName });
         }
 
-        // --- Primary Color ---
-        if (prefs.primary_color_hex) {
-            root.setProperty('--color-primary', prefs.primary_color_hex);
-            root.setProperty('--color-primary-hover', this._adjustColor(prefs.primary_color_hex, -25));
-            root.setProperty('--color-primary-light', this._adjustColor(prefs.primary_color_hex, 20));
-            root.setProperty('--color-primary-bg', this._adjustColor(prefs.primary_color_hex, 180));
-        }
-
-        // --- Secondary Color ---
-        if (prefs.secondary_color_hex) {
-            root.setProperty('--color-secondary', prefs.secondary_color_hex);
-            root.setProperty('--color-secondary-hover', this._adjustColor(prefs.secondary_color_hex, -25));
+        // --- Primary & Secondary Color ---
+        // Derived by the same applier the page-load path uses, so a preview
+        // cannot disagree with what a reload renders. This block had its own
+        // copy of the arithmetic until #307, and the issue named only this
+        // one -- the copy in themes.js was colouring every other page.
+        if (typeof _wimiApplyColourPreferences === 'function') {
+            _wimiApplyColourPreferences(prefs);
         }
 
         // --- Font Family ---
@@ -609,23 +728,6 @@ class SettingsPage {
         }
     }
 
-    /**
-     * Simple lighten / darken helper.
-     * Positive amount lightens, negative amount darkens.
-     * @param {string} hex - Hex color string e.g. "#2563eb"
-     * @param {number} amount - Amount to adjust each RGB channel (-255 to 255)
-     * @returns {string} Adjusted hex color
-     */
-    _adjustColor(hex, amount) {
-        let r = parseInt(hex.slice(1, 3), 16);
-        let g = parseInt(hex.slice(3, 5), 16);
-        let b = parseInt(hex.slice(5, 7), 16);
-        r = Math.max(0, Math.min(255, r + amount));
-        g = Math.max(0, Math.min(255, g + amount));
-        b = Math.max(0, Math.min(255, b + amount));
-        return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
-    }
-
     // =========================================================================
     // Save / Cancel / Reset
     // =========================================================================
@@ -649,10 +751,33 @@ class SettingsPage {
                 return;
             }
 
+            // Snapshot the diff and the edit counter in the same synchronous
+            // block. Anything the student changes from here on is not in
+            // `changes` (#119, #267).
+            const savedGeneration = this.editGeneration;
+
             const updated = await api.updateUserPreferences(changes);
+            // What the server now holds, whatever happened meanwhile.
             this.originalPreferences = JSON.parse(JSON.stringify(updated));
-            this.currentPreferences = JSON.parse(JSON.stringify(updated));
-            this.clearDirty();
+
+            // Did the student change a field while this write was in flight?
+            // If so the write succeeded but the page is NOT clean, and saying
+            // it was is the second half of #119: `currentPreferences` was
+            // overwritten with the server's answer, so the newer value was
+            // discarded while the control on screen still showed it, and
+            // clearDirty() then hid the whole thing -- a second Save reported
+            // "No changes to save", because the diff had been erased along
+            // with the edit.
+            const editedMidSave = this.editGeneration !== savedGeneration;
+            if (!editedMidSave) {
+                this.currentPreferences = JSON.parse(JSON.stringify(updated));
+                this.clearDirty();
+            }
+            // When it was edited mid-save, `currentPreferences` is deliberately
+            // left alone -- it still carries the newer value, so the diff on
+            // the next save is exactly the in-flight edit and nothing else --
+            // and `isDirty` is already true, set by the markDirty() that moved
+            // the counter. There is nothing to do but not undo it.
             if (window.eventBus) eventBus.emit('settings:changed', updated);
 
             // Handle MCP server start/stop based on preference change
@@ -664,7 +789,14 @@ class SettingsPage {
                 await this._applyMcpServerState(true, updated.mcp_server_port);
             }
 
-            this.showToast('Settings saved successfully', 'success');
+            // A partial success must not read as a complete one (#240's rule,
+            // #119's second half). "Settings saved successfully" beside a
+            // still-dirty page is the sentence that hid this.
+            this.showToast(
+                editedMidSave
+                    ? 'Settings saved. A change you made while it was saving is still unsaved.'
+                    : 'Settings saved successfully',
+                editedMidSave ? 'info' : 'success');
         } catch (e) {
             console.error('Failed to save settings:', e);
             this.showToast('Failed to save settings: ' + e.message, 'error');
@@ -2559,6 +2691,698 @@ class SettingsPage {
         } catch (e) {
             this.showToast('Could not resolve: ' + e.message, 'error');
         }
+    }
+
+    // =========================================================================
+    // Speech to Text (#59)
+    //
+    // "The mic button is greyed out and I don't know why" is the failure this
+    // section prevents, and there are three separate reasons it can happen:
+    // the engine is missing from the build, the model has not been downloaded,
+    // or the microphone is unusable. getSttStatus() reports all three
+    // independently and this page renders all three -- never one `available`
+    // boolean, because a broken build, a 190 MB download and an unplugged
+    // headset have nothing in common but the symptom.
+    //
+    // THE ONE THING TO KNOW BEFORE EDITING ANY OF THIS: a named speech failure
+    // RESOLVES; it does not reject. api._callBridge throws on success=false
+    // and discards `data` with it, so a failure returned that way would arrive
+    // with no `kind` -- and the kind is the whole point. Every slot therefore
+    // answers success=true carrying `error: {kind, detail, retryable}`. A
+    // plain try/catch around these calls reads "the model is not downloaded"
+    // as success and silently does nothing. Check the payload; a rejection
+    // still means what it always meant (no profile, malformed arguments).
+    //
+    // `error.retryable` is the taxonomy's own answer to whether offering a
+    // retry is honest. Do not re-derive it from the kind here.
+    // =========================================================================
+
+    /** Poll interval for a running download. Matches api/stt.js's POLL_MS. */
+    get STT_POLL_MS() { return 400; }
+
+    async initSpeechToText() {
+        // Feature-detect the way the question-bank section does, so this page
+        // still works against a build without the speech api module.
+        if (typeof api.getSttStatus !== 'function'
+                || typeof api.getSttSettings !== 'function') {
+            const navItem = document.querySelector(
+                '.settings-nav-item[data-panel="speech"]');
+            if (navItem) navItem.style.display = 'none';
+            return;
+        }
+
+        this._sttDownloadJobId = null;
+        this._sttStatus = null;
+        this._sttSettings = null;
+
+        this.bindClick('sttRefreshBtn', () => this.refreshSpeechToText());
+        this.bindClick('sttPermissionBtn', () => this.requestSttPermission());
+        this.bindClick('sttDownloadBtn', () => this.startSttModelDownload());
+        this.bindClick('sttCancelDownloadBtn', () => this.cancelSttModelDownload());
+
+        // The model picker drives more than a preference: what is on disk for
+        // the *selected* size decides what the Download button offers. That is
+        // separate from setupInputHandlers' own binding, which records the
+        // change for saving.
+        const modelSelect = document.getElementById('stt_model_size');
+        if (modelSelect) {
+            modelSelect.addEventListener('change', () => this.renderSttModelNote());
+        }
+
+        // Delegated, because the rows are rebuilt on every refresh.
+        const installed = document.getElementById('sttInstalledModels');
+        if (installed) {
+            installed.addEventListener('click', event => {
+                const button = event.target.closest('[data-stt-remove]');
+                if (button) this.removeSttModel(button.getAttribute('data-stt-remove'));
+            });
+        }
+
+        await this.refreshSpeechToText();
+    }
+
+    /** Re-read both payloads and repaint everything that depends on them. */
+    async refreshSpeechToText() {
+        let status = null;
+        let settings = null;
+        let failure = '';
+
+        try {
+            status = await api.getSttStatus();
+        } catch (e) {
+            failure = e && e.message ? e.message : String(e);
+        }
+        try {
+            settings = await api.getSttSettings();
+        } catch (e) {
+            if (!failure) failure = e && e.message ? e.message : String(e);
+        }
+
+        this._sttStatus = status;
+        this._sttSettings = settings;
+
+        this.renderSttStatus(status, failure);
+        this.renderSttDevices(status);
+        this.renderSttModels(settings);
+        this.renderSttModelNote();
+        this.renderSttInstalledModels(settings);
+    }
+
+    // -- status ------------------------------------------------------------
+
+    /**
+     * Paint the three status rows.
+     *
+     * @param {object|null} status - getSttStatus() payload, or null.
+     * @param {string} failure - Why there is no payload, if there is none.
+     */
+    renderSttStatus(status, failure) {
+        const lines = {
+            sttEngine: this._sttEngineLine(status, failure),
+            sttModel: this._sttModelLine(status, failure),
+            sttMic: this._sttMicLine(status, failure)
+        };
+        Object.keys(lines).forEach(prefix => {
+            const dot = document.getElementById(prefix + 'Dot');
+            const text = document.getElementById(prefix + 'Text');
+            if (dot) dot.className = 'stt-status-dot ' + lines[prefix].state;
+            if (text) text.textContent = lines[prefix].text;
+        });
+
+        // Only ever offered for an undetermined answer. On macOS a denial is
+        // remembered system-wide and the OS will not ask again, so a button
+        // there would be a lie -- the message names the settings pane instead.
+        const askBtn = document.getElementById('sttPermissionBtn');
+        if (askBtn) {
+            const mic = (status && status.mic) || null;
+            const undetermined = !!mic && mic.permission === 'undetermined';
+            askBtn.style.display = undetermined ? '' : 'none';
+        }
+    }
+
+    _sttEngineLine(status, failure) {
+        if (!status) {
+            return { state: 'unknown', text: this._sttUnreadable(failure) };
+        }
+        if (status.engine_ready) {
+            return { state: 'ready', text: 'Installed with WIMI and ready.' };
+        }
+        const error = (status.engine || {}).error || {};
+        if (error.kind === 'binary_missing') {
+            return {
+                state: 'problem',
+                text: 'Missing from this copy of WIMI. The speech engine is '
+                    + 'part of the application rather than something you '
+                    + 'download, so this is an incomplete installation: '
+                    + 'reinstall WIMI.'
+            };
+        }
+        return {
+            state: 'problem',
+            text: error.detail
+                ? 'The speech engine could not be used: ' + error.detail
+                : 'The speech engine could not be used.'
+        };
+    }
+
+    _sttModelLine(status, failure) {
+        if (!status) {
+            return { state: 'unknown', text: this._sttUnreadable(failure) };
+        }
+        const size = status.model_size || (status.model || {}).size || 'the model';
+        if (status.model_ready) {
+            return {
+                state: 'ready',
+                text: size + ' is downloaded and in use' + this._sttSizeSuffix(size) + '.'
+            };
+        }
+        const error = (status.model || {}).error || {};
+        if (error.kind === 'model_corrupt') {
+            return {
+                state: 'problem',
+                text: 'The ' + size + ' file on this computer does not match '
+                    + 'what it should be, so WIMI will not use it. Download it '
+                    + 'again below.'
+            };
+        }
+        if (error.kind === 'model_missing') {
+            // NOT an error state. This is the first-run resting state and it
+            // is one button away from resolved; rendering it in red is how the
+            // download prompt ends up looking like something broke.
+            return {
+                state: 'action',
+                text: 'Not downloaded yet' + this._sttSizeSuffix(size)
+                    + '. Download it below, once. After that speech works '
+                    + 'offline and nothing is sent anywhere.'
+            };
+        }
+        return {
+            state: 'problem',
+            text: error.detail
+                ? 'The speech model could not be used: ' + error.detail
+                : 'The speech model could not be used.'
+        };
+    }
+
+    _sttMicLine(status, failure) {
+        if (!status) {
+            return { state: 'unknown', text: this._sttUnreadable(failure) };
+        }
+        const mic = status.mic;
+        if (!mic) {
+            // `null` means nobody asked, which is not the same as "none", and
+            // must not be rendered as one.
+            return {
+                state: 'unknown',
+                text: 'WIMI has not asked about the microphone yet.'
+            };
+        }
+        const devices = mic.devices || [];
+        if (mic.ready) {
+            const count = devices.length === 1
+                ? '1 microphone found'
+                : devices.length + ' microphones found';
+            return {
+                state: 'ready',
+                text: count + '. Recording from ' + this._sttChosenDeviceLabel(mic) + '.'
+            };
+        }
+        const error = mic.error || {};
+        if (error.kind === 'no_input_device') {
+            return {
+                state: 'problem',
+                text: 'No microphone found. Plug one in or connect a headset '
+                    + 'and press Check again. Both writing fields still work '
+                    + 'by typing in the meantime -- speaking is an '
+                    + 'alternative to typing, never a requirement.'
+            };
+        }
+        if (error.kind === 'permission_denied') {
+            return { state: 'problem', text: this._sttPermissionRemedy() };
+        }
+        return {
+            state: 'problem',
+            text: error.detail
+                ? 'The microphone could not be used: ' + error.detail
+                : 'The microphone could not be used.'
+        };
+    }
+
+    /**
+     * Where to go to undo a microphone denial, which differs by platform.
+     *
+     * Qt has no Windows permission backend and reports Granted there whatever
+     * the OS thinks, so a denial reaching this branch is a macOS one in
+     * practice. Windows keeps a sentence anyway, because if it ever does get
+     * here the settings pane is the same answer.
+     */
+    _sttPermissionRemedy() {
+        const ua = navigator.userAgent || '';
+        if (/Mac OS X|Macintosh/.test(ua)) {
+            return 'macOS is blocking access to the microphone. Open System '
+                + 'Settings, then Privacy & Security, then Microphone, and '
+                + 'switch WIMI on. macOS remembers this answer and will not '
+                + 'ask again, so it has to be changed there rather than here.';
+        }
+        if (/Windows/.test(ua)) {
+            return 'Windows is blocking access to the microphone. Open '
+                + 'Settings, then Privacy & security, then Microphone, and '
+                + 'turn on both microphone access and "Let desktop apps '
+                + 'access your microphone".';
+        }
+        return 'This computer is blocking access to the microphone. Grant '
+            + 'WIMI microphone access in your system settings, then press '
+            + 'Check again.';
+    }
+
+    _sttUnreadable(failure) {
+        return 'WIMI could not read the speech status on this computer'
+            + (failure ? ': ' + failure : '.');
+    }
+
+    /** " (about 190 MB)" for a size the pin table knows, else "". */
+    _sttSizeSuffix(size) {
+        const spec = this._sttModelSpec(size);
+        return spec ? ' (about ' + Math.round(spec.megabytes) + ' MB)' : '';
+    }
+
+    _sttModelSpec(size) {
+        const models = (this._sttSettings || {}).available_models || [];
+        return models.find(m => m.size === size) || null;
+    }
+
+    /** What startRecording() would open, said the way a student reads it. */
+    _sttChosenDeviceLabel(mic) {
+        const devices = mic.devices || [];
+        const stored = this.currentPreferences
+            ? this.currentPreferences.stt_input_device_id : null;
+        if (stored) {
+            const match = devices.find(d => String(d.id) === String(stored));
+            if (match) return match.label;
+            // The stored microphone is gone. startRecording() falls back to
+            // the default and says so through device_choice_honoured; saying
+            // it here too is cheaper than finding out mid-sentence.
+            const fallback = devices.find(d => d.is_default) || devices[0];
+            return (fallback ? fallback.label : 'the system default')
+                + ' -- the microphone you chose is not connected right now';
+        }
+        const preferred = devices.find(d => d.is_default) || devices[0];
+        return preferred ? preferred.label : 'the system default';
+    }
+
+    // -- the two pickers ----------------------------------------------------
+
+    /**
+     * Rebuild the microphone list.
+     *
+     * A stored id the machine no longer offers is APPENDED rather than
+     * dropped, following #49's rule for an unconfigured level name: the
+     * control has to show what is stored, and silently painting "System
+     * default" over a choice that is merely unplugged is a lie that survives
+     * the next save.
+     */
+    renderSttDevices(status) {
+        const select = document.getElementById('stt_input_device_id');
+        if (!select) return;
+
+        const devices = (status && status.mic && status.mic.devices) || [];
+        const stored = this.currentPreferences
+            ? this.currentPreferences.stt_input_device_id : null;
+        const storedId = stored == null ? '' : String(stored);
+
+        const options = ['<option value="">System default</option>'];
+        devices.forEach(device => {
+            options.push('<option value="' + this._escapeHtml(device.id) + '">'
+                + this._escapeHtml(device.label)
+                + (device.is_default ? ' (system default)' : '')
+                + '</option>');
+        });
+        if (storedId && !devices.some(d => String(d.id) === storedId)) {
+            options.push('<option value="' + this._escapeHtml(storedId) + '">'
+                + 'The microphone you chose &mdash; not connected right now'
+                + '</option>');
+        }
+
+        select.innerHTML = options.join('');
+        select.value = storedId;
+    }
+
+    /** Rebuild the model list: what is offered, how big, what is already here. */
+    renderSttModels(settings) {
+        const select = document.getElementById('stt_model_size');
+        if (!select) return;
+
+        const models = (settings && settings.available_models) || [];
+        const recommended = (settings && settings.default_model_size) || '';
+        const stored = this.currentPreferences
+            ? this.currentPreferences.stt_model_size : null;
+        const storedSize = stored == null ? '' : String(stored);
+
+        const options = ['<option value="">Recommended'
+            + (recommended ? ' (' + this._escapeHtml(recommended) + ')' : '')
+            + '</option>'];
+        models.forEach(model => {
+            const bits = [this._escapeHtml(model.size),
+                Math.round(model.megabytes) + ' MB'];
+            if (model.size === recommended) bits.push('recommended');
+            bits.push(model.installed ? 'downloaded' : 'not downloaded');
+            options.push('<option value="' + this._escapeHtml(model.size) + '">'
+                + bits.join(' &middot; ') + '</option>');
+        });
+        if (storedSize && !models.some(m => m.size === storedSize)) {
+            options.push('<option value="' + this._escapeHtml(storedSize) + '">'
+                + this._escapeHtml(storedSize)
+                + ' &middot; no longer offered</option>');
+        }
+
+        select.innerHTML = options.join('');
+        select.value = storedSize;
+    }
+
+    /** The size the Download button would fetch: the picker, then the default. */
+    _selectedSttModelSize() {
+        const select = document.getElementById('stt_model_size');
+        const picked = select ? String(select.value || '') : '';
+        if (picked) return picked;
+        return (this._sttSettings || {}).default_model_size || '';
+    }
+
+    /**
+     * The line under the model picker, and the Download button's state.
+     *
+     * The status row above reports the model actually IN USE, which is the
+     * saved one. This reports the SELECTED one. They differ for as long as a
+     * change is unsaved, and saying so is the whole reason both exist.
+     */
+    renderSttModelNote() {
+        const note = document.getElementById('sttModelSelectionNote');
+        const button = document.getElementById('sttDownloadBtn');
+        const size = this._selectedSttModelSize();
+        const spec = this._sttModelSpec(size);
+        const status = this._sttStatus || {};
+        const inUse = status.model_size || '';
+        const corrupt = size === inUse
+            && ((status.model || {}).error || {}).kind === 'model_corrupt';
+
+        const parts = [];
+        if (!size) {
+            parts.push('No model is offered on this computer.');
+        } else if (!spec) {
+            parts.push(this._escapeHtml(size) + ' is not one of the models '
+                + 'this version of WIMI knows how to fetch.');
+        } else if (corrupt) {
+            parts.push('The ' + this._escapeHtml(size) + ' file here is damaged.');
+        } else if (spec.installed) {
+            parts.push(this._escapeHtml(size) + ' is on this computer ('
+                + Math.round(spec.megabytes) + ' MB).');
+        } else {
+            parts.push(this._escapeHtml(size) + ' has not been downloaded yet: '
+                + 'about ' + Math.round(spec.megabytes) + ' MB, once.');
+        }
+
+        const saved = this.originalPreferences
+            ? this.originalPreferences.stt_model_size : null;
+        const savedSize = saved == null ? '' : String(saved);
+        const select = document.getElementById('stt_model_size');
+        if (select && String(select.value || '') !== savedSize) {
+            parts.push('Save to start using it.');
+        }
+
+        if (note) note.innerHTML = parts.join(' ');
+
+        if (button) {
+            const running = !!this._sttDownloadJobId;
+            const have = !!(spec && spec.installed) && !corrupt;
+            button.disabled = running || !spec || have;
+            button.textContent = running
+                ? 'Downloading…'
+                : (have ? 'Already downloaded'
+                        : (corrupt ? 'Download again' : 'Download'));
+        }
+    }
+
+    // -- the download -------------------------------------------------------
+
+    /**
+     * Fetch the selected model, showing progress and offering a cancel.
+     *
+     * This drives start/poll/cancel by hand rather than calling
+     * api.downloadSttModel(). Since #171 the composite *is* cancellable --
+     * `pollModelDownload` returns `job_id` and the composite hands each poll
+     * payload to `onProgress` -- so the job id is no longer the reason. What
+     * is: `_sttDownloadJobId` is set the instant the start call resolves, so
+     * the re-entry guard above and the Cancel button are both live before the
+     * first poll rather than one round trip later; the progress bar is drawn
+     * from `started.total_bytes` straight away instead of starting blank; and
+     * a start that is refused ("Could not start the download") is reported
+     * differently from a poll that stops answering ("Lost track of the
+     * download"), which one `catch` around the composite could not separate.
+     *
+     * Changing size downloads the new model and leaves the old one where it
+     * is, deliberately: a student who switches, dislikes it and switches back
+     * should not pay for the download twice.
+     */
+    async startSttModelDownload() {
+        if (this._sttDownloadJobId) return;
+        const size = this._selectedSttModelSize();
+        this._setSttDownloadError('');
+
+        let started;
+        try {
+            started = await api.startModelDownload(size);
+        } catch (e) {
+            // A rejection here is the bridge refusing outright -- an unknown
+            // size, no app data directory. Not a taxonomy error.
+            this._setSttDownloadError('Could not start the download: ' + e.message);
+            return;
+        }
+
+        this._sttDownloadJobId = started.job_id;
+        this._setSttDownloadRunning(true);
+        this._renderSttDownloadProgress({
+            bytes: 0, total: started.total_bytes, size: started.size
+        });
+
+        for (;;) {
+            let report;
+            try {
+                report = await api.pollModelDownload(this._sttDownloadJobId);
+            } catch (e) {
+                this._setSttDownloadRunning(false);
+                this._setSttDownloadError('Lost track of the download: ' + e.message);
+                await this.refreshSpeechToText();
+                return;
+            }
+
+            if (report.state === 'running') {
+                this._renderSttDownloadProgress(report);
+                await new Promise(resolve => setTimeout(resolve, this.STT_POLL_MS));
+                continue;
+            }
+
+            this._setSttDownloadRunning(false);
+
+            if (report.state === 'done') {
+                this.showToast(report.size + ' downloaded. Speech is ready to '
+                    + 'use on this computer.', 'success');
+            } else {
+                // A named failure RESOLVES with state 'failed' and an error
+                // object. It does not reject, so this branch is reached by
+                // reading the payload and never by a catch.
+                const error = report.error || {};
+                if (error.kind === 'download_cancelled') {
+                    this.showToast('Download cancelled. Nothing was kept.', 'info');
+                } else {
+                    this._setSttDownloadError(
+                        this._sttDownloadFailureText(error), error.retryable);
+                }
+            }
+
+            await this.refreshSpeechToText();
+            return;
+        }
+    }
+
+    async cancelSttModelDownload() {
+        const jobId = this._sttDownloadJobId;
+        if (!jobId) return;
+        try {
+            await api.cancelModelDownload(jobId);
+        } catch (e) {
+            this._setSttDownloadError('Could not cancel the download: ' + e.message);
+            return;
+        }
+        // Do not tear anything down here. The job reaches 'failed' with
+        // download_cancelled a moment later and the poll loop above ends on
+        // it, which is also what deletes the partial file.
+    }
+
+    _sttDownloadFailureText(error) {
+        const detail = error.detail ? ' (' + error.detail + ')' : '';
+        return 'The download did not finish' + detail + '.';
+    }
+
+    /**
+     * Draw the progress bar.
+     *
+     * `total` MAY BE NULL -- a response without a Content-Length is legal, and
+     * the bridge passes that through rather than inventing a number. When it
+     * is null the track is hidden and only the byte count moves: a bar that
+     * cannot know where it is must not draw a position.
+     */
+    _renderSttDownloadProgress(report) {
+        const wrap = document.getElementById('sttDownloadProgress');
+        const bar = document.getElementById('sttDownloadBar');
+        const text = document.getElementById('sttDownloadText');
+        if (!wrap || !bar || !text) return;
+
+        const track = wrap.querySelector('.stt-progress-track');
+        const bytes = Number(report.bytes || 0);
+        const total = report.total;
+
+        wrap.style.display = '';
+        if (total) {
+            const pct = Math.max(0, Math.min(100, (bytes / total) * 100));
+            if (track) track.style.display = '';
+            bar.style.width = pct.toFixed(1) + '%';
+            text.textContent = this._sttMegabytes(bytes) + ' of '
+                + this._sttMegabytes(total) + ' MB (' + Math.round(pct) + '%)';
+        } else {
+            if (track) track.style.display = 'none';
+            bar.style.width = '0%';
+            text.textContent = this._sttMegabytes(bytes) + ' MB so far. This '
+                + 'download did not say how big it is, so there is no '
+                + 'percentage to show.';
+        }
+    }
+
+    _sttMegabytes(bytes) {
+        return (Number(bytes || 0) / 1000000).toFixed(1);
+    }
+
+    _setSttDownloadRunning(running) {
+        if (!running) this._sttDownloadJobId = null;
+        const cancel = document.getElementById('sttCancelDownloadBtn');
+        if (cancel) cancel.style.display = running ? '' : 'none';
+        const progress = document.getElementById('sttDownloadProgress');
+        if (progress && !running) progress.style.display = 'none';
+        const select = document.getElementById('stt_model_size');
+        if (select) select.disabled = running;
+        this.renderSttModelNote();
+    }
+
+    /**
+     * Show or clear the download problem line.
+     *
+     * `retryable` comes straight off the taxonomy. It is the answer to "is a
+     * retry button honest here", and re-deriving it from the kind is how a
+     * page ends up offering a retry that cannot work.
+     */
+    _setSttDownloadError(message, retryable) {
+        const el = document.getElementById('sttDownloadError');
+        if (!el) return;
+        if (!message) {
+            el.style.display = 'none';
+            el.textContent = '';
+            return;
+        }
+        el.style.display = '';
+        el.textContent = retryable
+            ? message + ' Press Download to try again.'
+            : message;
+    }
+
+    // -- what is on disk, and getting rid of it -----------------------------
+
+    /**
+     * List the models actually downloaded here, each with a Remove.
+     *
+     * Changing size downloads the new model and leaves the old one alone, so
+     * that a student who switches, dislikes it and switches back does not pay
+     * twice. That decision is only tenable with an explicit way out, which is
+     * this list -- 190 MB accumulating silently per change is not a feature.
+     *
+     * The whole group is hidden while nothing is installed. An empty list is
+     * not information, and the way that would usually be written -- a CSS
+     * `:empty` rule -- renders at zero pixels on QtWebEngine 6.10 once the
+     * container gains its first child (#134, #136, #141).
+     */
+    renderSttInstalledModels(settings) {
+        const group = document.getElementById('sttInstalledGroup');
+        const list = document.getElementById('sttInstalledModels');
+        if (!group || !list) return;
+
+        const models = ((settings && settings.available_models) || [])
+            .filter(model => model.installed);
+        if (!models.length) {
+            group.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        const inUse = (this._sttStatus || {}).model_size || '';
+        // No Remove against a build whose bridge cannot delete one. The list
+        // is still worth showing: it says what is taking up the disk.
+        const removable = typeof api.removeSttModel === 'function';
+        group.style.display = '';
+        list.innerHTML = models.map(model => {
+            const bits = [this._escapeHtml(model.size),
+                Math.round(model.megabytes) + ' MB'];
+            if (model.size === inUse) bits.push('in use');
+            return '<div class="stt-model-row">'
+                + '<span class="stt-model-name">' + bits.join(' &middot; ') + '</span>'
+                + (removable
+                    ? '<button class="btn-cancel" data-stt-remove="'
+                        + this._escapeHtml(model.size)
+                        + '" data-testid="settings-stt-remove">Remove</button>'
+                    : '')
+                + '</div>';
+        }).join('');
+    }
+
+    /**
+     * Delete a downloaded model, after asking.
+     *
+     * Removing the model currently in use is allowed: reclaiming the disk is
+     * a legitimate thing to want, and what follows is the first-run resting
+     * state rather than a breakage. The confirmation says which of the two
+     * the student is about to do.
+     */
+    async removeSttModel(size) {
+        if (!size) return;
+        const inUse = (this._sttStatus || {}).model_size || '';
+        const warning = size === inUse
+            ? '\n\nThis is the model speech is set to use, so speech will stop '
+                + 'working until you download it again or choose another one.'
+            : '';
+        if (!confirm('Delete ' + size + ' from this computer?' + warning)) return;
+
+        try {
+            const result = await api.removeSttModel(size);
+            this.showToast(result.removed
+                ? size + ' deleted from this computer.'
+                : size + ' was not on this computer.', 'success');
+        } catch (e) {
+            this.showToast('Could not delete ' + size + ': ' + e.message, 'error');
+        }
+        await this.refreshSpeechToText();
+    }
+
+    // -- permission ---------------------------------------------------------
+
+    async requestSttPermission() {
+        try {
+            const result = await api.requestMicrophonePermission();
+            if (result.pending) {
+                this.showToast('WIMI asked for microphone access. The answer '
+                    + 'has not come back yet -- press Check again in a '
+                    + 'moment.', 'info');
+            }
+        } catch (e) {
+            this.showToast('Could not ask for microphone access: ' + e.message,
+                'error');
+        }
+        await this.refreshSpeechToText();
     }
 
 }

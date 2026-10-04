@@ -398,168 +398,7 @@ class TestDimensionCRUD:
         assert rows == 1
         assert user_db.get_dimension(dim_id) is None
     
-    def test_delete_dimension_cascades_tags(
-        self, user_db, multi_dim_exam_with_dimensions, 
-        subject_nodes, review_session_with_entries
-    ):
-        """Test that deleting dimension cascades to delete tags"""
-        user_db._ensure_phase7_schema()
-        
-        dim_id = multi_dim_exam_with_dimensions['dimensions']['site_of_care']
-        entry = review_session_with_entries['entries'][0]
-        node = subject_nodes['emergency']
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=node.id,
-            dimension_id=dim_id
-        )
-        
-        tags = user_db.get_entry_tags(entry.id)
-        assert len(tags) == 1
-        
-        user_db.delete_dimension(dim_id)
-        
-        tags = user_db.get_entry_tags(entry.id)
-        assert len(tags) == 0
 
-
-# ==================== Tag CRUD Tests ====================
-
-class TestHierarchyTagCRUD:
-    """Test hierarchy tag CRUD operations"""
-    
-    def test_create_tag(
-        self, user_db, multi_dim_exam_with_dimensions,
-        subject_nodes, review_session_with_entries
-    ):
-        """Test creating tag"""
-        dim_id = multi_dim_exam_with_dimensions['dimensions']['site_of_care']
-        entry = review_session_with_entries['entries'][0]
-        node = subject_nodes['emergency']
-        
-        tag_id = user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=node.id,
-            dimension_id=dim_id
-        )
-        
-        assert tag_id is not None
-        assert tag_id > 0
-    
-    def test_create_tag_duplicate(
-        self, user_db, multi_dim_exam_with_dimensions,
-        subject_nodes, review_session_with_entries
-    ):
-        """Test creating duplicate tag (should fail)"""
-        dim_id = multi_dim_exam_with_dimensions['dimensions']['site_of_care']
-        entry = review_session_with_entries['entries'][0]
-        node = subject_nodes['emergency']
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=node.id,
-            dimension_id=dim_id
-        )
-        
-        # Changed from sqlite3.IntegrityError to DatabaseIntegrityError
-        with pytest.raises(DatabaseIntegrityError):
-            user_db.create_hierarchy_tag(
-                entry_id=entry.id,
-                hierarchy_id=node.id,
-                dimension_id=dim_id
-            )
-    
-    def test_get_entry_tags(
-        self, user_db, multi_dim_exam_with_dimensions,
-        subject_nodes, review_session_with_entries
-    ):
-        """Test retrieving all tags for an entry, verify ordering"""
-        dims = multi_dim_exam_with_dimensions['dimensions']
-        entry = review_session_with_entries['entries'][0]
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=subject_nodes['cardio'].id,
-            dimension_id=dims['system']
-        )
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=subject_nodes['emergency'].id,
-            dimension_id=dims['site_of_care']
-        )
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=subject_nodes['diagnosis'].id,
-            dimension_id=dims['physician_task']
-        )
-        
-        tags = user_db.get_entry_tags(entry.id)
-        
-        assert len(tags) == 3
-        assert tags[0]['dimension_name'] == "Site of Care"
-        assert tags[1]['dimension_name'] == "Physician Task"
-        assert tags[2]['dimension_name'] == "System"
-    
-    def test_get_entry_tags_empty(self, user_db, review_session_with_entries):
-        """Test retrieving tags for entry with none"""
-        user_db._ensure_phase7_schema()
-        
-        entry = review_session_with_entries['entries'][0]
-        tags = user_db.get_entry_tags(entry.id)
-        
-        assert tags == []
-    
-    def test_delete_tag(
-        self, user_db, multi_dim_exam_with_dimensions,
-        subject_nodes, review_session_with_entries
-    ):
-        """Test deleting single tag"""
-        dim_id = multi_dim_exam_with_dimensions['dimensions']['site_of_care']
-        entry = review_session_with_entries['entries'][0]
-        node = subject_nodes['emergency']
-        
-        tag_id = user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=node.id,
-            dimension_id=dim_id
-        )
-        
-        rows = user_db.delete_hierarchy_tag(tag_id)
-        
-        assert rows == 1
-        tags = user_db.get_entry_tags(entry.id)
-        assert len(tags) == 0
-    
-    def test_delete_entry_tags_by_dimension(
-        self, user_db, multi_dim_exam_with_dimensions,
-        subject_nodes, review_session_with_entries
-    ):
-        """Test deleting all tags in a dimension for an entry"""
-        dims = multi_dim_exam_with_dimensions['dimensions']
-        entry = review_session_with_entries['entries'][0]
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=subject_nodes['emergency'].id,
-            dimension_id=dims['site_of_care']
-        )
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=subject_nodes['diagnosis'].id,
-            dimension_id=dims['physician_task']
-        )
-        
-        rows = user_db.delete_entry_tags_by_dimension(
-            entry_id=entry.id,
-            dimension_id=dims['site_of_care']
-        )
-        
-        assert rows == 1
-        
-        tags = user_db.get_entry_tags(entry.id)
-        assert len(tags) == 1
-        assert tags[0]['dimension_name'] == "Physician Task"
 
 
 # ==================== Detection Tests ====================
@@ -659,73 +498,74 @@ class TestPhase7Integration:
     """Integration tests for Phase 7 with other phases"""
     
     def test_full_multidimensional_workflow(self, user_db, exam_context):
-        """Test complete workflow: create exam, add dimensions, tag entries"""
+        """Complete workflow on **mechanism A**, the live one (#209).
+
+        This used to tag through ``create_hierarchy_tag`` -- mechanism B, the
+        parallel ``question_hierarchy_tags`` table that no page ever wrote to.
+        The test passed, which is precisely what made B look alive: it was the
+        only thing in the repository exercising it.
+
+        An entry reaches a dimension because the *subject* it is tagged with
+        carries ``dimension_id``. So the subjects are created in their
+        dimensions and the entry is mapped to them.
+        """
         user_db._ensure_phase7_schema()
         user_db._ensure_phase4_schema()
-        
+
         site_dim = user_db.create_dimension(
             exam_id=exam_context.id,
             name="Site",
             display_order=1,
             is_required=True
         )
-        
+
         task_dim = user_db.create_dimension(
             exam_id=exam_context.id,
             name="Task",
             display_order=2,
             is_required=True
         )
-        
+
         emergency = user_db.create_subject_node(
             exam_context=exam_context.exam_name,
             name="Emergency",
-            level_type="Site"
+            level_type="Site",
+            dimension_id=site_dim
         )
-        
+
         diagnosis = user_db.create_subject_node(
             exam_context=exam_context.exam_name,
             name="Diagnosis",
-            level_type="Task"
+            level_type="Task",
+            dimension_id=task_dim
         )
-        
+
         session = user_db.create_review_session(
             exam_context_id=exam_context.id,
             total_questions=5,
             total_incorrect=1
         )
-        
+
         entry = user_db.create_question_entry(
             review_session_id=session.id,
             user_answer="A",
             correct_answer="B",
             reflection="I misread the question",
             explanation="The correct approach is...",
-            primary_subject_ids=[]
+            primary_subject_ids=[emergency.id, diagnosis.id]
         )
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=emergency.id,
-            dimension_id=site_dim
-        )
-        
-        user_db.create_hierarchy_tag(
-            entry_id=entry.id,
-            hierarchy_id=diagnosis.id,
-            dimension_id=task_dim
-        )
-        
+
         assert user_db.exam_uses_dimensions(exam_context.id) is True
-        
-        tags = user_db.get_entry_tags(entry.id)
-        assert len(tags) == 2
-        
+
         validation = user_db.validate_entry_dimensions_complete(
             entry_id=entry.id,
             exam_id=exam_context.id
         )
         assert validation['is_complete'] is True
+        assert set(validation['tagged_dimensions']) == {site_dim, task_dim}
+        # One subject per dimension, so nothing is over-tagged even though
+        # both dimensions default to allow_multiple = False.
+        assert validation['over_tagged_dimensions'] == []
 
 
 # ==================== Cross-Dimensional Polyhierarchy (Non-Goal) ====================

@@ -8,7 +8,6 @@ from app.bridge_test_instrumentation import instrumented_slot
 
 from ..bridge_helpers import serialize_response
 
-
 class HierarchyBridgeMixin:
     """Bridge mixin for subject hierarchy operations. Composed into DatabaseBridge."""
 
@@ -313,7 +312,12 @@ class HierarchyBridgeMixin:
 
             node = self.user_db.get_subject_node(node_id)
 
-            # Graph dual-write for name or level_type changes
+            # Graph dual-write for name or level_type changes.
+            #
+            # #301 listed these two `_build_subject_path` calls as "tree
+            # payloads"; they are not. Both write a LadybugDB node property
+            # and reach no UI, so they take the filtered path and no tooltip
+            # machinery.
             if 'name' in updates or 'level_type' in updates:
                 _node_id = node_id
                 _new_name = node.name
@@ -541,7 +545,9 @@ class HierarchyBridgeMixin:
         """
         data = json.loads(hierarchy_json) if hierarchy_json else {}
         if not isinstance(data, dict):
-            return {'root_nodes': [], 'dimension_id': None, 'file_exam_name': None}
+            return {'root_nodes': [], 'dimension_id': None,
+                    'file_exam_name': None, 'declares_dimensions': False,
+                    'dimensions': []}
         root_nodes = data.get('root_nodes')
         if not isinstance(root_nodes, list):
             root_nodes = data.get('subjects')
@@ -554,10 +560,32 @@ class HierarchyBridgeMixin:
             file_exam_name = raw_exam_context
         if not isinstance(file_exam_name, str) or not file_exam_name.strip():
             file_exam_name = None
+        whole_exam = data.get('dimensions')
+        declares_dimensions = isinstance(whole_exam, list)
         return {
             'root_nodes': root_nodes,
             'dimension_id': data.get('dimension_id'),
             'file_exam_name': file_exam_name,
+            # #66 Wave 3's whole-exam format: a top-level `dimensions` list,
+            # each entry carrying an axis and its own tree (#241).
+            #
+            # `declares_dimensions` decides which planner runs, and it is
+            # keyed on the **list type** rather than the key's presence.
+            # `"dimensions": 3` is a malformed file, not a whole-exam file,
+            # and belongs to the ordinary validation path.
+            #
+            # This flag is load-bearing rather than informational, because
+            # the reader below it only looks at `root_nodes`/`subjects`. Let
+            # a whole-exam file through here and it reaches the single-tree
+            # planner as an EMPTY node list -- and "this file lists no
+            # subjects" is exactly the input #67 guarantees will remove
+            # nothing, so the import silently does nothing and reports
+            # 0 added, 0 updated, 0 removed (#240). Worse, a file carrying
+            # BOTH keys loses its axes entirely: `root_nodes` wins here, so a
+            # whole-exam blueprint would import as one tree and the student
+            # would be told it succeeded. The dispatch is what stops both.
+            'declares_dimensions': declares_dimensions,
+            'dimensions': whole_exam if declares_dimensions else [],
         }
 
     @staticmethod
@@ -617,6 +645,70 @@ class HierarchyBridgeMixin:
             'errors': plan['errors'],
         }
 
+    @classmethod
+    def _whole_exam_preview_payload(
+        cls,
+        plan: Dict[str, Any],
+        file_exam_name: Optional[str],
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        """Trim a whole-exam plan down to what a modal can render (#241).
+
+        Each axis is trimmed by :meth:`_import_preview_payload`, the same
+        capping the single-tree preview uses, because the raw plan carries
+        one record per file node **per axis** — the outline that prompted
+        #67 has 2,211 of them, and a three-axis blueprint is three of those.
+        #212 already notes the renderer will not scale to several trees as
+        written; handing it three uncapped execution scripts would be worse.
+
+        **There is deliberately no top-level ``coverage``.** Coverage rides
+        on each axis and is never summed: the axes are overlapping
+        partitions of one item pool, so a combined figure would be the
+        rescaling #64 forbids. Its absence is asserted by a test rather than
+        left to be noticed.
+        """
+        matches = (
+            file_exam_name is None
+            or str(file_exam_name).strip().lower()
+            == str(plan['exam_name']).strip().lower()
+        )
+        return {
+            'exam_context_id': plan['exam_context_id'],
+            'exam_name': plan['exam_name'],
+            'whole_exam': True,
+            'file_exam_name': file_exam_name,
+            'file_exam_matches': matches,
+            'axis_count': plan['axis_count'],
+            'declares_no_dimensions': plan['declares_no_dimensions'],
+            'dimensionless_subject_count': plan['dimensionless_subject_count'],
+            'counts': plan['counts'],
+            'entries_affected': plan['entries_affected'],
+            'dimensions_added': plan['dimensions_added'],
+            'dimensions_updated': plan['dimensions_updated'],
+            'dimensions_unchanged': plan['dimensions_unchanged'],
+            'dimensions_removed': plan['dimensions_removed'],
+            'dimensions_kept_in_use': plan['dimensions_kept_in_use'],
+            'final_order': plan['final_order'],
+            'axes': [
+                dict(
+                    cls._import_preview_payload(
+                        axis['plan'], file_exam_name, limit
+                    ),
+                    name=axis['name'],
+                    file_index=axis['file_index'],
+                    import_id=axis['import_id'],
+                    matched_by=axis['matched_by'],
+                    action=axis['action'],
+                    changes=axis['changes'],
+                    declares_no_subjects=axis['declares_no_subjects'],
+                    coverage=axis['coverage'],
+                )
+                for axis in plan['axes']
+            ],
+            'errors': plan['errors'],
+            'warnings': plan['warnings'],
+        }
+
     @pyqtSlot(int, str, result=str)
     @instrumented_slot
     def previewSubjectHierarchyImport(
@@ -644,6 +736,17 @@ class HierarchyBridgeMixin:
             config = self.user_db.get_exam_context_config(exam_context_id)
             if not config:
                 return serialize_response(False, error='Exam context not found')
+
+            if request['declares_dimensions']:
+                plan = self.user_db.plan_whole_exam_import(
+                    exam_context_id, request['dimensions']
+                )
+                return serialize_response(
+                    True,
+                    data=self._whole_exam_preview_payload(
+                        plan, request['file_exam_name']
+                    ),
+                )
 
             plan = self.user_db.plan_subject_import(
                 exam_context_id,
@@ -693,6 +796,29 @@ class HierarchyBridgeMixin:
             config = self.user_db.get_exam_context_config(exam_context_id)
             if not config:
                 return serialize_response(False, error='Exam context not found')
+
+            if request['declares_dimensions']:
+                result = self.user_db.apply_whole_exam_import(
+                    exam_context_id, request['dimensions']
+                )
+                payload = self._whole_exam_preview_payload(
+                    result, request['file_exam_name']
+                )
+                payload.update({
+                    'imported_count': result['imported_count'],
+                    'created_dimension_ids': result['created_dimension_ids'],
+                    'updated_dimension_ids': result['updated_dimension_ids'],
+                    'removed_dimension_ids': result['removed_dimension_ids'],
+                    'dimension_delete_batch_ids':
+                        result['dimension_delete_batch_ids'],
+                    'created_ids': result['created_ids'],
+                    'updated_ids': result['updated_ids'],
+                    'removed_ids': result['removed_ids'],
+                    'delete_batch_ids': result['delete_batch_ids'],
+                    'axis_results': result['axis_results'],
+                    'warnings': result['warnings'],
+                })
+                return serialize_response(True, data=payload)
 
             result = self.user_db.apply_subject_import(
                 exam_context_id,

@@ -51,19 +51,19 @@
 }
 
 .efficiency-value.score-excellent {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .efficiency-value.score-good {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .efficiency-value.score-fair {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .efficiency-value.score-poor {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .efficiency-rating {
@@ -107,9 +107,19 @@
 .efficiency-info-icon:hover,
 .efficiency-info-icon:focus {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-color: var(--color-primary);
     outline: none;
+}
+
+/* #304, and the mirroring noted above is why this is duplicated rather than
+   shared: this icon copies `.sunburst-info-icon` deliberately, so it copied
+   the `outline: none` too and was the second of the audit's two invisible
+   analytics tooltips. Must stay AFTER the rule above -- same specificity,
+   source order decides. */
+.efficiency-info-icon:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 .efficiency-info-tooltip {
@@ -299,15 +309,15 @@
 }
 
 .recommendations-panel .recommendation-item.increase .rec-icon {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .recommendations-panel .recommendation-item.decrease .rec-icon {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .recommendations-panel .recommendation-item.maintain .rec-icon {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .rec-content {

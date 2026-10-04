@@ -26,6 +26,12 @@ default timeout is 5000ms. On timeout we raise
 :class:`~wimi_test.errors.AssertionFailureWithCapture` with the last
 observed reason (``"not_found"``, ``"not_visible"``, ``"disabled"``).
 
+``click``/``fill`` additionally wait for the target to **stop moving**
+before computing the point they dispatch at -- see
+``_wait_clickable``, which records why (#117) and what was measured.
+That wait is bounded and failing to settle is not an error: it can
+delay a click, never refuse one.
+
 **Role+name resolution is intentionally simpler than Playwright's.**
 We support: ``aria-label``, ``<label for=...>`` association for inputs,
 ``textContent`` for buttons/links, and ``el.value`` for inputs. Complex
@@ -64,6 +70,26 @@ _DEFAULT_TIMEOUT_MS: int = 5000
 # Polling interval inside the auto-wait loop. 50ms keeps the loop responsive
 # without hammering CPU; matches the value in PYCHROME_MIGRATION.md §5.3.
 _POLL_INTERVAL_S: float = 0.05
+
+# Gap between the two rect samples that decide whether the target has
+# stopped moving (see ``_wait_clickable``). One 60Hz frame: long enough that
+# a moving element's rect changes measurably, short enough that a stationary
+# element -- the overwhelmingly common case -- pays only this once.
+_STABILITY_STEP_S: float = 0.016
+
+# How long ``_wait_clickable`` will keep re-sampling a target that is ready
+# but still moving before giving up and dispatching anyway. Every CSS
+# transition in WIMI is 150-300ms (``--transition-fast`` ... ``--transition-slow``
+# in ``styles.css``), so this is an order of magnitude of headroom. It is a
+# CEILING, not a sleep: a stationary target never reaches it.
+#
+# Exceeding it is deliberately NOT an error. An element whose rect never
+# settles -- a progress bar, a marquee, anything on a perpetual keyframe
+# animation -- would never satisfy the predicate, and refusing to click it
+# would turn passing scenarios red to fix a flake. So the budget expiring
+# falls back to exactly the pre-#117 behaviour: dispatch at the last measured
+# point. The stability wait can only ever make a click *later*, never fewer.
+_STABILITY_BUDGET_MS: int = 2000
 
 
 # ---------------------------------------------------------------------- helpers
@@ -216,8 +242,9 @@ class WimiLocator:
         """Wait for the element to be clickable, then dispatch a click.
 
         Polls every 50ms until the element is found, has a non-zero
-        bounding rect, and is not disabled. On success, dispatches a
-        ``mousePressed`` + ``mouseReleased`` pair via
+        bounding rect, is not disabled, and **has stopped moving**
+        (#117 -- ``_wait_clickable`` has the measurement). On success,
+        dispatches a ``mousePressed`` + ``mouseReleased`` pair via
         ``Input.dispatchMouseEvent`` at the element's center.
 
         Raises :class:`~wimi_test.errors.AssertionFailureWithCapture`
@@ -381,9 +408,80 @@ class WimiLocator:
         timeout path). Raises
         :class:`~wimi_test.errors.AssertionFailureWithCapture` on
         timeout.
+
+        **The target must have stopped moving** (#117). The coordinates
+        are computed and hit-tested in one ``Runtime.evaluate``, but
+        :meth:`click` then dispatches ``mouseMoved`` / ``mousePressed`` /
+        ``mouseReleased`` as three *further* CDP commands. An element in
+        motion moves between them, so the measurement is self-consistent
+        and the dispatch misses -- and when ``mousePressed`` and
+        ``mouseReleased`` land on different elements, **no ``click`` event
+        is produced at all**. No error, no console message: the handler
+        simply never runs.
+
+        That is not hypothetical. Measured on this box (#117): opening
+        WIMI's Add Subject modal animates its Save button through
+        **41.8 px over ~200 ms** (``.modal`` carries
+        ``transform: scale(0.9) translateY(-20px)`` and
+        ``transition: transform var(--transition-normal)``), and the
+        modal's ``.active`` class -- which is what a scenario can see --
+        is added at the *start* of that. 4 of 20 clicks dispatched into
+        that window produced no bridge call and left the modal open.
+        Before 2026-09-11 this was unreachable, because the harness drove
+        a page with no view and CSS transitions never advanced
+        (``TEST_INFRASTRUCTURE.md`` §12c); fixing that made every
+        hit-tested click on an animating target racy.
+
+        The predicate is **the element's own rect, sampled twice
+        ``_STABILITY_STEP_S`` apart**: the point is dispatchable when it
+        has not changed. That measures the hazard itself rather than a
+        proxy for it, and it is property- and engine-agnostic -- it
+        catches a D3 transition mutating attributes from its own
+        ``requestAnimationFrame`` loop just as well as a CSS one.
+
+        **``document.getAnimations()`` was implemented, measured and
+        rejected.** It looks like the exact answer, and for the modal it
+        is: the count of running animations on the button or an ancestor
+        falls to 0 on the same 16 ms sample where its ``top`` reaches its
+        final value. But the question is "has it moved", and
+        ``getAnimations`` answers "is anything animating", which is both
+        too broad and too narrow. Too narrow because JS-driven motion is
+        invisible to it. Too broad in a way that **cost a different
+        scenario**: ``.dictation-btn`` carries
+        ``transition: background-color 0.15s ease, color 0.15s ease, ...``,
+        so pressing the microphone starts three colour transitions *on
+        the button itself* and the predicate blocked 150 ms per press for
+        motion that cannot happen. Four presses later,
+        ``test_a_dictated_answer_survives_the_autosave`` had crossed its
+        own 1200 ms autosave boundary and failed 8 runs out of 8 (see
+        #186 -- that test races its tick, and this only shifted it). A
+        harness wait whose over-approximation retimes other tests is a
+        worse trade than a predicate that is occasionally 0.2 px early.
+
+        That residual is bounded and was checked rather than assumed: on
+        the real modal, consecutive 16 ms samples read 624.2, 627.0,
+        633.1, ... 664.3, 665.8, 666, 666 -- every pre-settle pair
+        differs, and the smallest gap before the final value is 0.2 px.
+        A false "stable" one sample early therefore leaves the target
+        well inside the button, whereas over-waiting is unbounded in its
+        effect on anything timing-sensitive elsewhere.
+
+        ``requestAnimationFrame`` was also considered -- it is how
+        Playwright defines stability -- and rejected: it would mean
+        ``awaitPromise`` on a callback that an offscreen compositor is
+        not contractually obliged to run, and a click that hangs is far
+        worse than a click that waits 16 ms.
         """
         deadline = time.time() + timeout_ms / 1000.0
         last_reason: str = "not_found"
+        # Rect of the previous ready sample, or None when there was not
+        # one (first pass, or the element went un-ready in between).
+        previous_rect: list[float] | None = None
+        # Armed on the FIRST ready sample, not at entry: a modal that takes
+        # three seconds to appear would otherwise find the budget already
+        # spent and get no stability wait at all -- which is precisely the
+        # slow case this exists for.
+        stability_deadline: float | None = None
 
         readiness_js = f"""
             (() => {{
@@ -420,7 +518,13 @@ class WimiLocator:
                         reason: "occluded:" + (hit ? hit.tagName.toLowerCase() : "null")
                     }};
                 }}
-                return {{ ready: true, x: cx, y: cy }};
+
+                // The rect travels back so the caller can tell whether
+                // this element is still moving (#117).
+                return {{
+                    ready: true, x: cx, y: cy,
+                    rect: [rect.left, rect.top, rect.width, rect.height],
+                }};
             }})()
         """
 
@@ -431,8 +535,25 @@ class WimiLocator:
             self._raise_if_eval_error(r, "click")
             v = self._unwrap_value(r) or {}
             if v.get("ready"):
-                return float(v["x"]), float(v["y"]), ""
+                if stability_deadline is None:
+                    stability_deadline = time.time() + min(
+                        _STABILITY_BUDGET_MS, timeout_ms) / 1000.0
+                rect = v.get("rect")
+                # A fake tab in a unit test may answer without the #117
+                # field; treat its absence as "stationary" so the
+                # readiness contract stays backward compatible.
+                settled = rect is None or rect == previous_rect
+                if settled or time.time() >= stability_deadline:
+                    return float(v["x"]), float(v["y"]), ""
+                previous_rect = rect
+                # Deliberately not recorded in ``last_reason``: the
+                # stability budget returns rather than breaking, so
+                # "still moving" can never reach the timeout message and
+                # putting it there would read as a reportable state.
+                time.sleep(_STABILITY_STEP_S)
+                continue
             last_reason = v.get("reason", last_reason)
+            previous_rect = None
             if time.time() >= deadline:
                 break
             time.sleep(_POLL_INTERVAL_S)

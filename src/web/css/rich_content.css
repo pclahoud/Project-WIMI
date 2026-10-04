@@ -201,7 +201,7 @@
    ========================================================================= */
 
 .rich-content a {
-    color: var(--color-primary, #6366f1);
+    color: var(--color-primary-text, #6366f1);
     text-decoration: none;
 }
 

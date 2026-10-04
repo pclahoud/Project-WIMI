@@ -43,6 +43,9 @@ from . import m019_subject_relations
 from . import m020_subject_import_id
 from . import m021_device_local_settings
 from . import m022_efficiency_confidence_band
+from . import m023_speech_to_text_settings
+from . import m024_dimension_soft_delete
+from . import m025_dimension_import_id
 
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
@@ -62,4 +65,7 @@ MIGRATIONS: list[Migration] = [
     build_migration(m020_subject_import_id),
     build_migration(m021_device_local_settings),
     build_migration(m022_efficiency_confidence_band),
+    build_migration(m023_speech_to_text_settings),
+    build_migration(m024_dimension_soft_delete),
+    build_migration(m025_dimension_import_id),
 ]

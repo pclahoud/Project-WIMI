@@ -517,7 +517,10 @@ async function prepareConfigStep() {
     if (ImportState.sessionConfig.dateEncountered) {
         dateInput.value = ImportState.sessionConfig.dateEncountered;
     } else {
-        dateInput.value = new Date().toISOString().split('T')[0];
+        // The student's own day, not the UTC one (#286). A file that carries
+        // no date falls back here, and an import is as capable of dating a
+        // session a day out as session setup was.
+        dateInput.value = LocalDate.today();
     }
 
     nameInput.value = ImportState.sessionConfig.sessionName || '';

@@ -511,7 +511,17 @@ class EntriesMixin:
 
         results = []
         for row in rows:
-            # Build full path
+            # Build full path.
+            #
+            # #301 filters archived ancestors out of this, and **no
+            # omitted-ancestors key travels with it, deliberately**. This
+            # feeds the entry form's subject search dropdown, where the path
+            # is a disambiguator between same-named subjects in a transient,
+            # keyboard-navigated option list -- each option is a clickable
+            # element, so a `tabindex="0"` tooltip host inside one would put
+            # a second tab stop between every result. The caveat belongs
+            # where the path is presented as the subject's location (the
+            # deep dive, the entry detail breadcrumb), not in a picker.
             path = self._build_subject_path(row['id'])
             results.append({
                 'id': row['id'],

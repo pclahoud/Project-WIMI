@@ -93,7 +93,7 @@
 
 .settings-gear-link:hover {
     opacity: 1;
-    color: var(--color-primary, #2563eb);
+    color: var(--color-primary-text, #2563eb);
     background: var(--color-primary-bg, #eff6ff);
 }
 
@@ -326,7 +326,7 @@
 }
 
 .exam-card-actions-utility .btn-danger-text:hover {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 /* Legacy support - remove old styles */
@@ -701,7 +701,7 @@
 }
 
 .toast--success .toast-icon {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .toast--error {
@@ -709,7 +709,7 @@
 }
 
 .toast--error .toast-icon {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .toast--warning {
@@ -717,7 +717,7 @@
 }
 
 .toast--warning .toast-icon {
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 .toast--info {
@@ -725,7 +725,7 @@
 }
 
 .toast--info .toast-icon {
-    color: var(--color-info);
+    color: var(--color-info-text);
 }
 
 /* =========================================================================

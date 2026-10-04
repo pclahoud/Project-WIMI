@@ -20,13 +20,28 @@ so the handler signatures here unpack the relevant fields directly.
 
 What is captured
 ----------------
-HTTP/HTTPS, the custom ``media://`` scheme, and any other URL scheme
-that QtWebEngine routes through the Chromium network stack. The
-``file://`` and ``qrc://`` schemes are commonly noisy and rarely useful
-for assertions; this module does *not* filter them itself — the public
-default-filter rule lives in :func:`wimi_test.config.default_url_filter`
-and is applied at the configuration layer. Pass ``url_filter=None`` (the
-default) to capture every URL that reaches CDP.
+HTTP/HTTPS and any other URL scheme that QtWebEngine routes through the
+Chromium network stack. The ``file://`` and ``qrc://`` schemes are
+commonly noisy and rarely useful for assertions; this module does *not*
+filter them itself — the public default-filter rule lives in
+:func:`wimi_test.config.default_url_filter` and is applied at the
+configuration layer. Pass ``url_filter=None`` (the default here) to
+capture every URL that reaches CDP.
+
+**There is no ``media://`` scheme.** This section named one until
+2026-09-28; the handler was deleted as dead code in #140.
+
+**The filter is applied on ingest, in the handlers below — not in
+:meth:`NetworkCapture.snapshot`.** A rejected event is never buffered,
+so no later call can recover it. That matters because a session's
+capture is built with ``default_url_filter`` and **a WIMI page loads
+entirely over ``file://``**: measured at 80 events in, 0 out (78
+``file://``, 2 ``qrc://``). An empty session buffer on a local page is
+therefore the normal, correct outcome and not evidence that ``attach``
+failed — it was read as a broken capability twice and written up as one
+(#152, #257). Attach a second capture with ``url_filter=None`` to see
+that traffic, and read "Detach limitations" below first: ``set_listener``
+overwrites, so doing that silently unsubscribes the session's capture.
 
 What is NOT captured
 --------------------

@@ -1820,7 +1820,9 @@ class ExamWizard {
                 <div class="summary-dimension-item">
                     <span class="dimension-name-badge">${this.escapeHtml(dim.name)}</span>
                     ${dim.isRequired ? '<span class="badge badge-required">Required</span>' : ''}
-                    ${dim.allowMultiple ? '<span class="badge badge-optional">Multi-select</span>' : ''}
+                    ${dim.allowMultiple
+                        ? '<span class="badge badge-optional" title="More than one subject from this dimension is expected on an entry.">Multi-select</span>'
+                        : '<span class="badge badge-optional" title="One subject from this dimension is expected. WIMI warns if an entry carries more, it does not block saving (#209).">One expected</span>'}
                 </div>
             `).join('');
         } else {
@@ -2181,7 +2183,16 @@ class ExamWizard {
                 await api.reorderDimensions(this.editExamId, orderedIds);
                 console.log(`  ✓ Reordered ${orderedIds.length} dimensions`);
             } catch (error) {
+                // Tell the student (#211). This used to be console.error only,
+                // so a reorder that failed outright looked exactly like one
+                // that worked: Save closed the wizard, and the old order came
+                // back on the next load with nothing said.
                 console.error('  ⚠️ Failed to reorder dimensions:', error);
+                alert(
+                    'Your dimensions were saved, but their order was not changed.\n\n'
+                    + `${error.message}\n\n`
+                    + 'Everything else on this exam saved normally.'
+                );
             }
         }
         

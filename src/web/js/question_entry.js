@@ -26,6 +26,10 @@ const EntryState = {
     autoSaveTimer: null,
     autoSaveInterval: 30000, // 30 seconds
     lastSaveTime: null,
+    // Incremented by every markDirty(). `saveEntryAsDraft` snapshots it beside
+    // its form snapshot and only calls markClean() if it has not moved, so an
+    // edit made while a save is in flight is not reported as saved (#267).
+    editGeneration: 0,
 
     // Rich text editors
     explanationEditor: null,
@@ -33,6 +37,9 @@ const EntryState = {
     // Multi-note editors: Array of { id, tempId, editor: RichEditor, linkedSubjectIds: [] }
     noteEditors: [],
     noteIdCounter: 0,
+    // The two microphone controllers, one per writing field (#59). They own
+    // the single-recording lock between them; see dictation.js.
+    dictation: [],
 
     // Form data
     formData: {
@@ -184,6 +191,44 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
+ *
+ * `escapeHtml` round-trips through `textContent` -> `innerHTML`, which
+ * escapes `&`, `<` and `>` but leaves `"` alone. Correct for text content
+ * and wrong inside an attribute: a tag called `"also" tested` would close
+ * the attribute early and the rest would be parsed as markup. Needed by the
+ * #306 aria-labels, the first attributes here to carry user-typed text.
+ */
+function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, '&quot;');
+}
+
+/**
+ * Set the pause button's glyph, tooltip and accessible name together.
+ *
+ * One function because the three must agree and an `aria-label` **wins over
+ * a `title`**: adding a label for #306 without routing every update through
+ * here would have left a screen reader saying "Pause timer" on a button that
+ * resumes -- a worse bug than the glyph-as-name it fixes. The sites that set
+ * these were already two of three in sync (the round-end reset put the pause
+ * glyph back and left the tooltip reading "Resume timer"), so centralising
+ * is also the smaller change.
+ *
+ * @param {'pause'|'resume'} mode what pressing the button will now do.
+ */
+function setTimerPauseAffordance(mode) {
+    const pauseBtn = document.getElementById('btn-timer-pause');
+    const iconEl = document.getElementById('timer-pause-icon');
+    const resuming = mode === 'resume';
+    const label = resuming ? 'Resume timer' : 'Pause timer';
+    if (iconEl) iconEl.innerHTML = resuming ? '&#x25B6;' : '&#x23F8;';
+    if (pauseBtn) {
+        pauseBtn.title = label;
+        pauseBtn.setAttribute('aria-label', label);
+    }
 }
 
 function debounce(func, wait) {
@@ -1159,7 +1204,7 @@ function renderSubjectChips(containerId, subjects, type) {
         const chipMarkup = `
             <div class="chip ${type}" data-testid="entry-form-subject-${type}-chip-${subject.id}">
                 <span>${escapeHtml(subject.name)}</span>
-                <button type="button" class="chip-remove" onclick="removeSubject(${subject.id}, '${type}')" title="Remove">×</button>
+                <button type="button" class="chip-remove" onclick="removeSubject(${subject.id}, '${type}')" title="Remove" aria-label="Remove subject ${escapeAttr(subject.name)}">×</button>
             </div>
         `;
         // Tag context pill: only on primary subjects with ≥2 parents.
@@ -2129,7 +2174,7 @@ function renderTagChips() {
         return `
         <div class="chip tag" style="border-left: 3px solid ${tag.color || '#6B7280'}" ${description ? `title="${escapeHtml(description)}"` : ''} data-testid="entry-form-tags-chip-${tag.id}">
             <span>${escapeHtml(tag.name)}</span>
-            <button type="button" class="chip-remove" onclick="removeTag(${tag.id})" title="Remove">×</button>
+            <button type="button" class="chip-remove" onclick="removeTag(${tag.id})" title="Remove" aria-label="Remove error type ${escapeAttr(tag.name)}">×</button>
         </div>
     `;
     }).join('');
@@ -2561,6 +2606,12 @@ function updateSectionIndicators() {
 
 function markDirty() {
     EntryState.isDirty = true;
+    // Every edit gets a number. A save that starts before this one and
+    // finishes after it must not claim the form is clean -- see the guard at
+    // the end of saveEntryAsDraft() (#267). Bumping it here rather than in the
+    // input handlers is deliberate: markDirty() is the single funnel all 24
+    // edit sites already go through, so a new one cannot forget.
+    EntryState.editGeneration += 1;
     updateAutoSaveIndicator('unsaved');
     // Only start pointing at empty required fields once the student has
     // actually touched the entry. Flagging them on a blank new entry
@@ -2618,9 +2669,43 @@ function stopAutoSave() {
 // Save Operations
 // =========================================================================
 
+/**
+ * Write the form to the database as a draft.
+ *
+ * **What is saved is the form as it was when this function was entered**, not
+ * as it is when the write lands. `collectFormData()` below is a snapshot, and
+ * everything after it runs at least one bridge round trip later -- four of
+ * them on the create path, since `syncEntryNotes` and `syncTagContextChoices`
+ * follow the write.
+ *
+ * How often that window is hit in real use is **not known**. The 3-in-14
+ * figure attached to #267 came from automated runs of
+ * `test_a_dictated_answer_survives_the_autosave` with the autosave interval
+ * shortened to 1200 ms under offscreen + --disable-gpu; the shipped interval
+ * is 30000 ms, so the real rate is certainly far lower. What those runs
+ * measured directly is a NULL column 10 s after the insert; that it is
+ * *permanent* follows from the reasoning below rather than from the poll.
+ *
+ * So the generation captured here is load-bearing (#267). Before it existed,
+ * `markClean()` ran unconditionally at the end, which meant an edit typed
+ * inside that window was:
+ *
+ *   - not in `entryData`, so it was never written;
+ *   - erased from `isDirty`, so the next autosave tick had nothing to do;
+ *   - announced as "Saved at 14:32" by the indicator; and
+ *   - invisible to the `beforeunload` guard, so closing the page warned about
+ *     nothing and the text was gone for good.
+ *
+ * Leaving the form dirty is the whole fix: the next tick saves the newer
+ * text, and until it does every surface that reads `isDirty` tells the truth.
+ * On a path with no next tick -- navigating away -- see `saveBeforeLeaving`.
+ */
 async function saveEntryAsDraft(silent = false) {
     const data = collectFormData();
-    
+    // Snapshot the form and the edit counter in the same synchronous block.
+    // Anything the student types from here on is not in `data`.
+    const savedGeneration = EntryState.editGeneration;
+
     if (!silent) {
         updateAutoSaveIndicator('saving');
     }
@@ -2673,8 +2758,19 @@ async function saveEntryAsDraft(silent = false) {
             await syncTagContextChoices(entryId);
         }
 
-        markClean();
-        
+        if (EntryState.editGeneration === savedGeneration) {
+            markClean();
+        } else {
+            // The student edited the form while this write was in flight. The
+            // write itself succeeded, so the save time is real -- but the form
+            // is NOT clean, and saying so is what #267 was. Leave `isDirty`
+            // set so the next tick writes the newer text, and leave the
+            // indicator reading "Unsaved changes" rather than a time that
+            // describes a version the student can no longer see.
+            EntryState.lastSaveTime = new Date();
+            updateAutoSaveIndicator('unsaved');
+        }
+
         if (!silent) {
             Toast.success('Draft Saved', 'Your entry has been saved as a draft.');
         }
@@ -2839,7 +2935,22 @@ function renderEntryNavigation(shouldScroll = true) {
             dotClass += entry.is_draft ? ' draft' : ' complete';
         }
 
-        dots.push(`<div class="${dotClass}" data-index="${i}" data-testid="entry-form-nav-dot-${i}" onclick="navigateToEntry(${i})" title="Entry ${i + 1}"></div>`);
+        // #304/#306: a real <button>, not a <div onclick>. The div was
+        // unreachable by keyboard (31 of 31 dots on the audited session) and
+        // 12x12 px, half the 24x24 WCAG 2.2 AA target. The button carries
+        // the 24 px hit area and the name; the coloured dot stays a 12 px
+        // <span> keeping the `entry-dot` class, so neither the look nor the
+        // existing `.entry-dot.current` lookups change.
+        const isCurrent = i === currentIndex;
+        dots.push(
+            `<button type="button" class="entry-dot-btn" data-index="${i}"`
+            + ` data-testid="entry-form-nav-dot-${i}"`
+            + ` onclick="navigateToEntry(${i})"`
+            + (isCurrent ? ' aria-current="true"' : '')
+            + ` aria-label="Go to entry ${i + 1} of ${totalEntries}"`
+            + ` title="Entry ${i + 1}">`
+            + `<span class="${dotClass}" aria-hidden="true"></span>`
+            + `</button>`);
     }
 
     dotsContainer.innerHTML = dots.join('');
@@ -2853,6 +2964,35 @@ function renderEntryNavigation(shouldScroll = true) {
     }
 }
 
+/**
+ * Save on the way out, and answer whether the form is safe to leave (#267).
+ *
+ * `saveEntryAsDraft` leaves `isDirty` set when an edit landed inside its await
+ * window. On the autosave path the next tick picks that up; on a *leaving*
+ * path there is no next tick — `isNavigating` suppresses it, and the form is
+ * about to be replaced or the page unloaded — so the caller has to ask.
+ *
+ * **Dictation is what makes this reachable without the student typing.** A
+ * transcript inserts itself asynchronously and calls `markDirty()` on its own
+ * (see `dictation.js`), so it can land after Next was clicked and "save"
+ * chosen in the modal, with the student's hands nowhere near the keyboard.
+ * That is the same failure as #267 and was found by reading this path rather
+ * than by hitting it.
+ *
+ * One retry, not a loop: the window is a save wide, so a second consecutive
+ * overtake is not something a person or a transcript can produce on purpose,
+ * and an unbounded loop is a worse failure than the one it would be chasing.
+ * Still dirty after that and the answer is simply no — the caller stays put,
+ * which loses nothing.
+ */
+async function saveBeforeLeaving() {
+    await saveEntryAsDraft();
+    if (EntryState.isDirty) {
+        await saveEntryAsDraft();
+    }
+    return !EntryState.isDirty;
+}
+
 async function navigateToEntry(index) {
     EntryState.isNavigating = true;
     try {
@@ -2860,7 +3000,14 @@ async function navigateToEntry(index) {
             const shouldSave = await showUnsavedChangesModal();
             if (shouldSave === 'cancel') return;
             if (shouldSave === 'save') {
-                await saveEntryAsDraft();
+                // Not a bare save: leaving replaces the form, and anything
+                // that arrived while the save was in flight would go with it.
+                if (!await saveBeforeLeaving()) {
+                    Toast.warning('Still Unsaved',
+                        'A change arrived while saving. You are still on this '
+                        + 'entry — try again in a moment.');
+                    return;
+                }
             }
         }
 
@@ -3239,7 +3386,15 @@ async function handleBackButton() {
         const shouldSave = await showUnsavedChangesModal();
         if (shouldSave === 'cancel') return;
         if (shouldSave === 'save') {
-            await saveEntryAsDraft();
+            // Same hazard as navigateToEntry, one step worse: this unloads the
+            // document, so an edit that arrived inside the save's window has
+            // nothing left holding it at all (#267).
+            if (!await saveBeforeLeaving()) {
+                Toast.warning('Still Unsaved',
+                    'A change arrived while saving. You are still on this '
+                    + 'entry — try again in a moment.');
+                return;
+            }
         }
     }
 
@@ -3617,7 +3772,90 @@ function initRichTextEditors() {
         addNoteBtn.addEventListener('click', () => addNoteCard());
     }
 
+    initDictation();
+
     console.log('Rich text editors initialized');
+}
+
+/**
+ * Put a microphone beside each of the two writing fields (#59).
+ *
+ * One component, two instances, one microphone -- `dictation.js` holds the
+ * lock and every message; this is only the wiring. Attaching is DOM work and
+ * happens here, beside the editors it decorates; the bridge call that reads
+ * the engine / model / microphone states is made from inside
+ * initializeEntryPage()'s try by refreshDictation().
+ *
+ * `getContext()` reads EntryState at CALL time rather than closing over it.
+ * The whole staleness problem is that the form changes under a running
+ * transcription, so a captured entry id would be the one thing that must
+ * never be captured.
+ *
+ * `onInserted` is markDirty() + validateForm(), called explicitly and
+ * unconditionally. A programmatic insertContent() may not reach the editor's
+ * own onChange -- and if it does not, isDirty stays false, the 30-second
+ * autosave skips the entry, and the student loses a transcript with no
+ * error anywhere. Calling them twice is harmless; zero times is silent data
+ * loss (§3.5, and #114's failure class exactly).
+ */
+function initDictation() {
+    if (typeof window.attachDictation !== 'function') {
+        console.warn('dictation.js not loaded; the entry form has no microphone');
+        return;
+    }
+
+    const context = () => ({
+        // null until the first save, which is not the same as "a different
+        // entry" -- dictation.js pairs it with the index for that reason.
+        entry_id: EntryState.currentEntry?.id ?? null,
+        entry_index: EntryState.currentEntryIndex,
+        subject_ids: [
+            ...EntryState.formData.primarySubjects.map(s => s.id),
+            ...EntryState.formData.secondarySubjects.map(s => s.id)
+        ],
+        exam_context_id: EntryState.session?.exam_context_id ?? null
+    });
+
+    const applied = () => {
+        markDirty();
+        validateForm();
+    };
+
+    const notify = (level, title, message) => {
+        if (Toast && typeof Toast[level] === 'function') Toast[level](title, message);
+    };
+
+    EntryState.dictation = [
+        ['reflection', EntryState.reflectionEditor, 'reflection-dictation',
+            'Why did you get this wrong?'],
+        ['explanation', EntryState.explanationEditor, 'explanation-dictation',
+            'Why is the correct answer correct?']
+    ].map(([fieldKey, editor, mountId, label]) => {
+        const mountEl = document.getElementById(mountId);
+        if (!editor || !mountEl) return null;
+        return window.attachDictation({
+            editor, mountEl, fieldKey, label,
+            getContext: context,
+            onInserted: applied,
+            notify
+        });
+    }).filter(Boolean);
+}
+
+/**
+ * Read the three speech states and park each button on a resting state.
+ *
+ * Fire and forget on purpose: getSttStatus() hashes the model file to decide
+ * whether it is the one the pin table names, and the form must not wait on
+ * that. A failure is rendered on the button's own status line -- neither
+ * writing field is ever disabled by a microphone problem (§7).
+ */
+function refreshDictation() {
+    (EntryState.dictation || []).forEach(controller => {
+        controller.refresh().catch(error => {
+            console.warn('Could not read the speech status:', error);
+        });
+    });
 }
 
 // =========================================================================
@@ -3798,11 +4036,19 @@ function editNoteSubjects(tempId) {
     modal.className = 'modal note-subject-modal-content';
 
     // Title
-    const title = document.createElement('h3');
+    const title = document.createElement('h2');
     title.className = 'modal-title';
+    title.id = 'note-subject-modal-title';
     const noteIndex = EntryState.noteEditors.indexOf(noteEntry) + 1;
     title.textContent = `Note ${noteIndex} — Assign Subjects`;
     modal.appendChild(title);
+
+    // The dialog semantics go on the SURFACE, never on the backdrop --
+    // see docs/guides/MODAL_DIALOG.md.
+    modal.setAttribute('data-modal-surface', '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', title.id);
 
     // Hint
     const hint = document.createElement('p');
@@ -4230,6 +4476,12 @@ let _formReadyWaitStartedAt = null;
  * isLoading moves here for the same reason: it is the flag the harness waits on
  * for "form is ready" (#99, #105) and it was going false 127-147 ms early. One
  * gate now owns both, so the flag cannot disagree with the attribute.
+ *
+ * It also owns the announcement (#127). `inert` takes the subtree out of the
+ * accessibility tree, so the gate is silence as well as refusal; the
+ * PageGate.release() call below is what tells a screen reader the form has
+ * arrived. One gate, one flag, one attribute, one announcement -- adding a
+ * second place that clears any of the four is how they start to disagree.
  */
 function markEntryFormReady() {
     if (EntryState.isFormReady) return;
@@ -4249,6 +4501,24 @@ function markEntryFormReady() {
     EntryState.isLoading = false;
     const page = document.querySelector('.entry-page');
     if (page) page.removeAttribute('inert');
+
+    // Say so (#127). `inert` removes .entry-page from the accessibility tree
+    // as well as refusing its input, so until this moment a screen reader has
+    // been reading an empty document -- measured: one non-ignored node, the
+    // document root. .page-gate is the sibling element that is not gated, and
+    // changing its text is what gets announced; a gate too brief to be worth
+    // announcing clears it instead. See src/web/js/page_gate.js.
+    //
+    // AFTER removeAttribute, inside a try, behind a typeof check, and its
+    // return value deliberately ignored. A permanently gated form is far
+    // worse than the bug #127 describes, so nothing added for assistive tech
+    // -- a forgotten <script> tag included -- may be able to cause one.
+    try {
+        if (typeof PageGate !== 'undefined') PageGate.release('Entry form ready.');
+    } catch (err) {
+        console.warn('PageGate.release failed; the form is released anyway:', err);
+    }
+
     console.log('✅ Question entry form ready');
 }
 
@@ -4384,7 +4654,12 @@ async function initializeEntryPage() {
         
         // Start auto-save
         startAutoSave();
-        
+
+        // Ask the bridge where speech stands (#59). Inside the try, after
+        // api.ready(), so a failure has somewhere to land; not awaited, so a
+        // slow model verification cannot hold up markEntryFormReady().
+        refreshDictation();
+
         // Initial validation
         validateForm();
         
@@ -4628,8 +4903,7 @@ async function initSessionTimer() {
 
         if (EntryState.timerPaused) {
             timerEl.classList.add('timer-paused');
-            document.getElementById('timer-pause-icon').innerHTML = '&#x25B6;';
-            pauseBtn.title = 'Resume timer';
+            setTimerPauseAffordance('resume');
         }
         EntryState.timerExpired = false;
     } else {
@@ -4764,8 +5038,6 @@ async function toggleTimerPause() {
     if (!round) return;
 
     const timerEl = document.getElementById('session-timer');
-    const iconEl = document.getElementById('timer-pause-icon');
-    const pauseBtn = document.getElementById('btn-timer-pause');
     if (!timerEl) return;
 
     try {
@@ -4774,15 +5046,13 @@ async function toggleTimerPause() {
             result = await api.unpauseRoundTimer(round.id);
             EntryState.timerPaused = false;
             timerEl.classList.remove('timer-paused');
-            iconEl.innerHTML = '&#x23F8;';
-            pauseBtn.title = 'Pause timer';
+            setTimerPauseAffordance('pause');
             if (window.eventBus) eventBus.emit('timer:resumed', { roundId: round.id });
         } else {
             result = await api.pauseRoundTimer(round.id);
             EntryState.timerPaused = true;
             timerEl.classList.add('timer-paused');
-            iconEl.innerHTML = '&#x25B6;';
-            pauseBtn.title = 'Resume timer';
+            setTimerPauseAffordance('resume');
             if (window.eventBus) eventBus.emit('timer:paused', { roundId: round.id });
         }
 
@@ -4849,12 +5119,14 @@ async function startNewRound() {
         const timerEl = document.getElementById('session-timer');
         const pauseBtn = document.getElementById('btn-timer-pause');
         const newRoundBtn = document.getElementById('btn-new-round');
-        const iconEl = document.getElementById('timer-pause-icon');
 
         if (timerEl) timerEl.classList.remove('timer-expired', 'timer-paused', 'timer-warning', 'timer-critical');
         if (pauseBtn) { pauseBtn.style.display = ''; }
         if (newRoundBtn) { newRoundBtn.style.display = 'none'; }
-        if (iconEl) { iconEl.innerHTML = '&#x23F8;'; }
+        // Was `iconEl.innerHTML = pause glyph` alone, which left the tooltip
+        // reading "Resume timer" over a pause icon when a round ended while
+        // paused. The helper keeps glyph, tooltip and name together.
+        setTimerPauseAffordance('pause');
 
         updateRoundIndicator();
         updateTimerDisplay();
@@ -5088,6 +5360,26 @@ window.addEventListener('beforeunload', (e) => {
         api.pauseRoundTimer(EntryState.activeRound.id).catch(() => {});
     }
 
+    // LOAD-BEARING, and measured (#267, #270, #271). This is not a courtesy
+    // prompt -- it is the last backstop on the unload path, and the only thing
+    // standing behind the residual window that no amount of reordering closes:
+    // every leave path has a final `await` after it has decided the form is
+    // safe, and a dictated transcript inserts asynchronously, so something can
+    // always land after the last check.
+    //
+    // Two things had to be true for that to be worth anything, and both now
+    // are. `EntryState.isDirty` has to be honest, which is what #267's guard
+    // in `saveEntryAsDraft` and `saveBeforeLeaving` restored -- before them a
+    // save that had been overtaken cleared the flag, so this handler was asked
+    // about a form it had been told was clean and waved the student through.
+    // And QtWebEngine has to honour `beforeunload` for a *scripted*
+    // `location.href` assignment, which is what `handleBackButton` performs;
+    // it does, confirmed by catching `Page.javascriptDialogOpening` firing
+    // with `type='beforeunload'`.
+    //
+    // So do not remove this as dead weight or as an annoyance, and do not
+    // narrow the condition. If the prompt itself ever has to go, #270's
+    // residual window loses its only cover and needs closing first.
     if (EntryState.isDirty) {
         e.preventDefault();
         e.returnValue = '';

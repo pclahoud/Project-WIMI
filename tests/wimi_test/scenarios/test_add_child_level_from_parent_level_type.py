@@ -41,6 +41,46 @@ depended on flat-map traversal order. The first test seeds exactly that.
 
 Markers / fixtures: ``@pytest.mark.slow`` + ``@pytest.mark.regression``;
 ``wimi_session`` + ``wimi_page``, seeding through ``wimi_session.user.db``.
+
+Why these two tests used to flake (#117)
+----------------------------------------
+
+Both of them failed intermittently -- on Linux under load, and on
+Windows **two runs in three at rest** -- always the same way: the
+dropdown assertion passed, and then ``subject_nodes.level_type`` read
+``None``. The message said the column was NULL. It was not: the row was
+never written.
+
+The cause was in the harness, not here and not in the product.
+``locator.click()`` measures its target's centre in one CDP
+``Runtime.evaluate`` and then dispatches ``mouseMoved`` /
+``mousePressed`` / ``mouseReleased`` as three *further* CDP commands.
+Opening this modal animates the Save button through **41.8 px over
+~200 ms** -- ``.modal`` carries ``transform: scale(0.9) translateY(-20px)``
+and ``transition: transform var(--transition-normal)`` -- and the
+``.active`` class this file waits for is added at the *start* of that.
+So the press and the release landed on different elements, the browser
+produced no ``click`` event at all, ``saveNewNode`` never ran, and the
+modal stayed open. Measured here: 4 of 20 clicks, no bridge call, modal
+still open. ``_wait_clickable`` now waits for the target to stop moving;
+the measurement is in its docstring.
+
+The two things this file got wrong are worth keeping in view, because
+the fix for each is the opposite of the obvious one:
+
+1. **It polled for the consequence.** 8 s of waiting for a row that no
+   longer had anything coming to write it. Lengthening the poll was the
+   natural-looking fix and would have been wrong -- an 8 s wait for an
+   event that may never arrive is not a slow test, it is a test waiting
+   on the wrong thing. It now waits on the **cause**: the
+   ``createSubjectNode`` slot completing. ``@instrumented_slot`` records
+   its entry *after* the slot returns, so a match means the INSERT has
+   committed and the row can simply be read.
+2. **Its message named the wrong failure.** ``stored is None`` was
+   reported as "the column is NULL", which is a product bug, when the
+   truth was "nothing was saved", which is a harness bug. Three
+   outcomes are now three sentences: the save never reached the bridge,
+   the slot ran and failed, or the row holds the wrong level.
 """
 
 from __future__ import annotations
@@ -49,6 +89,7 @@ from typing import Any
 
 import pytest
 
+from wimi_test.errors import BridgeCallTimeout
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
@@ -82,30 +123,64 @@ def _open_add_child(page: WimiPage, parent_id: int) -> None:
     )
 
 
-def _save_child(page: WimiPage, name: str) -> None:
-    page.locator(testid="tree-node-modal-name-input").fill(name)
-    page.locator(testid="tree-node-modal-save").click()
+def _save_child(page: WimiPage, name: str) -> float:
+    """Fill the name and press Save, returning a bridge-call cursor.
 
-
-def _stored_level(
-    page: WimiPage, db: Any, name: str, *, timeout_ms: int = 8000
-) -> str | None:
-    """Poll ``subject_nodes`` for the row the modal just wrote.
-
-    The save is a bridge round-trip and the modal closes optimistically,
-    so no DOM predicate proves the INSERT committed — the row itself is
-    the signal. ``page.wait_for_timeout`` is the sanctioned step wait.
+    The cursor is taken **before** the click, which is what makes the
+    wait in :func:`_stored_level` un-racy: a slot that completes in the
+    gap between the click and the wait is still matched.
     """
-    elapsed = 0
-    while elapsed < timeout_ms:
-        row = db.fetchone(
-            "SELECT level_type FROM subject_nodes WHERE name = ?", (name,)
+    page.locator(testid="tree-node-modal-name-input").fill(name)
+    mark = page.mark_bridge_calls()
+    page.locator(testid="tree-node-modal-save").click()
+    return mark
+
+
+def _stored_level(page: WimiPage, db: Any, name: str, mark: float) -> str:
+    """Wait for the save to reach the database, then read the level once.
+
+    Waits on the **cause** — the ``createSubjectNode`` slot completing —
+    rather than polling for the row it writes. See this module's
+    docstring: the 8 s row poll this replaces could not distinguish a
+    slow save from one that never happened, and it was always the
+    latter.
+
+    One read, no poll, deliberately. ``@instrumented_slot`` appends its
+    buffer entry after the wrapped slot returns, so a match means the
+    Python side has finished and committed; WIMI's connection is in WAL
+    mode, where a reader on another connection sees a commit as soon as
+    it lands.
+    """
+    try:
+        record = page.wait_for_bridge_call(
+            "createSubjectNode", since_ts=mark, timeout_ms=8000)
+    except BridgeCallTimeout as exc:
+        raise AssertionError(
+            f"Saving {name!r} never reached the bridge, so no row was ever "
+            f"written — this is NOT a NULL level_type. Either the Save "
+            f"click produced no click event (the #117 class: a hit-tested "
+            f"dispatch into a modal that is still animating) or "
+            f"saveNewNode() refused the input before calling the slot. "
+            f"Underlying wait: {exc}"
+        ) from exc
+
+    if record.get("error"):
+        raise AssertionError(
+            f"createSubjectNode ran for {name!r} and failed: "
+            f"{record.get('result_summary')!r}. The click landed and the "
+            f"slot was reached, so this is a backend refusal rather than "
+            f"the #117 lost-click class."
         )
-        if row:
-            return row["level_type"]
-        page.wait_for_timeout(100)
-        elapsed += 100
-    return None
+
+    row = db.fetchone(
+        "SELECT level_type FROM subject_nodes WHERE name = ?", (name,)
+    )
+    assert row is not None, (
+        f"createSubjectNode reported success for {name!r} but no such row "
+        f"is readable. That combination is new: the slot records its entry "
+        f"only after returning, so the INSERT had committed."
+    )
+    return row["level_type"]
 
 
 @pytest.mark.slow
@@ -146,8 +221,8 @@ def test_add_child_suggests_one_below_the_parents_stored_level(
     suggested = wimi_page.eval_js(
         "document.getElementById('modal-node-level').value"
     )
-    _save_child(wimi_page, "I82 Coronary Circulation")
-    stored = _stored_level(wimi_page, db, "I82 Coronary Circulation")
+    mark = _save_child(wimi_page, "I82 Coronary Circulation")
+    stored = _stored_level(wimi_page, db, "I82 Coronary Circulation", mark)
 
     # ---- Assert ------------------------------------------------------
     assert suggested == "Subsystem", (
@@ -198,8 +273,8 @@ def test_a_level_name_outside_the_configured_list_survives(
         })()
         """
     )
-    _save_child(wimi_page, "I82 Craft and Structure")
-    stored = _stored_level(wimi_page, db, "I82 Craft and Structure")
+    mark = _save_child(wimi_page, "I82 Craft and Structure")
+    stored = _stored_level(wimi_page, db, "I82 Craft and Structure", mark)
     persisted = [
         l.level_name for l in db.get_hierarchy_levels(exam.id)
     ]

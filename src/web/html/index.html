@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WIMI - What I Missed It</title>
+    <title>WIMI - Why I Missed It</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/landing.css">
     <link rel="stylesheet" href="../css/analytics_preview.css">
@@ -102,9 +102,11 @@
     
     <!-- Suspend Confirmation Modal -->
     <div class="modal-backdrop" id="delete-modal" data-testid="dashboard-suspend-modal-backdrop">
-        <div class="modal" data-testid="dashboard-suspend-modal">
+        <div class="modal" data-testid="dashboard-suspend-modal"
+             data-modal-surface role="dialog" aria-modal="true"
+             aria-labelledby="delete-modal-title">
             <div class="modal-icon">⏸️</div>
-            <h3 class="modal-title">Suspend Exam?</h3>
+            <h2 class="modal-title" id="delete-modal-title">Suspend Exam?</h2>
             <p class="modal-message">
                 Are you sure you want to suspend
                 <span class="modal-exam-name" id="delete-exam-name" data-testid="dashboard-suspend-modal-exam-name">this exam</span>?
@@ -118,6 +120,7 @@
         </div>
     </div>
     
+    <script src="../js/modal_dialog.js"></script>
     <script src="../js/landing.js"></script>
 </body>
 </html>

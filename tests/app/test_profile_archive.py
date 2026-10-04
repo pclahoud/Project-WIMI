@@ -86,6 +86,20 @@ def _entry_count(db_path: Path) -> int:
         conn.close()
 
 
+def _logical_dump(db_path: Path) -> str:
+    """Every schema statement and row, as SQL text.
+
+    Compares what a database *holds* rather than how it is laid out, which is
+    what "restored exactly" means to a student. See
+    ``test_rollback_restores_the_database_and_media_exactly``.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        return "\n".join(conn.iterdump())
+    finally:
+        conn.close()
+
+
 def _max_migration_version(db_path: Path) -> int:
     conn = sqlite3.connect(str(db_path))
     try:
@@ -595,13 +609,41 @@ class TestReplaceProfile:
                 confirm_replace=False,
             )
 
-    def test_rollback_restores_byte_identical_state(
+    def test_rollback_restores_the_database_and_media_exactly(
         self, alice_archive, dest_master, replace_setup, monkeypatch
     ):
+        """Logically identical, to the row. Not byte-identical any more (#155).
+
+        This asserted byte-identity until the safety backup moved from
+        ``PRAGMA wal_checkpoint`` + ``shutil.copy2`` to
+        ``Connection.backup()``. Byte-identity was never the guarantee -- it
+        was a side effect of the restore being a raw file copy, and it held
+        here only because the fixture's database has no ``-wal`` at all. With
+        a WAL present the old path produced a file byte-identical to a
+        database *separated from its most recent commits*, which is #155:
+        the check would have passed while the student's newest entries were
+        missing from the only copy left of them.
+
+        So the assertion is now the stronger one -- every row, via
+        ``iterdump`` -- plus a characterisation of the bytes that do differ,
+        measured rather than waved at. ``Connection.backup()`` rewrites three
+        header fields and nothing else: the file change counter (offsets
+        24-27), the schema cookie (40-43) and the version-valid-for number
+        (92-95). All three exist so that a *different* connection can tell
+        the file moved under it; none of them is data. Length, page size and
+        page count are unchanged, so this is a page-for-page copy and not a
+        VACUUM.
+
+        The schema cookie is the one worth naming. A database with a trivial
+        schema can come back differing at only 27 and 95, so a check written
+        against a toy fixture passes and then fails on a real profile that
+        has run twenty migrations. Measured both ways while writing this.
+        """
         bob, carol = replace_setup
         db_path = dest_master.users_dir / bob.database_filename
         media_dir = dest_master.data_dir / "media" / f"user_{bob.id}_bob"
         db_bytes_before = db_path.read_bytes()
+        dump_before = _logical_dump(db_path)
         media_before = {
             p.name: p.read_bytes() for p in media_dir.iterdir() if p.is_file()
         }
@@ -620,8 +662,22 @@ class TestReplaceProfile:
                 confirm_replace=True,
             )
 
-        # DB restored byte-identically; no .importing/-wal/-shm leftovers.
-        assert db_path.read_bytes() == db_bytes_before
+        # DB restored to the row; no .importing/-wal/-shm leftovers.
+        assert _logical_dump(db_path) == dump_before
+        db_bytes_after = db_path.read_bytes()
+        assert len(db_bytes_after) == len(db_bytes_before)
+        differing = [
+            i for i in range(len(db_bytes_before))
+            if db_bytes_before[i] != db_bytes_after[i]
+        ]
+        # file change counter | schema cookie | version-valid-for number
+        header_bookkeeping = set(range(24, 28)) | set(range(40, 44)) \
+            | set(range(92, 96))
+        assert set(differing) <= header_bookkeeping, (
+            "the restored database differs outside SQLite's header "
+            f"bookkeeping, at offsets "
+            f"{sorted(set(differing) - header_bookkeeping)}"
+        )
         assert not Path(str(db_path) + ".importing").exists()
         assert not Path(str(db_path) + "-wal").exists()
         assert not Path(str(db_path) + "-shm").exists()

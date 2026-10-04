@@ -181,11 +181,11 @@
 }
 
 .preview-stat-trend.positive {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .preview-stat-trend.negative {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .preview-stat-streak-icon {
@@ -195,7 +195,7 @@
 .preview-stat-warning {
     display: block;
     font-size: var(--font-size-xs);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     font-weight: var(--font-weight-medium);
     margin-top: var(--space-xs);
 }
@@ -242,7 +242,7 @@
 }
 
 .goal-set-link {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     text-decoration: none;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);

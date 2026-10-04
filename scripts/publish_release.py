@@ -66,6 +66,22 @@ EXCLUDE_PREFIXES = (
     # real data rather than a worked example, and docs/examples/ already
     # documents the import format properly.
     "examples/subject_nodes.csv",
+    # The agent orientation file: an internal engineering record full of
+    # private-tracker issue numbers, machine names and figures measured on
+    # the owner's own study profile. Owner's decision 2026-10-04: it is not
+    # published. The README must not link to it.
+    "CLAUDE.md",
+    # Tests for real_ladybug, a graph library that was evaluated and removed.
+    # They cannot pass on any machine -- the spike files abort collection and
+    # the graph files fail on `_graph_available` -- so publishing them only
+    # tells a visitor who runs `pytest` that the suite is broken. Exact paths,
+    # not a shared prefix: `git rm` takes pathspecs, so a partial filename
+    # would match nothing there while `startswith` matched it here.
+    "tests/spike/",
+    "tests/database/test_graph_dual_write.py",
+    "tests/database/test_graph_phase1.py",
+    "tests/database/test_graph_read_switchover.py",
+    "tests/database/test_graph_shadow_reads.py",
 )
 
 PUBLIC_NAME = "pclahoud"

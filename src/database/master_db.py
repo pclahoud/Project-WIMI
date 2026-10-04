@@ -63,9 +63,20 @@ class MasterDatabase(BaseDatabase):
         # Initialize database connection
         db_path = self.data_dir / 'users.db'
         super().__init__(db_path)
-        
-        # Initialize schema if needed
-        self._initialize_schema()
+
+        # Initialize schema if needed.
+        #
+        # Guarded for the same reason `UserDatabase.__init__` is: a master
+        # migration that raises escapes this constructor before the
+        # caller's assignment completes, so nothing is left holding an
+        # object to close, and `users.db` stays open for the life of the
+        # process. This instance of the defect was not the one filed —
+        # #292 is about the per-user database, where a rollback has to
+        # unlink the file — but it is the same two lines, and on Windows a
+        # leaked handle on `users.db` is what turns one failing test into
+        # a failure plus a teardown error (CLAUDE.md, Testing).
+        with self.closing_on_failed_init():
+            self._initialize_schema()
     
     def _initialize_schema(self) -> None:
         """Apply pending master-DB schema migrations via the versioned runner."""

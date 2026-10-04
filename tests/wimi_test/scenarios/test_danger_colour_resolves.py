@@ -51,6 +51,12 @@ from wimi_test.session import WimiTestSession
 
 RED = 'var(--color-error)'
 RED_BG = 'var(--color-error-bg)'
+# #303 split the status palette: the bright value fills and borders, a darker
+# one labels, because one value cannot clear 4.5:1 on both. So the four `color`
+# rows below expect RED_TEXT while every fill and border row still expects RED.
+# #76's point is untouched -- there is still exactly one red per job, and both
+# names still move with the theme, which is what rules out a hardcoded hex.
+RED_TEXT = 'var(--color-error-text)'
 
 # (selector fragment, declared property, computed property, expected value).
 # The fragment is a substring of the rule's selectorText, so a rule can grow
@@ -59,17 +65,17 @@ ENTRY_RULES = [
     ['.chip-remove:hover', 'background', 'backgroundColor', RED],
     ['.media-thumbnail-btn.delete:hover', 'background', 'backgroundColor', RED],
     ['.form-group.error input', 'border-color', 'borderTopColor', RED],
-    ['.form-group.error .form-help', 'color', 'color', RED],
-    ['.field-has-error > label', 'color', 'color', RED],
+    ['.form-group.error .form-help', 'color', 'color', RED_TEXT],
+    ['.field-has-error > label', 'color', 'color', RED_TEXT],
     ['.btn-danger-text:hover', 'background', 'backgroundColor', RED_BG],
-    ['.btn-danger-text:hover', 'color', 'color', RED],
+    ['.btn-danger-text:hover', 'color', 'color', RED_TEXT],
     ['.manage-tag-delete:hover', 'background', 'backgroundColor', RED_BG],
     ['.manage-tag-delete:hover', 'border-color', 'borderTopColor', RED],
 ]
 TREE_RULES = [
     ['.parent-row-action.danger:hover', 'background', 'backgroundColor',
      f'color-mix(in srgb, {RED} 12%, transparent)'],
-    ['.parent-row-action.danger:hover', 'color', 'color', RED],
+    ['.parent-row-action.danger:hover', 'color', 'color', RED_TEXT],
 ]
 
 # Take each rule's declared value and resolve it through the real cascade on
@@ -134,7 +140,10 @@ LABELS = """
 (() => {
   const probe = document.createElement('span');
   document.body.appendChild(probe);
-  probe.style.color = 'var(--color-error)';
+  // The thing read below is a LABEL, so the oracle is the text token, not the
+  // fill token (#303). Pointing this at --color-error would compare a label
+  // against a fill colour and fail on the split rather than on the cue.
+  probe.style.color = 'var(--color-error-text)';
   const errorColor = getComputedStyle(probe).color;
   probe.remove();
   const read = (id, wrapper) => {

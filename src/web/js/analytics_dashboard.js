@@ -869,7 +869,23 @@ class AnalyticsDashboard {
      */
     async loadExamFilter() {
         try {
-            const exams = await api.getAllExamContexts();
+            // `false` = include suspended exams, the same argument landing.js
+            // passes (#310). This call used to take the default, `true`, and
+            // the consequence was silent by construction: a suspended exam is
+            // reachable here in one click -- renderExamCard puts an "Analytics"
+            // button on EVERY card, since its isSuspended branch swaps only the
+            // utility row -- and assigning an id that is not among the options
+            // to a <select> raises nothing. It leaves selectedIndex = -1 and
+            // value = '', i.e. an empty box, while `currentExamFilter` kept the
+            // id so every chart below went on loading that exam's data. The
+            // page was showing an exam it could not name.
+            //
+            // Note the asymmetry worth keeping: an `exam=` id that is not an
+            // exam AT ALL was never silent -- six bridge calls fail and log
+            // "Exam context N not found". The silence needed the exam to
+            // exist and merely be excluded from the list, which is why this
+            // sat unexplained.
+            const exams = await api.getAllExamContexts(false);
 
             if (exams && exams.length > 0) {
                 const select = document.getElementById('examFilter');
@@ -878,7 +894,14 @@ class AnalyticsDashboard {
                 exams.forEach(exam => {
                     const option = document.createElement('option');
                     option.value = exam.id;
-                    option.textContent = exam.exam_name;
+                    // Say so, rather than listing a suspended exam
+                    // indistinguishably from an active one: the dashboard card
+                    // this filter can now be reached from carries the same
+                    // "Suspended" badge, and the whole point of the fix is that
+                    // the filter tells the truth about what is on screen.
+                    option.textContent = exam.is_active
+                        ? exam.exam_name
+                        : `${exam.exam_name} (suspended)`;
                     select.appendChild(option);
                 });
 
@@ -1668,10 +1691,19 @@ class AnalyticsDashboard {
                     current_streak: heatmapData.current_streak || 0,
                     longest_streak: heatmapData.longest_streak || 0,
                     total_active_days: heatmapData.total_active_days || 0,
-                    is_active_today: heatmapData.days?.some(d => {
-                        const today = new Date().toISOString().split('T')[0];
-                        return d.date === today && d.count > 0;
-                    }) || false,
+                    // `end_date` is the payload's own last day, and the only
+                    // honest key to look for here (#286). `days` is generated
+                    // by `get_activity_heatmap` from `datetime.now().date()`
+                    // -- the LOCAL date -- and stops there, so the UTC date
+                    // this used to compute is a key the array cannot contain
+                    // for part of every day: east or west of Greenwich the
+                    // `some` found nothing and told a student who had logged
+                    // entries today that they had not. Comparing against the
+                    // payload keeps one clock in the comparison instead of
+                    // two, so it cannot drift even if the response is stale.
+                    is_active_today: heatmapData.days?.some(
+                        d => d.date === heatmapData.end_date && d.count > 0
+                    ) || false,
                     streak_at_risk: false  // Will be calculated if needed
                 }, heatmapData.total_days || 112);
             }

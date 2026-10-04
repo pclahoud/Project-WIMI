@@ -69,6 +69,7 @@ class AdvancedAnalyticsMixin:
                 'subject_id': int,
                 'subject_name': str,
                 'full_path': str,
+                'path_omitted_ancestors': [str, ...],  # #301
                 'exam_weight': float,
                 'total_mistakes': int,  # Aggregated from all descendants
                 'direct_mistakes': int,  # Only directly tagged to this subject
@@ -117,7 +118,8 @@ class AdvancedAnalyticsMixin:
             return None
 
         # Build full path
-        full_path = self._build_subject_path(subject_id)
+        full_path_info = self._build_subject_path_info(subject_id)
+        full_path = full_path_info['path']
 
         # Build CTE for finding all descendants (including self).
         # Polyhierarchy migration: descend via subject_edges (junction
@@ -509,9 +511,24 @@ class AdvancedAnalyticsMixin:
         # dynamic breadcrumb + an explanatory banner that turns the
         # selector from "looks broken on leaves" into "tells the user
         # what view they're in and what data they're not seeing".
-        path_via_parent = self._build_path_via_parent(
+        via_parent = self._build_path_via_parent(
             subject_id, primary_parent_id
         ) if primary_parent_id is not None else None
+        path_via_parent = via_parent['path'] if via_parent else None
+
+        # #301: the archived ancestors the rendered breadcrumb no longer
+        # names, for the hover tooltip. Keyed to the path the page will
+        # ACTUALLY show -- `subject_deep_dive.js` prefers `path_via_parent`
+        # over `full_path` -- so the page needs one key and no branch. Both
+        # paths come from a status-filtered upward walk (`full_path` from
+        # #301's, `path_via_parent` from #262's `get_paths_to_root`), so both
+        # can be cut short and both are explained the same way: ask the
+        # path's topmost node what was archived above it.
+        if via_parent:
+            path_omitted_ancestors = self._archived_ancestor_names(
+                via_parent['node_ids'][0])
+        else:
+            path_omitted_ancestors = full_path_info['omitted_ancestors']
 
         # Count entries on THIS subject that would be hidden by the
         # current view. Under "Show everything always" semantics, the
@@ -550,6 +567,13 @@ class AdvancedAnalyticsMixin:
             'subject_name': subject['subject_name'],
             'full_path': full_path,
             'path_via_parent': path_via_parent,
+            # #301. One rule across every payload carrying this: the names
+            # when the path was shortened, `null`/absent otherwise, NEVER an
+            # empty list. The tooltip must appear only where something was
+            # actually removed, so making "nothing to say" indistinguishable
+            # from "something to say, but it is empty" is the one shape to
+            # avoid.
+            'path_omitted_ancestors': path_omitted_ancestors or None,
             'entries_scoped_elsewhere': entries_scoped_elsewhere,
             'exam_weight': subject['exam_weight'],
             'exam_weight_low': subject.get('exam_weight_low', 0.0) or 0.0,
@@ -569,15 +593,24 @@ class AdvancedAnalyticsMixin:
 
     def _build_path_via_parent(
         self, subject_id: int, primary_parent_id: int
-    ) -> Optional[str]:
+    ) -> Optional[Dict[str, Any]]:
         """Return the breadcrumb path from root → primary_parent_id →
-        ... → subject_id, formatted as ``A > B > ... > Subject``.
+        ... → subject_id as ``{'path': 'A > B > ... > Subject',
+        'node_ids': [...]}``.
 
         Picks the first path returned by :meth:`EdgesMixin.get_paths_to_root`
         that includes ``primary_parent_id`` (paths are primary-first, then
         deterministic). Returns ``None`` when no such path exists (the
         caller asked for a context that isn't actually an ancestor — the
         page should fall back to ``full_path``).
+
+        ``node_ids`` travels because #301's tooltip needs the **id** of the
+        path's topmost node to ask what was archived above it. Recovering
+        that from the rendered string by name would be a lookup against a
+        column that is not unique — ``subject_nodes.name`` is unique only
+        per exam and dimension and only over active rows — so two exams
+        sharing a subject name would make the tooltip report the wrong
+        exam's archived parent.
         """
         paths = self.get_paths_to_root(subject_id)
         candidate = next(
@@ -591,7 +624,11 @@ class AdvancedAnalyticsMixin:
             tuple(candidate),
         )
         names = {row['id']: row['name'] for row in rows}
-        return ' > '.join(names.get(nid, f'#{nid}') for nid in candidate)
+        return {
+            'path': ' > '.join(
+                names.get(nid, f'#{nid}') for nid in candidate),
+            'node_ids': list(candidate),
+        }
 
     # =============================================================================
     # STAGE 7: HEATMAP & STREAK TRACKING METHODS

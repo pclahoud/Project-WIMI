@@ -709,7 +709,15 @@ class TestStdlibLoggingCapture(unittest.TestCase):
 
     def test_cleanup_is_idempotent(self):
         """Reachable from the Qt aboutToQuit hook AND the atexit hook; a
-        second call must not raise on an already-closed handle."""
+        second call must not raise on an already-closed handle.
+
+        That first clause was false for the whole of this file's life and
+        this docstring was one of the four places asserting it (#278).
+        ``install_shutdown_hook`` makes it true; idempotence is what lets
+        the two drains coexist, and
+        ``tests/app/test_logger_drains_on_quit.py`` is what proves the
+        hook is connected rather than merely described.
+        """
         second_dir = tempfile.mkdtemp()
         logger = ErrorLogger(
             app_name="TestAppTwice",

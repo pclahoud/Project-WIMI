@@ -388,7 +388,7 @@ class SubjectSearchSelect {
             html += `
                 <span class="ssw-chip" data-id="${id}" data-testid="tree-subject-chip-${id}">
                     <span class="ssw-chip-text">${this._escapeHtml(name)}</span>
-                    <button type="button" class="ssw-chip-remove" data-id="${id}" data-testid="tree-subject-remove-${id}" title="Remove">&times;</button>
+                    <button type="button" class="ssw-chip-remove" data-id="${id}" data-testid="tree-subject-remove-${id}" title="Remove" aria-label="Remove subject ${this._escapeAttr(name)}">&times;</button>
                 </span>
             `;
         }
@@ -407,6 +407,18 @@ class SubjectSearchSelect {
     // =========================================================================
     // Utilities
     // =========================================================================
+
+    /**
+     * Escape for a double-quoted attribute value.
+     *
+     * `_escapeHtml` leaves `"` alone (it goes through
+     * `textContent`/`innerHTML`), which is fine for text content and a way
+     * out of an attribute. Needed by the #306 aria-label, which carries a
+     * user-typed subject name.
+     */
+    _escapeAttr(text) {
+        return this._escapeHtml(text).replace(/"/g, '&quot;');
+    }
 
     _escapeHtml(text) {
         if (!text) return '';

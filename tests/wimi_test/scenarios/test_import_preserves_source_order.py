@@ -49,7 +49,16 @@ _IMPORT_FILE = {
 
 
 def _wait_for(page: WimiPage, expression: str, *, what: str, tries: int = 50) -> None:
+    """Poll until truthy, expanding the tree on every pass (#177).
+
+    Since #177 the tree editor renders only expanded subtrees, so imported
+    children do not exist in the DOM until a parent is opened. Expanding
+    inside the loop rather than once before it keeps the "is it loaded yet"
+    wait intact -- expandAll() has nothing to expand while the hierarchy is
+    still in flight, and it is idempotent once it has.
+    """
     for _ in range(tries):
+        page.eval_js("if (window.expandAll) expandAll();")
         if page.eval_js(expression):
             return
         page.wait_for_timeout(100)

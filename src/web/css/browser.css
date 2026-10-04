@@ -46,7 +46,7 @@
 }
 
 .back-link:hover {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .back-arrow {
@@ -64,7 +64,7 @@
     display: inline-block;
     padding: 0.25rem 0.75rem;
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-radius: 1rem;
     font-size: 0.8125rem;
     font-weight: 500;
@@ -78,8 +78,16 @@
     font-size: var(--font-size-sm);
 }
 
+/* A separator is TEXT, so --text-muted and NOT a border grey (#330, #97).
+   --border-color as text measured 1.23:1 on Default and 1.17:1 on Nord -- the
+   worst ratio anywhere in the app -- because it is a hairline grey chosen to
+   sit *next to* content rather than be read. Three other separators in this
+   tree (analytics.css's .scope-separator and .breadcrumb-separator,
+   tree.css's subtitle separator) already use --text-muted, and
+   test_dead_token_borders_follow_theme.py asserts that rule for the last of
+   them; this declaration was the outlier. */
 .stat-divider {
-    color: var(--border-color, #e5e7eb);
+    color: var(--text-muted);
 }
 
 /* ============================================
@@ -110,40 +118,86 @@
     max-width: 20rem;
 }
 
+/* The icon is a flex item, NOT absolutely positioned, and the input reserves
+   no space for it with a padding constant (#309).
+
+   It was `position: absolute; left: 0.75rem` beside `padding-left: 2.25rem`,
+   and the magnifier covered the first character -- the placeholder read
+   "earch entries...". Two separate reasons not to fix that by changing the
+   constant:
+
+   1. The constant was never applied. `styles.css`'s
+      `input[type="text"], ... { padding: var(--space-sm) var(--space-md) }`
+      has specificity (0,1,1) and `.search-input` has (0,1,0), so the global
+      rule won and the computed padding-left was 16px, not 36px -- measured.
+      Raising 2.25rem would have changed nothing on screen.
+   2. Even applied, it would be a guess at the glyph's width, and an emoji's
+      advance width varies by platform font. #309 was measured on Windows; it
+      also overlaps by 12.5px here.
+
+   An in-flow icon reserves exactly its own box, so any glyph on any platform
+   is accommodated with no constant to be wrong. This is the shape
+   `.tree-search-bar` in `tree.css` already uses. The border, background and
+   focus ring therefore belong to the wrapper -- otherwise there would be a
+   bordered box inside a bordered box.
+
+   The horizontal insets live on the icon and the clear button rather than on
+   the wrapper, deliberately: `.search-autocomplete` is positioned `left: 0`
+   against this wrapper, and wrapper padding would inset the dropdown. */
 .search-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
-}
-
-.search-icon {
-    position: absolute;
-    left: 0.75rem;
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary, #6b7280);
-    pointer-events: none;
-}
-
-.search-input {
-    width: 100%;
-    padding: 0.5rem 2rem 0.5rem 2.25rem;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: var(--radius-lg);
-    font-size: var(--font-size-sm);
     background: var(--bg-primary);
-    color: var(--text-primary);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.search-input:focus {
-    outline: none;
+.search-input-wrapper:focus-within {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
+.search-icon {
+    flex-shrink: 0;
+    padding-left: 0.75rem;
+    padding-right: 0.5rem;
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    color: var(--text-secondary, #6b7280);
+    pointer-events: none;
+}
+
+/* Specificity (0,2,0) on purpose: it has to beat `styles.css`'s
+   `input[type="text"]` block at (0,1,1), which is the rule that silently ate
+   the old padding-left. A bare `.search-input` here would leave the field
+   drawing its own border and background inside the wrapper's.
+
+   This block dropped the old `font-size: var(--font-size-sm)`, which was
+   inert for the same reason -- the field has always rendered at the global
+   block's `--font-size-md`. Keeping it at this specificity would have
+   *shrunk* the search text as a side effect of a layout fix, so it is gone
+   rather than promoted. Making it apply is a typography decision, not this
+   one. */
+.search-input-wrapper .search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-primary);
+}
+
+.search-input-wrapper .search-input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
 .clear-search {
-    position: absolute;
-    right: 0.5rem;
+    flex-shrink: 0;
+    margin-right: 0.5rem;
     background: none;
     border: none;
     color: var(--text-secondary, #6b7280);
@@ -198,7 +252,7 @@
 
 .autocomplete-item .prefix-name {
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-family: monospace;
 }
 
@@ -230,9 +284,18 @@
 .search-help-icon:hover,
 .search-help-icon:focus {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-color: var(--color-primary);
     outline: none;
+}
+
+/* #304: the fifth of the audit's invisible focus stops. `:focus` stays so
+   keyboard focus still opens the tooltip; the ring is `:focus-visible` and
+   must stay AFTER the rule above, which sets `outline: none` at the same
+   specificity. */
+.search-help-icon:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 .search-help-tooltip {
@@ -271,7 +334,7 @@
     font-family: monospace;
     font-size: var(--font-size-xs);
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: var(--color-primary-bg);
     padding: 1px 0.3125rem;
     border-radius: var(--radius-sm);
@@ -433,7 +496,7 @@
 }
 
 .tree-toggle:hover {
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     background: var(--color-primary-bg);
 }
 
@@ -566,7 +629,7 @@
 
 .date-preset.active {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 500;
 }
 
@@ -665,7 +728,7 @@
 .draft-toggle:has(input:checked) {
     border-color: var(--color-warning);
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
 }
 
 /* Active Filters */
@@ -695,25 +758,47 @@
     gap: 0.375rem;
     padding: 0.25rem 0.625rem;
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     border-radius: 1rem;
     font-size: 0.8125rem;
 }
 
+/* A `<button>` since #304's sweep: it was a `<span onclick>`, i.e. the same
+   unreachable-by-keyboard shape as the subject rows and the entry dots, so
+   it needs the button resets as well as a 24 px target (WCAG 2.2 AA, in px
+   because the criterion is in CSS pixels). */
 .filter-chip .remove-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
     cursor: pointer;
     opacity: 0.7;
     transition: opacity 0.15s;
+    flex-shrink: 0;
 }
 
 .filter-chip .remove-chip:hover {
     opacity: 1;
 }
 
+.filter-chip .remove-chip:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    opacity: 1;
+}
+
 .clear-all-filters {
     background: none;
     border: none;
-    color: var(--color-error);
+    color: var(--color-error-text);
     font-size: 0.8125rem;
     cursor: pointer;
     text-decoration: underline;
@@ -832,7 +917,7 @@
 /* Subject path - legacy single subject display */
 .subject-path {
     font-size: 0.8125rem;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     margin-bottom: 0.75rem;
     font-weight: 500;
 }
@@ -874,7 +959,7 @@
 /* Primary subject styling */
 .subject-chip.primary {
     background: var(--color-primary-bg);
-    color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .subject-chip.primary:hover {
@@ -891,7 +976,7 @@
 }
 
 .subject-chip.primary .dimension-label {
-    color: var(--color-primary-hover);
+    color: var(--color-primary-hover-text);
     opacity: 0.7;
 }
 
@@ -927,11 +1012,11 @@
 }
 
 .answer-row.wrong .answer-icon {
-    color: var(--color-error);
+    color: var(--color-error-text);
 }
 
 .answer-row.correct .answer-icon {
-    color: var(--color-success);
+    color: var(--color-success-text);
 }
 
 .answer-icon {
@@ -992,7 +1077,7 @@
 .draft-badge {
     padding: 0.125rem 0.5rem;
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    color: var(--color-warning-text);
     border-radius: 0.625rem;
     font-size: 0.6875rem;
     font-weight: 600;
@@ -1107,7 +1192,7 @@
 
 .selection-count {
     font-size: 0.8125rem;
-    color: var(--color-primary);
+    color: var(--color-primary-text);
     font-weight: 600;
 }
 

@@ -43,6 +43,8 @@ import pytest
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+from _helpers.tree_expand import expand_whole_tree
+
 
 CHIP_DUAL_PATTERN = re.compile(r"\d+(?:\.\d+)?\s*%\s*•\s*~\d+(?:\.\d+)?\s*q")
 CHIP_PCT_ONLY_PATTERN = re.compile(r"\d+(?:\.\d+)?\s*%(?!\s*•)")
@@ -191,6 +193,11 @@ def test_tree_chip_dual_unit_display(
     # so the child weight chips are in the DOM even when the parent
     # row is visually "collapsed" (CSS hides the children-container,
     # but doesn't remove them).
+    # #177: the tree renders only expanded subtrees now, so these child
+    # rows must be opened before they exist. Before #177 they were in the
+    # DOM but CSS-hidden, so this scenario was reading invisible state.
+    expand_whole_tree(wimi_page)
+
     chip_texts = wimi_page.eval_js(
         f"""
         (() => {{
