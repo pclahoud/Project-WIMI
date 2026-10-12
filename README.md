@@ -34,7 +34,45 @@ Over hundreds of entries those counts separate the topics you never learned from
 
 ![The tree editor, showing a weighted subject hierarchy with per-edge question counts](assets/screenshots/tree-editor.png)
 
-## Getting started
+## Download
+
+The [latest release](https://github.com/pclahoud/Project-WIMI/releases/latest)
+ships a Windows build and a macOS build for Apple Silicon. There is no Intel
+macOS build and no Linux build. Both downloads are around 200 MB, because WIMI
+bundles its own browser engine so that nothing depends on what you already
+have installed.
+
+Keep the whole `WIMI` folder together wherever you put it. WIMI reads and
+writes beside itself, so a lone `WIMI.exe` or `WIMI.app` moved out of the
+folder will not find its data.
+
+**Windows.** Unzip and run `WIMI.exe`. SmartScreen warns that the build is
+unsigned: choose More info, then Run anyway. Extract somewhere reasonably
+shallow. The bundle's deepest internal path is about 111 characters, and
+Windows' own extractor skips files silently once a path passes 260.
+
+**macOS.** The build is ad-hoc signed and not notarised, so macOS refuses a
+downloaded copy outright and offers only Move to Trash and Done. There is no
+Open button, and right-click then Open raises the same refusal. One Terminal
+step clears it, once per copy rather than once per launch:
+
+```bash
+xattr -dr com.apple.quarantine WIMI.app
+open WIMI.app
+```
+
+`First-Launch.command`, in the same folder, runs those two commands. Open
+Terminal, type `bash` and a space, drag that file into the window, and press
+Return. Double-clicking it is refused for the same reason the app is. No admin
+rights are needed.
+
+Keep WIMI in `/Applications` if you can. In Documents, Desktop or Downloads,
+macOS asks for access to that folder on first launch and no window appears
+until you answer, so the app looks hung when it is waiting. Expect the prompt
+again after an update: every build gets a fresh code identity, which macOS
+does not recognise as the one you already allowed.
+
+## Running from source
 
 Requires Python 3.11 or later on Windows or macOS.
 
