@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finding an entry again - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/40_finding_an_entry.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 15</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Finding an entry again</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_the_session_timer.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">The session timer, rounds and breaks</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_reading_the_analytics.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Reading the analytics dashboard</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Finding an entry again
+
+## In short
+
+The entry browser is where you go to find one particular mistake again, or to read several of your own reasons on one topic in a row. It is built to retrieve rather than to count, so it is deliberately generous: filtering by a subject finds every entry that mentions that subject, including the ones where you only noted it as also tested, and unfinished drafts sit in the list beside finished entries.
+
+## Getting there
+
+From the dashboard, the **Browse** button on an exam card. The page opens scoped
+to that exam, with the exam's name beside the title, and everything on it — every
+filter, both counts — stays inside that exam.
+
+Two other things land you here with a filter already in place. An entry's own
+page has a back link to the browser. And on the analytics dashboard, clicking a
+cell of the cross-dimension heatmap opens this page showing the entries that sit
+in that combination of axes.
+
+One thing worth knowing before it puzzles you: the **Subject**, **Tags** and
+**Session** dropdowns are filled from the exam you arrived with. If you reach
+the browser without going through an exam, those three come up empty while the
+search box, the date filter and the sort still work. Come in from an exam card
+and everything is populated.
+
+## What a card tells you
+
+<!-- tour
+page: entry-browser
+anchor: browser-row-date
+text: A card's date is the session's Date Encountered, when you sat the
+  questions, not when you typed the entry. Click anywhere on a card to open
+  the entry in full.
+-->
+
+Every entry is one card, newest first unless you have changed the default sort
+in Settings, and the card is a summary rather than the entry. Reading top to
+bottom:
+
+- **The date** is the session's **Date Encountered** — when you sat the questions, not when you typed the entry. This is the same date every analytics screen uses, so a card dated three weeks ago is one you logged late, not one you logged wrong.
+- **A difficulty badge** shows the word you picked: Very Easy, Easy, Medium, Hard or Very Hard. It is absent if you left difficulty blank, which is fine; the field is optional.
+- **Subject chips** come next, the primary ones first and the also-tested ones after, with at most three shown and a `+2 more` chip for the rest. On a multi-dimensional exam each chip is prefixed with its axis, as in `SYSTEM: Hypertension`. Hovering a chip gives the subject's full path; hovering the `+2 more` chip lists what it is hiding.
+- **Your answer** follows a cross and **the correct answer** follows a tick, exactly as you typed them.
+- **The first couple of lines of your reflection**, the answer to "why did you get this wrong?". If the entry has none it reads *No reflection added*, which on a draft usually means that is the field you meant to come back to.
+- **Up to three error-type tags**, with a `+1` for any beyond that. An untagged entry simply shows none.
+- **A paperclip and a number** when the entry has images attached.
+- **A Draft badge** on anything unfinished.
+
+Clicking anywhere on a card opens that entry in full. From there, previous and
+next walk the list you were looking at rather than the whole exam, so a filtered
+list becomes a reading order.
+
+What a card deliberately does not show: the question reference, the question
+bank, the session, the explanation, or the time you spent. Those are all on the
+entry's own page.
+
+## The search box
+
+<!-- tour
+page: entry-browser
+anchor: browser-search-input
+text: Search is literal: what you type has to appear as a run of characters,
+  with no fuzzy matching and no "did you mean". A bare word searches your
+  reflection, your explanation, both answers and your subject names at once.
+-->
+
+The search box is literal, not clever. What you type has to appear as a run of
+characters somewhere in the entry — capitals do not matter, but `pulmonary
+embolism` will not find "embolism, pulmonary", and there is no fuzzy matching
+and no "did you mean". That is a deliberate trade: a search that guesses is a
+search you cannot trust to have found everything.
+
+Typed plainly, your text is looked for in five places: your reflection, your
+explanation of the correct answer, your answer, the correct answer, and the
+names of the subjects the entry is tagged with. So a bare `warfarin` finds
+entries that mention warfarin in your own prose *and* entries tagged with a
+subject called warfarin, in one go. That is usually what you want.
+
+What a plain search does **not** look inside is the notes you add with
+**+ Add Note**. For those you need the `notes:` prefix below.
+
+### Naming a field
+
+<!-- tour
+page: entry-browser
+anchor: browser-search-help
+text: A plain search does not look inside the notes you add with Add Note.
+  Put notes: in front of a word to search them, or another prefix listed here
+  to search one field only.
+-->
+
+When a plain search is not what you want, you can name the field. The `?`
+beside the box lists the seven prefixes, and they are:
+
+- `reflection:` — only the "why did you get this wrong?" field.
+- `explanation:` — only the "why is the correct answer correct?" field.
+- `notes:` — your notes. It finds an entry through a note written on that entry; an entry that only reuses a note written on another entry, through **+ Add existing**, is not found by it.
+- `user_answer:` — only what you answered.
+- `correct_answer:` — only the correct answer.
+- `subject:` — the name of a subject the entry is tagged with.
+- `question_id:` — the question reference you recorded. This one matches from the start rather than anywhere inside, so `question_id:1234` finds `1234-A` but not `Q1234`.
+
+Use straight quotes for anything with a space in it, as in
+`user_answer:"ACE inhibitor"`, and you can mix a field with plain text:
+`cardiology explanation:"afterload"` finds entries whose explanation mentions
+afterload among entries that mention cardiology anywhere.
+
+`subject:` and the **Subject** filter are not the same tool. `subject:` matches
+a subject's *name*, so `subject:hyper` catches hypertension and hyperkalemia
+alike and knows nothing about your tree. The Subject filter below understands
+the tree. Reach for the operator when you half-remember a name, and for the
+filter when you know which subject you mean.
+
+## The filters
+
+<!-- tour
+page: entry-browser
+anchor: browser-subject-apply
+text: Each filter panel does nothing until you press its Apply button.
+  Ticking boxes and closing the panel changes nothing, which is deliberate,
+  because the subject tree is something you click around in before you have
+  decided.
+-->
+
+**Subject**, **Tags**, **Date** and **Session** each open a small panel, and
+each needs its **Apply** button before anything happens. Ticking boxes and
+closing the panel changes nothing, which is on purpose — the subject tree in
+particular is something you click around in before you have decided.
+
+- **Subject** is your whole tree, as a tree, with expand arrows and a search box inside the panel. That inner search matches a subject's name *or* any alias you have given it, so searching `PE` finds pulmonary embolism if that is one of its aliases. Tick as many subjects as you like. The **Include child subjects** checkbox at the bottom is the important one and the next section is about it.
+- **Session** narrows to one sitting at a time, listing your fifty most recent sessions with the date and how many of their entries you have finished. It is the quickest way back to "that block I did on Tuesday".
+- **Drafts only** narrows the list to unfinished entries. There is no setting that hides drafts, and that is consistent with the rest of WIMI: a draft is a mistake you made, so it belongs in the list.
+
+Tags, Date and the sort order each have a rule worth knowing, so they get a
+section apiece.
+
+### Tags
+
+<!-- tour
+page: entry-browser
+anchor: browser-filter-tags
+text: Ticking several error types finds entries carrying any one of them, not
+  only entries carrying all of them, so a second tick widens the list rather
+  than narrowing it.
+-->
+
+**Tags** lists your error types under their groups. Ticking several means *any*
+of them, so Misread Question plus Time Pressure gives you both piles rather than
+their overlap.
+
+### Date
+
+<!-- tour
+page: entry-browser
+anchor: browser-filter-date
+text: Dates here are the session's Date Encountered, when you sat the
+  questions, not when you wrote the entry up. So Last 7 Days finds practice
+  sat in those days, however late you logged it.
+-->
+
+**Date** offers Today, Last 7 Days, Last 30 Days, This Month and a custom
+From/To, and it filters on the session's **Date Encountered**. So "Last 7 Days"
+means practice you sat in the last seven days, whenever you got round to
+writing it up.
+
+### Sort
+
+<!-- tour
+page: entry-browser
+anchor: browser-sort-trigger
+text: The list opens in the order set under Settings, Entry Browser, which is
+  newest first until you change it. Date order is the session's Date
+  Encountered, and an entry with no difficulty sorts last in both difficulty
+  orders.
+-->
+
+**Sort** offers Date newest or oldest and Difficulty high-to-low or low-to-high.
+The list opens in the order chosen under Settings, Entry Browser, **Default Sort
+Field** and **Default Sort Direction**, which is newest first until you change
+it. Date order follows the session's **Date Encountered**, the same date a card
+shows. Difficulty is optional on the entry form, and an entry left blank goes to
+the end of the list in both difficulty orders rather than counting as the
+easiest or the hardest.
+
+Whatever is in force appears as a row of chips under the filter bar, each with
+its own small cross, plus **Clear all**. If a count surprises you, read that row
+first — it is the only place that shows every active filter at once, and that
+includes whatever is in the search box, with each prefix as a chip of its own.
+
+## What a subject filter actually returns
+
+<!-- tour
+page: entry-browser
+anchor: browser-subject-children-toggle
+text: This widens a subject filter to everything beneath that subject, at any
+  depth, and it is off by default. That is why filtering on a high-level
+  subject you never tag directly can come back empty.
+-->
+
+This is the part worth reading slowly, because the browser is more generous than
+the charts are and the difference is deliberate.
+
+Filter by a subject and you get:
+
+- **Every entry tagged with that subject**, whether you named it as a primary subject or as an also-tested one. The browser does not care which.
+- **Whatever parent context those entries carry.** If a subject sits under three parents and you pinned one entry to each, filtering by the subject finds all three. The context says which branch an entry rolls up through on the charts; it does not stop the entry being about the subject.
+- **Entries you pinned to it.** If you tagged a question with a child subject and set its Tag context to this subject, the entry is counted as routing through here and comes back too.
+
+Tick **Include child subjects** and the filter widens to the whole branch
+beneath the subject — everything under it, at any depth. That is how you ask
+"show me all my cardiology", and it is almost always what you want on a
+high-level subject. It follows the parent context on the way: an entry on a
+shared child that you pinned to a different parent is not in this branch, which
+is correct, because you said it belonged somewhere else.
+
+Two chapters cover the ideas behind this.
+[Why two screens can disagree about one subject](help_two_screens_one_subject.html)
+explains why a filter here returns eleven entries while a chart shows five, and
+[Choosing which parent an entry counts under](help_parent_context.html) is about
+the Tag context pill that decides the routing.
+
+The short version: this page is for finding, and finding uses every tag.
+
+## The two counts on the page, and why they differ
+
+<!-- tour
+page: entry-browser
+anchor: browser-stats-summary
+text: The count in the page header is the whole exam and does not move when
+  you filter; the line under the list is what your filters match. A big number
+  above a small one is the two answering different questions.
+-->
+
+There are two numbers and they measure different things.
+
+- **The count in the page header**, beside the title and reading something like 57 entries and 4 drafts, is your whole exam. It is read once when the page opens and does not move when you filter.
+- **The line under the list**, reading *Showing 1-12 of 12 entries*, is what the current filters match.
+
+So a filtered view routinely shows a big number at the top and a small one at
+the bottom. Neither is stale. The top one is "how much work is in this exam",
+the bottom one is "how much of it am I looking at".
+
+The list loads a page at a time — twenty-five entries by default, changeable
+under Settings, Entry Browser, Items Per Page — and **Load More** fetches the
+next page onto the end. The button is there only while more entries match than
+are loaded.
+
+## Collecting question numbers to redo
+
+<!-- tour
+page: entry-browser
+anchor: browser-header-export-ids
+text: Export IDs puts a checkbox on every card so you can copy question
+  references into a question bank's search. An entry with no question
+  reference is skipped, and the export box says how many were.
+-->
+
+The **Export IDs** button at the top right turns the list into a selection
+list. Checkboxes appear on every card and you get:
+
+- **Select All Visible**, which ticks everything currently loaded.
+- **Export Selected** and **Export All Visible**, both of which open a box of question references you can copy straight into a question bank's search.
+
+The dialog lets you choose the separator, and it tells you how many entries it
+skipped because they carry no question reference. That is worth noticing: the
+question reference on the entry form is optional, and this is the one feature
+that needs it. If you intend to rebuild sets of your own wrong questions, fill
+that field in.
+
+### All Visible means loaded
+
+<!-- tour
+page: entry-browser
+anchor: browser-export-all-visible
+text: Export All Visible takes only the entries loaded so far, not every entry
+  your filters match. Press Load More until the list is complete before
+  exporting a long one.
+-->
+
+"All Visible" means everything loaded so far, not everything your filters
+match: the list loads a page at a time, and **Select All Visible** and **Export
+All Visible** both work on the cards already on the page. So press **Load More**
+until the list is complete before exporting a long one.
+
+## When nothing comes back
+
+Two different empty states, and the wording tells you which situation you are
+in:
+
+- **No entries match your filters** means the exam has entries and your filters excluded all of them. Read the chip row and take one away.
+- **No entries yet** means this exam has nothing logged. [Your first hour](help_the_first_hour.html) is the way in.
+
+The commonest cause of the first one is a subject filter without **Include child
+subjects** on a high-level subject. If you tag everything on topics and then
+filter on a system, you have asked for entries carrying that system itself —
+and if none of your topics is shared, so none of them needed a Tag context,
+there may genuinely be none. Tick the box.
+
+The wording has two blind spots. A search made only of prefixes, such as `notes:warfarin` with nothing else in the box, and a custom
+date range with only a **To** date both read **No entries yet** when nothing
+matches, even on an exam full of entries. If you see that heading with chips
+showing under the filter bar, it is the filters, and the advice above applies.
+
+## Where to go next
+
+- [Why two screens can disagree about one subject](help_two_screens_one_subject.html) — why this page and the charts give different counts, and which to trust for what.
+- [Reading the analytics dashboard](help_reading_the_analytics.html) — the counting side, surface by surface.
+- [Choosing which parent an entry counts under](help_parent_context.html) — the Tag context pill, and what it does to the routing described above.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

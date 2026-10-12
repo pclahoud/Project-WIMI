@@ -102,6 +102,16 @@ celerybeat.pid
 # Environments
 .env
 .venv
+# The relation-extraction runtime lives in its own environment (#60), so the
+# default `.venv` stays exactly what the DEFAULT artifact ships -- no torch,
+# no transformers, no gliner2. check_relations_runtime_imports.py exists
+# because "the development venv has torch installed" is how a module-scope
+# import reaches the artifact that does not; keeping the two apart makes that
+# structurally harder rather than only guarded.
+#
+# Trailing slash on purpose: this matches DIRECTORIES only, so it cannot
+# swallow a source or test file the way `*_backup.*` did in #298.
+.venv-*/
 env/
 venv/
 ENV/
@@ -166,6 +176,15 @@ app_data_test/
 # a real run also writes media/ and browser_pane/Cookies, and `git add -A`
 # would stage those.
 app_data_test*/
+# ...and any OTHER prefix, which the pattern above does not cover and which is
+# the gap that actually bit (2026-10-08). The reasoning above was right and the
+# glob was one prefix too narrow: `WIMI_TEST_APP_DATA_DIR` is set to whatever
+# names the run, and a day of parallel sweeps used `app_data_570r`,
+# `app_data_577`, `app_data_583`, `app_data_590`, `app_data_597` and
+# `app_data_docs`. A `git add -A` staged two of those -- 65 files of Chromium
+# GPU cache, leveldb and `Visited Links` -- into a commit, on a branch destined
+# for a `master` that is published to a public mirror.
+app_data_*/
 *.db-shm
 *.db-wal
 *.lbdb

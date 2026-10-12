@@ -51,6 +51,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from database.master_db import MasterDatabase
+from database.schema_fingerprint import SchemaShape, compare, fingerprint
 from database.user_db import UserDatabase
 from database.migration_runner import MigrationRunner, MigrationChecksumMismatchError
 from database.migrations.user import MIGRATIONS as USER_MIGRATIONS
@@ -75,6 +76,18 @@ MEDIA_PREFIX = "media/"
 VERDICT_OK = "ok"
 VERDICT_WILL_UPGRADE = "will_upgrade"
 VERDICT_NEWER_APP_REQUIRED = "newer_app_required"
+# The archive's tables are not the ones WIMI creates (#593). Not
+# "newer_app_required", whose message tells the student to update WIMI:
+# updating fixes nothing here.
+VERDICT_UNRECOGNISED_STRUCTURE = "unrecognised_structure"
+
+# A verdict in this set refuses the archive. ``preflight_schema`` reports it as
+# ``blocked`` so callers read one flag rather than each keeping its own list:
+# before #593 every caller compared against NEWER_APP_REQUIRED alone, so a
+# new refusing verdict would have been ignored by all of them.
+BLOCKING_VERDICTS = frozenset({
+    VERDICT_NEWER_APP_REQUIRED, VERDICT_UNRECOGNISED_STRUCTURE,
+})
 
 # Require free disk space >= uncompressed size x this factor before importing.
 DISK_SPACE_SAFETY_FACTOR = 1.1
@@ -114,10 +127,10 @@ def _app_version() -> str:
 def _media_dir_for(master_db: MasterDatabase, user_id: int, username: str) -> Path:
     """Media directory for a user: {data_dir}/media/user_{id}_{username}.
 
-    Mirrors ``MediaManager.user_media_path`` (media_manager.py:94) without
-    importing the Qt-adjacent app layer.
+    The purge removes the same folder, so both read it from
+    ``MasterDatabase.media_dir_for`` rather than spelling it twice.
     """
-    return master_db.data_dir / "media" / f"user_{user_id}_{username}"
+    return master_db.media_dir_for(user_id, username)
 
 
 def _snapshot_database(source_db_path: Path, dest_path: Path) -> None:
@@ -708,8 +721,18 @@ def preflight_schema(
     newer-schema or checksum-divergent database is turned into a friendly
     verdict instead of the runner's hard failure.
 
+    Then (#593) it migrates a second throwaway copy and compares that
+    copy's table structure with a freshly created database's
+    (``database.schema_fingerprint``). The archive's ``user.db`` is copied into
+    place byte for byte, DDL included, so a file whose tables differ from the
+    ones WIMI creates would otherwise bring its own CHECKs, declared types and
+    primary keys, and every page that relies on those would be relying on the
+    file.
+
     Returns:
-        {"verdict": "ok" | "will_upgrade" | "newer_app_required",
+        {"verdict": "ok" | "will_upgrade" | "newer_app_required"
+                    | "unrecognised_structure",
+         "blocked": bool,      # verdict in BLOCKING_VERDICTS; callers read this
          "archive_max_version", "local_max_version",
          "pending_versions", "reason"}
     """
@@ -733,6 +756,7 @@ def preflight_schema(
     archive_max = max(applied) if applied else 0
     result = {
         "verdict": VERDICT_OK,
+        "blocked": False,
         "archive_max_version": archive_max,
         "local_max_version": local_max,
         "pending_versions": [],
@@ -741,6 +765,7 @@ def preflight_schema(
 
     if archive_max > local_max:
         result["verdict"] = VERDICT_NEWER_APP_REQUIRED
+        result["blocked"] = True
         result["reason"] = (
             "This profile was exported from a newer version of WIMI "
             f"(database schema v{archive_max}; this app supports up to "
@@ -762,6 +787,7 @@ def preflight_schema(
                 runner.verify_checksums()
             except MigrationChecksumMismatchError as e:
                 result["verdict"] = VERDICT_NEWER_APP_REQUIRED
+                result["blocked"] = True
                 result["reason"] = (
                     "This profile's database has a migration checksum mismatch "
                     "— it was likely exported from a newer or modified version "
@@ -774,6 +800,25 @@ def preflight_schema(
     finally:
         shutil.rmtree(str(tmp_dir), ignore_errors=True)
 
+    problems = _structure_problems(db_path)
+    if problems:
+        shown = '; '.join(problems[:3])
+        more = (f" (and {len(problems) - 3} more difference"
+                f"{'s' if len(problems) - 3 != 1 else ''})"
+                if len(problems) > 3 else '')
+        result["verdict"] = VERDICT_UNRECOGNISED_STRUCTURE
+        result["blocked"] = True
+        result["reason"] = (
+            "WIMI won't install this profile, because its database is not "
+            f"built the way WIMI builds one: {shown}{more}. A profile "
+            "exported by WIMI never looks like this, so the file was probably "
+            "changed after it was exported. Nothing on this computer has been "
+            "changed."
+        )
+        logger.warning("Refused a profile archive's database (#593): %s",
+                       '; '.join(problems))
+        return result
+
     if result["pending_versions"]:
         result["verdict"] = VERDICT_WILL_UPGRADE
         result["reason"] = (
@@ -781,6 +826,59 @@ def preflight_schema(
             "will be upgraded automatically on import."
         )
     return result
+
+
+_EXPECTED_SHAPE: Optional[SchemaShape] = None
+
+
+def _expected_shape() -> SchemaShape:
+    """The structure of a freshly created user database, built once per process.
+
+    Built rather than written down, so that it can never drift from what
+    WIMI actually creates: the next migration changes it automatically.
+    """
+    global _EXPECTED_SHAPE
+    if _EXPECTED_SHAPE is None:
+        tmp_dir = Path(tempfile.mkdtemp(prefix='wimi_expected_schema_'))
+        try:
+            fresh = UserDatabase(db_path=tmp_dir / 'fresh.db', user_id=0,
+                                 username='expected_schema')
+            try:
+                _EXPECTED_SHAPE = fingerprint(fresh.conn)
+            finally:
+                fresh.close()
+        finally:
+            shutil.rmtree(str(tmp_dir), ignore_errors=True)
+    return _EXPECTED_SHAPE
+
+
+def _structure_problems(db_path: Path) -> List[str]:
+    """How an archive's database differs from the one WIMI creates (#593).
+
+    It runs on a throwaway copy that is migrated first, so an archive from an
+    older WIMI is compared as it will be once installed. If the copy cannot
+    even be opened, the answer is ``[]`` and the failure is left where it
+    always surfaced: the installer's verify-open runs the same migrations,
+    fails the same way, and rolls the install back. Refusing here as well
+    would only change which message the student sees.
+    """
+    tmp_dir = Path(tempfile.mkdtemp(prefix='wimi_structure_'))
+    try:
+        copy_path = tmp_dir / 'structure_copy.db'
+        shutil.copy2(str(db_path), str(copy_path))
+        try:
+            migrated = UserDatabase(db_path=copy_path, user_id=0,
+                                    username='structure_check')
+        except Exception as exc:
+            logger.info("Structure check skipped; the archive's database "
+                        "would not open: %s", exc)
+            return []
+        try:
+            return compare(_expected_shape(), fingerprint(migrated.conn))
+        finally:
+            migrated.close()
+    finally:
+        shutil.rmtree(str(tmp_dir), ignore_errors=True)
 
 
 # ---------------------------------------------------------------------- import: create new
@@ -836,7 +934,7 @@ def install_profile_as_new(
 
         db_temp = tmp_dir / DB_MEMBER
         preflight = preflight_schema(db_temp)
-        if preflight["verdict"] == VERDICT_NEWER_APP_REQUIRED:
+        if preflight["blocked"]:
             raise ProfileImportError(preflight["reason"])
 
         _ensure_disk_space(master_db.users_dir, info["total_uncompressed_bytes"])
@@ -1071,7 +1169,7 @@ def replace_profile(
 
         db_temp = tmp_dir / DB_MEMBER
         preflight = preflight_schema(db_temp)
-        if preflight["verdict"] == VERDICT_NEWER_APP_REQUIRED:
+        if preflight["blocked"]:
             raise ProfileImportError(preflight["reason"])
 
         _ensure_disk_space(master_db.users_dir, info["total_uncompressed_bytes"])

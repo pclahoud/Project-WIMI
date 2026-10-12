@@ -67,8 +67,9 @@
  * Two things it deliberately does not hide: **live regions**
  * (`[aria-live]`, `role=status/alert/log`) outside the dialog, because an
  * alert must still reach the student -- `.page-gate` is one -- and anything
- * carrying `data-modal-keep-announced`, which is the opt-out for a case
- * nobody has met yet.
+ * carrying `data-modal-keep-announced`, the opt-out for an element shown
+ * beside a dialog on purpose. The first-run tour's tip is the first (#430):
+ * it can describe a control inside the tree editor's import preview.
  *
  * WHY Escape IS NOT HANDLED
  * -------------------------
@@ -88,7 +89,9 @@
  * in it is left alone.
  * Background: every `aria-hidden` written is remembered and only those are
  * removed, so an `aria-hidden` the page set itself survives untouched; a
- * subtree holding focus is never hidden; and a throw unhides everything.
+ * subtree holding focus is never hidden, so the boundary is completed on the
+ * sweep where focus finishes moving into the dialog rather than cached as
+ * drawn before it has (#422); and a throw unhides everything.
  *
  * Nothing here can wedge a page, which is the same rule the page gate is
  * built on: a permanently gated page is worse than the bug it fixes.
@@ -132,9 +135,56 @@
     var hidden = [];
     /** The surface `hidden` was computed for; null when nothing is hidden. */
     var hiddenFor = null;
+    /**
+     * Did the last walk SKIP a subtree because it held focus (#422)?
+     *
+     * The difference between "a boundary was drawn" and "an attempt was made",
+     * which is the whole of #422. See `boundaryIsCurrent`.
+     */
+    var hiddenSkippedFocus = false;
+    /** `document.activeElement` when that walk ran -- what has to move. */
+    var hiddenFocusWas = null;
     var lastFocused = null;
     var scheduled = false;
     var settle = null;
+    /** Frames still to sweep after the last change (see FOLLOW_FRAMES). */
+    var followFrames = 0;
+    /** Open surfaces whose focus move is waiting for a control to render. */
+    var pending = [];
+    /** How many sweeps each pending surface has waited (see DEFER_SWEEPS). */
+    var deferrals = new WeakMap();
+
+    /**
+     * Sweep this many frames after every change, not just the next one (#374).
+     *
+     * A modal opens by a class change, and that mutation schedules a sweep for
+     * the next frame -- but in that frame the surface is often NOT YET visible:
+     * a `visibility` transition reads `hidden` at its first frame, and the
+     * surface reads visible one frame later through a style change, which
+     * emits no mutation. So nothing looked again until SETTLE_MS, and focus
+     * sat on the control BEHIND the dialog for that long. Measured on
+     * Windows machine B, tree editor delete modal: `.active` at t, surface
+     * visible at t+6..20 ms, buttons visible ~20 ms later, focus moved at
+     * t+330..360 ms -- by the settle pass. A real Enter key-repeat in that
+     * window activated the opener behind the open dialog 2-3 times per run.
+     *
+     * A handful of frames covers the frame-late reveal without polling
+     * forever; SETTLE_MS below stays as the fallback, so a surface that takes
+     * longer still behaves exactly as it did before this.
+     */
+    var FOLLOW_FRAMES = 6;
+
+    /**
+     * How many sweeps focusInto() waits for a control to become visible before
+     * falling back to focusing the surface itself (#374).
+     *
+     * A surface's buttons can render a frame after the surface does. Falling
+     * back to the container in that frame made the landing target depend on
+     * frame timing -- the Cancel button on most runs, the dialog box on the
+     * rest. The fallback is still reached, and still needed: a dialog that
+     * genuinely has nothing focusable must still receive focus.
+     */
+    var DEFER_SWEEPS = 10;
 
     /**
      * Is this element rendered? `display` and `visibility` only.
@@ -218,16 +268,35 @@
         return out;
     }
 
+    /**
+     * Move focus into an open surface. Returns false when it chose to wait
+     * for a control that exists but has not rendered yet, so the caller
+     * retries on a later sweep; true when focus is settled either way.
+     */
     function focusInto(surface) {
         try {
             // The page's own choice wins. image_browser.js focuses its search
             // box synchronously as it renders, which happens before this
             // observer's microtask, so that choice is already in place here.
-            if (surface.contains(document.activeElement)) return;
+            if (surface.contains(document.activeElement)) return true;
+            // So does a companion's: an element shown beside the dialog on
+            // purpose, which may hold focus while it is open (the first-run
+            // tour's tip about a control inside the dialog, #430). Taking
+            // focus from it made who held it a race between this sweep and
+            // the tip's own bridge round trip, measured going both ways.
+            var active = document.activeElement;
+            if (active && active.closest && active.closest('[data-modal-companion]')) return true;
 
             var target = surface.querySelector('[autofocus]')
                 || focusables(surface)[0];
             if (!target) {
+                // Controls that exist but are not visible YET are worth a
+                // few frames' wait; a surface with none at all is not (#374).
+                var waited = deferrals.get(surface) || 0;
+                if (waited < DEFER_SWEEPS && surface.querySelector(FOCUSABLE)) {
+                    deferrals.set(surface, waited + 1);
+                    return false;
+                }
                 // Nothing to focus: make the dialog itself the landing place
                 // so a reader is at least inside the thing that just opened.
                 target = surface;
@@ -239,6 +308,8 @@
         } catch (err) {
             console.warn('modal_dialog: could not focus into the dialog', err);
         }
+        deferrals.delete(surface);
+        return true;
     }
 
     function restoreFocus(surface) {
@@ -268,6 +339,8 @@
     /** Undo exactly the `aria-hidden` attributes this file wrote. */
     function showBackground() {
         hiddenFor = null;
+        hiddenSkippedFocus = false;
+        hiddenFocusWas = null;
         for (var i = 0; i < hidden.length; i++) {
             try {
                 hidden[i].removeAttribute('aria-hidden');
@@ -283,31 +356,86 @@
      * to `<body>` rather than hiding `<body>`'s other children is what makes
      * this work for the eight modals that live INSIDE a page container.
      */
+    /**
+     * Hide `el` from the accessibility tree, keeping any live region inside it.
+     *
+     * A sibling that CONTAINS a live region used to be skipped whole, which
+     * kept the region audible and also left everything around it exposed. On
+     * a page whose main container holds one -- Settings carries the
+     * folder-sync status lines (#401) and an alert inside `.app-container` --
+     * that skipped the entire page: with the #412 dialog open, the helper
+     * hid two <script> elements and the exposed node count ROSE, 190 -> 214
+     * (Windows machine B). So such an element is now descended into instead:
+     * its children are hidden one by one, and only the live regions and the
+     * elements on the way to them stay in the tree.
+     */
+    function hideOutside(el) {
+        if (el.hasAttribute('aria-hidden')) return;
+        if (el.matches(KEEP_ANNOUNCED)) return;
+        // Never hide a subtree holding focus: that is an ARIA violation, and
+        // the Tab trap means it should be impossible -- so if it happens,
+        // leave it alone rather than produce an invalid tree.
+        //
+        // It is NOT impossible while focus is on its way in: `focusInto`
+        // waits a few sweeps for a control that exists but has not rendered
+        // (#374), and for those sweeps the subtree holding focus is the page
+        // container the invoker sits in -- i.e. almost the whole page. So the
+        // skip is recorded, because a walk that skipped is not a boundary and
+        // must not be cached as one (#422).
+        if (el.contains(document.activeElement)) {
+            hiddenSkippedFocus = true;
+            return;
+        }
+        if (el.querySelector(KEEP_ANNOUNCED)) {
+            var kids = el.children;
+            for (var k = 0; k < kids.length; k++) hideOutside(kids[k]);
+            return;
+        }
+        el.setAttribute('aria-hidden', 'true');
+        hidden.push(el);
+    }
+
+    /**
+     * Is the boundary currently held still the right answer for `surface`?
+     *
+     * THE CACHE HAS TO RECORD A DRAWN BOUNDARY, NOT AN ATTEMPTED ONE (#422).
+     * Keyed on the surface alone it recorded the attempt, and the two guards
+     * either side of it combined into a permanent no-op: `sweep` calls
+     * `hideBackground` on every pass, `focusInto` may spend several of those
+     * passes waiting for a control to render (#374), and for each of them
+     * `hideOutside` refuses the page container because the invoker inside it
+     * still holds focus. So the first walk hid nothing of the page, the
+     * surface never changed again, and every later sweep returned early --
+     * the dialog went its whole life with no boundary, with `role`, the name,
+     * `aria-modal` and eventual focus all still correct, and only
+     * `hiddenCount()` or the exposed node count able to see it.
+     *
+     * A walk that skipped nothing is still the right answer, which is what
+     * keeps the cache worth having: re-walking the page's subtrees looking for
+     * live regions on every sweep would cost that each time anything animates.
+     * A walk that SKIPPED is the right answer only while focus has not moved,
+     * because moving focus is precisely what unblocks the skip -- one identity
+     * comparison, and it settles after exactly one extra walk rather than
+     * re-walking per sweep.
+     */
+    function boundaryIsCurrent(surface) {
+        if (surface !== hiddenFor) return false;
+        if (!hiddenSkippedFocus) return true;
+        return document.activeElement === hiddenFocusWas;
+    }
+
     function hideBackground(surface) {
-        // Recomputing on every sweep would re-walk the page's subtrees
-        // looking for live regions each time anything animates. The boundary
-        // only changes when the topmost dialog does.
-        if (surface === hiddenFor) return;
+        if (boundaryIsCurrent(surface)) return;
         showBackground();
         if (!surface) return;
         hiddenFor = surface;
+        hiddenFocusWas = document.activeElement;
         try {
             var node = surface;
             while (node && node.parentNode && node !== document.body) {
                 var siblings = node.parentNode.children;
                 for (var i = 0; i < siblings.length; i++) {
-                    var sib = siblings[i];
-                    if (sib === node) continue;
-                    if (sib.hasAttribute('aria-hidden')) continue;
-                    if (sib.matches(KEEP_ANNOUNCED)) continue;
-                    if (sib.querySelector(KEEP_ANNOUNCED)) continue;
-                    // Never hide a subtree holding focus: that is an ARIA
-                    // violation, and the Tab trap means it should be
-                    // impossible -- so if it happens, leave it alone rather
-                    // than produce an invalid tree.
-                    if (sib.contains(document.activeElement)) continue;
-                    sib.setAttribute('aria-hidden', 'true');
-                    hidden.push(sib);
+                    if (siblings[i] !== node) hideOutside(siblings[i]);
                 }
                 node = node.parentNode;
             }
@@ -318,20 +446,32 @@
     }
 
     function sweep() {
-        scheduled = false;
         var now = openSurfaces();
+        var waiting = [];
         var i;
 
         for (i = 0; i < now.length; i++) {
-            if (open.indexOf(now[i]) === -1) {
-                if (!invokers.has(now[i])) {
-                    var from = document.activeElement;
-                    if (!from || from === document.body) from = lastFocused;
-                    if (from && !now[i].contains(from)) invokers.set(now[i], from);
+            var isNew = open.indexOf(now[i]) === -1;
+            if (isNew && !invokers.has(now[i])) {
+                var from = document.activeElement;
+                // Focus already INSIDE the new dialog means the page moved it
+                // there itself before this sweep (the relation modal focuses
+                // its search box as it renders), so activeElement no longer
+                // names the opener. `lastFocused` does: it records the last
+                // focus outside any surface. Without this the invoker was
+                // never recorded and closing dropped focus to <body> (#374).
+                if (!from || from === document.body || now[i].contains(from)) {
+                    from = lastFocused;
                 }
-                focusInto(now[i]);
+                if (from && !now[i].contains(from)) invokers.set(now[i], from);
+            }
+            // A surface that opened in an earlier sweep but was waiting for
+            // its controls to render is retried until focusInto settles it.
+            if ((isNew || pending.indexOf(now[i]) !== -1) && !focusInto(now[i])) {
+                waiting.push(now[i]);
             }
         }
+        pending = waiting;
         for (i = 0; i < open.length; i++) {
             if (now.indexOf(open[i]) === -1) restoreFocus(open[i]);
         }
@@ -340,8 +480,10 @@
         // The boundary is always the topmost open dialog's, derived rather
         // than reference counted -- so a modal opening over a modal needs no
         // bookkeeping, and a wrong count cannot leave the page permanently
-        // hidden. `hideBackground` is a no-op when that dialog has not
-        // changed.
+        // hidden. `hideBackground` is a no-op when that dialog has not changed
+        // AND the last walk actually drew the boundary; it deliberately runs
+        // again on the sweep where focus finishes arriving (#422), because
+        // until then the subtree the invoker sits in cannot be hidden.
         hideBackground(now.length ? now[now.length - 1] : null);
     }
 
@@ -353,22 +495,59 @@
      * mutations to schedule a sweep from. Without a settle pass the helper
      * would believe a closed dialog was still open: the background would stay
      * `aria-hidden`, Tab would stay trapped in an invisible box, and focus
-     * would never be returned. `transitionend` would be more precise and
-     * needs a listener per overlay plus a guard for the case where the
-     * property never animates; this is one timer.
+     * would never be returned.
+     *
+     * Since #374 the end of that transition is ALSO caught directly: one
+     * document-level listener for transition and animation events on a
+     * surface or anything containing one (see `start`), so focus returns when
+     * the dialog actually disappears instead of up to SETTLE_MS later. The
+     * timer stays as the guard for a property that never animates, and as the
+     * fallback for everything FOLLOW_FRAMES does not cover.
      */
     var SETTLE_MS = 400;
+
+    function onFrame() {
+        scheduled = false;
+        sweep();
+        // Keep looking for a few frames after a change, and for as long as a
+        // surface is waiting for its controls -- both bounded (FOLLOW_FRAMES,
+        // DEFER_SWEEPS), so this always stops.
+        if (followFrames > 0 || pending.length) {
+            if (followFrames > 0) followFrames--;
+            queueFrame();
+        }
+    }
+
+    function queueFrame() {
+        if (scheduled) return;
+        scheduled = true;
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(onFrame);
+        } else {
+            setTimeout(onFrame, 16);
+        }
+    }
 
     function schedule() {
         if (settle) clearTimeout(settle);
         settle = setTimeout(sweep, SETTLE_MS);
-        if (scheduled) return;
-        scheduled = true;
-        if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(sweep);
-        } else {
-            setTimeout(sweep, 0);
-        }
+        followFrames = FOLLOW_FRAMES;
+        queueFrame();
+    }
+
+    /**
+     * A transition or animation on a surface, or on anything holding one,
+     * may have just changed whether it is visible -- with no mutation to say
+     * so. Anything else is ignored, so hover effects elsewhere on the page
+     * cost nothing.
+     */
+    function onVisualChange(event) {
+        try {
+            var t = event.target;
+            if (t && t.matches && (t.matches(SURFACE) || t.querySelector(SURFACE))) {
+                schedule();
+            }
+        } catch (err) { /* the settle pass still covers it */ }
     }
 
     function onKeydown(event) {
@@ -413,6 +592,12 @@
                 if (el && el.closest && !el.closest(SURFACE)) lastFocused = el;
             }, false);
             document.addEventListener('keydown', onKeydown, false);
+            // Capture phase: transition/animation events do bubble, but a
+            // page handler calling stopPropagation must not blind this file.
+            ['transitionrun', 'transitionend', 'transitioncancel',
+             'animationstart', 'animationend'].forEach(function (type) {
+                document.addEventListener(type, onVisualChange, true);
+            });
 
             // `class` is how almost every modal here opens (`.active`,
             // `.hidden`); `style` covers the ones toggled with

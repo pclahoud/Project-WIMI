@@ -1,0 +1,66 @@
+/*
+ * First-run tour (#430). The spotlight is a ring with an outsized box-shadow,
+ * so the page around it is dimmed without a clip-path and without taking it out
+ * of the accessibility tree. The ring takes no pointer events, so the page stays
+ * usable. The panel is removed from the DOM when the tour ends rather than
+ * hidden, so there is no :empty or display toggle to get wrong (#134, #127).
+ */
+
+.wimi-tour-ring {
+    position: fixed;
+    border-radius: var(--radius-lg);
+    outline: 2px solid var(--color-primary);
+    box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.45);
+    pointer-events: none;
+    z-index: var(--z-modal);
+    transition: top 0.15s ease, left 0.15s ease, width 0.15s ease, height 0.15s ease;
+}
+
+.wimi-tour-panel {
+    position: fixed;
+    max-width: 22rem;
+    padding: var(--space-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-toast);
+}
+
+.wimi-tour-panel:focus {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
+}
+
+.wimi-tour-count {
+    margin: 0 0 var(--space-xs);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.wimi-tour-title {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-md);
+    /* A title is capped at 60 characters, and when its first 57 are one
+       unbroken token there is no space to wrap at (#672). */
+    overflow-wrap: anywhere;
+}
+
+.wimi-tour-text {
+    margin: 0 0 var(--space-sm);
+    line-height: 1.5;
+}
+
+.wimi-tour-more {
+    display: inline-block;
+    margin-bottom: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-primary-text);
+}
+
+.wimi-tour-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}

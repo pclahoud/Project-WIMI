@@ -185,6 +185,15 @@ echo Executable: dist\%DIST_NAME%\WIMI.exe
 echo.
 echo To run: dist\%DIST_NAME%\WIMI.exe
 echo.
+REM The real version, not a <version> placeholder for somebody to fill in
+REM (#425). A typed version is a third place the release can disagree with
+REM itself, and stage_license_files.py is the one build-time reader of
+REM APP_VERSION -- the same one publish_release.py uses to check a tag.
+REM The default is set first so a failed read gives WIMI_win_vunknown.zip,
+REM which is loud, rather than a literal %APP_VERSION% in a filename.
+set "APP_VERSION=unknown"
+for /f "delims=" %%v in ('python scripts\stage_license_files.py --print-version') do set "APP_VERSION=%%v"
+
 if /i "%WIMI_BUILD_VARIANT%"=="test" (
     echo This is a TEST build: it accepts --test-mode, which starts a remote
     echo debugger. Use it for WIMI_TEST_BINARY. Do NOT distribute it.
@@ -194,7 +203,7 @@ if /i "%WIMI_BUILD_VARIANT%"=="test" (
     REM write the release-page copy that explains what the larger download buys.
     echo To distribute:
     echo   - Zip the entire dist\%DIST_NAME% folder as
-    echo     WIMI_win_relations_v^<version^>.zip
+    echo     WIMI_win_relations_v%APP_VERSION%.zip
     echo.
     echo This is the RELATIONS artifact: it carries the relation-extraction
     echo runtime and is roughly twice the size of the default one. It is a
@@ -202,7 +211,7 @@ if /i "%WIMI_BUILD_VARIANT%"=="test" (
     echo this one take the default artifact's name.
 ) else (
     echo To distribute:
-    echo   - Zip the entire dist\WIMI folder as WIMI_win_v^<version^>.zip
+    echo   - Zip the entire dist\WIMI folder as WIMI_win_v%APP_VERSION%.zip
     echo   - Or use an installer creator (NSIS, Inno Setup^)
 )
 echo.

@@ -692,7 +692,7 @@
 
 /* Keyboard focus styles */
 .tox .tox-tbtn:focus-visible {
-    outline: 3px solid var(--color-primary) !important;
+    outline: 3px solid var(--focus-ring-color) !important;
     outline-offset: 2px !important;
 }
 
@@ -713,7 +713,7 @@
    surface showing where the caret is is not the same as a button flashing
    on click. */
 .tox-edit-area:focus-within {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: -2px;
 }
 

@@ -10,6 +10,7 @@
         'hierarchy.js',
         'edges.js',
         'relations.js',
+        'relation_extraction.js',
         'subject_restore.js',
         'weights.js',
         'sessions.js',

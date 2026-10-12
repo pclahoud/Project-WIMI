@@ -283,7 +283,8 @@ def _failing_registry(real_registry):
         raise sqlite3.OperationalError("deliberate failure from the test")
 
     return list(real_registry) + [
-        Migration(version=26, name="deliberate_failure", upgrade_fn=explode)
+        Migration(version=max(m.version for m in real_registry) + 1,
+                  name="deliberate_failure", upgrade_fn=explode)
     ]
 
 
@@ -295,7 +296,8 @@ class TestAFailedVerifyOpenLeavesEvidence:
         """The case #131 is really about.
 
         `UserDatabase.__init__` imports the registry lazily, so patching it
-        reaches the verify-open. v26 is pending on any archive, fails, and
+        reaches the verify-open. The next unshipped version is pending on any
+        archive, fails, and
         `MigrationRunner._apply_one` logs
         "Migration user/v026 (...) failed: ... Rolled back." through
         `self.error_logger` and through nothing else, before raising.
@@ -305,6 +307,7 @@ class TestAFailedVerifyOpenLeavesEvidence:
         """
         import database.migrations.user as user_migrations
 
+        expected = max(m.version for m in user_migrations.MIGRATIONS) + 1
         monkeypatch.setattr(
             user_migrations,
             "MIGRATIONS",
@@ -317,7 +320,7 @@ class TestAFailedVerifyOpenLeavesEvidence:
         error_logger.flush()
         text = _log_text(log_dir)
 
-        assert "Migration user/v026" in text
+        assert f"Migration user/v{expected:03d}" in text
         assert "deliberate_failure" in text
         assert "Rolled back" in text
         # Logged at ERROR, which is also why it reaches the file promptly:

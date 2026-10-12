@@ -114,7 +114,10 @@ interface Template {
     // === WEIGHT SETTINGS ===
     weightSettings?: WeightSettingsTemplate;
 
-    // === SAMPLE DATA (for preview) ===
+    // === SAMPLE DATA ===
+    // NOT READ BY THE APPLICATION TODAY (#433). There is no template-selection
+    // preview, and picking a template creates no subjects. See the field table
+    // below before relying on this.
     sampleHierarchy?: SampleNode[];
 }
 
@@ -177,7 +180,35 @@ interface SampleNode {
 | `dimensions` | array | No* | Array of dimension definitions (*required if examType is multi_dimensional) |
 | `hierarchyLevels` | string[] | No | Custom hierarchy level names (default: ["System", "Subsystem", "Topic", "Subtopic", "Child"]) |
 | `weightSettings` | object | No | Weight calculation settings |
-| `sampleHierarchy` | array | No | Example hierarchy for preview in template selection |
+| `sampleHierarchy` | array | No | **Unused by the application today — see below.** A short illustrative hierarchy. Names and nesting only |
+
+> **`sampleHierarchy` is not read anywhere, and it is not a blueprint (#433).**
+>
+> This row said *"Example hierarchy for preview in template selection"* until
+> 2026-10-06. There is no such preview, and nothing in `src/` reads the field:
+> `grep -rn "sampleHierarchy\|sample_hierarchy" src/ --include=*.py
+> --include=*.js --include=*.html` returns zero hits. `exam_wizard.js` calls
+> `api.createExamContext()` and never creates a subject, so **picking a
+> template leaves the subject tree empty** and the student is then blocked by
+> the entry form's required primary subject.
+>
+> It is also much smaller than its name suggests to a reader expecting a
+> content outline. Measured across all ten templates: 2–4 roots, **12–57 nodes
+> in total**, and every node carries exactly two keys, `name` and `children` —
+> **no weights, no `id`, no `levelType`**. For comparison, the real USMLE Step 1
+> content outline runs 1,843 lines. So this field could never have populated a
+> usable tree: #64 makes an omitted weight 0% on import, so importing it would
+> produce a fully-0% hierarchy and make question budgets, feasibility and the
+> weight quadrant meaningless.
+>
+> **Do not wire this field up as a tree source.** The owner's decision
+> (2026-10-06, #433) is that a template should seed the tree by running the
+> *real* importer — `plan_whole_exam_import` / `apply_whole_exam_import` behind
+> #67's preview — on a genuine blueprint, never through a second,
+> preview-less creation path. That work needs a blueprint that can lawfully
+> ship, which is **#437**, so it is not started. Until then the honest
+> statement is the one in this row, and the student manual's first-hour chapter
+> says the same thing to students.
 
 ### Dimension Fields
 

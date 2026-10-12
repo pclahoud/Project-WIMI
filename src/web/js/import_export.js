@@ -792,38 +792,20 @@ function validateImportData(data) {
         });
     });
 
-    // Check sibling weight totals
-    function checkWeightTotals(nodes, path) {
-        if (!nodes || nodes.length === 0) return;
-
-        const total = nodes.reduce((sum, n) => {
-            const w = n.weight;
-            if (typeof w === 'object' && w !== null) return sum + ((w.low || 0) + (w.high || 0)) / 2;
-            return sum + (w || 0);
-        }, 0);
-        if (total > 0 && Math.abs(total - 100) > 0.5) {
-            warnings.push({
-                type: 'weight',
-                message: `Sibling weights sum to ${total.toFixed(1)}% (expected 100%)`,
-                path: path,
-                severity: 'warning'
-            });
-        }
-        
-        nodes.forEach((node, i) => {
-            if (node.children && node.children.length > 0) {
-                checkWeightTotals(node.children, `${path}[${i}].children`);
-            }
-        });
-    }
-    
-    // Per tree, never pooled. Sibling totals are a statement about one set of
-    // siblings, and the roots of two different axes are not siblings — each
-    // axis's roots describe 100% of the exam on their own, so pooling them
-    // would report every whole-exam file as wildly over 100%.
-    trees.forEach((tree) => {
-        checkWeightTotals(tree.nodes, tree.key);
-    });
+    // THERE IS DELIBERATELY NO SIBLING-WEIGHT-TOTAL CHECK HERE (#488, #64).
+    // A weight in WIMI is a percentage of the whole exam at every level and
+    // WIMI never rescales, so a set of siblings has no reason to total 100%
+    // and the planner contains no such comparison either. The check that used
+    // to sit here fired on correct files: three real published Step 2 CK rows
+    // copied verbatim (8-12%, 15-20%, 4-8%) produced "Sibling weights sum to
+    // 33.5% (expected 100%)", and a legitimate top-level total of 84-153%
+    // produced 118.5%. It also read `{value: N}` -- one of the three weight
+    // forms the import guide documents -- as zero, so whether a student saw it
+    // depended on which equivalent spelling the file used.
+    //
+    // The honest per-level signal is the backend's coverage warning, which
+    // fires only when the top-level band cannot span 100% at all. Do not
+    // reintroduce a sibling sum in either direction.
 
     return {
         errors,
@@ -863,10 +845,17 @@ function showImportPreviewModal() {
     // yet -- that is how a student sets one up from a document.
     const dimensionNoticeEl = document.getElementById('import-dimension-notice');
     if (dimensionNoticeEl) {
+        // The tour's scope-notice tip (#430) is about a whole-exam file, the
+        // one kind that can archive an axis, so only that branch carries its
+        // anchor. Shown on a one-tree preview it would warn about something
+        // that file cannot do, and be recorded as seen before the case it
+        // exists for ever came up.
+        dimensionNoticeEl.removeAttribute('data-tour-anchor');
         if (pending.isWholeExam) {
+            dimensionNoticeEl.setAttribute('data-tour-anchor', 'tree-import-scope-notice');
             const notOnlyCurrent = TreeState.currentDimension
                 ? ` It does not import only into
-                   <strong>${escapeHtml(TreeState.currentDimension.name)}</strong>.`
+                   <strong>${WimiEscape.html(TreeState.currentDimension.name)}</strong>.`
                 : '';
             const howMany = pending.axisCount
                 ? ` (${pending.axisCount} in the file)`
@@ -883,7 +872,7 @@ function showImportPreviewModal() {
                    && TreeState.currentDimension) {
             dimensionNoticeEl.innerHTML = `
                 <span class="info-icon">📂</span>
-                <span>Importing into dimension: <strong>${escapeHtml(TreeState.currentDimension.name)}</strong></span>
+                <span>Importing into dimension: <strong>${WimiEscape.html(TreeState.currentDimension.name)}</strong></span>
             `;
             dimensionNoticeEl.classList.remove('hidden');
         } else {
@@ -897,7 +886,7 @@ function showImportPreviewModal() {
         metadataEl.innerHTML = `
             <div class="import-metadata-item">
                 <span class="label">Source:</span>
-                <span class="value">${escapeHtml(pending.metadata.exported_from || 'Unknown')}</span>
+                <span class="value">${WimiEscape.html(pending.metadata.exported_from || 'Unknown')}</span>
             </div>
             <div class="import-metadata-item">
                 <span class="label">Exported:</span>
@@ -906,7 +895,7 @@ function showImportPreviewModal() {
             ${pending.metadata.exam_name ? `
                 <div class="import-metadata-item">
                     <span class="label">Original Exam:</span>
-                    <span class="value">${escapeHtml(pending.metadata.exam_name)}</span>
+                    <span class="value">${WimiEscape.html(pending.metadata.exam_name)}</span>
                 </div>
             ` : ''}
         `;
@@ -918,6 +907,13 @@ function showImportPreviewModal() {
     // Show preview tree
     const previewContainer = document.getElementById('import-preview-tree');
     previewContainer.innerHTML = renderImportPreviewTree(pending.rootNodes || [], 0, 3);
+    // The tour's step on what the preview leaves undrawn (#682) points at the
+    // first "... more" line, so it exists only when something was left out.
+    previewContainer.querySelector('.import-preview-more')
+        ?.setAttribute('data-tour-anchor', 'tree-import-preview-more');
+    // And its step on the plan points at that section's heading.
+    document.querySelector('#import-preview-modal .import-mode-section > .section-title')
+        ?.setAttribute('data-tour-anchor', 'tree-import-plan');
     
     // Show warnings if any
     const warningsEl = document.getElementById('import-warnings');
@@ -931,8 +927,8 @@ function showImportPreviewModal() {
             <div class="import-warning-list hidden" id="import-warning-list">
                 ${ImportExportState.validationWarnings.map(w => `
                     <div class="import-warning-item">
-                        <span class="warning-path">${escapeHtml(w.path)}</span>
-                        <span class="warning-message">${escapeHtml(w.message)}</span>
+                        <span class="warning-path">${WimiEscape.html(w.path)}</span>
+                        <span class="warning-message">${WimiEscape.html(w.message)}</span>
                     </div>
                 `).join('')}
             </div>
@@ -963,6 +959,10 @@ function showImportPreviewModal() {
     // a round trip over a 2,000-subject outline; the section renders a
     // "working it out" line until the plan lands.
     loadImportMergePlan();
+
+    // The tour's scope-notice step exists only while this preview is open
+    // (#430). tree_editor.js owns the start; this file only reports the view.
+    if (typeof startTreeTour === 'function') startTreeTour();
 }
 
 /**
@@ -1016,7 +1016,7 @@ async function loadImportMergePlan() {
             <div class="import-plan-error">
                 <span class="info-icon">⚠️</span>
                 <span>Could not work out what this import will change
-                (${escapeHtml(error.message || String(error))}).
+                (${WimiEscape.html(error.message || String(error))}).
                 Importing anyway is not recommended.</span>
             </div>
         `;
@@ -1061,7 +1061,7 @@ function renderWholeExamPlanNotes(plan) {
     if ((plan.dimensions_removed || []).length) {
         const rows = plan.dimensions_removed.map(d => `
             <li>
-                <strong>${escapeHtml(d.name)}</strong>
+                <strong>${WimiEscape.html(d.name)}</strong>
                 <span class="import-plan-count">${d.subject_count}
                     ${d.subject_count === 1 ? 'subject' : 'subjects'}</span>
             </li>
@@ -1093,7 +1093,7 @@ function renderWholeExamPlanNotes(plan) {
     if ((plan.dimensions_kept_in_use || []).length) {
         const rows = plan.dimensions_kept_in_use.map(d => `
             <li>
-                <strong>${escapeHtml(d.name)}</strong>
+                <strong>${WimiEscape.html(d.name)}</strong>
                 <span class="import-plan-count">${d.entry_count}
                     ${d.entry_count === 1 ? 'entry' : 'entries'}</span>
             </li>
@@ -1116,7 +1116,7 @@ function renderWholeExamPlanNotes(plan) {
 
     if ((plan.dimensions_added || []).length) {
         const names = plan.dimensions_added
-            .map(d => escapeHtml(d.name)).join(', ');
+            .map(d => WimiEscape.html(d.name)).join(', ');
         const n = plan.dimensions_added.length;
         notes += `
             <div class="import-plan-note">
@@ -1134,8 +1134,8 @@ function renderWholeExamPlanNotes(plan) {
         .filter(d => d.changes && d.changes.name);
     if (renamed.length) {
         const rows = renamed.map(d => `
-            <li><strong>${escapeHtml(String(d.changes.name[0]))}</strong>
-                \u2192 <strong>${escapeHtml(String(d.changes.name[1]))}</strong></li>
+            <li><strong>${WimiEscape.html(String(d.changes.name[0]))}</strong>
+                \u2192 <strong>${WimiEscape.html(String(d.changes.name[1]))}</strong></li>
         `).join('');
         notes += `
             <div class="import-plan-note">
@@ -1166,7 +1166,7 @@ function renderWholeExamPlanNotes(plan) {
 
     const quiet = (plan.axes || []).filter(a => a.declares_no_subjects);
     if (quiet.length) {
-        const names = quiet.map(a => escapeHtml(a.name)).join(', ');
+        const names = quiet.map(a => WimiEscape.html(a.name)).join(', ');
         notes += `
             <div class="import-plan-note warning">
                 <span class="info-icon">\u26A0\uFE0F</span>
@@ -1219,8 +1219,8 @@ function renderWholeExamAxisTable(plan) {
         const spans100 = cov.weighted_roots && !cov.spans_100;
         return `
             <tr>
-                <td class="import-axis-name">${escapeHtml(axis.name)}</td>
-                <td>${ACTION[axis.action] || escapeHtml(String(axis.action))}</td>
+                <td class="import-axis-name">${WimiEscape.html(axis.name)}</td>
+                <td>${ACTION[axis.action] || WimiEscape.html(String(axis.action))}</td>
                 <td>${ac.added || 0}</td>
                 <td>${ac.updated || 0}</td>
                 <td>${ac.removed || 0}</td>
@@ -1290,9 +1290,9 @@ function renderImportMergePlan(plan) {
             <div class="import-plan-note">
                 <span class="info-icon">ℹ️</span>
                 <span>This file was written for
-                <strong>${escapeHtml(String(plan.file_exam_name))}</strong>;
+                <strong>${WimiEscape.html(String(plan.file_exam_name))}</strong>;
                 you are importing it into
-                <strong>${escapeHtml(String(plan.exam_name))}</strong>.</span>
+                <strong>${WimiEscape.html(String(plan.exam_name))}</strong>.</span>
             </div>
         `;
     }
@@ -1328,7 +1328,7 @@ function renderImportMergePlan(plan) {
             <li>
                 <a class="import-plan-link"
                    href="entry_browser.html?exam=${encodeURIComponent(plan.exam_context_id)}&subject=${encodeURIComponent(item.id)}">
-                    ${escapeHtml(item.name)}</a>
+                    ${WimiEscape.html(item.name)}</a>
                 <span class="import-plan-count">${item.entry_count}
                     ${item.entry_count === 1 ? 'entry' : 'entries'}</span>
             </li>
@@ -1390,7 +1390,7 @@ function renderImportMergePlan(plan) {
                 <div>
                     <p><strong>This file cannot be imported as it stands:</strong></p>
                     <ul>${plan.errors.map(
-                        e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+                        e => `<li>${WimiEscape.html(e)}</li>`).join('')}</ul>
                 </div>
             </div>
         `;
@@ -1567,7 +1567,7 @@ function renderImportPreviewTree(nodes, depth = 0, maxDepth = 3,
         parts.push(`
             <div class="import-preview-node" style="margin-left: ${indent}px;">
                 <span class="preview-icon">${hasChildren ? '\u{1F4C1}' : '\u{1F4C4}'}</span>
-                <span class="preview-name">${escapeHtml(node.name)}</span>
+                <span class="preview-name">${WimiEscape.html(node.name)}</span>
                 ${weightLabel ? `<span class="preview-weight">${weightLabel}</span>` : ''}
                 ${hasChildren && depth >= maxDepth ? `<span class="preview-children-count">(${childCount})</span>` : ''}
             </div>
@@ -1620,6 +1620,14 @@ function updateImportModeInfo() {
 function hideImportPreviewModal() {
     document.getElementById('import-preview-modal')?.classList.remove('active');
     ImportExportState.pendingImport = null;
+    // A tip about the scope notice would otherwise stay open over a closed
+    // preview. The backdrop fades out with `visibility` on a transition, so
+    // the notice still renders for that long and the tour cannot tell it is
+    // going; dropping the anchor is what tells it, and the rebuild closes it.
+    document.getElementById('import-dimension-notice')?.removeAttribute('data-tour-anchor');
+    document.querySelectorAll('#import-preview-modal [data-tour-anchor]')
+        .forEach(el => el.removeAttribute('data-tour-anchor'));
+    if (typeof startTreeTour === 'function') startTreeTour();
 }
 
 /**
@@ -1704,8 +1712,8 @@ function showImportErrorModal(validation) {
         <div class="import-error-item">
             <span class="error-icon">❌</span>
             <div class="error-details">
-                <span class="error-path">${escapeHtml(e.path)}</span>
-                <span class="error-message">${escapeHtml(e.message)}</span>
+                <span class="error-path">${WimiEscape.html(e.path)}</span>
+                <span class="error-message">${WimiEscape.html(e.message)}</span>
             </div>
         </div>
     `).join('');
@@ -1869,18 +1877,6 @@ function formatDate(dateStr) {
     }
 }
 
-/**
- * Escape HTML (use global if available)
- */
-function escapeHtmlImport(text) {
-    if (typeof escapeHtml === 'function') {
-        return escapeHtml(text);
-    }
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 // =========================================================================
 // Override existing functions
@@ -1932,7 +1928,7 @@ function parseMarkdown(markdown) {
     html = html.replace(/__CODE_BLOCK_(\d+)__/g, (match, index) => {
         const block = codeBlocks[parseInt(index)];
         const langClass = block.lang ? ` class="language-${block.lang}"` : '';
-        return `<pre${langClass}><code>${escapeHtml(block.code)}</code></pre>`;
+        return `<pre${langClass}><code>${WimiEscape.html(block.code)}</code></pre>`;
     });
     
     // Headers (must be at start of line)
@@ -2155,3 +2151,88 @@ window.hideImportErrorModal = hideImportErrorModal;
 window.showImportHelpModal = showImportHelpModal;
 window.hideImportHelpModal = hideImportHelpModal;
 window.ImportExportState = ImportExportState;
+
+/**
+ * Copy the import format guide to the clipboard (#452).
+ *
+ * Copies the MARKDOWN SOURCE, not the rendered HTML. The documented use for
+ * this button is pasting the guide into an AI assistant so it can produce a
+ * valid import file (see the manual's "Building your subject tree from a
+ * published outline"), and a model should be given the format as written, not
+ * as a div soup. It is also the single source that
+ * `scripts/check_import_guide_sync.py` keeps in step with `docs/`, so what a
+ * student pastes is byte-for-byte what the repository publishes.
+ *
+ * The three-step fallback and its order are NOT invented here -- they are
+ * copied from `export_dialog.js`, which records why: the Qt bridge is the only
+ * route that works reliably in PyQt6 WebEngine, and the modern Clipboard API
+ * may be blocked outright on the `file://` protocol every WIMI page is served
+ * over. So the bridge is tried first and the standard API is the fallback,
+ * which is the reverse of what a web developer would write.
+ *
+ * Failure is reported rather than swallowed, and the last resort leaves the
+ * text selected so Ctrl+C still works -- a message may not direct a press
+ * unless the press is available (#174).
+ */
+async function copyImportFormatGuide() {
+    const source = document.getElementById('import-help-source');
+    const status = document.getElementById('import-help-copy-status');
+    const button = document.getElementById('btn-copy-import-format');
+    if (!source) return;
+
+    const text = source.textContent;
+    let success = false;
+
+    // Primary: the Qt bridge.
+    if (typeof api !== 'undefined' && api.copyToClipboard) {
+        try {
+            await api.copyToClipboard(text);
+            success = true;
+        } catch (e) {
+            // Bridge unavailable; fall through.
+        }
+    }
+
+    // Fallback 1: the Clipboard API, which file:// may refuse.
+    if (!success && navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            success = true;
+        } catch (e) {
+            // Blocked; fall through.
+        }
+    }
+
+    // Fallback 2: a scratch textarea. Left selected on failure so the student
+    // can finish the job by hand.
+    let scratch = null;
+    if (!success) {
+        try {
+            scratch = document.createElement('textarea');
+            scratch.value = text;
+            scratch.setAttribute('readonly', 'readonly');
+            scratch.style.position = 'fixed';
+            scratch.style.opacity = '0';
+            document.body.appendChild(scratch);
+            scratch.select();
+            scratch.setSelectionRange(0, text.length);
+            success = document.execCommand('copy');
+        } catch (e) {
+            success = false;
+        }
+    }
+
+    if (status) {
+        status.textContent = success
+            ? 'Copied. Paste it into your assistant before your outline.'
+            : 'Could not copy automatically. The guide is selected, so press Ctrl+C.';
+    }
+    if (button) {
+        button.textContent = success ? 'Copied' : 'Copy the whole guide';
+    }
+    if (scratch && success) {
+        scratch.remove();
+    }
+}
+
+window.copyImportFormatGuide = copyImportFormatGuide;

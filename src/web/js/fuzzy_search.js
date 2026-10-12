@@ -455,11 +455,11 @@ class FuzzySearch {
      */
     highlightMatches(text, query) {
         if (!text || !query || query.length < 2) {
-            return this._escapeHtml(text || '');
+            return WimiEscape.html(text || '');
         }
         
         // Escape HTML first
-        const escapedText = this._escapeHtml(text);
+        const escapedText = WimiEscape.html(text);
         const lowerText = text.toLowerCase();
         const lowerQuery = query.toLowerCase();
         
@@ -479,14 +479,14 @@ class FuzzySearch {
         
         for (const range of ranges) {
             // Add text before this range
-            result += this._escapeHtml(text.substring(lastIndex, range.start));
+            result += WimiEscape.html(text.substring(lastIndex, range.start));
             // Add highlighted text
-            result += `<mark>${this._escapeHtml(text.substring(range.start, range.end + 1))}</mark>`;
+            result += `<mark>${WimiEscape.html(text.substring(range.start, range.end + 1))}</mark>`;
             lastIndex = range.end + 1;
         }
         
         // Add remaining text
-        result += this._escapeHtml(text.substring(lastIndex));
+        result += WimiEscape.html(text.substring(lastIndex));
         
         return result;
     }
@@ -561,17 +561,6 @@ class FuzzySearch {
         return ranges;
     }
     
-    /**
-     * Escape HTML special characters
-     * @param {string} text - Text to escape
-     * @returns {string} Escaped text
-     */
-    _escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
     
     /**
      * Check if an exact match exists (for determining whether to show "create" option)

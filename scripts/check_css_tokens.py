@@ -144,7 +144,7 @@ from __future__ import annotations
 import re
 import sys
 from collections import defaultdict
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import NamedTuple
 
 
@@ -275,6 +275,17 @@ def iter_scanned_files(project_root: Path) -> list[Path]:
     return sorted(files)
 
 
+def location(path: PurePath, root: PurePath, line: int) -> str:
+    """Return the reported location of ``line`` in ``path``, e.g. ``src/web/css/a.css:12``.
+
+    A gate's reported location is a repo-relative identifier, not a path to
+    open, so it must read the same on every host (#621). ``str(path)`` would
+    render backslashes on Windows; ``check_relations_runtime_imports.py``
+    already uses ``as_posix()`` for the same reason.
+    """
+    return f"{path.relative_to(root).as_posix()}:{line}"
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     """Return True if `path` is inside `parent`."""
     try:
@@ -361,15 +372,14 @@ def audit(project_root: Path) -> AuditResult:
     use_count = fallback_use_count = 0
 
     for path, source in sources:
-        rel = path.relative_to(project_root)
         for token, line_no in find_uses(source):
             use_count += 1
             if token not in defined:
-                bare[token].append(f"{rel}:{line_no}")
+                bare[token].append(location(path, project_root, line_no))
         for token, line_no in find_fallback_uses(source):
             fallback_use_count += 1
             if token not in defined:
-                fallback[token].append(f"{rel}:{line_no}")
+                fallback[token].append(location(path, project_root, line_no))
 
     return AuditResult(
         undefined=_sorted_locations(bare),

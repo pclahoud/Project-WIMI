@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../css/browser.css">
     <link rel="stylesheet" href="../css/difficulty.css">
     <link rel="stylesheet" href="../css/export_dialog.css">
+    <link rel="stylesheet" href="../css/tour.css">
 </head>
 <body>
     <!--
@@ -80,7 +81,7 @@
                      emptying the digit costs them nothing. A dash or similar
                      was considered and rejected -- it satisfies non-empty,
                      which is #83's first bullet verbatim. -->
-                <div class="stats-summary" id="statsSummary">
+                <div class="stats-summary" id="statsSummary" data-testid="browser-stats-summary">
                     <span class="stat-item"><span id="totalEntries"></span> entries</span>
                     <span class="stat-divider">•</span>
                     <span class="stat-item"><span id="draftCount"></span> drafts</span>
@@ -380,6 +381,7 @@
 
     <!-- Scripts -->
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -398,6 +400,11 @@
     <!-- #301: only `ArchivedAncestorNote.sentence` is used here -- the
          subject chips extend their existing `title`. -->
     <script src="../js/archived_ancestor_note.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         entry_browser.js starts it once the page gate releases, and again
+         when a filter panel opens. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/entry_browser.js"></script>
 </body>
 </html>

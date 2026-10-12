@@ -221,3 +221,83 @@ def test_the_picker_returns_candidates_with_fan_in_and_dimension(bridge):
     assert row['incoming_count'] == 0
     assert row['crosses_dimension'] is False
     assert 'path' in row
+
+
+# ==================== Relation types (m026) ====================
+
+
+def _types(bridge, **params):
+    out = json.loads(bridge.getRelationTypes(json.dumps(params)))
+    assert out['success'], out
+    return out['data']
+
+
+def test_relation_types_are_read_through_a_subject(bridge, user_db):
+    user_db.create_exam_context('USMLE')
+    a = _node(user_db, 'A')
+    labels = [t['label'] for t in _types(bridge, subject_id=a)]
+    assert labels == ['causes', 'risk factor for', 'complication of',
+                      'treats', 'presents with', 'confused with']
+
+
+def test_the_slot_hides_retired_types_unless_asked(bridge, user_db):
+    exam_id = user_db.create_exam_context('USMLE').id
+    treats = next(t['id'] for t in _types(bridge, exam_id=exam_id)
+                  if t['label'] == 'treats')
+    user_db.retire_relation_type(treats)
+    assert 'treats' not in [t['label'] for t in _types(bridge, exam_id=exam_id)]
+    assert 'treats' in [t['label'] for t in
+                        _types(bridge, exam_id=exam_id, include_retired=True)]
+
+
+def test_relation_types_need_a_subject_or_an_exam(bridge):
+    out = json.loads(bridge.getRelationTypes(json.dumps({})))
+    assert out['success'] is False
+
+
+def test_relation_types_slot_guards_a_missing_database(empty_bridge):
+    out = json.loads(empty_bridge.getRelationTypes(json.dumps({'exam_id': 1})))
+    assert out['success'] is False
+
+
+def test_a_typed_relation_is_created_and_read_through_the_slots(bridge, user_db):
+    exam_id = user_db.create_exam_context('USMLE').id
+    causes = next(t['id'] for t in _types(bridge, exam_id=exam_id)
+                  if t['label'] == 'causes')
+    a, b = _node(user_db, 'Wilson disease'), _node(user_db, 'Psychosis')
+    created = _create(bridge, a, b, 'Copper in the basal ganglia.',
+                      relation_type_id=causes)
+    assert created['success'], created
+
+    out = json.loads(bridge.getSubjectRelations(json.dumps({'subject_id': b})))
+    row = out['data']['relations'][0]
+    assert row['relation_label'] == 'caused by'
+    assert row['relation_type_id'] == causes
+
+
+def test_a_retired_type_is_refused_with_a_sentence(bridge, user_db):
+    exam_id = user_db.create_exam_context('USMLE').id
+    treats = next(t['id'] for t in _types(bridge, exam_id=exam_id)
+                  if t['label'] == 'treats')
+    user_db.retire_relation_type(treats)
+    a, b = _node(user_db, 'A'), _node(user_db, 'B')
+    out = _create(bridge, a, b, 'Too late.', relation_type_id=treats)
+    assert out['success'] is False
+    assert 'retired' in out['error']
+
+
+def test_the_picker_slot_excludes_per_type(bridge, user_db):
+    exam_id = user_db.create_exam_context('USMLE').id
+    ids = {t['label']: t['id'] for t in _types(bridge, exam_id=exam_id)}
+    a, b = _node(user_db, 'Crohn disease'), _node(user_db, 'Nephrolithiasis')
+    assert _create(bridge, a, b, 'Oxalate.', relation_type_id=ids['causes'])['success']
+
+    def search(type_id):
+        out = json.loads(bridge.searchRelatableSubjects(json.dumps({
+            'subject_id': a, 'query': 'Nephro', 'direction': 'outgoing',
+            'relation_type_id': type_id})))
+        assert out['success'], out
+        return [r['id'] for r in out['data']]
+
+    assert search(ids['causes']) == []
+    assert search(ids['complication of']) == [b]

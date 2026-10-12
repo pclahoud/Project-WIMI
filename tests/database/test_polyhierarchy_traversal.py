@@ -189,20 +189,21 @@ def test_count_distinct_avoids_inflation(user_db):
 
 
 def test_dvt_appears_under_both_cardiovascular_and_pregnancy(user_db):
-    """Modeled on the USMLE multi-parent topic DVT — one entry on the
-    DVT leaf rolls up to BOTH Cardiovascular's and Pregnancy's totals.
+    """Modeled on the multi-parent topic DVT — one entry on the DVT leaf
+    rolls up to BOTH Cardiovascular's and Pregnancy's totals.
 
-    Uses the USMLE outline fixture indirectly: we don't need to build
-    the *entire* outline (1,300+ lines), just the two parent paths
-    through which DVT/VTE appears in §1 of the migration plan.
+    Uses the exam outline fixture indirectly: we don't need to build the
+    *entire* outline (2,300+ topics), just the two parent paths through
+    which DVT/VTE appears in §1 of the migration plan.
     """
-    from tests.fixtures.load_usmle_outline import load_usmle_outline
+    from tests.fixtures.load_exam_outline import load_exam_outline
 
-    outline = load_usmle_outline()
+    outline = load_exam_outline()
     # The fixture identifies multi-parent topics; "deep venous thrombosis"
-    # or "venous thromboembolism" should appear with at least two parents.
+    # is one of the cross-listings it places deliberately.
     multi = set(outline.multi_parent_topics)
-    assert multi, "USMLE fixture should expose at least one multi-parent topic"
+    assert multi, "the outline fixture should expose multi-parent topics"
+    assert "deep venous thrombosis" in multi
 
     cardio = _make_node(user_db, "Cardiovascular System")
     vasc = _make_node(user_db, "Vascular disorders")

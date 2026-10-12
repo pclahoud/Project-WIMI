@@ -159,6 +159,9 @@ def test_the_tree_toolbar_counters_do_appear_once_they_have_counted(
         assert shown["text"], (
             f"#{name.replace('_', '-')} is displayed and empty after the "
             f"{shape} load: {state!r}")
-    assert state["node_count"]["text"] == "2 subjects", (
+    # A dimensioned count is one axis's count, and says so (#605): an exam's
+    # subjects in no axis are invisible to this path.
+    want = "2 subjects in W289 System" if shape == "dimensioned" else "2 subjects"
+    assert state["node_count"]["text"] == want, (
         f"the toolbar counted {state['node_count']['text']!r} on an exam "
         f"seeded with 2 subjects: {state!r}")

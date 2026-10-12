@@ -350,31 +350,82 @@ const AliasManager = {
 
         emptyEl.classList.add('hidden');
 
-        const html = this.aliases.map(alias => `
-            <div class="alias-item" data-id="${alias.id}">
-                <div class="alias-item-content">
-                    <span class="alias-name">${this._escapeHtml(alias.alias_name)}</span>
-                    <span class="alias-type-badge alias-type-${alias.alias_type}">
-                        ${this._getTypeLabel(alias.alias_type)}
-                    </span>
-                    ${alias.is_primary ? '<span class="alias-primary-badge">Primary</span>' : ''}
-                </div>
-                <div class="alias-item-actions">
-                    <button class="btn-icon btn-icon-sm alias-primary-toggle"
-                            title="${alias.is_primary ? 'Remove primary' : 'Set as primary'}"
-                            onclick="AliasManager.togglePrimary(${alias.id}, ${!alias.is_primary})">
-                        ${alias.is_primary ? '★' : '☆'}
-                    </button>
-                    <button class="btn-icon btn-icon-sm btn-icon-danger alias-delete"
-                            title="Delete alias"
-                            onclick="AliasManager.deleteAlias(${alias.id})">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-        `).join('');
+        // Built from nodes, not from a template literal (#597). Five values
+        // here come from the database -- `alias.id` three times and
+        // `alias_type` twice -- and interpolating them put a stored
+        // `alias_type` into a class attribute, a stored id into two inline
+        // `onclick` handlers, and a stored id into `data-id`. Measured: a
+        // crafted profile ran code when this modal opened and again on one
+        // click of the star. Nodes remove all five at once, and the handlers
+        // close over the alias itself so no id makes a round trip through a
+        // string at all.
+        //
+        // There is deliberately no escaping in here. Escaping would also work,
+        // but it is five separate things to get right in three different
+        // contexts (HTML text, an attribute, a JavaScript string literal), and
+        // the JavaScript-string one is the context `WimiEscape.html` makes
+        // *worse* rather than better -- see #578.
+        const knownTypes = new Set(this.ALIAS_TYPES.map(t => t.value));
 
-        listEl.innerHTML = html;
+        listEl.textContent = '';
+
+        for (const alias of this.aliases) {
+            const item = this._el('div', 'alias-item');
+            // setAttribute, so there is no attribute to break out of.
+            item.dataset.id = String(alias.id);
+
+            const content = this._el('div', 'alias-item-content');
+            content.appendChild(this._el('span', 'alias-name', alias.alias_name));
+
+            const badge = this._el('span', 'alias-type-badge');
+            // The per-type class is styled for exactly the four known values
+            // (aliases.css:209-224), so an unrecognised one is NOT EMITTED
+            // rather than escaped: an allowlist that loses nothing, because a
+            // class nothing styles was never doing anything. `classList.add`
+            // would also throw on a value containing a space.
+            if (knownTypes.has(alias.alias_type)) {
+                badge.classList.add(`alias-type-${alias.alias_type}`);
+            }
+            badge.textContent = this._getTypeLabel(alias.alias_type);
+            content.appendChild(badge);
+
+            if (alias.is_primary) {
+                content.appendChild(
+                    this._el('span', 'alias-primary-badge', 'Primary'));
+            }
+            item.appendChild(content);
+
+            const actions = this._el('div', 'alias-item-actions');
+
+            const star = this._el(
+                'button', 'btn-icon btn-icon-sm alias-primary-toggle',
+                alias.is_primary ? '★' : '☆');
+            star.title = alias.is_primary ? 'Remove primary' : 'Set as primary';
+            star.addEventListener(
+                'click', () => this.togglePrimary(alias.id, !alias.is_primary));
+            actions.appendChild(star);
+
+            const del = this._el(
+                'button', 'btn-icon btn-icon-sm btn-icon-danger alias-delete',
+                '🗑️');
+            del.title = 'Delete alias';
+            del.addEventListener('click', () => this.deleteAlias(alias.id));
+            actions.appendChild(del);
+
+            item.appendChild(actions);
+            listEl.appendChild(item);
+        }
+    },
+
+    /**
+     * An element with a class and optional text. `textContent` is the whole
+     * point: it cannot produce markup whatever the value is.
+     */
+    _el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined && text !== null) node.textContent = text;
+        return node;
     },
 
     /**
@@ -445,15 +496,6 @@ const AliasManager = {
         return typeObj ? typeObj.label : type;
     },
 
-    /**
-     * Escape HTML
-     */
-    _escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    },
 
     /**
      * Debounce helper

@@ -560,9 +560,19 @@ class MainWindow(QMainWindow):
         )
         self.db_bridge.media_manager = self.media_manager
 
-        # Give plugins access to the updated media manager
+        # Give plugins access to the updated media manager, then reload them
+        # for the incoming profile -- before the outgoing database is closed
+        # below, because every loaded PluginAPI still holds it (#505).
         if self.plugin_manager:
             self.plugin_manager.set_media_manager(self.media_manager)
+            try:
+                self.plugin_manager.set_user_database(user_db)
+            except Exception as exc:
+                self.error_logger.error(
+                    f"Failed to reload plugins for the new profile: {exc}",
+                    context={'user_id': user_db.user_id}
+                )
+            self.db_bridge._plugin_registry = self.plugin_manager.get_plugin_registry()
 
         # Close the outgoing user database. Nothing else closes it, and
         # a lingering SQLite WAL handle keeps the file locked on Windows,

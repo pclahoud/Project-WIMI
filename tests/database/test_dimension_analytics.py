@@ -465,6 +465,68 @@ class TestStudyRecommendations:
         assert result == []
 
 
+class TestStudyRecommendationWeights:
+    """#469: the weight behind a recommendation, and a subject that has none.
+
+    ``get_hierarchy_nodes_by_dimension`` is ``SELECT *``, so ``exam_weight_low``
+    and ``exam_weight_high`` are always PRESENT and are ``None`` when unset.
+    ``n.get(key, 0)`` therefore never applied its default, and ``None / 2``
+    raised on the default state of every new exam. The same expression read
+    ``low + high / 2``, which is not the midpoint it was labelled as.
+    """
+
+    @staticmethod
+    def _by_pair(result):
+        return {(r['dim_a_value'], r['dim_b_value']): r for r in result}
+
+    @staticmethod
+    def _mid(node):
+        return (node.exam_weight_low + node.exam_weight_high) / 2
+
+    def test_the_weight_is_the_midpoint_of_each_band(self, db_with_multi_dim_exam):
+        data = db_with_multi_dim_exam
+        nodes = data['nodes']
+        rec = self._by_pair(data['db'].get_weighted_study_recommendations(
+            data['exam'].id, limit=50))[('Cardiovascular', 'Diagnosis')]
+        expected = (self._mid(nodes['cardio']) + self._mid(nodes['diagnosis'])) / 2
+        assert rec['weight'] == round(expected, 1), (
+            f"{rec['weight']} is not the average of the two bands' midpoints "
+            f"({expected}); `low + high / 2` would give a larger figure")
+
+    def test_an_unweighted_subject_does_not_raise(self, db_with_multi_dim_exam):
+        data = db_with_multi_dim_exam
+        db = data['db']
+        db.conn.execute(
+            "UPDATE subject_nodes SET exam_weight_low = NULL, "
+            "exam_weight_high = NULL WHERE id = ?", (data['nodes']['cardio'].id,))
+        db.conn.commit()
+
+        result = db.get_weighted_study_recommendations(data['exam'].id, limit=50)
+
+        by_pair = self._by_pair(result)
+        assert ('Cardiovascular', 'Diagnosis') in by_pair, (
+            'an unweighted subject must still be recommended, not dropped')
+        assert by_pair[('Cardiovascular', 'Diagnosis')]['weight'] is None, (
+            'the fallback used for ranking must not be reported as the '
+            "student's weight")
+        assert by_pair[('Respiratory', 'Diagnosis')]['weight'] is not None, (
+            'a fully weighted combination keeps its figure')
+
+    def test_one_recorded_bound_stands_for_the_band(self, db_with_multi_dim_exam):
+        data = db_with_multi_dim_exam
+        db = data['db']
+        cardio = data['nodes']['cardio']
+        db.conn.execute(
+            "UPDATE subject_nodes SET exam_weight_low = NULL WHERE id = ?",
+            (cardio.id,))
+        db.conn.commit()
+
+        rec = self._by_pair(db.get_weighted_study_recommendations(
+            data['exam'].id, limit=50))[('Cardiovascular', 'Diagnosis')]
+        expected = (cardio.exam_weight_high + self._mid(data['nodes']['diagnosis'])) / 2
+        assert rec['weight'] == round(expected, 1)
+
+
 class TestTemporalTrends:
     """Tests for get_temporal_trends_by_dimension method."""
 

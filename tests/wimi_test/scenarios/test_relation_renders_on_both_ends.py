@@ -123,9 +123,12 @@ def test_a_relation_renders_on_both_subjects_with_the_right_direction(
         })()
         """
     )
+    # The modal's first choice is the exam's first relation type, "causes"
+    # (m026), so the authoring end reads the type's forward label and the
+    # receiving end its reverse -- decision 4's two faces, now worded.
     assert outgoing == {
         'direction': 'outgoing',
-        'label': 'Leads to',
+        'label': 'Causes',
         'subject': 'BE Nephrosclerosis',
         'reason': REASON,
     }, f'The authoring end rendered the relation wrong: {outgoing!r}'

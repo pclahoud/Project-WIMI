@@ -248,7 +248,7 @@ def seeded_user(test_user: TestUser) -> Callable[..., TestUser]:
     def _factory(seed_name: str, **seeder_kwargs: Any) -> TestUser:
         # Lazy import keeps the plugin importable in environments
         # where the seeders module's transitive deps (e.g. the
-        # USMLE outline file) are unavailable.
+        # exam outline fixture) are unavailable.
         from wimi_test.db.seeders import get_seeder
 
         seeder = get_seeder(seed_name)

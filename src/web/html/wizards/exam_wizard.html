@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="../../css/wizard.css">
     <link rel="stylesheet" href="../../css/exam_type_selector.css">
     <link rel="stylesheet" href="../../css/dimension_editor.css">
+    <link rel="stylesheet" href="../../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../../js/escape.js"></script>
     <script src="../../js/api/_bridge.js"></script>
     <script src="../../js/api/_loader.js"></script>
     <script src="../../js/themes.js"></script>
@@ -320,7 +322,7 @@
                 
                 <!-- Step 3.5/4.5: Exam Length (Stage 4 of HIERARCHICAL_WEIGHT_ALLOCATION_REWORK.md §3.2/§7.4) -->
                 <div class="wizard-step" id="step-exam-length" data-testid="exam-wizard-length-step">
-                    <h2 class="step-title">Exam Length</h2>
+                    <h2 class="step-title" data-tour-anchor="wizard-exam-length">Exam Length</h2>
                     <p class="step-description">
                         How long is this exam? The planning baseline drives question-count
                         rendering ("Cardio = 25 of 280 questions") and the Hamilton
@@ -354,7 +356,7 @@
                                 data-testid="exam-wizard-length-kind-range"
                             >
                             <div class="exam-length-option-content">
-                                <span class="exam-length-option-label">Variable length (CAT)</span>
+                                <span class="exam-length-option-label" data-tour-anchor="wizard-length-kind-range">Variable length (CAT)</span>
                                 <span class="exam-length-option-help">
                                     Computer Adaptive Test — the real exam ends when the algorithm
                                     reaches a confident decision (NCLEX-RN: 85–150 items).
@@ -542,8 +544,8 @@
                 </div>
                 
                 <!-- Step 5/6: Review & Create (renamed from step-4) -->
-                <div class="wizard-step" id="step-5">
-                    <h2 class="step-title">Review & Create</h2>
+                <div class="wizard-step" id="step-5" data-testid="exam-wizard-review-step">
+                    <h2 class="step-title" data-tour-anchor="wizard-review">Review & Create</h2>
                     <p class="step-description">
                         Review your configuration before creating the exam context.
                     </p>
@@ -675,6 +677,29 @@
             </div>
         </div>
 
+        <!-- Remove-dimension confirmation (#486). The wizard removed an axis,
+             and every subject tree in it, on Save with nothing asked: its only
+             confirm() was unreachable, because it short-circuited whenever
+             there was more than one axis and the button is disabled when there
+             is one. Deleting a subject draws a preview and says archiving is
+             reversible; this is the same weight for a larger action. -->
+        <div class="modal-backdrop hidden" id="remove-dimension-modal" data-testid="wizard-modal-remove-dimension">
+            <div class="modal" data-modal-surface role="dialog" aria-modal="true"
+                 aria-labelledby="remove-dimension-title">
+                <div class="modal-icon error">⚠️</div>
+                <h2 class="modal-title" id="remove-dimension-title">Remove this dimension?</h2>
+                <p class="modal-message" id="remove-dimension-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-remove-dimension" data-testid="wizard-remove-dimension-cancel-button">
+                        Keep it
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-remove-dimension" data-testid="wizard-remove-dimension-confirm-button">
+                        Remove it
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Learn More Modal: Simple Exam -->
         <div class="modal-backdrop hidden learn-more-modal" id="modal-learn-simple" data-testid="wizard-modal-learn-simple">
             <div class="modal" data-modal-surface role="dialog" aria-modal="true"
@@ -774,6 +799,10 @@ Tags:
     </div>
     
     <script src="../../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         exam_wizard.js starts it on load and again on every wizard step. -->
+    <script src="../../js/tour_steps.js"></script>
+    <script src="../../js/tour.js"></script>
     <script src="../../js/exam_wizard.js"></script>
 </body>
 </html>

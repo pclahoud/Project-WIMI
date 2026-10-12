@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archiving a subject, and getting it back - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/62_archive_and_restore.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 22</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Archiving a subject, and getting it back</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_dictation.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Speaking instead of typing</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_profiles_and_profile_files.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Profiles, and carrying one to another computer</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Archiving a subject, and getting it back
+
+## In short
+
+Deleting a subject in WIMI archives it rather than erasing it, and every archived deletion is listed at the foot of the tree editor with a Restore button beside it. Restore undoes the whole operation rather than one row, and it tells you about anything it could not put back. Nothing in WIMI permanently removes an archived subject, so the honest summary is that a deletion here is recoverable and a cluttered archive is the price.
+
+## Deleting a subject
+
+Select a subject in the tree and the details panel on the right ends with
+**Delete Subject**. Pressing it opens a confirmation headed **Delete Subject?**
+with the subject's name in the sentence beneath, and two buttons, **Cancel** and
+**Delete**.
+
+Between them is the part worth reading. While the modal opens it says
+*Checking what this will affect…*, and then it replaces that with a plain
+statement of what pressing **Delete** would do. For a subject with nothing
+hanging off it that is one line: only this subject will be deleted, nothing else
+is affected. For anything else it lists the consequences:
+
+- **how many other subjects will be deleted too**, named, with the reason — nothing else holds them;
+- **how many subjects will move to the top level**, if you chose that;
+- **how many shared subjects will be kept and stay under their other parent**, named;
+- **how many of your entries will go back to counting under every parent of their topic**, which is the one that needs the explanation in a later section.
+
+Long lists are shortened to three names and "and 4 more".
+
+That statement is computed by the same code that performs the delete, so it
+cannot describe one thing and do another. It is the thing to read rather than
+press through.
+
+## Archived, not erased
+
+<!-- tour
+page: tree-editor
+anchor: tree-delete-confirm
+text: Delete archives rather than erases. The subject, and anything the
+  statement above lists as going with it, moves to Archived subjects at the
+  foot of the tree, where Restore brings it back. That is so even when the
+  statement does not mention archiving.
+-->
+
+The sentence at the foot of that panel is the whole of this chapter in six
+words: deleted subjects are archived, not erased.
+
+What actually happens is that the subject is marked archived and disappears from
+every view — the tree, the subject pickers, the analytics, the search. Its row
+is still there, with its name, its level, its weights and its aliases, and so
+are the entries you tagged on it. Which is why it can come back complete rather
+than as a fresh subject with the same name.
+
+One caveat about that reassuring sentence: it is printed only when the delete
+*has* consequences. Delete a subject with nothing underneath it and the panel
+tells you nothing else is affected and says nothing at all about archiving, so
+the commonest delete of all is the one that does not mention it. It is still
+archived, and it is still in the panel described below.
+
+## What happens to the children
+
+A subject rarely sits alone, and what happens underneath it follows one rule:
+**a child is archived only if the subject you deleted was holding its last
+remaining place in the tree.**
+
+Put the other way round: if a child has another parent still standing, it is not
+deleted. It loses the link to the subject you removed and stays exactly where it
+was under its other parent. WIMI calls that detaching, and the modal says so
+before you press: *N shared subjects will be kept and stay under their other
+parent.*
+
+Measured on a small tree with one subject shared between two parents and one
+subject belonging to only one of them: deleting that parent archived the parent
+and the exclusive child, left the shared child active under its other parent,
+and removed exactly one link — the one from the archived parent to the surviving
+child. Every other link was left in place, which is what makes putting it back
+cheap.
+
+This matters because of
+[Subjects that live in more than one place](help_shared_subjects.html). In a tree
+where one subject can appear in several branches, "delete this branch" has to
+mean something careful, and the careful version is the one above. A subject
+reachable by two routes inside the branch you are deleting is only archived once
+both of them are gone, which is why the modal sometimes names subjects you did
+not expect to be involved.
+
+## Keeping the children
+
+<!-- tour
+page: tree-editor
+anchor: tree-delete-promote
+text: Ticked, these children move to the top level instead of being archived
+  with their parent. Restoring the parent later does not file them back
+  underneath: moving them was your choice, and restore leaves it alone.
+-->
+
+When the subject you are deleting has children that belong to it alone, the
+modal grows a checkbox. Its label names them:
+
+- **Keep "Heart Failure" — move it to the top level**, when there is exactly one;
+- **Keep the 4 direct children — move them to the top level**, when there are more.
+
+Ticking it redraws the statement above immediately, without a round trip, so you
+can see both outcomes before deciding. Unticked, those children are archived with
+their parent. Ticked, they survive as top-level subjects of your tree, and you
+can file them somewhere else afterwards.
+
+The checkbox is hidden entirely when the subject has no children of its own,
+because there is nothing to decide.
+
+One thing to know before you tick it: **promotion is a choice, and restore does
+not undo it.** That is covered below.
+
+## Entries pinned to the subject
+
+If you had been using the tag-context pill to pin entries to this subject as a
+parent — which
+[Choosing which parent an entry counts under](help_parent_context.html) is about
+— those pins have nowhere to point once the subject is archived. The modal counts
+them and says what happens: the entries go back to counting under every parent of
+their topic.
+
+That is the right outcome and worth understanding, because the alternative is
+worse. An entry pinned to an archived parent would roll up through a chain that
+no longer exists, so it would be counted in no total anywhere. Clearing the pin
+puts it back in all of them. You lose the distinction you had drawn; you do not
+lose the entry, and you do not get a number that is quietly short.
+
+## Archiving a whole dimension
+
+A dimension — one axis of a multi-dimensional exam, as in
+[Dimensions, and questions with several axes](help_dimensions.html) — archives
+with its subject trees or it does not archive at all. There is no state where
+the axis is gone and its subjects are still live, because that state would be
+unreachable in both directions: the subjects would be absent from every axis's
+view, since their axis is gone, and absent from the no-axis view, since they
+still name one.
+
+So every subject tree in the axis goes through exactly the same soft delete
+described above, in one operation that either completes or leaves everything as
+it was. Measured: archiving an axis holding two trees archived both of them and
+listed the whole thing as one event.
+
+Two routes get you there, and the difference between them is worth knowing.
+
+- **A whole-exam import that does not mention the axis.** This one tells you before it happens, in the loudest terms in the preview panel, naming each axis and its subject count. [Changing your tree later](help_changing_your_tree.html) is about that panel and is worth reading before you import anything.
+- **Removing it in the exam wizard.** On an exam card, **Edit** reopens the wizard, and on multi-dimensional exams its **Define Dimensions** step lists your axes with a **✕** against each. Removing one there and saving archives that axis and every subject tree in it.
+
+**The second route asks you first**, and it is worth knowing what it tells you,
+because the timing is unusual. Pressing the **✕** on an axis that is part of the
+exam raises a question naming that axis, how many subjects are in it and how
+many entries those carry, and saying the archive can be undone from the panel
+below. **Nothing happens when you answer it** — the axis leaves the list on
+screen, and the archive runs when you press Save along with every other change,
+so backing out of the wizard without saving leaves the axis where it was.
+
+An axis you added in the same visit and have not saved is removed without a
+question, because there is nothing in your exam yet to archive.
+
+Until recently this route asked nothing at all — no confirmation, no count, and
+no mention that an axis is archived rather than deleted. If you learned to
+change dimension names and leave the **✕** alone, that caution is no longer
+necessary.
+
+## The Archived subjects panel
+
+<!-- tour
+page: tree-editor
+anchor: tree-archived-panel
+text: Deleting a subject archives it rather than erasing it, and this panel
+  restores the whole deletion with its weights and its positions. It is
+  hidden entirely when nothing is archived, which is usually why it cannot be
+  found.
+-->
+
+At the foot of the tree editor, below the tree, there is a collapsed section
+headed **Archived subjects** with a count beside it. Opening it shows a flat list
+of deletions, newest first, and a hint: restoring brings back the subjects that
+deletion archived, with their weights and their place in the tree.
+
+**It is hidden entirely when nothing is archived**, so a tree you have never
+deleted anything from does not carry it at all. If you cannot find it, that is
+probably why.
+
+**It is a flat list rather than a "show archived" switch in the tree**, and that
+is deliberate. An archived subject frequently has no valid position any more —
+that is the whole point of the cascade above — so drawing it back in place would
+be a lie about where it belongs.
+
+Each row reads as the event it was: the name, then where it was (**was under
+Cardiovascular**, or **was a top-level subject**, or, for an axis,
+**dimension, 3 trees**), then how many subjects it archived, then when —
+**deleted today**, **deleted yesterday**, **deleted 6 days ago**, or a date once
+it is older than a month. A **Restore** button sits at the end of the row.
+
+One deletion is one row. If deleting a subject archived it and four children, that
+is one row saying five subjects, with one button. Archiving an axis that held
+three trees is one row too, not three.
+
+## Restoring
+
+<!-- tour
+page: tree-editor
+anchor: tree-archived-restore
+text: Restore runs as soon as you press it, with no preview, and undoes the
+  whole deletion in this row at once. Its message says if anything could not
+  be brought back. A child you moved to the top level when deleting stays at
+  the top level.
+-->
+
+Press **Restore** and it happens; the button reads **Restoring…** while it works,
+and then a message tells you what it did. There is no preview on this side — you
+read the outcome rather than approving it in advance — which is the one asymmetry
+with deleting.
+
+That is tolerable because restore is not destructive, and because of the rule it
+is built on:
+
+**Restore is the undo of an operation, not of a row, and it reports what it
+skipped.**
+
+Nothing is rebuilt from defaults. The record of the deletion kept the whole of
+each removed link — its weight, where that weight came from, its position among
+its siblings — so a restored subject comes back with the numbers it had, not with
+a blank weight and a guess at where it went.
+
+## What restore will not put back, and why
+
+A tree changes while part of it is archived, and restore will not overwrite those
+changes. Where it cannot bring a subject back it says so rather than reporting a
+clean success, because a message saying "restored" over a partial result is the
+one thing worse than a refusal. The reasons you may read:
+
+- **It is already active.** You recreated it by hand in the meantime.
+- **It was deleted again later and stays archived.** A later deletion owns it now.
+
+The message you get is explicit about the arithmetic. With nothing skipped it is
+simply *Restored 5 subjects.* With something skipped it reads *Restored 3 of 5
+subjects*, and then names how many were skipped and why.
+
+Three more things are left as they are, and the message counts subjects only,
+so it does **not** mention these:
+
+- **A child you promoted to the top level stays there.** This is the checkbox from earlier. Moving a child to the top level was something you decided, so restoring its old parent does not quietly file it back underneath.
+- **A link you have since re-created by hand is left alone.** You rebuilt the connection yourself; restore keeps your version.
+- **An entry pin is not put back** if the entry no longer carries that subject, or has been given a parent context since. Both are about the pins described earlier. A choice you made after the deletion outranks the one the deletion cleared.
+
+## A subject whose parent is still archived
+
+A common sequence is to delete a parent, delete something else, and then restore
+only part of it. The result is a subject whose own parent is still archived, and
+WIMI's answer is to restore it anyway and tell you where it went:
+
+it comes back at the top level for now, because its parent is still archived;
+restore that deletion too and it moves back underneath on its own — the link
+was never removed.
+
+That last clause is the useful bit. The link from the archived parent was
+deliberately left in place, so restoring the parent later reassembles the tree
+with nothing further to do. You do not have to restore things in the right order,
+and you do not have to re-file anything by hand.
+
+## The three things restore will refuse outright
+
+Each is a sentence rather than an error, and each has something to do about it.
+
+- **This tree was archived as part of a dimension.** Restore the dimension instead. Restoring one of its trees alone would leave those subjects inside an archived axis, where nothing can reach them. Subject deletions that belong to an axis archive are not listed separately in the panel for exactly this reason — one archive is one row.
+- **Another dimension in this exam is already called that.** Two cannot share a name. Rename the other one first, then restore this. This happens because an archived axis's name is freed for reuse, so something else may have taken it.
+- **Nothing in this deletion can be restored.** Every subject in it was either deleted again afterwards or is already active, so there is nothing left for this row to do. Restoring the same event twice lands here, which is correct rather than an error.
+
+An axis restore is more forgiving by design: if one of its trees cannot be
+restored, that tree is skipped and the rest of the axis comes back. Refusing the
+whole event because one tree had been touched since would leave the axis archived
+forever.
+
+Two details about a restored axis. **Its name comes back as you chose it**, read
+from the record of the deletion rather than reconstructed from anything. And **it
+is appended to the end of your dimension list** rather than returned to the
+position it held, because nothing reserved that slot while it was away. If the
+order matters to you, it is changed on the same wizard step the caution above is
+about — the axes there can be dragged by their handles — so go carefully, and
+change only the order.
+
+## Permanent deletion does not exist
+
+<!-- tour
+page: dashboard
+anchor: exam-card-delete
+text: No archived subject is ever permanently removed. An exam is different:
+  Delete Permanently, which appears only once the exam is suspended, takes
+  its sessions and every entry with it and cannot be undone.
+-->
+
+Worth saying plainly, because it is the question everybody asks next.
+
+**There is no way, anywhere in WIMI, to permanently remove an archived subject.**
+No button in the Archived panel, no setting, no maintenance task, nothing on a
+timer. An archived subject stays in your profile indefinitely, and so does the
+record of the deletion that archived it. Purging is a planned feature and is not
+built.
+
+The consequences, neither of them severe:
+
+- **Your archive grows.** If you import a revised blueprint half a dozen times you will accumulate rows in that panel. They cost a little disk and a scroll; nothing else in WIMI reads them.
+- **An archived name is free to reuse.** Archiving a subject releases its name immediately, so you can create a new subject with the same name straight away. If you then restore the old one you will have two subjects with one name, which is legal and confusing. Check the panel before recreating something.
+
+The one genuinely irreversible deletion in WIMI is at a different level
+entirely: permanently deleting a whole **exam** from the dashboard, which has to
+be suspended first and says in its own words that it cannot be undone. That
+removes the exam, its sessions and its entries. It is not what the Archived
+panel is about.
+
+### Suspending an exam
+
+<!-- tour
+page: dashboard
+anchor: exam-card-suspend
+text: Suspending deletes nothing: the exam keeps its sessions and entries, and
+  Reactivate on its card undoes it. Quick Analytics stops offering it as a
+  choice, but All Exams there still counts its entries.
+-->
+
+**Suspend**, on an exam card, is the reversible step before that. It changes one
+thing, whether the exam is active: the sessions, entries and subject tree are
+untouched, the card stays on the dashboard greyed out with a **Suspended**
+badge, and **Reactivate** on that card puts it back as it was. While it is
+suspended, Quick Analytics on the dashboard does not offer it in its exam list,
+but **All Exams** there still counts its entries.
+
+## What to do when you are unsure
+
+Three habits that make this area dull, which is what you want from it:
+
+- **Read the statement in the delete modal.** It is the only place that names the subjects you did not expect to be involved.
+- **Prefer the tag-context and parent controls over deleting.** If a subject is in the wrong place, moving it or changing its parents is not destructive and does not touch your entries. Deleting is for a subject that should not exist.
+- **Check the Archived panel after any import that removed something.** It is the proof of what happened, and the row tells you how many subjects were involved — which is the number worth comparing against what you expected.
+
+## Where to go next
+
+- [Changing your tree later](help_changing_your_tree.html) — re-importing, and the preview that tells you what an import would archive.
+- [Subjects that live in more than one place](help_shared_subjects.html) — why a shared child is detached rather than deleted.
+- [Choosing which parent an entry counts under](help_parent_context.html) — the pins a delete clears.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

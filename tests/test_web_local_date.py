@@ -75,6 +75,29 @@ UTC_DATE_FORM = re.compile(
 ORIGINAL_DEFECT = "    return today.toISOString().split('T')[0];"
 
 
+#: `new Date(<a date-only value>)` -- #471 and #534, the same defect found
+#: twice in two files. The spec parses a bare `YYYY-MM-DD` as UTC midnight, so
+#: a LOCAL day reads as the previous one anywhere west of Greenwich. The
+#: answer is `LocalDate.parse()`.
+#:
+#: A regex cannot know a variable's type, so this keys on the NAMES the
+#: backend gives date-only values that hold the student's LOCAL day
+#: (``sessions.py`` writes ``date_encountered`` from ``date.today()``; the
+#: heatmap's ``date`` and the goal history's ``week_start`` derive from it).
+#: ``edited_date`` is deliberately absent: it is filled by SQLite's
+#: ``date('now')``, a UTC day, so parsing it as local would be a different
+#: wrong answer -- that column is its own issue, not this guard's.
+DATE_ONLY_PARSE = re.compile(
+    r"""new\s+Date\(\s*(?:[\w$]+(?:\[[^\]]*\])?\s*\.\s*)*
+        (?:date_encountered|last_mistake_date|week_start|date)
+        \s*\)""",
+    re.VERBOSE,
+)
+
+#: #534's line, verbatim, for the negative control.
+DATE_ONLY_DEFECT = "            const date = new Date(entry.date_encountered);"
+
+
 def _first_party_js() -> list[Path]:
     return sorted(
         p for p in WEB_JS.rglob('*.js')
@@ -146,6 +169,42 @@ def test_no_page_script_computes_today_in_utc(script: Path) -> None:
           '*timestamp* (toISOString() with no date extraction) is fine and is '
           'not what this matches.'
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    'script', _first_party_js(), ids=lambda p: p.name,
+)
+def test_no_page_script_parses_a_local_day_as_utc(script: Path) -> None:
+    """#534's form, banned: `new Date(<date-only local day>)`."""
+    offenders = [
+        (number, line.strip())
+        for number, line in _code_lines(script.read_text(encoding='utf-8'))
+        if DATE_ONLY_PARSE.search(line)
+    ]
+    assert not offenders, (
+        f'{script.relative_to(REPO)} parses a date-only local day with '
+        f'new Date(), which reads it as UTC midnight:\n'
+        + '\n'.join(f'  :{n}  {text}' for n, text in offenders)
+        + '\n\nWest of Greenwich that names the previous day (#471, #534). '
+          'Use LocalDate.parse(value), and link local_date.js on the page.'
+    )
+
+
+@pytest.mark.unit
+def test_the_date_only_detector_fires_on_the_known_defects() -> None:
+    """Negative control for the sweep above: #534's line and #471's."""
+    for line in (DATE_ONLY_DEFECT,
+                 "        const dateStr = new Date(d.date).toLocaleDateString('en-US', {",
+                 "        const start = new Date(week.week_start);"):
+        assert DATE_ONLY_PARSE.search(line), f'the detector misses: {line!r}'
+    # And it must not fire on the forms that are right.
+    for line in ("        const date = LocalDate.parse(entry.date_encountered);",
+                 "        const now = new Date();",
+                 "        return new Date(y, m - 1, d);",
+                 "        const when = new Date(head.created_at).toLocaleString();",
+                 "        const updated = new Date(entry.updated_date);"):
+        assert not DATE_ONLY_PARSE.search(line), f'false positive: {line!r}'
 
 
 @pytest.mark.unit

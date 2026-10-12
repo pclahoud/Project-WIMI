@@ -37,9 +37,35 @@ class Landmine:
     """
     Stands in for ``master_db`` during the worker phase.
 
-    Any attribute access is a failure, including ``repr`` during a traceback,
-    so a stray database call cannot hide inside an exception path.
+    Any **ordinary** attribute access is a failure, so a stray database call on
+    the worker is caught wherever it hides -- including inside an ``except``
+    branch, which is the path a happy-path test never reaches.
+
+    What it does NOT catch, corrected 2026-10-05 after measuring it
+    ---------------------------------------------------------------
+    This docstring used to say *"including ``repr`` during a traceback"*. That
+    is **false**, and the error is worth leaving written down because it is the
+    kind that makes a guard look stronger than it is.
+
+    Python looks dunders up on the **type**, not through ``__getattr__``, so
+    ``repr(m)``, ``str(m)`` and ``f'{m}'`` all find ``object``'s implementations
+    and never reach the hook. Measured: of ``repr``, ``str``, f-string
+    interpolation and a plain ``m.cursor``, only the last raises.
+
+    Making the claim true would mean raising from ``__repr__`` and ``__str__``
+    as well, and that is **deliberately not done**: pytest reprs objects while
+    building a failure message, so a raising ``__repr__`` would obscure genuine
+    failures with a second error from inside the reporting. ``__repr__`` below
+    returns a distinctive string instead, so a traceback says what this object
+    is rather than ``<Landmine object at 0x...>``.
+
+    The guard is still worth what it was worth for the thing it actually does.
+    Only the extra guarantee was imaginary.
     """
+
+    def __repr__(self) -> str:
+        # Non-raising on purpose -- see the docstring.
+        return '<Landmine: a database that must not be touched on the worker>'
 
     def __getattr__(self, name):  # noqa: D105
         raise AssertionError(

@@ -71,8 +71,8 @@ class StreakDisplay {
                 <div class="streak-card current ${streakClass}">
                     <div class="streak-icon">🔥</div>
                     <div class="streak-content">
-                        <div class="streak-label">Current Streak</div>
-                        <div class="streak-value">${data.current_streak} <span class="streak-unit">days</span></div>
+                        <div class="streak-label" data-tour-anchor="analytics-current-streak">Current Streak</div>
+                        <div class="streak-value">${data.current_streak} <span class="streak-unit">${this._dayUnit(data.current_streak)}</span></div>
                         ${data.streak_at_risk ? '<div class="streak-warning">At risk! Log an entry today</div>' : ''}
                         ${data.is_active_today ? '<div class="streak-status active">✓ Active today</div>' : ''}
                     </div>
@@ -86,7 +86,7 @@ class StreakDisplay {
                     <div class="streak-icon">🏆</div>
                     <div class="streak-content">
                         <div class="streak-label">Longest Streak</div>
-                        <div class="streak-value">${data.longest_streak} <span class="streak-unit">days</span></div>
+                        <div class="streak-value">${data.longest_streak} <span class="streak-unit">${this._dayUnit(data.longest_streak)}</span></div>
                         ${data.current_streak === data.longest_streak && data.current_streak > 0 
                             ? '<div class="streak-status best">Personal best!</div>' 
                             : ''}
@@ -113,6 +113,14 @@ class StreakDisplay {
 
         html += '</div>';
         this.container.innerHTML = html;
+    }
+
+    /**
+     * "day" at exactly one, "days" otherwise -- a one-day streak read
+     * "1 days" (#478). Same rule `_renderCompact` already applies.
+     */
+    _dayUnit(n) {
+        return n === 1 ? 'day' : 'days';
     }
 
     /**

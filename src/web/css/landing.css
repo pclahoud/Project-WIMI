@@ -74,6 +74,68 @@
     line-height: var(--line-height-relaxed);
 }
 
+/* =========================================================================
+   The compact hero (#313)
+   =========================================================================
+   The dashboard is the page a student opens most often, and at 1130x689 the
+   full hero filled roughly the top half — so Quick Analytics and the exam
+   cards, the only actionable things on it, needed a scroll every single
+   launch. The owner's decision: shrink it once the profile has exams.
+
+   This is a SIZE AND LAYOUT change and deliberately not a de-emphasis one.
+   Nothing here lowers a contrast ratio, reaches for `--text-muted`, or adds
+   an opacity: #302 and #326 are still fixing the tokens de-emphasis would
+   reach for, which is exactly why #313 was parked behind them and exactly
+   why the ordering-and-size half was allowed to proceed. If a future change
+   to this block wants to grey something down, it has left #313 and is back
+   in #314's parked question.
+
+   The logo and the title move onto one line and the tagline is not
+   rendered. The tagline is the thing with nothing left to say on a launch
+   where the student already has exams; the `h1` stays, both because the
+   page needs its heading (#317) and because the product should still name
+   itself.
+   ========================================================================= */
+
+.landing-header--compact {
+    padding: var(--space-lg) var(--space-xl);
+    /* The profile chip and the settings gear are both
+       `position: absolute; top: 1rem` and so sit outside this element's
+       flow — the chip standing about 3rem tall from the top edge. A header
+       shorter than that would crop them, which no amount of padding on the
+       flow content would reveal. */
+    min-height: 4.5rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+}
+
+.landing-header--compact .landing-logo {
+    font-size: var(--font-size-3xl);
+    /* Was `margin-bottom: var(--space-md)` for the stacked form; in a row it
+       would push the logo off the title's baseline. */
+    margin-bottom: 0;
+    line-height: 1;
+}
+
+.landing-header--compact .landing-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: 0;
+    line-height: 1;
+}
+
+.landing-header--compact .landing-subtitle {
+    /* Not `visibility: hidden` and not `opacity: 0`: both keep the element's
+       box, so the header would still reserve the tagline's height and this
+       would save nothing. `display: none` also takes it out of the
+       accessibility tree, which is correct here — it is a product tagline,
+       not a status message, and #127's rule about never hiding an announced
+       string with `display: none` is about live regions. */
+    display: none;
+}
+
 /* Settings gear icon */
 .settings-gear-link {
     position: absolute;
@@ -95,6 +157,63 @@
     opacity: 1;
     color: var(--color-primary-text, #2563eb);
     background: var(--color-primary-bg, #eff6ff);
+}
+
+/* =========================================================================
+   The manual (#428)
+   =========================================================================
+   On the LEFT of the hero, not the right, because the right is full: the gear
+   above is at `right: 1.5rem` and the profile chip at `right: 4rem`, and the
+   chip grows leftward with the profile name. Putting this on the left needs
+   no existing element moved and cannot collide at a narrow width.
+
+   The translucent white is the pattern `.profile-chip` and
+   `.settings-gear-link` already use on this header, and it is the right one
+   rather than a lapse from the "tokens, not literals" rule: the header's
+   background is a `--color-primary` gradient in all six themes, so a tint of
+   the header's own text colour is the only value that works on every one of
+   them. The glyph's own colours are tokens, because it sits on a white pill
+   and not on the gradient.
+   ========================================================================= */
+
+.help-link {
+    position: absolute;
+    top: 1rem;
+    left: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--radius-full);
+    color: var(--text-inverse);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    z-index: 1;
+    transition: background var(--transition-fast);
+}
+
+.help-link:hover,
+.help-link:focus-visible {
+    background: rgba(255, 255, 255, 0.28);
+    color: var(--text-inverse);
+    text-decoration: none;
+}
+
+.help-link-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-full);
+    background: var(--bg-primary);
+    color: var(--color-primary-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    flex-shrink: 0;
 }
 
 /* =========================================================================
@@ -260,10 +379,8 @@
 }
 
 .exam-stat-label {
-    font-size: 0.625rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
 }
 
 .exam-stat-value {
@@ -736,15 +853,30 @@
     .landing-header {
         padding: var(--space-2xl) var(--space-lg);
     }
-    
+
+    /* #313. This has to be restated here, and the reason is specificity
+       rather than taste: `.landing-header--compact` and `.landing-header`
+       are both (0,1,0), a media query adds nothing to specificity, and this
+       block is LATER in the file — so the rule above would quietly win and
+       the compact header would wear the full header's padding on a narrow
+       window. The logo and title are safe because their compact selectors
+       are (0,2,0); only the header's own padding was exposed.
+
+       Same class of bug as `styles.css`'s `input[type="text"]` outranking
+       `.search-input` (#309/#321): correct-looking CSS that never applies,
+       with nothing to see in the file where it was written. */
+    .landing-header--compact {
+        padding: var(--space-md) var(--space-lg);
+    }
+
     .landing-logo {
         font-size: 3rem;
     }
-    
+
     .landing-title {
         font-size: var(--font-size-3xl);
     }
-    
+
     .landing-content {
         padding: var(--space-lg);
     }

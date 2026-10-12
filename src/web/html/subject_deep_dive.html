@@ -31,9 +31,22 @@
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2"/>
                 </svg>
                 <h1 id="subjectTitle" data-testid="deep-dive-subject-title">Subject Deep Dive</h1>
+                <!-- #314: which axis this subject is on. Hidden until the
+                     payload says there is one -- a subject on an exam with no
+                     dimensions is in no axis, and an empty qualifier beside
+                     the title would be worse than none. Revealed by
+                     renderHeader(), never by CSS on emptiness: `:empty` is a
+                     CI-gated ban (#134/#136/#141). -->
+                <span class="subject-dimension hidden"
+                      id="subjectDimension"
+                      data-testid="deep-dive-subject-dimension"></span>
             </div>
             <div class="header-right">
-                <span class="exam-label" id="examLabel" data-testid="deep-dive-exam-label">Loading...</span>
+                <!-- #314: this was a <span> styled as a button that did
+                     nothing when clicked. It is a real link now (owner
+                     2026-10-10), to the exam's own subject tree. -->
+                <a class="exam-label" id="examLabel" href="#"
+                   data-testid="deep-dive-exam-label">Loading...</a>
             </div>
         </header>
 
@@ -144,11 +157,36 @@
             </div>
         </section>
 
-        <!-- Recent Entries -->
+        <!-- Recent Entries.
+             #465: the heading says what these rows CONTAIN. Each one shows
+             an entry's reflection (falling back to its explanation), which
+             is not a note -- the row's third line is classed
+             `recent-entry-note` and that class name alone persuaded
+             README.md, a briefing and nearly a published chapter that this
+             page showed notes. The notes list is the section below; these
+             two must not be mistaken for each other, and the headings are
+             the whole mitigation for having both. -->
         <section class="recent-entries-section">
-            <h2 class="section-title">Recent Entries</h2>
+            <h2 class="section-title">Recent Entries and Their Reflections</h2>
             <div class="recent-entries-card">
                 <div class="recent-entries-list" id="recentEntriesList">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Notes tagged with this subject (#465, owner 2026-10-10).
+             The STRICT set: notes whose own `linked_subject_ids` names this
+             subject. Not every note on an entry tagged here, and not
+             inherited from descendants -- deliberately the opposite rule
+             from the entries above, which use this page's permissive
+             "show everything" semantic. A note is filed by hand at one
+             subject; an entry's rollup is derived. -->
+        <section class="subject-notes-section">
+            <h2 class="section-title">Notes Tagged with This Subject</h2>
+            <div class="subject-notes-card">
+                <div class="subject-notes-list" id="subjectNotesList"
+                     data-testid="deep-dive-list-subject-notes">
                     <!-- Will be populated dynamically -->
                 </div>
             </div>
@@ -186,6 +224,7 @@
     <!-- Scripts -->
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../js/lib/d3.v7.min.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -196,6 +235,8 @@
          Styled in styles.css, which this page already links. -->
     <script src="../js/archived_ancestor_note.js"></script>
     <script src="../js/subject_relations.js"></script>
+    <script src="../js/text_preview.js"></script>
+    <script src="../js/local_date.js"></script>
     <script src="../js/subject_deep_dive.js"></script>
 </body>
 </html>

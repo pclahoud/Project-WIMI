@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  The manual's index (#428).
+
+  This page is hand written apart from one block: the chapter list below sits
+  between the GENERATED CHAPTER LIST markers and is written by
+  `scripts/check_manual_sync.py` from the markdown files in `docs/manual/`.
+  Adding a chapter is adding a markdown file and running that script with
+  `--write`; there is nothing to edit here. The same arrangement
+  `tree_editor.html` has for the import guide, for the same reason -- hand
+  synchronisation has already failed twice in this repo (#61, #62).
+
+  Deliberately NOT page-gated (#114/#127). A gate exists to stop a page
+  accepting input it cannot yet keep. This page has no form state and waits on
+  no bridge call, so `inert` would buy nothing here and would cost the whole
+  subtree its place in the accessibility tree for as long as it was up.
+  `entry_detail.html` is the other ungated page, for a similar reason.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="index.html" class="help-back-link" data-testid="help-back-link">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>Back to dashboard</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <h1 class="help-title" data-testid="help-index-title">WIMI manual</h1>
+            <p class="help-standfirst">
+                WIMI makes a few decisions that are deliberate and still
+                surprising the first time you meet them. A subject weight that
+                is never rescaled to add up. Two counts of the same subject
+                that are both correct. These chapters say which, and why.
+            </p>
+            <!-- GENERATED CHAPTER LIST - do not edit by hand (#428). -->
+            <ol class="help-chapter-list" data-testid="help-chapter-list">
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_the_premise.html" data-testid="help-chapter-link-the_premise">
+                        <span class="help-chapter-item-number" aria-hidden="true">1</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Why WIMI asks for a reason</span>
+                            <span class="help-chapter-item-summary">WIMI exists to record why you missed a question, in your own words, while you can still remember. Everything else in the app is built on those sentences, which is why the error-type tags on the entry form are optional and the two written answers are not.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_the_first_hour.html" data-testid="help-chapter-link-the_first_hour">
+                        <span class="help-chapter-item-number" aria-hidden="true">2</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Your first hour</span>
+                            <span class="help-chapter-item-summary">WIMI opens on a profile picker, not a demo account, and nothing about the first run is automatic. You make a profile, create an exam, put at least one subject in it, start a session, and then log entries against that session. Each of those five refuses to proceed without the one before it.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_outline_to_tree.html" data-testid="help-chapter-link-outline_to_tree">
+                        <span class="help-chapter-item-number" aria-hidden="true">3</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Building your subject tree from a published outline</span>
+                            <span class="help-chapter-item-summary">WIMI ships no exam outline and no AI of its own, and transcribing a 1,800-line content outline by hand is not a reasonable thing to ask of anybody. So the route this chapter describes is to find your exam's published content outline, hand it to whichever chat assistant you already use in your browser together with WIMI's own import format specification, and import the file it gives you back. The one thing to watch is weights, because a model will cheerfully invent a percentage, and an invented percentage is worse than no percentage at all.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_subject_hierarchies.html" data-testid="help-chapter-link-subject_hierarchies">
+                        <span class="help-chapter-item-number" aria-hidden="true">4</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Your subject tree and its levels</span>
+                            <span class="help-chapter-item-summary">Your subjects are a tree you build yourself, and its level names come from the exam you set it up for: the five WIMI ships with, or the vocabulary the template you picked uses, or whatever an imported outline calls each subject. A subject's level is a fact stored on that subject rather than something WIMI works out from how deep the subject sits, which is why the same subject never wears two different level names in one tree.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_shared_subjects.html" data-testid="help-chapter-link-shared_subjects">
+                        <span class="help-chapter-item-number" aria-hidden="true">5</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Subjects that live in more than one place</span>
+                            <span class="help-chapter-item-summary">A subject in WIMI can have more than one parent, so pulmonary embolism can sit under Respiratory, under Pregnancy and under Surgical Complications while staying one subject with one set of entries. It is the same subject in every location, not a copy: rename it in one place and it is renamed everywhere, and the entries you logged against it are the same entries wherever you look at it from.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_parent_context.html" data-testid="help-chapter-link-parent_context">
+                        <span class="help-chapter-item-number" aria-hidden="true">6</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Choosing which parent an entry counts under</span>
+                            <span class="help-chapter-item-summary">When you tag an entry with a subject that has more than one parent, a small pill appears under the subject's chip reading &quot;Tag context&quot; and a parent's name. It records which of that subject's parents this particular entry rolls up through. It does not change what the entry is about, and you can always find the entry by that subject no matter which context it carries.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_dimensions.html" data-testid="help-chapter-link-dimensions">
+                        <span class="help-chapter-item-number" aria-hidden="true">7</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Dimensions, and questions with several axes</span>
+                            <span class="help-chapter-item-summary">Some exams classify the same question several independent ways at once: which organ system it is about, what the doctor is being asked to do, and where the patient is being seen. A dimension in WIMI is one of those axes, each with its own subject tree, and one question gets tagged in as many of them as apply. The axes describe the same pool of questions from different angles rather than dividing it between them, which is why their weights each run to roughly a hundred per cent on their own and why nothing in WIMI ever adds them together.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_weights.html" data-testid="help-chapter-link-weights">
+                        <span class="help-chapter-item-number" aria-hidden="true">8</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Weights: what a percentage means here</span>
+                            <span class="help-chapter-item-summary">A weight in WIMI is a percentage of the whole exam, at every level of your subject tree, and never a share of the subject above it. Almost everything surprising about weights follows from that one sentence, including the fact that a child subject may correctly carry a larger number than its parent, and that WIMI will tell you your blueprint totals 84–153% and then leave it exactly as it is.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_two_screens_one_subject.html" data-testid="help-chapter-link-two_screens_one_subject">
+                        <span class="help-chapter-item-number" aria-hidden="true">9</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Why two screens can disagree about one subject</span>
+                            <span class="help-chapter-item-summary">Filter the entry browser by DVT and you may see eleven entries; look at the same subject on a chart and see five. Both numbers are correct, because WIMI counts and finds by different rules on purpose: a screen that totals your mistakes counts only the subject you named as the main one, and a screen that retrieves entries for you includes every subject an entry mentions. Listing is not measuring.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_goals_and_drafts.html" data-testid="help-chapter-link-goals_and_drafts">
+                        <span class="help-chapter-item-number" aria-hidden="true">10</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Goals, and why drafts do not count toward them</span>
+                            <span class="help-chapter-item-summary">A goal in WIMI is one thing: a number of entries you mean to finish this week, Monday to Sunday. Unfinished drafts are the single exception to WIMI's rule that drafts count everywhere, because a target of twenty entries means twenty finished ones — and because the exception would be dishonest if it were silent, the goal card also tells you how many drafts are waiting.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_logging_a_mistake.html" data-testid="help-chapter-link-logging_a_mistake">
+                        <span class="help-chapter-item-number" aria-hidden="true">11</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Logging a mistake</span>
+                            <span class="help-chapter-item-summary">The entry form is one long page with twelve things on it, five of which it refuses to save without. The two written fields are the reason the page exists and are deliberately the largest things on it; everything above them is a short fact that takes a second. WIMI saves in the background every thirty seconds, and an entry that is missing one of the five required things is stored as a draft until it is not.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_error_types.html" data-testid="help-chapter-link-error_types">
+                        <span class="help-chapter-item-number" aria-hidden="true">12</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Error types: naming the mistake</span>
+                            <span class="help-chapter-item-summary">An error type is a label you put on an entry saying what kind of mistake it was, and it is the unit every mistake-type screen in WIMI counts. WIMI ships sixteen in five groups, each with a written definition you can read as a tooltip and edit. They are optional, you can pick more than one, and the whole value of them is that you apply them the same way every week — so the fifteen minutes it takes to read the list once is the best-paid fifteen minutes in this manual.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_notes.html" data-testid="help-chapter-link-notes">
+                        <span class="help-chapter-item-number" aria-hidden="true">13</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Notes</span>
+                            <span class="help-chapter-item-summary">A note is a piece of writing that belongs to an entry but is not an answer to either of the entry's two questions. One entry can carry as many as you like, each one its own editor, and each can be tagged with the subjects it is about. The subject tag is what makes a note findable again: on a later entry about the same subject, WIMI offers you the notes you already wrote about it, and one note can sit on several entries at once rather than being copied.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_the_session_timer.html" data-testid="help-chapter-link-the_session_timer">
+                        <span class="help-chapter-item-number" aria-hidden="true">14</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">The session timer, rounds and breaks</span>
+                            <span class="help-chapter-item-summary">If you gave your session a length when you set it up, a countdown appears beside the entry form and runs in work rounds. You can pause it, end a round early, start a fresh one, and take a break whenever you want rather than waiting for the clock to offer one. Time you spend paused or on a break is recorded against the round it interrupted, so a round's history shows how long you actually worked and how long you were away. If you set the session to No Limit, none of this appears, and nothing is missing.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_finding_an_entry.html" data-testid="help-chapter-link-finding_an_entry">
+                        <span class="help-chapter-item-number" aria-hidden="true">15</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Finding an entry again</span>
+                            <span class="help-chapter-item-summary">The entry browser is where you go to find one particular mistake again, or to read several of your own reasons on one topic in a row. It is built to retrieve rather than to count, so it is deliberately generous: filtering by a subject finds every entry that mentions that subject, including the ones where you only noted it as also tested, and unfinished drafts sit in the list beside finished entries.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_reading_the_analytics.html" data-testid="help-chapter-link-reading_the_analytics">
+                        <span class="help-chapter-item-number" aria-hidden="true">16</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Reading the analytics dashboard</span>
+                            <span class="help-chapter-item-summary">The analytics dashboard is one long page of cards, each answering a different question about where your mistakes fall. They are not variations on one number, and several of them deliberately disagree with each other because they are measuring different things. This chapter goes through them in page order and says what each one is for, what it cannot tell you, and what to do about what it says.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_related_topics.html" data-testid="help-chapter-link-related_topics">
+                        <span class="help-chapter-item-number" aria-hidden="true">17</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Linking one topic to another</span>
+                            <span class="help-chapter-item-summary">A relation is two of your subjects joined by a sentence you write. WIMI will not record one without the sentence, and there is no add-now-explain-later state anywhere in the app. Relations are drawn as a plain list on a subject's own page, never as a graph, and the list holds the same relations whichever parent context you are viewing that subject through — the context changes the order and nothing else.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_finding_links_automatically.html" data-testid="help-chapter-link-finding_links_automatically">
+                        <span class="help-chapter-item-number" aria-hidden="true">18</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Letting WIMI find the links</span>
+                            <span class="help-chapter-item-summary">WIMI can read the explanation you just wrote and propose relations between subjects your own sentences already name. It starts from a button and never from a save, because the first press of a session loads a large model onto this computer: ten to sixteen seconds, and a couple of gigabytes of memory while it works. Every proposal is invisible to the rest of the app until you confirm it, and confirming means reading the sentence WIMI prefilled and the relation type it picked, and changing either if it got them wrong.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_question_bank_pane.html" data-testid="help-chapter-link-question_bank_pane">
+                        <span class="help-chapter-item-number" aria-hidden="true">19</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Your question bank beside the form</span>
+                            <span class="help-chapter-item-summary">WIMI can put a web browser in the right half of its own window, so the question you are logging stays on screen while you write about it. The pane keeps its own logins, so signing in to a question bank survives closing the pane and restarting WIMI; it carries one-press shortcuts built from the question banks you have already set up; and it has tabs, because sign-in flows open pop-ups. Where you left it, how far you zoomed and where the divider sits are remembered for this computer rather than for your profile.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_changing_your_tree.html" data-testid="help-chapter-link-changing_your_tree">
+                        <span class="help-chapter-item-number" aria-hidden="true">20</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Changing your tree later</span>
+                            <span class="help-chapter-item-summary">Importing a file again is how you correct a tree you have already built, and it is safe for one reason above all others: nothing is written until you have read a preview of exactly what would happen. The one thing to be careful about is which kind of file you are importing, because a file that describes every axis of your exam is treated as the authority on which axes exist, and will archive the ones it does not mention, with every subject under them.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_dictation.html" data-testid="help-chapter-link-dictation">
+                        <span class="help-chapter-item-number" aria-hidden="true">21</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Speaking instead of typing</span>
+                            <span class="help-chapter-item-summary">The two written fields on the entry form each carry a Speak button, and what you say is turned into text by a program running on your own computer. Nothing is uploaded and nothing is sent anywhere, at any point. The cost of that is a one-off download of about 190 MB of speech model, which happens per computer rather than per profile, and the limits that come with running on a laptop instead of a data centre: English only, and a recogniser that gets most technical terms right rather than all of them.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_archive_and_restore.html" data-testid="help-chapter-link-archive_and_restore">
+                        <span class="help-chapter-item-number" aria-hidden="true">22</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Archiving a subject, and getting it back</span>
+                            <span class="help-chapter-item-summary">Deleting a subject in WIMI archives it rather than erasing it, and every archived deletion is listed at the foot of the tree editor with a Restore button beside it. Restore undoes the whole operation rather than one row, and it tells you about anything it could not put back. Nothing in WIMI permanently removes an archived subject, so the honest summary is that a deletion here is recoverable and a cluttered archive is the price.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_profiles_and_profile_files.html" data-testid="help-chapter-link-profiles_and_profile_files">
+                        <span class="help-chapter-item-number" aria-hidden="true">23</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Profiles, and carrying one to another computer</span>
+                            <span class="help-chapter-item-summary">A profile is one student's whole WIMI: their exams, subjects, sessions, entries, images and settings, sharing nothing with any other profile on the same computer. One machine can hold several, and the picker is the only way between them. A profile travels as a portable file with a .wimi extension, which you export from one computer and import on another. What travels in that file is everything about you; what stays behind is everything that was about the machine.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_folder_sync.html" data-testid="help-chapter-link-folder_sync">
+                        <span class="help-chapter-item-number" aria-hidden="true">24</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Keeping one profile on two computers</span>
+                            <span class="help-chapter-item-summary">WIMI can keep one profile in step across your computers by writing sealed, numbered copies of it into a folder that your cloud client already syncs. It never signs in to a cloud service, never asks for a password and never talks to a provider; it writes files into a folder and reads files out of one. Because it cannot see what your cloud client is doing, every line it shows you is an observation with a time on it rather than a claim that you are up to date, and there is deliberately no synced light anywhere in it.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_settings.html" data-testid="help-chapter-link-settings">
+                        <span class="help-chapter-item-number" aria-hidden="true">25</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Settings, and what each one changes</span>
+                            <span class="help-chapter-item-summary">Settings is fourteen panels behind the gear at the top right of the dashboard, and nothing you change there takes effect anywhere else until you press Save. Two whole panels and the lower half of a third are openly marked Coming Soon, with their controls greyed out. A few controls save themselves the moment you change them instead of waiting for Save, and a few belong to this computer rather than to your profile. This chapter is a tour, and it says which is which, because a settings page you cannot trust is worse than one with fewer settings on it.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_where_your_work_lives.html" data-testid="help-chapter-link-where_your_work_lives">
+                        <span class="help-chapter-item-number" aria-hidden="true">26</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Where your work lives, and how to keep it</span>
+                            <span class="help-chapter-item-summary">Everything you have written lives in one folder beside the WIMI application, and the only safe way to take a copy of it is Settings, Profile, Export profile. Copying the database file yourself is the obvious thing to reach for and it is the wrong thing: WIMI keeps your most recent work in a second file beside the database for a while, so a copy of the database alone can be missing your newest entries, or — measured, on a profile that has not been running long — can turn out not to be a readable database at all. WIMI has no automatic backup and no Back up now button, so a copy of your work exists only if and when you make one.</span>
+                        </span>
+                    </a>
+                </li>
+                <li class="help-chapter-item">
+                    <a class="help-chapter-link" href="help_plugins.html" data-testid="help-chapter-link-plugins">
+                        <span class="help-chapter-item-number" aria-hidden="true">27</span>
+                        <span class="help-chapter-item-text">
+                            <span class="help-chapter-item-title">Plugins</span>
+                            <span class="help-chapter-item-summary">A plugin is a small add-on you install into WIMI yourself, and it runs with the same access to your data that WIMI has. Nothing ships with WIMI, there is no store and nothing is vetted; you install a folder or a zip you obtained from somewhere, and WIMI runs it. It does show you which permissions a plugin asked for, but on the card after it is installed rather than as a question before, and a plugin's own interface code is loaded into almost every page where it can call anything the page can. So the decision is the usual one for add-ons anywhere: install it if you would trust its author with everything you have written, and not otherwise.</span>
+                        </span>
+                    </a>
+                </li>
+            </ol>
+            <!-- END GENERATED CHAPTER LIST -->
+        </main>
+    </div>
+</body>
+</html>

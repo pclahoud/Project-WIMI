@@ -4,6 +4,16 @@
  */
 
 // Size preset definitions for resizable charts
+/**
+ * "+10" / "−8": the week-on-week change as a signed number (#470).
+ *
+ * U+2212 MINUS SIGN rather than a hyphen, so the two signs are the same
+ * width and the number reads as a quantity, not a dash.
+ */
+function formatWeekChange(change) {
+    return (change > 0 ? '+' : '\u2212') + Math.abs(change);
+}
+
 const CHART_SIZE_PRESETS = {
     subject_sunburst: {
         S: { width: 340, height: 340 },
@@ -32,8 +42,62 @@ const CHART_SIZE_PRESETS = {
     }
 };
 
+// Where each chart lives on the page. One map, read by both the per-exam
+// Chart Visibility ticks and the student-wide settings below.
+const CHART_SELECTORS = {
+    'subject_sunburst': '#subjectBreakdownCard',
+    'tag_chart': '#tagBreakdownCard',
+    'activity_chart': '.activity-section',
+    'activity_heatmap': '.heatmap-section',
+    'streak_stats': '#streakStats',
+    'weekly_goal': '.goal-section',
+    'difficulty_distribution': '.difficulty-section',
+    'patterns_insights': '.insights-section',
+    'cross_dimension_heatmap': '#crossDimensionSection',
+    'study_recommendations': '#recommendationsSection',
+    'interaction_effects': '#interactionEffectsContainer',
+    'weight_analysis': '.weight-analysis-section',
+    'source_comparison': '.source-section'
+};
+
+// Settings -> Dashboard & Analytics (#504). These were stored and read by
+// nothing. Each switch hides a fixed group of charts for every exam; the
+// per-exam ticks can hide a chart as well, and neither can show what the
+// other hides. settings.html names the same groups to the student, so the
+// two must change together.
+const PREFERENCE_CHART_GROUPS = {
+    show_performance_trends: ['activity_chart', 'streak_stats'],
+    show_mistake_patterns: ['tag_chart', 'patterns_insights', 'difficulty_distribution'],
+    show_subject_breakdown: ['subject_sunburst', 'cross_dimension_heatmap', 'weight_analysis'],
+    show_time_analytics: ['activity_heatmap', 'weekly_goal']
+};
+
+// What each analytics_detail_level leaves out (#504). The overview figures
+// are not a chart and always show. Summary keeps the sunburst and the
+// mistake-type chart; Detailed drops the three dimension-only deep views;
+// Advanced is the whole page.
+const DETAIL_LEVEL_HIDES = {
+    summary: Object.keys(CHART_SELECTORS).filter(k => k !== 'subject_sunburst' && k !== 'tag_chart'),
+    detailed: ['cross_dimension_heatmap', 'study_recommendations', 'interaction_effects'],
+    advanced: []
+};
+
+/** Chart keys the student's own settings hide, whatever the exam says. */
+function chartsHiddenByPreferences(prefs) {
+    const hidden = new Set();
+    if (!prefs) return hidden;
+    for (const [field, keys] of Object.entries(PREFERENCE_CHART_GROUPS)) {
+        if (prefs[field] === false) keys.forEach(k => hidden.add(k));
+    }
+    (DETAIL_LEVEL_HIDES[prefs.analytics_detail_level] || []).forEach(k => hidden.add(k));
+    return hidden;
+}
+
 class AnalyticsDashboard {
     constructor() {
+        // True once init() has drawn every card and applied visibility: the
+        // moment the tour starts, and what a scenario waits on.
+        this.isReady = false;
         this.currentExamFilter = null;
         this.currentPeriod = '7d';
         this.charts = {
@@ -91,6 +155,9 @@ class AnalyticsDashboard {
         // Load per-exam analytics config (sets dimension filter + chart visibility)
         await this.loadAnalyticsConfig();
 
+        // The student-wide Dashboard & Analytics settings (#504)
+        await this.loadUserPreferences();
+
         // Initialize dimension analytics
         await this.initializeDimensionAnalytics();
 
@@ -102,9 +169,74 @@ class AnalyticsDashboard {
 
         // Apply chart visibility after data is loaded
         this.applyChartVisibility();
+        this.applyPreferenceVisibility();
 
         // Apply saved chart sizes
         this.applyChartSizes();
+
+        this.startAutoRefresh();
+
+        this.isReady = true;
+
+        // The first-run tour (#430), once every card is drawn and the
+        // student's own visibility choices have hidden what they hide: a step
+        // on a hidden card waits rather than spotlighting nothing. No re-start
+        // on an exam change, which reloads values into the same markup, nor on
+        // autoRefresh, which never replaces an anchor. The page is not gated.
+        // Behind a typeof check and a try, so a broken tour cannot break it.
+        try {
+            if (typeof WimiTour !== 'undefined') WimiTour.start('analytics');
+        } catch (e) {
+            console.error('Tour failed to start:', e);
+        }
+    }
+
+    async loadUserPreferences() {
+        try {
+            this.userPreferences = (await api.getUserPreferences()) || {};
+        } catch (e) {
+            console.warn('Could not load user preferences, showing every chart:', e);
+            this.userPreferences = {};
+        }
+    }
+
+    /**
+     * Hide what the student's settings hide (#504). A class with
+     * !important rather than style.display, because the per-exam pass and
+     * several loaders write style.display themselves and must not be able to
+     * show a chart these settings switched off; nor can this pass show one
+     * they hid.
+     */
+    applyPreferenceVisibility() {
+        const hidden = chartsHiddenByPreferences(this.userPreferences);
+        for (const [key, selector] of Object.entries(CHART_SELECTORS)) {
+            const el = document.querySelector(selector);
+            if (el) el.classList.toggle('pref-hidden', hidden.has(key));
+        }
+    }
+
+    /**
+     * Reload the figures every dashboard_auto_refresh_seconds (#504), so an
+     * entry logged in another window shows without leaving the page. Skipped
+     * while the window is hidden, and never overlapping itself.
+     */
+    startAutoRefresh() {
+        const seconds = Number(this.userPreferences && this.userPreferences.dashboard_auto_refresh_seconds);
+        this.autoRefreshMs = (seconds >= 30 ? seconds : 300) * 1000;
+        if (this._autoRefreshTimer) clearInterval(this._autoRefreshTimer);
+        this._autoRefreshTimer = setInterval(() => this.autoRefresh(), this.autoRefreshMs);
+    }
+
+    async autoRefresh() {
+        if (document.hidden || this._refreshing) return;
+        this._refreshing = true;
+        try {
+            await this.loadAllData();
+            this.applyChartVisibility();
+            this.applyPreferenceVisibility();
+        } finally {
+            this._refreshing = false;
+        }
     }
 
     /**
@@ -175,25 +307,34 @@ class AnalyticsDashboard {
         if (!this.analyticsConfig || !this.analyticsConfig.chart_visibility) return;
 
         const vis = this.analyticsConfig.chart_visibility;
-        const mapping = {
-            'subject_sunburst': '#subjectBreakdownCard',
-            'tag_chart': '#tagBreakdownCard',
-            'activity_chart': '.activity-section',
-            'activity_heatmap': '.heatmap-section',
-            'streak_stats': '#streakStats',
-            'weekly_goal': '.goal-section',
-            'difficulty_distribution': '.difficulty-section',
-            'patterns_insights': '.insights-section',
-            'cross_dimension_heatmap': '#crossDimensionSection',
-            'study_recommendations': '#recommendationsSection',
-            'interaction_effects': '#interactionEffectsContainer',
-            'weight_analysis': '.weight-analysis-section'
-        };
 
-        for (const [key, selector] of Object.entries(mapping)) {
+        // These three need two dimensions. The dimension gate
+        // (showMultiDimensionalSections) is a capability test and this config
+        // is a preference: a preference cannot switch on a section the exam
+        // cannot support, so "visible" here must never undo the gate's hide.
+        // This runs AFTER the gate in init() and on an exam switch, and its
+        // `display = ''` used to clear both the gate's hide and the markup's
+        // own display:none on a single-dimension exam (#473).
+        const dimensionOnly = new Set([
+            'cross_dimension_heatmap', 'study_recommendations', 'interaction_effects'
+        ]);
+
+        // One shared CHART_SELECTORS serves this per-exam pass, the student's
+        // master switches in applyPreferenceVisibility and the detail-level
+        // tiers (#504). Two maps would drift, and a chart missing from one of
+        // them is invisible to exactly one of the three.
+        //
+        // The two passes COMPOSE rather than race, and the mechanism is what
+        // makes that true: this one writes style.display, the preference pass
+        // toggles a `pref-hidden` class carrying !important. So neither can
+        // reveal what the other hid, and a chart shows only if neither hid it.
+        // Keep them on different mechanisms.
+        for (const [key, selector] of Object.entries(CHART_SELECTORS)) {
             const el = document.querySelector(selector);
             if (!el) continue;
-            if (vis[key] === false) {
+            if (dimensionOnly.has(key) && this.multiDimensionalSectionsShown !== true) {
+                el.style.display = 'none';
+            } else if (vis[key] === false) {
                 el.style.display = 'none';
             } else {
                 // Restore visibility (clear any previous override)
@@ -309,6 +450,8 @@ class AnalyticsDashboard {
      * Show or hide multi-dimensional sections
      */
     showMultiDimensionalSections(show) {
+        // Read by applyChartVisibility, which runs after this (#473).
+        this.multiDimensionalSectionsShown = show;
         const sections = [
             'crossDimensionSection',
             'recommendationsSection',
@@ -705,23 +848,29 @@ class AnalyticsDashboard {
 
         breadcrumb.style.display = 'flex';
 
-        // Build path A
-        if (hasPathA) {
-            pathA.innerHTML = this.drilldownState.drillPathA
-                .map((node, idx) => `<a class="breadcrumb-link" data-dimension="A" data-index="${idx}" data-testid="analytics-heatmap-breadcrumb-a-step-${idx}">${node.name}</a>`)
-                .join(' > ');
-        } else {
-            pathA.innerHTML = '<span class="breadcrumb-empty" data-testid="analytics-heatmap-breadcrumb-a-empty">All</span>';
-        }
-
-        // Build path B
-        if (hasPathB) {
-            pathB.innerHTML = this.drilldownState.drillPathB
-                .map((node, idx) => `<a class="breadcrumb-link" data-dimension="B" data-index="${idx}" data-testid="analytics-heatmap-breadcrumb-b-step-${idx}">${node.name}</a>`)
-                .join(' > ');
-        } else {
-            pathB.innerHTML = '<span class="breadcrumb-empty" data-testid="analytics-heatmap-breadcrumb-b-empty">All</span>';
-        }
+        // Build each path from text nodes: a step's name is a subject the
+        // student typed or imported, so it is never parsed as markup (#548).
+        const buildPath = (container, path, dim) => {
+            const key = dim.toLowerCase();
+            if (path.length === 0) {
+                container.innerHTML = `<span class="breadcrumb-empty" data-testid="analytics-heatmap-breadcrumb-${key}-empty">All</span>`;
+                return;
+            }
+            const parts = [];
+            path.forEach((node, idx) => {
+                if (idx > 0) parts.push(document.createTextNode(' > '));
+                const link = document.createElement('a');
+                link.className = 'breadcrumb-link';
+                link.dataset.dimension = dim;
+                link.dataset.index = String(idx);
+                link.setAttribute('data-testid', `analytics-heatmap-breadcrumb-${key}-step-${idx}`);
+                link.textContent = node.name;
+                parts.push(link);
+            });
+            container.replaceChildren(...parts);
+        };
+        buildPath(pathA, this.drilldownState.drillPathA, 'A');
+        buildPath(pathB, this.drilldownState.drillPathB, 'B');
 
         // Add click handlers for breadcrumb links
         breadcrumb.querySelectorAll('.breadcrumb-link').forEach(link => {
@@ -940,6 +1089,7 @@ class AnalyticsDashboard {
 
             await this.loadAllData();
             this.applyChartVisibility();
+            this.applyPreferenceVisibility();
             this.applyChartSizes();
         });
 
@@ -988,7 +1138,8 @@ class AnalyticsDashboard {
             this.loadGoalWidget(),
             this.loadDifficultyDistribution(),
             this.loadInsights(),
-            this.loadWeightAnalysis()
+            this.loadWeightAnalysis(),
+            this.loadSourceComparison()
         ];
 
         // Add multi-dimensional analytics if available
@@ -1023,10 +1174,16 @@ class AnalyticsDashboard {
 
                 weekValue.textContent = data.this_week || 0;
 
+                // A neutral, signed number: no colour and no arrow (#470,
+                // owner's decision 2026-10-07). "This Week" counts LOGGED
+                // ENTRIES -- the activity the Weekly Goal and the streak
+                // reward -- while Patterns & Insights reads more mistakes as a
+                // concern, so a coloured direction contradicted one or the
+                // other whichever way it pointed. The minus sign is shown: it
+                // used to be dropped, leaving "8" beside a down arrow.
                 if (data.week_change !== 0) {
-                    const changeText = Math.abs(data.week_change);
-                    weekChange.textContent = `${data.week_change > 0 ? '+' : ''}${changeText}`;
-                    weekChange.className = 'change ' + (data.week_change > 0 ? 'positive' : 'negative');
+                    weekChange.textContent = formatWeekChange(data.week_change) + ' vs last week';
+                    weekChange.className = 'change';
                 } else {
                     weekChange.textContent = '';
                 }
@@ -1296,7 +1453,7 @@ class AnalyticsDashboard {
                 'Z'
             ].join(' ');
 
-            pathsHtml += `<path d="${pathData}" fill="${colors[index % colors.length]}" style="cursor: pointer;" onclick="window.dashboard.navigateToSubjectDeepDive(${item.subject_id})"><title>${item.subject_name}: ${countOf(item)}</title></path>`;
+            pathsHtml += `<path d="${pathData}" fill="${colors[index % colors.length]}" style="cursor: pointer;" onclick="window.dashboard.navigateToSubjectDeepDive(${item.subject_id})"><title>${WimiEscape.html(item.subject_name)}: ${countOf(item)}</title></path>`;
 
             startAngle = endAngle;
         });
@@ -1487,13 +1644,23 @@ class AnalyticsDashboard {
                 });
             }
 
-            legendItem.innerHTML = `
-                <div class="legend-label">
-                    <div class="legend-color" style="background-color: ${color}"></div>
-                    <span>${item[labelKey]}</span>
-                </div>
-                <span class="legend-count">${item[valueKey]}</span>
-            `;
+            // Built from nodes, not markup: the label is a subject or tag name
+            // and the colour a stored tag column, both of which an import can
+            // deliver unchecked (#548). Assigned through the style property, a
+            // value that is not a colour paints nothing instead of escaping
+            // the attribute.
+            const label = document.createElement('div');
+            label.className = 'legend-label';
+            const swatch = document.createElement('div');
+            swatch.className = 'legend-color';
+            swatch.style.backgroundColor = color;
+            const name = document.createElement('span');
+            name.textContent = item[labelKey] ?? '';
+            label.append(swatch, name);
+            const countEl = document.createElement('span');
+            countEl.className = 'legend-count';
+            countEl.textContent = item[valueKey] ?? '';
+            legendItem.append(label, countEl);
 
             // Surface tag definitions as hover tooltips (only tag data carries a description)
             if (typeof item.description === 'string' && item.description.trim() !== '') {
@@ -1704,7 +1871,10 @@ class AnalyticsDashboard {
                     is_active_today: heatmapData.days?.some(
                         d => d.date === heatmapData.end_date && d.count > 0
                     ) || false,
-                    streak_at_risk: false  // Will be calculated if needed
+                    // The backend's own flag (#478), from the same
+                    // `_calculate_streak_info` that produced the streak
+                    // above -- never a definition of "at risk" made up here.
+                    streak_at_risk: heatmapData.streak_at_risk === true
                 }, heatmapData.total_days || 112);
             }
 
@@ -1850,17 +2020,67 @@ class AnalyticsDashboard {
             const card = document.createElement('div');
             card.className = `insight-card ${insight.severity}`;
 
-            card.innerHTML = `
-                <div class="insight-icon">${icons[insight.severity] || 'ℹ️'}</div>
-                <div class="insight-content">
-                    <h3 class="insight-title">${insight.title}</h3>
-                    <p class="insight-description">${insight.description}</p>
-                    <div class="insight-action">${insight.actionable}</div>
-                </div>
-            `;
+            // The backend writes subject and tag names into the title, the
+            // description and the suggested action, so every one is set as
+            // text, never parsed (#546).
+            const el = (tag, cls, text) => {
+                const node = document.createElement(tag);
+                node.className = cls;
+                node.textContent = text ?? '';
+                return node;
+            };
+            const content = document.createElement('div');
+            content.className = 'insight-content';
+            content.append(
+                el('h3', 'insight-title', insight.title),
+                el('p', 'insight-description', insight.description),
+                el('div', 'insight-action', insight.actionable));
+            card.append(el('div', 'insight-icon', icons[insight.severity] || 'ℹ️'), content);
 
             container.appendChild(card);
         });
+    }
+
+    /**
+     * Question Banks Compared (#604).
+     *
+     * `source_chart.js` and `source_table.js` were written for this section
+     * and loaded by no page for their whole existence (never, per
+     * `git log -S`). Everything behind them was already live:
+     * `get_source_comparison` -> `getSourceComparison` -> `api`.
+     *
+     * One fetch, two renderers. They are pure -- a container id and a
+     * `render(data)` -- so neither knows about the bridge and both take the
+     * same payload. A failure hides the section rather than leaving two empty
+     * boxes and a gap, which is #60's mistake in another file.
+     */
+    async loadSourceComparison() {
+        const section = document.querySelector('.source-section');
+        try {
+            const data = await api.getSourceComparison({
+                examContextId: this.currentExamFilter || null
+            });
+
+            // No question bank has entries yet: say nothing rather than
+            // drawing two empty frames. The section is absent, not empty.
+            if (!data || !data.sources || data.sources.length === 0) {
+                if (section) section.style.display = 'none';
+                return;
+            }
+            if (section) section.style.display = '';
+
+            if (!this.sourceChart) {
+                this.sourceChart = new SourceComparisonChart('sourceComparisonChart');
+            }
+            if (!this.sourceTable) {
+                this.sourceTable = new SourceTable('sourceComparisonTable');
+            }
+            this.sourceChart.render(data);
+            this.sourceTable.render(data);
+        } catch (e) {
+            console.error('Failed to load source comparison:', e);
+            if (section) section.style.display = 'none';
+        }
     }
 
     /**
@@ -1906,7 +2126,7 @@ class AnalyticsDashboard {
                 container.innerHTML = `
                     <div class="error-state">
                         <p>Error loading weight analysis</p>
-                        <p class="error-detail">${error.message}</p>
+                        <p class="error-detail">${WimiEscape.html(error.message)}</p>
                     </div>
                 `;
             }
@@ -1964,8 +2184,10 @@ class AnalyticsDashboard {
                 `;
             }).join('');
 
+            // The tour's step is about the counts, so only the branch that
+            // draws them carries its anchor (#682).
             card.innerHTML = `
-                <div class="breakdown-title">Weight Sources</div>
+                <div class="breakdown-title" data-tour-anchor="analytics-weight-sources">Weight Sources</div>
                 <ul class="breakdown-list">${listHtml}</ul>
             `;
             card.style.display = '';
@@ -2077,6 +2299,25 @@ class AnalyticsDashboard {
 
         } catch (error) {
             console.error('Error loading study recommendations:', error);
+            // Say so in the card (#469). This was console-only, so a failure
+            // left the heading STUDY RECOMMENDATIONS with nothing under it --
+            // no message and nothing to act on (#174). Styled as this card's
+            // own empty state (`.insights-empty`), which analytics.css already
+            // lays out; the detail goes in as text, never as markup.
+            const container = document.getElementById(
+                `${this.dimensionInsights.containerId}-recommendations`);
+            if (container) {
+                const box = document.createElement('div');
+                box.className = 'insights-empty';
+                box.setAttribute('data-testid', 'study-recommendations-error');
+                const head = document.createElement('p');
+                head.textContent = 'Error loading study recommendations';
+                const detail = document.createElement('p');
+                detail.className = 'insights-empty-hint';
+                detail.textContent = error && error.message ? error.message : String(error);
+                box.append(head, detail);
+                container.replaceChildren(box);
+            }
         }
     }
 
@@ -2084,6 +2325,10 @@ class AnalyticsDashboard {
      * Load and render interaction effects
      */
     async loadInteractionEffects() {
+        // Cleared first so an exam switch to one with fewer than two
+        // dimensions does not keep the tour's anchor from the last (#682).
+        document.querySelector('#interactionEffectsContainer .subsection-title')
+            ?.removeAttribute('data-tour-anchor');
         if (!this.dimensionAnalytics?.examUsesDimensions() || !this.dimensionInsights) {
             return;
         }
@@ -2100,6 +2345,12 @@ class AnalyticsDashboard {
             });
 
             this.dimensionInsights.renderInteractionEffects(data);
+
+            // The tour's step says these compare the exam's first two
+            // dimensions, which is true only once two exist and were sent
+            // (#682). The heading is static markup, so it is marked here.
+            document.querySelector('#interactionEffectsContainer .subsection-title')
+                ?.setAttribute('data-tour-anchor', 'analytics-interaction-effects');
 
         } catch (error) {
             console.error('Error loading interaction effects:', error);

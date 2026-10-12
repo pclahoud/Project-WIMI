@@ -91,6 +91,10 @@ const EntryState = {
     activeRound: null,
     breakActive: false,
     breakEndTime: null,
+    // #504: a break taken mid-round stops the round's clock, and the break's
+    // end starts it again -- but only if this break was what stopped it.
+    breakMidRound: false,
+    breakPausedRound: false,
     userPreferences: null
 };
 
@@ -114,16 +118,31 @@ const Toast = {
         
         const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
         
+        // Built from nodes (#548): callers put the student's subject, tag
+        // and group names into the title and message ("Removed \"<name>\""),
+        // and a toast has nothing in it worth a template.
         const toast = document.createElement('div');
         toast.className = `toast toast--${type}`;
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || 'ℹ'}</span>
-            <div class="toast-content">
-                <p class="toast-title">${title}</p>
-                ${message ? `<p class="toast-message">${message}</p>` : ''}
-            </div>
-            <button class="toast-close" aria-label="Close">×</button>
-        `;
+        const icon = document.createElement('span');
+        icon.className = 'toast-icon';
+        icon.textContent = icons[type] || 'ℹ';
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+        const titleEl = document.createElement('p');
+        titleEl.className = 'toast-title';
+        titleEl.textContent = title;
+        content.appendChild(titleEl);
+        if (message) {
+            const messageEl = document.createElement('p');
+            messageEl.className = 'toast-message';
+            messageEl.textContent = message;
+            content.appendChild(messageEl);
+        }
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Close');
+        close.textContent = '×';
+        toast.append(icon, content, close);
         
         this.container.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
@@ -186,25 +205,7 @@ function formatDate(dateStr) {
     }
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
-/**
- * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
- *
- * `escapeHtml` round-trips through `textContent` -> `innerHTML`, which
- * escapes `&`, `<` and `>` but leaves `"` alone. Correct for text content
- * and wrong inside an attribute: a tag called `"also" tested` would close
- * the attribute early and the rest would be parsed as markup. Needed by the
- * #306 aria-labels, the first attributes here to carry user-typed text.
- */
-function escapeAttr(text) {
-    return escapeHtml(text).replace(/"/g, '&quot;');
-}
 
 /**
  * Set the pause button's glyph, tooltip and accessible name together.
@@ -424,7 +425,7 @@ function renderSubjectDropdown(dropdown, results, type, query = '') {
     } else {
         const highlightFn = typeof fuzzySearch !== 'undefined'
             ? (text) => fuzzySearch.highlightMatches(text, query)
-            : (text) => escapeHtml(text);
+            : (text) => WimiEscape.html(text);
 
         dropdown.innerHTML = `
             <div class="dropdown-results" role="listbox">
@@ -434,7 +435,7 @@ function renderSubjectDropdown(dropdown, results, type, query = '') {
                     // Check if match came from an alias
                     const matchedAlias = subject.matchedAlias || null;
                     const aliasHtml = matchedAlias
-                        ? `<span class="alias-match"><span class="alias-label">matched:</span> ${escapeHtml(matchedAlias)}</span>`
+                        ? `<span class="alias-match"><span class="alias-label">matched:</span> ${WimiEscape.html(matchedAlias)}</span>`
                         : '';
 
                     return `
@@ -442,16 +443,16 @@ function renderSubjectDropdown(dropdown, results, type, query = '') {
                              role="option"
                              id="subject-option-${type}-${index}"
                              data-id="${subject.id}"
-                             data-name="${escapeHtml(subject.name)}"
-                             data-path="${escapeHtml(subject.path)}"
+                             data-name="${WimiEscape.html(subject.name)}"
+                             data-path="${WimiEscape.html(subject.path)}"
                              data-index="${index}"
                              data-testid="entry-form-subject-option-${type}-${subject.id}"
                              aria-selected="false"
-                             onclick="selectSubject(${subject.id}, '${escapeHtml(subject.name).replace(/'/g, "&apos;")}', '${escapeHtml(subject.path).replace(/'/g, "&apos;")}', '${type}')">
+                             onclick="selectSubject(${subject.id}, this.dataset.name, this.dataset.path, '${type}')">
                             ${isBestMatch ? '<span class="best-match-icon" title="Best match">🎯</span>' : ''}
                             <div class="subject-option-content">
                                 <div class="subject-option-name">${highlightFn(subject.name)}</div>
-                                <div class="subject-option-path"><span class="subject-option-path-text">${escapeHtml(subject.path)}</span>${aliasHtml}</div>
+                                <div class="subject-option-path"><span class="subject-option-path-text">${WimiEscape.html(subject.path)}</span>${aliasHtml}</div>
                             </div>
                         </div>
                     `;
@@ -610,7 +611,7 @@ function showImageAutoPopulationPrompt(images, subjectName) {
             <div class="autofill-prompt-icon">🖼️</div>
             <div class="autofill-prompt-text">
                 <strong>Related images found</strong>
-                <span>${images.length} image${images.length !== 1 ? 's' : ''} previously used with "${subjectName}"</span>
+                <span>${images.length} image${images.length !== 1 ? 's' : ''} previously used with "${WimiEscape.html(subjectName)}"</span>
             </div>
             <div class="autofill-prompt-actions">
                 <button type="button" class="btn btn-sm btn-primary" id="btn-image-autopopulate-accept" data-testid="entry-form-image-autopopulate-accept-button">
@@ -779,11 +780,11 @@ const _attachExistingSelected = new Set();
 let _attachExistingHandlersWired = false;
 
 function _attachStripHtml(html) {
-    if (!html) return '';
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    const text = (tmp.textContent || tmp.innerText || '').trim();
-    return text.replace(/\s+/g, ' ');
+    // WimiTextPreview parses into an inert DOMParser document (#548). The
+    // old version assigned the note to a detached <div>'s innerHTML, and a
+    // detached element still belongs to this live document, so an
+    // <img onerror> in a stored note ran when the picker listed it.
+    return WimiTextPreview.htmlToPreviewText(html);
 }
 
 function _attachTruncate(str, max) {
@@ -1203,8 +1204,8 @@ function renderSubjectChips(containerId, subjects, type) {
     container.innerHTML = subjects.map(subject => {
         const chipMarkup = `
             <div class="chip ${type}" data-testid="entry-form-subject-${type}-chip-${subject.id}">
-                <span>${escapeHtml(subject.name)}</span>
-                <button type="button" class="chip-remove" onclick="removeSubject(${subject.id}, '${type}')" title="Remove" aria-label="Remove subject ${escapeAttr(subject.name)}">×</button>
+                <span>${WimiEscape.html(subject.name)}</span>
+                <button type="button" class="chip-remove" onclick="removeSubject(${subject.id}, '${type}')" title="Remove" aria-label="Remove subject ${WimiEscape.attr(subject.name)}">×</button>
             </div>
         `;
         // Tag context pill: only on primary subjects with ≥2 parents.
@@ -1291,19 +1292,24 @@ function mountTagContextPill(subjectId) {
     const activeEdge = cached.find(e => e.parent_id === activeParentId) || cached[0];
     const isExplicit = explicitChoice !== undefined && explicitChoice !== null;
 
+    // Named by its own two spans, so its name is what it shows ("Tag context:
+    // Cardiology") rather than its `title`, which the tour would otherwise
+    // read first (#430). The caret is decoration.
     slot.innerHTML = `
         <button type="button"
                 class="tag-context-pill"
                 data-subject-id="${subjectId}"
                 data-explicit="${isExplicit}"
-                data-testid="entry-form-tag-context-pill-${subjectId}"
-                title="Click to change tag context — POLYHIERARCHY_MIGRATION §7.3"
+                data-testid="entry-form-tag-context-pill-${subjectId}" data-tour-anchor="entry-form-tag-context"
+                title="Click to change tag context"
+                aria-labelledby="tag-context-label-${subjectId} tag-context-value-${subjectId}"
                 onclick="openTagContextMenu(${subjectId}, event)">
-            <span class="tag-context-pill-label">Tag context:</span>
-            <span class="tag-context-pill-value">${escapeHtml(activeEdge.parent_name)}</span>
-            <span class="tag-context-pill-caret">▾</span>
+            <span class="tag-context-pill-label" id="tag-context-label-${subjectId}">Tag context:</span>
+            <span class="tag-context-pill-value" id="tag-context-value-${subjectId}">${WimiEscape.html(activeEdge.parent_name)}</span>
+            <span class="tag-context-pill-caret" aria-hidden="true">▾</span>
         </button>
     `;
+    startEntryTour();
 }
 
 /**
@@ -1344,7 +1350,7 @@ function openTagContextMenu(subjectId, event) {
                     aria-checked="${checked}"
                     data-testid="entry-form-tag-context-option-${subjectId}-${edge.parent_id}"
                     onclick="selectTagContext(${subjectId}, ${edge.parent_id}, event)">
-                <span>${escapeHtml(edge.parent_name)}${edge.is_primary ? ' <span style="opacity:0.6;font-weight:400;">(default)</span>' : ''}</span>
+                <span>${WimiEscape.html(edge.parent_name)}${edge.is_primary ? ' <span style="opacity:0.6;font-weight:400;">(default)</span>' : ''}</span>
                 ${primaryBadge}
             </button>
         `;
@@ -1556,7 +1562,7 @@ function initQuickAddParentSearch() {
 function renderParentDropdown(dropdown, results, query = '') {
     const highlightFn = typeof fuzzySearch !== 'undefined'
         ? (text) => fuzzySearch.highlightMatches(text, query)
-        : (text) => escapeHtml(text);
+        : (text) => WimiEscape.html(text);
 
     // Always include "Root (Top Level)" option at the top
     let optionsHtml = `
@@ -1579,12 +1585,12 @@ function renderParentDropdown(dropdown, results, query = '') {
             <div class="subject-option"
                  role="option"
                  data-id="${subject.id}"
-                 data-name="${escapeHtml(subject.name)}"
-                 data-path="${escapeHtml(subject.path || '')}"
-                 onclick="selectQuickAddParent(${subject.id}, '${escapeHtml(subject.name).replace(/'/g, "&apos;")}')">
+                 data-name="${WimiEscape.html(subject.name)}"
+                 data-path="${WimiEscape.html(subject.path || '')}"
+                 onclick="selectQuickAddParent(${subject.id}, this.dataset.name)">
                 <div class="subject-option-content">
                     <div class="subject-option-name">${highlightFn(subject.name)}</div>
-                    <div class="subject-option-path">${escapeHtml(subject.path || '')}</div>
+                    <div class="subject-option-path">${WimiEscape.html(subject.path || '')}</div>
                 </div>
             </div>
         `).join('');
@@ -1883,7 +1889,7 @@ function renderTagDropdown(dropdown, results, query = '') {
         dropdown.innerHTML = `
             <div class="dropdown-empty">
                 <span class="dropdown-empty-icon">🏷️</span>
-                <span>No tags found for "${escapeHtml(query)}"</span>
+                <span>No tags found for "${WimiEscape.html(query)}"</span>
             </div>
             ${trimmedQuery.length >= 2 ? renderCreateTagOption(trimmedQuery, tagGroups) : ''}
             ${!hintDismissed ? `
@@ -1896,7 +1902,7 @@ function renderTagDropdown(dropdown, results, query = '') {
     } else {
         const highlightFn = typeof fuzzySearch !== 'undefined' 
             ? (text) => fuzzySearch.highlightMatches(text, query)
-            : (text) => escapeHtml(text);
+            : (text) => WimiEscape.html(text);
         
         dropdown.innerHTML = `
             <div class="dropdown-results" role="listbox">
@@ -1907,19 +1913,19 @@ function renderTagDropdown(dropdown, results, query = '') {
                         <div class="tag-option ${isBestMatch ? 'best-match' : ''} ${isSelected ? 'already-selected' : ''}"
                              role="option"
                              id="tag-option-${index}"
-                             ${tag.description ? `title="${escapeHtml(tag.description)}"` : ''}
+                             ${tag.description ? `title="${WimiEscape.html(tag.description)}"` : ''}
                              data-id="${tag.id}"
-                             data-name="${escapeHtml(tag.name)}"
-                             data-color="${tag.color || '#6B7280'}"
+                             data-name="${WimiEscape.html(tag.name)}"
+                             data-color="${WimiEscape.attr(tag.color || '#6B7280')}"
                              data-index="${index}"
                              data-testid="entry-form-tags-option-${tag.id}"
                              aria-selected="${isSelected}"
-                             onclick="selectTagFromDropdown(${tag.id}, '${escapeHtml(tag.name).replace(/'/g, "&apos;")}', '${tag.color || '#6B7280'}')">
+                             onclick="selectTagFromDropdown(${tag.id}, this.dataset.name, this.dataset.color)">
                             ${isBestMatch ? '<span class="best-match-icon" title="Best match">🎯</span>' : ''}
-                            <span class="tag-option-color" style="background: ${tag.color || '#6B7280'}"></span>
+                            <span class="tag-option-color" style="background: ${WimiEscape.attr(tag.color || '#6B7280')}"></span>
                             <div class="tag-option-content">
                                 <div class="tag-option-name">${highlightFn(tag.name)}</div>
-                                ${tag.groupName ? `<div class="tag-option-group">${escapeHtml(tag.groupName)}</div>` : ''}
+                                ${tag.groupName ? `<div class="tag-option-group">${WimiEscape.html(tag.groupName)}</div>` : ''}
                             </div>
                             ${isSelected ? '<span class="tag-option-check">✓</span>' : ''}
                         </div>
@@ -1953,7 +1959,7 @@ function renderCreateTagOption(tagName, tagGroups) {
         <div class="dropdown-create-section">
             <div class="dropdown-create-header">
                 <span class="dropdown-create-icon">➕</span>
-                <span>Create "<strong>${escapeHtml(tagName)}</strong>"</span>
+                <span>Create "<strong>${WimiEscape.html(tagName)}</strong>"</span>
             </div>
             <div class="dropdown-create-groups">
                 ${tagGroups.map((group, index) => `
@@ -1961,8 +1967,8 @@ function renderCreateTagOption(tagName, tagGroups) {
                         <input type="radio" name="create-tag-group" value="${group.id}" 
                                ${index === 0 ? 'checked' : ''}
                                onchange="updateSelectedCreateGroup(${group.id})">
-                        <span class="create-group-color" style="background: ${group.color || '#6B7280'}"></span>
-                        <span class="create-group-name">${escapeHtml(group.name)}</span>
+                        <span class="create-group-color" style="background: ${WimiEscape.attr(group.color || '#6B7280')}"></span>
+                        <span class="create-group-name">${WimiEscape.html(group.name)}</span>
                     </label>
                 `).join('')}
             </div>
@@ -1972,7 +1978,8 @@ function renderCreateTagOption(tagName, tagGroups) {
                    autocomplete="off"
                    data-testid="entry-form-create-tag-definition-input">
             <button type="button" class="btn btn-sm btn-primary dropdown-create-btn"
-                    onclick="createTagInline('${escapeHtml(tagName).replace(/'/g, "&apos;")}')">
+                    data-tag-name="${WimiEscape.attr(tagName)}"
+                    onclick="createTagInline(this.dataset.tagName)">
                 Create Tag
             </button>
         </div>
@@ -2128,16 +2135,18 @@ function renderTagHierarchy() {
 
     container.innerHTML = EntryState.tagHierarchy.map(group => `
         <div class="tag-group">
-            <div class="tag-group-header" ${group.description ? `title="${escapeHtml(group.description)}"` : ''}>
-                <span class="tag-group-color" style="background: ${group.color || '#6B7280'}"></span>
-                <span>${escapeHtml(group.name)}</span>
+            <div class="tag-group-header" ${group.description ? `title="${WimiEscape.html(group.description)}"` : ''}>
+                <span class="tag-group-color" style="background: ${WimiEscape.attr(group.color || '#6B7280')}"></span>
+                <span>${WimiEscape.html(group.name)}</span>
             </div>
             <div class="tag-group-items">
                 ${(group.children || []).map(tag => `
                     <button type="button" class="tag-item ${isTagSelected(tag.id) ? 'selected' : ''}"
-                            ${tag.description ? `title="${escapeHtml(tag.description)}"` : ''}
-                            data-tag-id="${tag.id}" onclick="toggleTag(${tag.id}, '${escapeHtml(tag.name).replace(/'/g, "&apos;")}', '${tag.color || group.color}')">
-                        ${escapeHtml(tag.name)}
+                            ${tag.description ? `title="${WimiEscape.html(tag.description)}"` : ''}
+                            data-tag-id="${tag.id}" data-name="${WimiEscape.attr(tag.name)}"
+                            data-color="${WimiEscape.attr(tag.color || group.color)}"
+                            onclick="toggleTag(${tag.id}, this.dataset.name, this.dataset.color)">
+                        ${WimiEscape.html(tag.name)}
                     </button>
                 `).join('')}
             </div>
@@ -2172,9 +2181,9 @@ function renderTagChips() {
     container.innerHTML = EntryState.formData.tags.map(tag => {
         const description = tag.description || getTagDescriptionById(tag.id);
         return `
-        <div class="chip tag" style="border-left: 3px solid ${tag.color || '#6B7280'}" ${description ? `title="${escapeHtml(description)}"` : ''} data-testid="entry-form-tags-chip-${tag.id}">
-            <span>${escapeHtml(tag.name)}</span>
-            <button type="button" class="chip-remove" onclick="removeTag(${tag.id})" title="Remove" aria-label="Remove error type ${escapeAttr(tag.name)}">×</button>
+        <div class="chip tag" style="border-left: 3px solid ${WimiEscape.attr(tag.color || '#6B7280')}" ${description ? `title="${WimiEscape.html(description)}"` : ''} data-testid="entry-form-tags-chip-${tag.id}">
+            <span>${WimiEscape.html(tag.name)}</span>
+            <button type="button" class="chip-remove" onclick="removeTag(${tag.id})" title="Remove" aria-label="Remove error type ${WimiEscape.attr(tag.name)}">×</button>
         </div>
     `;
     }).join('');
@@ -2238,9 +2247,9 @@ function renderManageTagsModal() {
 
         return `
         <div class="manage-tag-group">
-            <div class="manage-tag-group-header" ${group.description ? `title="${escapeHtml(group.description)}"` : ''}>
-                <span class="tag-group-color" style="background: ${group.color || '#6B7280'}"></span>
-                <span class="manage-tag-group-name">${escapeHtml(group.name)}</span>
+            <div class="manage-tag-group-header" ${group.description ? `title="${WimiEscape.html(group.description)}"` : ''}>
+                <span class="tag-group-color" style="background: ${WimiEscape.attr(group.color || '#6B7280')}"></span>
+                <span class="manage-tag-group-name">${WimiEscape.html(group.name)}</span>
                 <span class="manage-tag-usage" data-testid="manage-tag-usage-${group.id}">${usageLabel(groupCount)}</span>
                 <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${group.id}"
                         ${groupEmpty ? 'title="Delete this empty group"' : 'disabled title="Delete or move its types first"'}
@@ -2253,8 +2262,8 @@ function renderManageTagsModal() {
                     return `
                 <div class="manage-tag-row" data-tag-id="${tag.id}">
                     <div class="manage-tag-row-main">
-                        <span class="tag-option-color" style="background: ${tag.color || group.color || '#6B7280'}"></span>
-                        <span class="manage-tag-name">${escapeHtml(tag.name)}</span>
+                        <span class="tag-option-color" style="background: ${WimiEscape.attr(tag.color || group.color || '#6B7280')}"></span>
+                        <span class="manage-tag-name">${WimiEscape.html(tag.name)}</span>
                         <span class="manage-tag-usage" data-testid="manage-tag-usage-${tag.id}">${usageLabel(count)}</span>
                         <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${tag.id}"
                                 title="Delete this error type"
@@ -2264,7 +2273,7 @@ function renderManageTagsModal() {
                         <textarea class="manage-tag-def-input" rows="2"
                                   placeholder="Definition (optional) — shown as a tooltip in the picker"
                                   data-testid="manage-tag-def-${tag.id}"
-                                  oninput="onTagDefinitionInput(${tag.id})">${escapeHtml(tag.description || '')}</textarea>
+                                  oninput="onTagDefinitionInput(${tag.id})">${WimiEscape.html(tag.description || '')}</textarea>
                         <button type="button" class="btn btn-sm btn-primary manage-tag-save"
                                 data-testid="manage-tag-save-${tag.id}" hidden
                                 onclick="saveTagDefinition(${tag.id})">Save</button>
@@ -2617,6 +2626,12 @@ function markDirty() {
     // actually touched the entry. Flagging them on a blank new entry
     // would mark every required field the moment the page loads.
     document.getElementById('entry-form')?.classList.add('show-missing');
+    // #60's button becomes pressable once there is an explanation to read,
+    // and markDirty() is the funnel every edit already goes through. This
+    // re-parks the BUTTON only -- the proposal cards hold a textarea the
+    // student may be part way through, and rebuilding them on a keystroke
+    // would discard that edit silently.
+    EntryState.relationProposals?.update();
 }
 
 function markClean() {
@@ -3223,6 +3238,10 @@ function populateFormWithEntry(entry) {
 
 function resetFormForNewEntry() {
     EntryState.currentEntry = null;
+    // Last entry's suggestions are not this entry's. The module also
+    // discards a result that lands for the wrong entry, but that only covers
+    // a pass still running -- this covers a finished list left on screen.
+    EntryState.relationProposals?.clear();
     // A fresh entry starts unmarked; the missing-field cue reappears as
     // soon as this one is touched.
     document.getElementById('entry-form')?.classList.remove('show-missing');
@@ -3773,6 +3792,7 @@ function initRichTextEditors() {
     }
 
     initDictation();
+    initRelationProposals();
 
     console.log('Rich text editors initialized');
 }
@@ -3840,6 +3860,67 @@ function initDictation() {
             notify
         });
     }).filter(Boolean);
+}
+
+/**
+ * Put relation proposals under the explanation (#60).
+ *
+ * `relation_proposals.js` holds the button, the poll loop, the cards and
+ * every message; this is only the wiring, and it is deliberately the same
+ * shape as initDictation() above.
+ *
+ * **`getContext()` reads EntryState at CALL time**, and that is the whole
+ * point rather than a style choice. A pass takes up to several seconds, and
+ * in that window the student may save, move to the next entry or reset the
+ * form -- so a captured entry id is the one thing that must never be
+ * captured. The module pairs the id with a token and discards a result that
+ * comes back for a different entry (#59 §3.5, the same race).
+ *
+ * `has_explanation` is read from the editor rather than from formData,
+ * because formData is only refreshed on collect: a student who has just
+ * typed their explanation and not yet triggered a save would otherwise be
+ * told to write one.
+ */
+function initRelationProposals() {
+    if (typeof window.attachRelationProposals !== 'function') {
+        console.warn('relation_proposals.js not loaded; the entry form has '
+            + 'no relation suggestions');
+        return;
+    }
+    const mountEl = document.getElementById('explanation-relations');
+    if (!mountEl) return;
+
+    EntryState.relationProposals = window.attachRelationProposals({
+        mountEl,
+        getContext: () => ({
+            // null until the first save. The module hides its button rather
+            // than offering one that cannot work (#174).
+            entry_id: EntryState.currentEntry?.id ?? null,
+            has_explanation: hasExplanationText()
+        }),
+        notify: (level, title, message) => {
+            if (Toast && typeof Toast[level] === 'function') {
+                Toast[level](title, message);
+            }
+        }
+    });
+}
+
+/** Whether the explanation editor currently holds any prose.
+
+ * Tags do not count: an editor left with `<p><br></p>` is empty, and the
+ * bridge would answer `no_explanation` for it anyway.
+ */
+function hasExplanationText() {
+    const editor = EntryState.explanationEditor;
+    if (!editor || typeof editor.getContent !== 'function') return false;
+    try {
+        const content = editor.getContent();
+        const html = (content && content.html) || '';
+        return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0;
+    } catch (e) {
+        return false;
+    }
 }
 
 /**
@@ -3911,6 +3992,9 @@ function addNoteCard(noteData = null) {
     deleteBtn.textContent = 'Delete';
     deleteBtn.title = 'Delete this note';
     deleteBtn.dataset.testid = `entry-form-note-card-${tempId}-delete-button`;
+    // The tour's Delete step (#682) covers both branches of deleteNote(), a
+    // note this entry alone uses and one shared with others.
+    deleteBtn.dataset.tourAnchor = 'entry-form-note-delete';
     deleteBtn.addEventListener('click', () => deleteNote(tempId));
     actions.appendChild(deleteBtn);
 
@@ -4520,6 +4604,24 @@ function markEntryFormReady() {
     }
 
     console.log('✅ Question entry form ready');
+    startEntryTour();
+}
+
+/**
+ * The first-run tour (#430). Called once the form is released, which is after
+ * the editors report ready, and again when a tag-context pill mounts: the pill
+ * exists only for a primary subject with two or more parents, and tour.js
+ * rebuilds an open tour from what renders now. A no-op before the release,
+ * when .entry-page is inert. Behind a typeof check and a try, so a broken tour
+ * cannot break the form.
+ */
+function startEntryTour() {
+    if (!EntryState.isFormReady) return;
+    try {
+        if (typeof WimiTour !== 'undefined') WimiTour.start('entry-form');
+    } catch (err) {
+        console.error('Tour failed to start:', err);
+    }
 }
 
 async function initializeEntryPage() {
@@ -4659,6 +4761,14 @@ async function initializeEntryPage() {
         // api.ready(), so a failure has somewhere to land; not awaited, so a
         // slow model verification cannot hold up markEntryFormReady().
         refreshDictation();
+
+        // And where relation extraction stands (#60). Not awaited for
+        // the same reason: eight stat calls are cheap, but the form must
+        // not wait on a bridge call to become usable. A failure leaves
+        // the feature silent, which is its honest resting state.
+        EntryState.relationProposals?.refresh();
+        EntryState.relationProposals?.loadTypes(
+            EntryState.session?.exam_context_id ?? null);
 
         // Initial validation
         validateForm();
@@ -4918,6 +5028,8 @@ async function initSessionTimer() {
     updateRoundIndicator();
 
     pauseBtn.addEventListener('click', toggleTimerPause);
+    const takeBreakBtn = document.getElementById('btn-take-break');
+    if (takeBreakBtn) takeBreakBtn.addEventListener('click', openTakeBreakDialog);
     newRoundBtn.addEventListener('click', showNewRoundDialog);
 
     updateTimerDisplay();
@@ -4966,12 +5078,7 @@ function updateTimerDisplay() {
         timerEl.classList.add('timer-break');
 
         if (breakRemaining <= 0) {
-            // Break is over
-            EntryState.breakActive = false;
-            EntryState.breakEndTime = null;
-            timerEl.classList.remove('timer-break');
-            Toast.info('Break Over', 'Break time is up! Ready for the next round?');
-            showNewRoundDialog();
+            endBreak(false);
             return;
         }
 
@@ -5010,7 +5117,7 @@ function updateTimerDisplay() {
             if (pauseBtn) pauseBtn.style.display = 'none';
             if (newRoundBtn) newRoundBtn.style.display = '';
 
-            showRoundCompleteOverlay(endedRoundNumber);
+            offerBreakAfterRound(endedRoundNumber);
         }
         return;
     }
@@ -5177,9 +5284,108 @@ function startBreakFromModal() {
     }
 
     overlay.style.display = 'none';
+    beginBreak(duration, { midRound: false, pausedRound: false });
+}
 
+/**
+ * The end of a round offers a break unless the student has said they take
+ * breaks only when they choose (manual_break_control, #504). Either way the
+ * Take a break button beside the timer stays available.
+ */
+function offerBreakAfterRound(roundNumber) {
+    const prefs = EntryState.userPreferences || {};
+    if (prefs.manual_break_control) {
+        Toast.info('Round Complete', 'Take a break whenever you like, or start the next round.');
+        return;
+    }
+    showRoundCompleteOverlay(roundNumber);
+}
+
+/** Glyph, tooltip and accessible name of the break button, together (#306). */
+function setTakeBreakAffordance(onBreak) {
+    const btn = document.getElementById('btn-take-break');
+    const icon = document.getElementById('take-break-icon');
+    if (!btn) return;
+    const label = onBreak ? 'End break' : 'Take a break';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (icon) icon.innerHTML = onBreak ? '&#x23F9;' : '&#x2615;';
+}
+
+function openTakeBreakDialog() {
+    if (EntryState.breakActive) {
+        endBreak(true);
+        return;
+    }
+    const overlay = document.getElementById('take-break-dialog-overlay');
+    const input = document.getElementById('take-break-duration');
+    if (!overlay || !input) return;
+    const prefs = EntryState.userPreferences || {};
+    input.value = prefs.default_break_interval_minutes || 5;
+
+    // The message has to name the state the student is actually in. Mid-round
+    // there is a clock to stop and the static text is right; BETWEEN rounds
+    // there is none, and the shipped sentence promised one anyway -- a surface
+    // stating what it does not know (#174, #289). The Round Complete dialog
+    // next door already rewrites its own message for short-versus-long, so
+    // this is the same treatment rather than a new mechanism.
+    const messageEl = document.getElementById('take-break-message');
+    if (messageEl) {
+        const midRound = !!(EntryState.activeRound && !EntryState.timerExpired);
+        messageEl.textContent = midRound
+            ? "The round's clock stops while you are away and starts again when the break ends."
+            : 'No round is running, so there is no clock to stop. The break is '
+              + 'recorded and you can start the next round when you come back.';
+    }
+
+    overlay.style.display = 'flex';
+    input.focus();
+    input.select();
+}
+
+function cancelTakeBreak() {
+    const overlay = document.getElementById('take-break-dialog-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+async function startTakeBreak() {
+    const input = document.getElementById('take-break-duration');
+    const duration = parseInt(input && input.value, 10);
+    if (!duration || duration < 1) {
+        Toast.error('Invalid Duration', 'Please enter a positive number of minutes.');
+        return;
+    }
+    cancelTakeBreak();
+
+    const round = EntryState.activeRound;
+    const midRound = !!round && !EntryState.timerExpired;
+    let pausedRound = false;
+    if (midRound && !EntryState.timerPaused) {
+        // Stop the round's clock through the same path as Pause, so the
+        // break is recorded in the round's total_break_seconds.
+        try {
+            const result = await api.pauseRoundTimer(round.id);
+            if (result) {
+                round.total_break_seconds = result.total_break_seconds;
+                round.timer_paused_at = result.timer_paused_at;
+            }
+            EntryState.timerPaused = true;
+            pausedRound = true;
+            if (window.eventBus) eventBus.emit('timer:paused', { roundId: round.id });
+        } catch (err) {
+            console.error('Failed to pause the round for a break:', err);
+            Toast.error('Break Not Started', 'The round could not be paused, so no break was started.');
+            return;
+        }
+    }
+    beginBreak(duration, { midRound, pausedRound });
+}
+
+function beginBreak(duration, { midRound, pausedRound }) {
     EntryState.breakActive = true;
     EntryState.breakEndTime = Date.now() + duration * 60000;
+    EntryState.breakMidRound = midRound;
+    EntryState.breakPausedRound = pausedRound;
 
     const timerEl = document.getElementById('session-timer');
     if (timerEl) {
@@ -5192,8 +5398,56 @@ function startBreakFromModal() {
     const newRoundBtn = document.getElementById('btn-new-round');
     if (pauseBtn) pauseBtn.style.display = 'none';
     if (newRoundBtn) newRoundBtn.style.display = 'none';
+    setTakeBreakAffordance(true);
 
     Toast.info('Break Started', `${duration} minute break started.`);
+    updateTimerDisplay();
+}
+
+/**
+ * End the break, on time or early. A mid-round break gives the round its
+ * clock back -- if this break stopped it; a round the student had paused
+ * themselves stays paused. A break between rounds offers the next round.
+ */
+async function endBreak(early) {
+    if (!EntryState.breakActive) return;
+    EntryState.breakActive = false;
+    EntryState.breakEndTime = null;
+    setTakeBreakAffordance(false);
+
+    const timerEl = document.getElementById('session-timer');
+    if (timerEl) timerEl.classList.remove('timer-break');
+    const pauseBtn = document.getElementById('btn-timer-pause');
+    const newRoundBtn = document.getElementById('btn-new-round');
+
+    const round = EntryState.activeRound;
+    if (EntryState.breakMidRound && round) {
+        if (EntryState.breakPausedRound) {
+            try {
+                const result = await api.unpauseRoundTimer(round.id);
+                if (result) {
+                    round.total_break_seconds = result.total_break_seconds;
+                    round.timer_paused_at = result.timer_paused_at;
+                }
+                EntryState.timerPaused = false;
+                setTimerPauseAffordance('pause');
+                if (window.eventBus) eventBus.emit('timer:resumed', { roundId: round.id });
+            } catch (err) {
+                console.error('Failed to resume the round after a break:', err);
+            }
+        }
+        if (timerEl && EntryState.timerPaused) timerEl.classList.add('timer-paused');
+        if (pauseBtn) pauseBtn.style.display = '';
+        Toast.info(early ? 'Break Ended' : 'Break Over',
+            EntryState.timerPaused ? 'The round is still paused.' : "The round's clock is running again.");
+    } else {
+        if (newRoundBtn) newRoundBtn.style.display = '';
+        Toast.info(early ? 'Break Ended' : 'Break Over', 'Ready for the next round?');
+        showNewRoundDialog();
+    }
+    EntryState.breakMidRound = false;
+    EntryState.breakPausedRound = false;
+    updateTimerDisplay();
 }
 
 function skipBreakNewRound() {
@@ -5237,7 +5491,7 @@ async function endCurrentRoundEarly() {
     if (pauseBtn) pauseBtn.style.display = 'none';
     if (newRoundBtn) newRoundBtn.style.display = '';
 
-    showRoundCompleteOverlay(endedRoundNumber);
+    offerBreakAfterRound(endedRoundNumber);
 }
 
 function _buildComboString(e) {

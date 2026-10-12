@@ -83,6 +83,28 @@
     }
 
     /**
+     * A `YYYY-MM-DD` calendar day as a Date at that day's LOCAL midnight.
+     *
+     * The other direction of `toISODate`, and the reason it exists (#471):
+     * `new Date('2026-10-07')` is specified to parse a date-only string as
+     * **UTC** midnight, so formatting it in local time names the previous
+     * day anywhere west of Greenwich -- the activity heatmap labelled
+     * Wednesday's square "Tue, Oct 6". Building from the components keeps
+     * the day the string names, in every zone.
+     *
+     * Anything after the first ten characters is ignored; a string that does
+     * not start with a date gives an Invalid Date, as `new Date` would.
+     *
+     * @param {string} isoDate `YYYY-MM-DD`, e.g. from a Python `date.isoformat()`
+     * @returns {Date} local midnight on that day
+     */
+    function parse(isoDate) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate));
+        if (!m) return new Date(NaN);
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+
+    /**
      * Today, where the student is.
      *
      * @returns {string} `YYYY-MM-DD` in the local zone
@@ -94,5 +116,6 @@
     window.LocalDate = {
         today: today,
         toISODate: toISODate,
+        parse: parse,
     };
 })();

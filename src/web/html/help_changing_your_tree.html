@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Changing your tree later - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/60_changing_your_tree.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 20</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Changing your tree later</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_question_bank_pane.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Your question bank beside the form</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_dictation.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Speaking instead of typing</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Changing your tree later
+
+## In short
+
+Importing a file again is how you correct a tree you have already built, and it is safe for one reason above all others: nothing is written until you have read a preview of exactly what would happen. The one thing to be careful about is which kind of file you are importing, because a file that describes every axis of your exam is treated as the authority on which axes exist, and will archive the ones it does not mention, with every subject under them.
+
+## Why you will do this more than once
+
+Your first tree came from somewhere — typed in by hand, or transcribed from a
+published outline, which
+[Building your subject tree from a published outline](help_outline_to_tree.html)
+is about. Either way it will be wrong in places. Boards revise their content
+outlines, transcriptions drop rows, and after a month of logging entries you
+will know which topics you actually need and which you invented.
+
+So changing the tree later is the normal case, not the exception. There are
+two ways to do it:
+
+- **By hand, in the tree editor.** Add, rename, move and reweight subjects one at a time. Right for a handful of corrections, and the only way to do some things at all — a second parent, an alias, an anchored weight.
+- **By importing a file again.** Right for a revised blueprint, or for any change big enough that doing it by hand would take an evening.
+
+This chapter is about the second one, and about the two export buttons that
+produce a file to start from.
+
+## Where the buttons are
+
+Everything in this chapter is reached from the header of the tree editor, which
+you open from an exam card's **Subjects** button. Past **Collapse** and
+**Expand**, reading left to right:
+
+- **Import**, which opens a file picker and accepts a `.json` file;
+- a small **?** button, whose tooltip reads *Import Format Help*. It opens the **Import Format Guide** — WIMI's own description of the file it reads, generated from the same source as this manual, with a **Copy the whole guide** button at the bottom;
+- **Export**, whose tooltip reads *Export the dimension you are editing, as a subject tree*;
+- **Export all**, whose tooltip reads *Export every dimension of this exam as one whole-exam file*. It is not shown at all on an exam with no dimensions, because there would be nothing for it to do that **Export** does not already do.
+
+## The two export buttons write different files
+
+<!-- tour
+page: tree-editor
+anchor: tree-export
+text: Export writes only the tree on screen and lists no dimensions, so
+  importing the file back changes only the tree you have open and can never
+  archive a dimension. Use it for one tree: to edit it, send it or keep a
+  copy.
+-->
+
+<!-- tour
+page: tree-editor
+anchor: tree-export-whole-exam
+text: Export all writes every dimension of this exam into one file, and that
+  list is read back as the whole exam. Re-importing it unchanged changes
+  nothing, but delete a dimension from the file and the import archives it
+  with its trees, unless entries are tagged in it.
+-->
+
+This is worth getting right before you export anything, because the two files
+mean different things and only one of them is safe to feed back in.
+
+- **Export** writes the tree of the dimension you are looking at, and nothing else. It says nothing about the rest of the exam. It deliberately has **no list of dimensions** — more on why in a moment. If that dimension itself came from a file with an identifier, the identifier is noted in the file's `_metadata` block as a label, and an import does not read it.
+- **Export all** writes every dimension of the exam, each with its own tree, in one file, as a list of dimensions. It does carry each dimension's identifier.
+
+The asymmetry is not an oversight, and the reason is the whole safety argument
+of this chapter: **a file that lists dimensions is read as the authority on
+which dimensions the exam has.** If a one-axis export were written as a list
+of one dimension, re-importing it would say "this exam has one axis", and the
+other two would be archived. Written as a plain tree, a single-tree file stays
+what it is — a description of one tree, imported into whichever tree you have
+open.
+
+So:
+
+- **Use Export all for a round trip.** It is the only file that can be re-imported and understood as the same dimensions it came from, and because it names every axis, re-importing it unchanged is a no-op.
+- **Use Export when you want one tree** — to edit it in a text editor, to send it to someone, to keep a copy of one axis.
+- **Never hand-edit an Export all file down to one axis and import it.** Deleting an axis from that file is instructing WIMI to archive it.
+
+Neither export ever writes WIMI's own internal row number for a subject or a
+dimension into the file. (The `_metadata` block does record the exam's number,
+as a note of where the file came from; an import does not read it.) The only
+identifiers that come out are the ones a file put in: a tree you built by
+hand exports with no identifiers at all, which is fine, and the next section is
+about what that costs.
+
+## Identifiers are what make a correction a correction
+
+A subject in an import file may carry a short `id` of your choosing. It is not
+WIMI's number for the subject; it is your name for the row, and WIMI remembers
+it.
+
+With identifiers, WIMI can match the subjects in a new file against the ones
+already in your tree even when their names have changed, so a renamed subject
+is **renamed**. Without them, matching falls back to name and position — and a
+subject you renamed in the file matches nothing, so it is removed and a new one
+is added in its place. Everything attached to the old one stays with the old
+one.
+
+The preview says so when it applies. A file carrying no identifiers at all,
+which both adds and removes something, raises a warning in so many words: that
+a subject you renamed cannot be recognised as the same subject, that it will be
+removed and added back, and that adding an `id` to each subject keeps renames
+connected.
+
+Two practical consequences:
+
+- **If you generated your first file without identifiers, add them now**, and import once. An existing subject **adopts** an identifier the first time a file gives it one, so that import is the upgrade: nothing moves, and every later correction is a correction rather than a replacement.
+- **Reuse the identifiers you already used.** If you are having a chat assistant produce a revised file, give it the old file too and tell it to keep the identifiers for subjects that have not changed.
+
+## What the preview tells you
+
+<!-- tour
+page: tree-editor
+anchor: tree-import-preview-more
+text: The preview draws four levels and about three hundred subjects, then
+  counts the rest on lines like this one. Nothing is cut from the file: what
+  is drawn plus what is counted is all of it, and Import takes all of it.
+-->
+
+Press **Import**, pick your file, and WIMI opens a preview titled **Import
+Preview**. Nothing has been written at this point. Reading down it, in order:
+
+- **The file name, and how many subjects it contains.** On a whole-exam file that count covers every axis.
+- **A scope notice** saying what the file is about. There are two, and the difference matters more than anything else in the panel; the next section is about them.
+- **Where the file came from**, if it carries that information — the source it was exported from, when, and which exam.
+- **Warnings about the file itself**, if there are any, behind a **Show Details** button. These are checks on the file as written: a weight that is not a number, a low above its high, a percentage outside 0 to 100, a tree nested deeper than ten levels, an alias problem.
+- **Preview**, a drawing of the tree in the file, with each subject's weight beside it. It draws four levels deep and stops after about three hundred subjects, and where it stops a line says how many it did not draw, which is on purpose — a real blueprint can be thousands of rows, and drawing all of them took the better part of a second for no benefit. What is drawn plus what it says it omitted always equals the file, and the import takes the whole file either way.
+- **What this import will do**, which is the part to read slowly. It is described below.
+- **Cancel** and **Import**, in that order, at the bottom.
+
+**Cancelling costs nothing**, and so does closing the panel with the **×** or by
+clicking outside it. The preview is read-only: it asks WIMI what the file would
+do and draws the answer. The same code works out the preview and performs the
+import, so the panel cannot show you one thing and do another.
+
+## What this import will do
+
+<!-- tour
+page: tree-editor
+anchor: tree-import-plan
+text: Removed here means archived, by the same delete as the Delete button,
+  so a removal comes back from Archived subjects. A large removed figure on
+  what you meant as a small correction usually means the file has no ids: a
+  renamed subject is then removed and added back.
+-->
+
+On a single-tree file this is four numbers — **added**, **updated**,
+**removed**, **unchanged** — and then a line saying how many of the updated
+subjects were renames and how many were moves.
+
+On a whole-exam file the **dimension** figures come first, above the subject
+ones: **dimension added**, **dimension updated**, **dimension archived**,
+**dimension kept**. Then a table, one row per axis in the file, with that
+axis's added, updated and removed counts and its own coverage band.
+
+Both rows of numbers are labelled, because on a whole-exam file they are
+different quantities at different levels. Two axes archived and four hundred
+subjects archived with them are one number each.
+
+Below the numbers come notes, in prose, for everything that is worth a sentence
+rather than a figure. The ones you will meet:
+
+- **An axis will be archived.** The loudest thing in the panel, styled as a warning, naming each axis and how many subjects go with it. It says the import is undoable afterwards from **Archived subjects** at the foot of the tree editor, and it says how to avoid it: add the axis to the file's `dimensions` list and import again.
+- **An axis is kept because your entries are tagged inside it.** The same situation with a different outcome — see the next section but one.
+- **Subjects are kept because they carry entries**, listed by name with their entry counts, each linking into the entry browser so you can go and re-tag them.
+- **Parent subjects are also kept**, because a subject still in use sits beneath them.
+- **This file gives no identifiers**, the rename warning described above.
+- **This file was written for a different exam**, which is information rather than a refusal — the import still goes into the exam you have open.
+- **This file cannot be imported as it stands**, with the reasons. This is the one kind of note that stops the import.
+
+## The expensive mistake, and it is one press away
+
+<!-- tour
+page: tree-editor
+anchor: tree-import-scope-notice
+text: A file that lists your exam's dimensions is read as the authority on
+  which axes exist, so an axis it does not mention is archived with every
+  subject tree in it, unless entries are tagged inside it. A new axis has
+  none yet. Read this notice rather than pressing through it.
+-->
+
+Here is the thing to be careful about, stated plainly.
+
+**A file with a `dimensions` list is read as the authority on your exam's
+structure. Any axis it does not mention is archived, and every subject tree in
+that axis is archived with it — unless your entries are tagged inside it.**
+
+That is measured, not theoretical. On a three-axis exam, planning an import of
+a file describing only the System axis reported two axes to be archived and
+three subjects with them. On a real exam those three subjects are hundreds.
+
+It is easy to arrive at by accident, and the route is innocent. You export one
+axis to look at it, or you write a file for one axis. You end up with a file
+that has a `dimensions` list in it — because you copied the shape from an
+**Export all**, or because you asked a chat assistant for "the whole-exam
+format", or because you edited an **Export all** down to the axis you were
+working on. You import it, and the other axes are gone.
+
+Three things protect you, and all three need you to do something:
+
+- **Read the scope notice.** A whole-exam file announces itself at the top of the preview: that it describes every dimension of this exam, how many are in the file, that it can create, rename and archive them, and — when you have a dimension open — that it does *not* import only into that one. A single-tree file says, simply, *Importing into dimension:* and the name. Those two notices are the fastest way to tell which kind of file you are holding.
+- **Read the archive warning.** If any axis would be archived, the panel says so in bold, by name, with counts.
+- **Prefer Export all as your starting point.** A file that names every axis cannot archive one, because there is nothing left out of it.
+
+If you do get it wrong, it is recoverable: an archived axis comes back, with its
+trees, from the **Archived subjects** panel.
+[Archiving a subject, and getting it back](help_archive_and_restore.html) is
+about that. Knowing the recovery exists is worth having; relying on it is not
+the same thing.
+
+## Your entries outrank the blueprint
+
+<!-- tour
+page: tree-editor
+anchor: tree-import
+text: An import is a merge behind a preview, and a subject carrying your
+  entries is never removed by one. The same code works out the preview and
+  performs the import, so the panel cannot show you one thing and do
+  another.
+-->
+
+The rule that makes re-importing safe for everything below the axis level:
+
+**A subject carrying entries is never removed by an import.**
+
+Survival is worked out from the bottom up. A subject survives if the file lists
+it, **or** it carries entries of yours, **or** anything beneath it survives.
+That third clause is what stops an improved blueprint archiving a chapter the
+file dropped while your entries still sit on one of its topics.
+
+Kept subjects are reported, by name, with how many entries each one carries,
+and linked into the entry browser so you can re-tag them if you agree the
+subject should go. Measured on a small tree: a file listing only
+Cardiovascular, imported over a tree where one entry was tagged on
+Hypertension, reported Hypertension as kept with one entry and removed the two
+subjects that carried none.
+
+The same rule applies one level up, and this is the carve-out worth knowing:
+**an axis the file does not mention is archived only if nothing is tagged
+inside it.** An axis carrying entries is reported as kept instead, with its
+entry and subject counts, and your history wins. That is a real protection and
+it is also not a licence: a brand-new axis you have not logged against yet is
+exactly the one with no entries in it, so it is exactly the one an incomplete
+file will archive.
+
+## Three more rules, each of them a deliberate absence
+
+These are easy to assume the other way round, so they are worth stating.
+
+- **An empty file removes nothing.** A misspelled key — `root_node` for `root_nodes`, `dimension` for `dimensions` — reaches WIMI as an empty list, and "this file describes nothing" must never be read as "remove everything". It is not, at either level, and the preview says the file declares nothing rather than offering to empty your exam.
+- **Edges the file does not mention are left alone.** If you gave a subject a second parent by hand, that is not the blueprint's business and an import does not touch it. Only the subject's *primary* parent follows the file, so a file that moves a subject moves its main location and leaves its other appearances where they are. [Subjects that live in more than one place](help_shared_subjects.html) is about those other appearances.
+- **There is no Merge or Replace choice.** Older versions of WIMI asked you to pick one; neither answer was right. "Merge" meant *append*, which was the bug, and "Replace" deleted subjects that were in use, which is what the rule above forbids. The panel now states the outcome instead of offering a mode, and says it in one line: merged into your existing subjects, and subjects your entries are tagged to are never removed by an import.
+
+## Weights on a re-import
+
+Two things about weights, both consistent with
+[Weights: what a percentage means here](help_weights.html) and neither obvious.
+
+**A subject the file gives no weight is imported at 0%.** That is the file being
+read correctly: the document listed the topic and printed no percentage beside
+it. Nothing in WIMI shares a parent's percentage out among its children, on
+import or at any other time — the tree editor's **Rebalance siblings** button
+is the only thing that writes a weight you did not type, and you have to press
+it. So if you import a revised file that has lost its percentages, you get a
+tree of zeroes rather than a tree of guesses.
+
+**Coverage is reported per axis and never combined.** On a whole-exam file each
+row of the axis table carries that axis's own band — the summed low and high of
+its top-level weights — and a cell that cannot span 100% is marked, with a note
+on hover saying that WIMI imports the numbers as written and never rescales
+them. There is deliberately no combined figure anywhere, because the axes are
+overlapping descriptions of the same questions: three real published tables for
+one exam total 84–153%, 78–113% and 97–142%, and adding them would produce a
+number describing nothing.
+
+One honest limitation about weights in the preview, worth knowing before it
+misleads you.
+
+**A single-tree file's preview shows you no coverage band at all.** The weight
+total, and the sentence about it not spanning 100%, arrive as a notification
+*after* the import rather than in the panel. Nothing about a weight ever stops
+an import, so this costs you nothing irreversible — but if you are checking a
+transcription, check the percentages in the file rather than expecting the
+preview to do it.
+
+## Importing the same file twice
+
+Re-importing an unchanged file changes nothing, which means you can import to
+*check* a file rather than only to commit to it. The result is reported as it
+happens: a notification headed **Import Complete** with the four counts, or, if
+there was nothing to do, a line saying your tree already matches this file.
+
+That is also what makes **Export all** followed by an import a safe round trip.
+It is asserted by a test that compares the actual subject and dimension rows
+before and after, rather than only the counts, because counts alone would be
+satisfied by an import that archived a row and created an identical one.
+
+## A short checklist
+
+Before you press **Import** on a file you did not just write:
+
+- Does the scope notice say what you expected — one dimension, or the whole exam?
+- Does the panel offer to archive an axis? If so, is that what you meant?
+- Does the removed count look right? A big number there on a file you thought was a small correction usually means missing identifiers.
+- Are any of your subjects being kept because they carry entries? That is WIMI telling you the file and your logging disagree.
+- If anything looks wrong, press **Cancel.** It costs nothing, and fixing the file is less work than fixing the tree.
+
+## Where to go next
+
+- [Archiving a subject, and getting it back](help_archive_and_restore.html) — what archiving actually does, and the panel that undoes it.
+- [Building your subject tree from a published outline](help_outline_to_tree.html) — the route to a first file, and the prompt that produces one.
+- [Weights: what a percentage means here](help_weights.html) — what the numbers in the file mean once they are in.
+- [Dimensions, and questions with several axes](help_dimensions.html) — what an axis is, and why their weights do not add up.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

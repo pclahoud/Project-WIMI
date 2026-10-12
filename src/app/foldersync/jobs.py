@@ -151,20 +151,28 @@ class SyncJobs:
             finish=_finish,
         )
 
-    def submit_link(self, user_id: int, folder: str, provider_id: str = "generic") -> str:
+    def submit_link(self, user_id: int, folder: str, provider_id: str = "generic",
+                    acknowledged: bool = False) -> str:
         """
         Point a profile at a folder. Phase 1 resolves which segment it owns.
 
         The preflight is folder I/O -- a ``stat`` and a write probe -- so it
         cannot run on the UI thread even though it looks trivial. A cloud
         filesystem can block on either while the client is offline.
+
+        Without ``acknowledged``, a folder with warnings is not linked: the
+        job finishes with a ``LinkNeedsConfirmation`` carrying them, for the
+        dialog to show (#412). With it, the folder is checked again and
+        linked. The worker still only checks the folder; the decision is made
+        in ``finish_link`` on the caller's thread, as before.
         """
         plan = self.sync.prepare_link(user_id, folder, provider_id)
         return self._start(
             "link",
             user_id,
             work=lambda: self.sync.check_folder(plan),
-            finish=lambda problems: self.sync.finish_link(plan, problems),
+            finish=lambda problems: self.sync.finish_link(
+                plan, problems, acknowledged=acknowledged),
         )
 
     def submit_discover(self, folder: str, provider_id: str = "generic") -> str:
@@ -406,9 +414,11 @@ def _send_notes(send: Dict[str, Any]) -> list:
     if not send.get("send_needed"):
         return ["This device now holds the same copy as the sync folder. "
                 "There is nothing to send."]
+    # Name the button as it reads in exactly this state: renderFolderSyncPending
+    # relabels it "Send your choice" while a choice is pending (#500).
     return ["Your choice is saved on this device only. The other device "
-            "will keep seeing two copies until you send -- use Send now "
-            "in Settings when you are ready."]
+            "will keep seeing two copies until you send it — press Send "
+            "your choice in Settings when you are ready."]
 
 
 __all__ = [

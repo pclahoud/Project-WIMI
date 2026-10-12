@@ -1,0 +1,364 @@
+/**
+ * The in-app manual (#428): the index page and every generated chapter page.
+ *
+ * Both page shells are produced by `scripts/check_manual_sync.py`, so the
+ * class names here are a contract with that script rather than with a hand
+ * written page. Renaming one means editing the generator and running
+ * `--write`.
+ *
+ * Every colour is a theme custom property. Note two deliberate absences:
+ *
+ * * nothing paints text with `--color-primary` (#325 -- the bright value is
+ *   for fills and borders; a label takes `--color-primary-text`, and
+ *   `tests/test_theme_text_contrast.py` enforces that at the declaration
+ *   site);
+ * * nothing reaches for `--text-muted`. The chapter summaries on the index
+ *   are the only thing a reader uses to choose a chapter, so they are
+ *   `--text-secondary` and not quieter. #314's parked question is about
+ *   de-emphasis and this page starts on the near side of it.
+ *
+ * No `:empty` anywhere (#134/#136/#141): QtWebEngine 6.10 stops
+ * re-invalidating it, so a container that gains its first child keeps
+ * `display: none` and renders at zero pixels with no error.
+ */
+
+/* =========================================================================
+   Page shell
+   ========================================================================= */
+
+.help-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+}
+
+.help-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-xl);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.help-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.help-back-link:hover,
+.help-back-link:focus-visible {
+    color: var(--color-primary-text);
+    background: var(--color-primary-bg);
+    text-decoration: none;
+}
+
+.help-back-arrow {
+    font-size: var(--font-size-md);
+    line-height: 1;
+}
+
+.help-main {
+    flex: 1;
+    width: 100%;
+    /* Prose measure. Long lines are the single most common reason a page of
+       explanation does not get read. */
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: var(--space-2xl) var(--space-xl) var(--space-3xl);
+}
+
+/* =========================================================================
+   Index page
+   ========================================================================= */
+
+.help-title {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+    margin: 0 0 var(--space-md);
+}
+
+.help-standfirst {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin: 0 0 var(--space-2xl);
+}
+
+.help-chapter-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.help-chapter-item {
+    margin: 0;
+}
+
+.help-chapter-link {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: border-color var(--transition-fast),
+                box-shadow var(--transition-fast);
+}
+
+.help-chapter-link:hover,
+.help-chapter-link:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    text-decoration: none;
+}
+
+.help-chapter-item-number {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-bg);
+    color: var(--color-primary-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.help-chapter-item-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.help-chapter-item-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+}
+
+.help-chapter-item-summary {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+}
+
+/* =========================================================================
+   Chapter page
+   ========================================================================= */
+
+.help-article {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2xl);
+}
+
+.help-eyebrow {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-text);
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--space-sm);
+}
+
+.help-body-holding,
+.help-body-error {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+/* The rendered chapter. The selectors are descendant rules because the
+   markup inside `.help-body` is written by `renderHelpMarkdown` in
+   help_page.js and carries no classes of its own -- it is the chapter's
+   markdown, so the stylesheet has to style plain elements. */
+
+.help-body {
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-relaxed);
+}
+
+.help-body h2 {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+    margin: var(--space-2xl) 0 var(--space-sm);
+}
+
+.help-body h3 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+    margin: var(--space-xl) 0 var(--space-sm);
+}
+
+.help-body h4 {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin: var(--space-lg) 0 var(--space-xs);
+}
+
+.help-body p {
+    margin: 0 0 var(--space-md);
+}
+
+.help-body ul,
+.help-body ol {
+    margin: 0 0 var(--space-md);
+    padding-left: var(--space-xl);
+}
+
+.help-body li {
+    margin-bottom: var(--space-xs);
+}
+
+.help-body ul ul,
+.help-body ol ol {
+    margin-top: var(--space-xs);
+    margin-bottom: 0;
+}
+
+.help-body strong {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.help-body code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    padding: 0.1rem 0.3rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.help-body pre {
+    margin: 0 0 var(--space-md);
+    padding: var(--space-md);
+    overflow-x: auto;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.help-body pre code {
+    padding: 0;
+    background: transparent;
+    font-size: var(--font-size-sm);
+}
+
+.help-body hr {
+    margin: var(--space-xl) 0;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.help-body a {
+    color: var(--color-primary-text);
+}
+
+/* A heading a deep link lands on. `scroll-margin-top` keeps it clear of the
+   top edge rather than flush against it. */
+.help-body h2,
+.help-body h3,
+.help-body h4 {
+    scroll-margin-top: var(--space-xl);
+}
+
+/* =========================================================================
+   Chapter-to-chapter navigation
+   ========================================================================= */
+
+.help-chapter-nav {
+    display: flex;
+    gap: var(--space-md);
+    margin-top: var(--space-xl);
+}
+
+.help-chapter-nav-link {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: border-color var(--transition-fast);
+}
+
+.help-chapter-nav-link:hover,
+.help-chapter-nav-link:focus-visible {
+    border-color: var(--color-primary);
+    text-decoration: none;
+}
+
+/* The next link sits on the right of the row even when there is no previous
+   one, so the two always occupy the sides a reader expects. */
+.help-chapter-nav-link--next {
+    margin-left: auto;
+    text-align: right;
+}
+
+.help-chapter-nav-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+
+.help-chapter-nav-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+}
+
+/* =========================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 768px) {
+    .help-main {
+        padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+    }
+
+    .help-article {
+        padding: var(--space-lg);
+    }
+
+    .help-chapter-nav {
+        flex-direction: column;
+    }
+
+    /* In a column the `margin-left: auto` above would do nothing and the
+       right alignment would read as a mistake. */
+    .help-chapter-nav-link--next {
+        margin-left: 0;
+        text-align: left;
+    }
+}

@@ -24,6 +24,7 @@ from .media import MediaBridgeMixin
 from .hierarchy import HierarchyBridgeMixin
 from .edges import EdgesBridgeMixin
 from .relations import RelationsBridgeMixin
+from .relation_extraction import RelationExtractionBridgeMixin
 from .subject_restore import SubjectRestoreBridgeMixin
 from .exam_contexts import ExamContextBridgeMixin
 from .weights import WeightBridgeMixin
@@ -56,6 +57,7 @@ __all__ = [
     'HierarchyBridgeMixin',
     'EdgesBridgeMixin',
     'RelationsBridgeMixin',
+    'RelationExtractionBridgeMixin',
     'SubjectRestoreBridgeMixin',
     'ExamContextBridgeMixin',
     'WeightBridgeMixin',

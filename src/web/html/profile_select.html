@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/profiles.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -88,7 +89,7 @@
             <p class="profile-modal-message">
                 Delete <span class="profile-modal-name" id="deleteModalName">this profile</span>?
                 <br><br>
-                The profile will be kept for <strong>10 days</strong> and can be restored
+                The profile will be kept for <strong id="deleteModalGrace"></strong> and can be restored
                 from the "Recently deleted" section during that time. After the grace
                 period it is permanently removed, including all its entries and data.
             </p>
@@ -151,6 +152,9 @@
             <!-- Schema verdict (hidden when verdict is 'ok') -->
             <div class="profile-import-note hidden" id="importSchemaNote" data-testid="profile-import-schema-note"></div>
 
+            <!-- #498: the archive is a profile already on this computer -->
+            <div class="profile-import-note hidden" id="importAlreadyInstalled" data-testid="profile-import-already-installed"></div>
+
             <!-- Mode choice -->
             <div class="profile-import-modes" id="importModeChoice" data-testid="profile-import-mode-choice">
                 <label class="profile-import-mode">
@@ -169,8 +173,6 @@
                 </label>
                 <div class="profile-import-replace hidden" id="importReplaceOptions">
                     <select id="importReplaceTarget" data-testid="profile-import-replace-target"></select>
-                    <div class="profile-import-mode-hint hidden" id="importReplaceHint"
-                         data-testid="profile-import-replace-hint"></div>
                     <label class="profile-modal-checkbox">
                         <input type="checkbox" id="importReplaceConfirm" data-testid="profile-import-replace-confirm">
                         <span>I understand this replaces all data in the selected profile</span>

@@ -166,9 +166,22 @@ class MediaMixin:
 
     def unlink_media_from_entry(self, media_id: int) -> bool:
         """
-        Unlink media from its entry by setting is_active = 0 on the junction row.
-        The media record and file remain so the image can be rediscovered
-        via the image browser.
+        Unlink media from EVERY entry by setting is_active = 0 on every junction
+        row for it. The media record and file remain so the image can be
+        rediscovered via the image browser.
+
+        **This is not per-entry removal, and the name predates shared media.**
+        The UPDATE below carries no entry predicate, so one call deactivates the
+        mapping for every entry that shares the image. That was the whole of
+        #460: the entry form's "Remove from Entry" button reached this through
+        the `removeMediaFromEntry` slot, which takes a media id and nothing else,
+        so removing an image from one entry removed it from all of them while the
+        hint beside the button promised it stayed available for reuse.
+
+        For per-entry removal use :meth:`detach_media_from_entry`, which takes
+        the entry id. `tests/database/test_media_removal_is_scoped.py` keeps the
+        two apart, and a source sweep there fails if the entry form reaches for
+        this one again.
 
         Args:
             media_id: ID of the media to unlink

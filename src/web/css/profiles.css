@@ -114,9 +114,11 @@
     text-align: center;
 }
 
+/* The app's focus ring (styles.css, "Focus"). It was a 3px
+   --color-primary-bg halo, about 1.1:1 against the page (#349). */
 .profile-card-main:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
 }
 
 .profile-card-main:disabled {

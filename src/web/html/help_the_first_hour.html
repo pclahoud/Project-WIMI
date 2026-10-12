@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your first hour - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/02_the_first_hour.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 2</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Your first hour</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_the_premise.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Why WIMI asks for a reason</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_outline_to_tree.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Building your subject tree from a published outline</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Your first hour
+
+## In short
+
+WIMI opens on a profile picker, not a demo account, and nothing about the first run is automatic. You make a profile, create an exam, put at least one subject in it, start a session, and then log entries against that session. Each of those five refuses to proceed without the one before it.
+
+## Step 1. Make a profile
+
+The first screen is the profile picker, headed **Who's studying?**. A new
+installation has no profiles, so the only thing in the grid is a single card
+reading **New profile**.
+
+Click it and it opens two fields:
+
+- **Username** is required. At least three characters, and only letters,
+  numbers, hyphens and underscores.
+- **Display name (optional)** is what the card shows. Leave it blank and the
+  username is used.
+
+Press **Create**. One thing here surprises everyone: creating a profile does not
+open it. The picker stays where it is and your new profile appears as a card.
+Click that card to go in.
+
+If you already use WIMI on another computer, two buttons at the bottom of the
+picker are the way in instead of creating anything: **Import profile…** takes a
+`.wimi` file, and **Get from a sync folder…** takes a copy out of a folder in
+your cloud client. There is also **Always ask at startup**: leave it off and
+WIMI will open your profile directly next time, which is what you want with one
+profile on your own machine.
+
+## Step 2. Create an exam
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-exam-name-input
+text: Exam Name is the only field a simple exam requires. A multi-dimensional
+  exam started from scratch also needs each of its axes named, which a
+  template does for you. Everything else has a working default, so nothing
+  has to be right before you can create the exam.
+-->
+
+The dashboard of a new profile shows **No Exams Yet** and a button reading
+**Create Your First Exam**. That opens the exam wizard, which is seven steps,
+or eight if you choose a multi-dimensional exam.
+
+The two that matter on a first pass:
+
+- **Choose Exam Type.** *Simple Exam* is one subject hierarchy and is selected
+  for you. *Multi-Dimensional Exam* lets you tag one question along several
+  axes at once, which is what USMLE-style exams need. You can tell which you
+  want from the examples under each card; if you are not sure, start simple.
+- **Exam Information.** *Exam Name* is the only required field for a simple
+  exam. A multi-dimensional exam also needs every axis named on **Define
+  Dimensions**: a template names them for you, and *Start from Scratch* leaves
+  them blank. The other three fields on that step are optional; the section
+  after the list says where two of them end up.
+
+The rest have working defaults, so you can leave them as they are. One thing
+they set lasts, though: the names of your tree's levels, as the next list
+explains.
+
+- **Choose a Template** offers ten real exams, filtered by the type you picked
+  on the first step; the section after the list explains what that hides.
+  *Start from Scratch* is pre-selected. Read the next section before you
+  assume a template saves you the outline work.
+- **Define Dimensions**, for multi-dimensional exams only, names the axes. It
+  will not let you past until every axis has a name and no two share one.
+- **Subject Hierarchy** names the *levels* of your tree, by default System,
+  Subsystem, Topic, Subtopic and Child. It does not create subjects. The list
+  is read-only: the names are the template's, or those five defaults if you
+  started from scratch, and no screen in WIMI renames a level once the exam
+  exists. So if the level names matter to you, the template is where to choose
+  them.
+- **Exam Length** is *Fixed length*, *Variable length (CAT)* or *Don't know
+  yet*, and the last of those is the default. Filling it in is what turns a
+  percentage into "25 of 280 questions" later; leaving it is fine for now.
+- **Weight Calculation Settings** can be left alone.
+
+The last step is **Review & Create** and the button is **Create Exam**. A
+confirmation appears with a single button, **Continue to Dashboard**.
+
+### Which templates you are offered
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-step1-template-filter-all
+text: Only templates of the exam type you chose on the first step are listed,
+  and All means all of that type. The medical exams and the CPA are
+  Multi-Dimensional templates, so none of them appears while Simple is
+  chosen: go Back and change the type to see them.
+-->
+
+**Choose a Template** lists only templates of the type you picked on the first
+step, and its **All** button means all of that type, not all ten. Four are
+simple exams: SAT, ACT, GRE and LSAT. The medical exams and the CPA are
+multi-dimensional, so with *Simple Exam* chosen they do not appear at all,
+under any category, and a search for one finds nothing. Go Back and change the
+type to see them.
+
+### Description and Additional Notes
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-exam-description-textarea
+text: The Description is shown on the exam's card on the dashboard and on the
+  Review step. Additional Notes is kept with the exam and shown nowhere but
+  this wizard, when you reopen the exam with its Edit button.
+-->
+
+Both are optional, and they end up in different places. The **Description** is
+what the exam's card on the dashboard shows under its name, and the Review step
+repeats it. **Additional Notes** is kept with the exam and shown nowhere else:
+the only place you will read it again is this wizard, when you reopen the exam
+with the card's **Edit** button.
+
+## Step 3. Put at least one subject in it
+
+<!-- tour
+page: exam-wizard
+anchor: template-card
+text: A template brings the exam's axes and the names of its tree levels, and
+  no subjects at all. Whichever you pick, your new exam starts with an empty
+  subject tree that you fill yourself, and keeps the template's level names:
+  nothing in WIMI renames a level afterwards.
+-->
+
+<!-- tour
+page: dashboard
+anchor: exam-card-subjects
+text: One subject is enough to save an entry, so you do not need the whole
+  outline before you start logging. The entry form can create a subject too,
+  without leaving the page.
+-->
+
+This is the step that is easy to miss, because nothing has asked for it yet and
+the entry form will not save without it.
+
+**A template does not bring a subject outline with it.** The ten templates carry
+the exam's dimensions and its level names, and that is all. Whichever you pick,
+and whether or not you pick one, your new exam has an empty subject tree.
+
+Open it from the exam card's **Subjects** button. An empty tree shows
+**No Subjects Yet** and a button reading **Add Your First Subject**. From there
+you have two ways to fill it:
+
+- Add subjects by hand. Fine for a short outline, and fine for getting started
+  with a handful even on a long one.
+- Import the exam's published content outline as a JSON file. The tree editor's
+  help button explains the format, and that route is how a real blueprint with
+  its published weights gets in.
+
+Nobody should have to transcribe a whole content outline by hand, and you do not
+have to. The next chapter,
+[Building your subject tree from a published outline](help_outline_to_tree.html),
+is the practical route: a prompt that has a chat assistant turn your exam's
+published outline into the import file, and what to check before you import it.
+
+You do not need the whole outline before you log anything. One subject is
+enough to save an entry, and the subject fields on the entry form carry an
+**Add New Subject** button, so a topic you discover you need can be created
+without leaving the page.
+
+## Step 4. Start a session
+
+<!-- tour
+page: session-setup
+anchor: session-add-source
+text: Entries belong to a session, and a session is one sitting of practice
+  questions, so the entry form will not open without one. The first time
+  there is nothing in this list: + Add New beside the field is the way in.
+-->
+
+<!-- tour
+page: session-setup
+anchor: session-date-encountered
+text: This is when you sat the questions, not when you are typing them up,
+  and it is the date every analytics screen and date filter keys on. Change
+  it when you are logging a block from last week.
+-->
+
+Entries belong to a session, and a session is one sitting of practice
+questions. Start one from the exam card's **New Review Session** button.
+
+Four fields are required:
+
+- **Question Source** is where the questions came from. The first time, there is
+  nothing in the list, so use **+ Add New** beside it and name your question
+  bank.
+- **Date Encountered** is when you *took* the practice set. It defaults to
+  today. This is the date the analytics use, so if you are catching up on a
+  block you did last week, change it.
+- **Total Questions** is how many were in the set.
+- **Questions Incorrect** is how many you got wrong, and it decides how many
+  entries the next screen gives you. The entry form counts "Entry 1 of 12"
+  against this number.
+
+**Session Duration** and **Session Name** are optional. The duration does not
+start at *No Limit*: it starts at the default from Settings, 60 minutes unless
+you have changed it, so choose *No Limit* for an untimed review. Leave the name
+blank to have one generated from the source and the date.
+
+Press **Start Session** and WIMI takes you straight to the entry form.
+
+## Step 5. Log one mistake
+
+The entry form opens on the first slot. Five things are required to save an
+entry: your answer, the correct answer, at least one primary subject, and the
+two written fields — **Why did you get this wrong?** and **Why is the correct
+answer correct?**. Everything else on the page is optional.
+
+Two buttons at the bottom:
+
+- **Save as Draft** saves whatever is on the page with no checks at all. Use it
+  when you want to come back to an entry. A draft still counts everywhere in the
+  analytics; it is an unfinished reflection, not an unlogged mistake.
+- **Save & Next** is the one that moves you on, and it is disabled until the
+  entry is complete. Its label tells you why it is disabled: *Complete required
+  fields* while something is missing, or *Assign subjects to images* when the
+  only thing outstanding is an attached image with no subject. On the last slot
+  it reads **Complete Review**.
+
+While you type, WIMI saves in the background every thirty seconds whenever there
+is something unsaved, and the indicator at the top of the page tells you when it
+last did.
+
+If you only ever remember one thing about this screen, make it the first written
+field. The chapter *Why WIMI asks for a reason* is about what to put in it.
+
+## Step 6. Read the dashboard
+
+<!-- tour
+page: dashboard
+anchor: dashboard-preview-top-mistake
+text: Top mistake stays empty until you tag an entry with an error type, and
+  tagging is optional. An empty card here is WIMI having nothing to count
+  rather than a figure it failed to work out.
+-->
+
+Back on the dashboard, the **Quick Analytics** panel now has something in it.
+Four cards:
+
+- **This week**, how many entries, with the change against the week before.
+- **Top subject**, the subject carrying the most entries.
+- **Top mistake**, the error type you tagged most. It stays empty if you have
+  not tagged anything, because tags are optional.
+- **Streak**, consecutive days with an entry.
+
+**View Full Report** opens the real analytics dashboard, which is where the
+sunburst, the heatmaps and the weight analysis live.
+
+### This week
+
+<!-- tour
+page: dashboard
+anchor: dashboard-preview-this-week
+text: This week counts entries from practice in the last seven days, today
+  included, by the session's Date Encountered rather than the day you typed
+  them. Drafts count. The change beside it is against the seven days before.
+-->
+
+One thing to know before you distrust the numbers. **This week** counts by the
+session's *Date Encountered*, not by when you typed the entry. If you logged a
+block you sat three weeks ago, the entry is saved and This week still reads
+zero. That is correct — it is reporting on your practice, not on your typing —
+but it looks like a bug the first time. The window is the last seven days,
+today included, rather than Monday to Sunday, and drafts count in it; the change
+beside the number is against the seven days before that.
+
+### Streak
+
+<!-- tour
+page: dashboard
+anchor: dashboard-preview-streak
+text: A streak day is a day a session is dated, with at least one entry logged
+  from that session, so finishing an old block today does not extend it. At
+  risk means yesterday counted and today has nothing yet.
+-->
+
+**Streak** counts the same way. A day counts when a session dated that day has
+at least one entry in it, so finishing an old block today adds nothing to it, and
+a session started with nothing logged adds nothing either. The count runs back
+from today, or from yesterday if today has nothing yet. That second case is what
+**At risk!** under the number means, and it clears as soon as you log an entry
+from a session dated today.
+
+## What you cannot skip, and what the app does if you try
+
+<!-- tour
+page: dashboard
+anchor: dashboard-create-first-exam
+fork: has-exams
+fork-anchor: exam-card
+text: The order is a profile, then an exam, then at least one subject, then a
+  session, then an entry, and each screen enforces the one before it rather
+  than guessing. "No session selected" is a screen declining to invent what
+  it is missing.
+-->
+
+The order is profile, then exam, then at least one subject, then session, then
+entry, and each screen enforces the one before it rather than guessing.
+
+Open the entry form without a session and it tells you **No session selected**
+and returns you to the dashboard. Open session setup without an exam and it does
+the same with **No exam selected**. Neither is an error you have caused; they are
+screens declining to invent the thing they are missing.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

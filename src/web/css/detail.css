@@ -314,10 +314,8 @@
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
     margin-bottom: 0.75rem;
     padding: 0.25rem 0.625rem;
     border-radius: var(--radius-sm);
@@ -355,10 +353,8 @@
 }
 
 .section-title {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
     color: var(--text-secondary, #6b7280);
     margin-bottom: 0.75rem;
     display: flex;
@@ -429,7 +425,7 @@
     left: 0;
     right: 0;
     padding: 0.125rem 0.25rem;
-    font-size: 0.5rem;
+    font-size: var(--font-size-xs);
     color: var(--text-inverse, white);
     background: rgba(0, 0, 0, 0.6);
     text-align: center;
@@ -708,7 +704,6 @@
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
     font-weight: 600;
-    text-transform: uppercase;
 }
 
 .draft-badge::before {
@@ -861,7 +856,7 @@
 /* ==================== Phase 9: Notes Tabs ==================== */
 
 .notes-count {
-    font-size: 0.8em;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     font-weight: 400;
 }

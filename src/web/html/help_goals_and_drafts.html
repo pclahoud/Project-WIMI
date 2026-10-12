@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals, and why drafts do not count toward them - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/22_goals_and_drafts.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 10</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Goals, and why drafts do not count toward them</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_two_screens_one_subject.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Why two screens can disagree about one subject</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_logging_a_mistake.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Logging a mistake</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Goals, and why drafts do not count toward them
+
+## In short
+
+A goal in WIMI is one thing: a number of entries you mean to finish this week, Monday to Sunday. Unfinished drafts are the single exception to WIMI's rule that drafts count everywhere, because a target of twenty entries means twenty finished ones — and because the exception would be dishonest if it were silent, the goal card also tells you how many drafts are waiting.
+
+## There is one kind of goal
+
+It lives on the analytics dashboard under **Weekly Goal**, and there is nothing
+to choose except the number. The dialog asks it plainly: *how many entries do
+you want to log each week?* Anything from 1 to 1000, with buttons that step by
+10 and 50 because typing 140 is tedious.
+
+A goal counts **entries you finished**, not questions you answered and not
+sessions you ran. If you want your target to mean "I will reflect on twenty
+mistakes this week", that is exactly what it means.
+
+The goal belongs to whichever exam you have selected on the dashboard when you
+set it. Set one with no exam filter on and it covers everything.
+
+## What the card tells you
+
+With a goal set, the card shows:
+
+- **Target: N entries this week**, and an **Edit** button.
+- A progress bar with the figures beside it, reading something like 12/20 (60%).
+- **8 more entries to reach your goal** — or a small celebration once you pass
+  it.
+- **N drafts remaining — not counted until finished**, when you have any.
+- **Week ends in N days**, counting to Sunday.
+- **Recent History**, a short row of bars for the previous few weeks.
+
+With no goal set it offers **Set a Weekly Goal** and a single button, and that
+is the whole of the feature. Goals in WIMI are deliberately small.
+
+## Monday to Sunday, and counted when you look
+
+Two things about the week that are worth knowing before they surprise you.
+
+**The week is Monday to Sunday**, not a rolling seven days. On a Sunday evening
+your progress is about to reset, and on a Monday morning it already has. The
+*week ends in N days* line is the honest version of this; read it rather than
+assuming.
+
+**Progress is recounted every time you open the page.** Nothing is stored. That
+is not an implementation detail, it is why the number is always right: there is
+no saved total that could be stale, and no background job that has to remember
+to refresh one. Log an entry, come back, and the bar has moved.
+
+Recent History works the same way with one deliberate difference: each past
+week's *achieved* is recounted from your entries, but its *target* is the target
+you actually had in that week. Raise your goal from 10 to 30 today and last
+week still reads against 10, because last week really was measured against 10.
+Changing your ambition does not rewrite your history.
+
+## Drafts count everywhere else
+
+<!-- tour
+page: entry-browser
+anchor: browser-drafts-toggle
+text: An unfinished entry sits in this list beside the finished ones, and no
+  setting hides it. You got the question wrong, so the mistake counts
+  everywhere in WIMI except a weekly goal.
+-->
+
+This is the rule the goal is an exception to, and it is worth stating the right
+way round, because the exception is the small part.
+
+A draft exists because you got a question wrong. You pressed **Save as Draft**
+on the entry form, which stores whatever is on the page with no checks at all,
+and you meant to come back. **The mistake still happened.** An unfinished
+reflection does not un-happen it.
+
+So no analytics screen in WIMI filters drafts out. Drafts are in the sunbursts,
+in Top subject, in the subject deep dive, in the weight quadrants, in source
+comparison, in performance over time. A student with fifteen unfinished drafts
+must not be shown an analytics screen implying they have no weaknesses, which is
+precisely what would happen if drafts were quietly excluded.
+
+## Why goals are the exception
+
+"Log 20 entries this week" means 20 finished entries. A target you can hit by
+opening twenty forms and pressing **Save as Draft** twenty times is not a target
+at all — it measures how many times you clicked, and the thing worth measuring
+is the writing.
+
+So the goal counter requires a finished entry, and that is the only place in
+WIMI where an unfinished one is skipped.
+
+## Which is why the card says what it skipped
+
+An exclusion nobody mentions is an information gap, so the goal reports the
+drafts it did not count, in the same breath as the progress it did:
+
+**N drafts remaining — not counted until finished.**
+
+Without that line, a student at 12/20 with five drafts open reads their week as
+worse than it was and has no way to find out otherwise. With it, 12/20 and five
+drafts is a complete and actionable picture: there are five entries sitting
+half-written, and finishing them takes you to 17.
+
+The drafts counted there are the exact complement of the progress figure — the
+same week, the same exam, the same clock — so the two add up to the entries you
+started. If three drafts are from a fortnight ago they are not in this line,
+because they are not in this week.
+
+## The goal's week is not the dashboard's week
+
+<!-- tour
+page: analytics
+anchor: analytics-weekly-goal
+text: A goal counts entries you logged between Monday and Sunday, while This
+  week counts practice you sat in the last seven days. Catching up on an old
+  block moves one and not the other, and both are right.
+-->
+
+Two numbers on two screens about the same seven-ish days, and they measure
+different things. If they disagree, this is usually why.
+
+- The dashboard's **This week** card counts entries from practice you did in the
+  **last seven days**, by the **Date Encountered** you set on the session. It is
+  reporting on your practice.
+- A **weekly goal** counts entries you **logged** between Monday and Sunday, by
+  when you wrote them. It is reporting on your reflection.
+
+So catching up on Saturday with a block you sat three weeks ago moves your goal
+and leaves This week at zero. That is both numbers being right: you did the
+writing this week and the practice three weeks ago. The chapter *Your first hour*
+flags the same thing from the other direction.
+
+## Two things goals cannot do
+
+Worth saying so you do not go looking:
+
+- **There is no questions-based goal.** "Answer 200 questions this week" was
+  briefly half-built and is not a thing WIMI offers. Only entries logged.
+- **There is nothing daily to set, and no streak target.** The dashboard has a
+  **Streak** card that counts consecutive days with an entry, but it is
+  something to look at rather than something to aim a goal at.
+
+## Using it well
+
+- **Set a number you will actually hit on a bad week**, not a good one. The card
+  is more useful as a floor you clear than a ceiling you miss.
+- **Watch the drafts line rather than the bar alone.** A week of 6/20 with nine
+  drafts open is a different week from 6/20 with none, and the fix is different
+  too.
+- **If you are logging a backlog**, expect the goal to move and This week not to.
+  Nothing is broken.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

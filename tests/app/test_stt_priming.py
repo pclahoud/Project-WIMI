@@ -65,9 +65,9 @@ def real_terms():
     """The 118 exam-blueprint terms task T3 built for the accuracy corpus.
 
     Real vocabulary, not invented: every string in there occurs verbatim in
-    ``tests/fixtures/usmle_step1_outline.txt``. Using it here means the budget
-    arithmetic is checked against the thing it will actually be asked to carry,
-    long drug names and all.
+    ``tests/fixtures/exam_outline.json``, which ``tests/test_stt_measure.py``
+    enforces. Using it here means the budget arithmetic is checked against the
+    thing it will actually be asked to carry, long drug names and all.
     """
     data = json.loads(FIXTURE.read_text(encoding='utf-8'))
     return list(data['priming']['base_terms'])

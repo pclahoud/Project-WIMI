@@ -104,8 +104,6 @@
 
 .relation-direction {
     font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -171,6 +169,20 @@
 }
 
 /* Soft fan-in note. Advisory: nothing is ever refused for it. */
+/* Said once, after a hand-written relation ADOPTED an unconfirmed proposal
+   (#382). Info rather than warning: nothing went wrong, and the student needs
+   to know that what they pressed Save on was an edit to a row they had never
+   seen -- which is only not a surprise if it is named. */
+.relations-adopted-note {
+    margin: 0 0 var(--space-md) 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-info-bg);
+    border-left: 4px solid var(--color-info);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
 .relations-fanin-note {
     margin: 0 0 var(--space-md) 0;
     padding: 0.5rem 0.75rem;

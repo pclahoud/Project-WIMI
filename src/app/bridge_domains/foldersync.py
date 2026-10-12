@@ -261,9 +261,21 @@ class FolderSyncBridgeMixin:
                 'generation': value['fetched'].generation,
                 'linked': value['linked'],
                 'link_error': value['link_error'],
+                'link_warnings': value.get('link_warnings') or [],
                 'folder': value['folder'],
             }}
         if kind == 'link':
+            from app.foldersync.service import LinkNeedsConfirmation
+            if isinstance(value, LinkNeedsConfirmation):
+                # Nothing was recorded (#412). The page shows these and either
+                # stops or re-submits with acknowledged=true.
+                return {'state': state, 'kind': kind, 'result': {
+                    'linked': False,
+                    'needs_confirmation': True,
+                    'warnings': list(value.warnings),
+                    'folder': value.folder,
+                    'provider_id': value.provider_id,
+                }}
             return {'state': state, 'kind': kind, 'result': {
                 'linked': True,
                 'folder': value.folder,
@@ -505,7 +517,9 @@ class FolderSyncBridgeMixin:
             else:  # link
                 if not folder:
                     return serialize_response(False, error='link needs a folder')
-                job_id = jobs.submit_link(user_id, folder, provider_id)
+                job_id = jobs.submit_link(
+                    user_id, folder, provider_id,
+                    acknowledged=bool(params.get('acknowledged')))
             return serialize_response(True, data={'job_id': job_id})
         except Exception as e:
             self._log_error(f'startFolderSyncJob({kind}) failed: {e}',

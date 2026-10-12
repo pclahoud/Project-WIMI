@@ -37,13 +37,26 @@
      *
      * @param {{fromSubjectId: number, toSubjectId: number, reason: string,
      *          strength?: number, origin?: string,
-     *          sourceEntryId?: (number|null)}} params
+     *          sourceEntryId?: (number|null),
+     *          relationTypeId?: (number|null)}} params
      *   `reason` is required and must not be blank. `strength` is
      *   3/2/1 for certain/likely/possible and -1 for "checked — not
      *   related".
      * @returns {Promise<Object>} the created row. Rejects with the
      *   database layer's own message when the relation is refused (no
      *   reason, self-loop, duplicate, archived endpoint) — show it.
+     *
+     *   **May resolve with an adopted proposal instead** (#60, #382). If
+     *   relation extraction had already suggested this exact pair and type
+     *   from an explanation, that unconfirmed row is confirmed with the
+     *   reason given here rather than a second relation being created, and
+     *   the payload carries `adopted_proposal: true` and
+     *   `adopted_from_entry_id`. **Say so.** The student pressed Save and
+     *   what happened was an edit to a row they had never seen — which is
+     *   only not a surprise if the toast names it. `origin` stays
+     *   `extracted` and `source_entry_id` is kept, because the entry really
+     *   is where the pair was first noticed; the reason and `confirmed_at`
+     *   are what now say the student endorsed it.
      */
     api.createSubjectRelation = async function(params) {
         params = params || {};
@@ -53,7 +66,8 @@
             reason: params.reason,
             strength: params.strength === undefined ? null : params.strength,
             origin: params.origin || 'user',
-            source_entry_id: params.sourceEntryId || null
+            source_entry_id: params.sourceEntryId || null,
+            relation_type_id: params.relationTypeId || null
         }));
     };
 
@@ -76,14 +90,18 @@
      * result reports `crosses_dimension` and `incoming_count` so the
      * picker can label the crossing and warn near the soft fan-in cap.
      *
-     * `direction` hides only the partners that direction already
-     * covers. Pass it: without it a subject already related the *other*
+     * `direction` and `relationTypeId` together decide what is hidden:
+     * only partners already related *by that type* in that direction
+     * (either direction for a symmetric type), so *A causes B* does not
+     * hide B when writing *A confused with B*. `direction` hides only the
+     * partners that direction already covers. Pass it: without it a subject already related the *other*
      * way would still be offered, and with a direction-blind exclusion
      * a cycle (`A→B` and `B→A`, both legitimate — decision 7) could not
      * be written from the second subject's page at all.
      *
      * @param {{subjectId: number, query: string, limit?: number,
-     *          direction?: ('outgoing'|'incoming')}} params
+     *          direction?: ('outgoing'|'incoming'|'symmetric'),
+     *          relationTypeId?: (number|null)}} params
      * @returns {Promise<Array<Object>>}
      */
     api.searchRelatableSubjects = async function(params) {
@@ -92,7 +110,30 @@
             subject_id: params.subjectId,
             query: params.query || '',
             limit: params.limit || 10,
-            direction: params.direction || null
+            direction: params.direction || null,
+            relation_type_id: params.relationTypeId || null
+        }));
+    };
+
+    /**
+     * The relation types offered when writing a new relation (m026).
+     *
+     * Per exam, looked up from the subject. Retired types are left out --
+     * relations already using one still render, through
+     * `getSubjectRelations`. An empty list means the exam has no active
+     * types, and the picker falls back to an untyped relation.
+     *
+     * @param {{subjectId?: number, examId?: number,
+     *          includeRetired?: boolean}} params
+     * @returns {Promise<Array<{id: number, label: string,
+     *   reverse_label: string, is_symmetric: boolean}>>}
+     */
+    api.getRelationTypes = async function(params) {
+        params = params || {};
+        return api._callBridge('getRelationTypes', JSON.stringify({
+            subject_id: params.subjectId || null,
+            exam_id: params.examId || null,
+            include_retired: !!params.includeRetired
         }));
     };
 

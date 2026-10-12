@@ -213,9 +213,14 @@ def test_decision_2_an_unweighted_file_gets_no_coverage_warning(user_db, exam):
 def test_decision_3_an_omitted_weight_imports_as_zero(user_db, exam):
     """On import an empty weight means 0% — the blueprint did not weight it.
 
-    This is the opposite of the tree editor's own weight field, which
-    means "share out the remainder among siblings" and keeps that
-    meaning (``tree_editor.html``'s help text is unchanged).
+    This docstring used to add that the tree editor's own weight field
+    meant "share out the remainder among siblings" and kept that meaning.
+    **It never did (#447):** an empty field there sends no weight either,
+    so both sides store 0%. What the assertions below check is unchanged;
+    only the contrast was wrong. The surviving difference is one of intent
+    — the blueprint did not weight this, against the student has not
+    decided yet — and it is guarded in
+    ``tests/test_tree_editor_weight_help_is_true.py``.
     """
     root_nodes = [
         _node("Weighted", weight={'value': 100}),

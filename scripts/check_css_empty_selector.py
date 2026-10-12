@@ -61,7 +61,7 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOT = Path("src") / "web"
@@ -78,6 +78,15 @@ SCANNED_SUFFIXES = (".css", ".html")
 # inside `:not(:empty)`-style text we might add later. A bare occurrence is
 # what we ban, so match the token and let the report show context.
 EMPTY_RE = re.compile(r":empty\b")
+
+
+def location(path: PurePath, root: PurePath, line: int) -> str:
+    """Return the reported location of ``line`` in ``path``, e.g. ``src/web/css/a.css:12``.
+
+    A repo-relative identifier, so it reads the same on every host (#621);
+    see the same helper in ``check_css_tokens.py``.
+    """
+    return f"{path.relative_to(root).as_posix()}:{line}"
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -158,8 +167,7 @@ def main() -> int:
         file=sys.stderr,
     )
     for path, lineno, line in hits:
-        rel = path.relative_to(PROJECT_ROOT)
-        print(f"  {rel}:{lineno}\n      {line}", file=sys.stderr)
+        print(f"  {location(path, PROJECT_ROOT, lineno)}\n      {line}", file=sys.stderr)
 
     print(
         "\nQtWebEngine 6.10 / Chromium 134 does not re-invalidate `:empty`: an\n"

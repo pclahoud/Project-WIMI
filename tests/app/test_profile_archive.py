@@ -14,12 +14,14 @@ from database.master_db import MasterDatabase
 from database.user_db import UserDatabase
 from database.migrations.user import MIGRATIONS as USER_MIGRATIONS
 from app import profile_archive
+from tests import _schema_mutations
 from app.profile_archive import (
     ArchiveValidationError,
     ProfileArchiveError,
     ProfileImportError,
     VERDICT_NEWER_APP_REQUIRED,
     VERDICT_OK,
+    VERDICT_UNRECOGNISED_STRUCTURE,
     VERDICT_WILL_UPGRADE,
     build_profile_archive,
     install_profile_as_new,
@@ -705,3 +707,116 @@ class TestReplaceProfile:
                 target_user_id=12345,
                 confirm_replace=True,
             )
+
+
+# ==================== structure check (#593) ====================
+#
+# The owner's decision on #593: compare an incoming database's structure with
+# the one WIMI creates, and refuse it on a mismatch. Every foreign database
+# here is a real export plus one named mutation from tests/_schema_mutations.py,
+# built at runtime. The comparison's own rules are tested in
+# tests/database/test_schema_fingerprint.py; these tests cover the routes in.
+
+def _mutated_archive(alice_archive, tmp_path, mutation, name, *, older=False):
+    db = _extract_db(alice_archive, tmp_path / f"mut_{name}")
+    conn = sqlite3.connect(str(db))
+    try:
+        mutation(conn)
+        if older:
+            # The same mutation, on an archive that will be migrated first:
+            # the check must see the database as it will be once installed.
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE version = "
+                "(SELECT MAX(version) FROM schema_migrations)")
+            conn.commit()
+    finally:
+        conn.close()
+    return db, _rezip_with_db(alice_archive, db, tmp_path / f"{name}.wimi")
+
+
+class TestStructureCheck:
+    @pytest.mark.parametrize("mutation, table", [
+        (_schema_mutations.drop_alias_type_check, "subject_aliases"),
+        (_schema_mutations.alias_id_as_text, "subject_aliases"),
+        (_schema_mutations.add_trigger, "mutation_trigger"),
+    ], ids=["variant-A", "variant-D", "extra-trigger"])
+    def test_preflight_refuses_and_names_what_it_found(
+        self, alice_archive, tmp_path, mutation, table
+    ):
+        db, _ = _mutated_archive(alice_archive, tmp_path, mutation, table)
+
+        result = preflight_schema(db)
+
+        assert result["verdict"] == VERDICT_UNRECOGNISED_STRUCTURE
+        assert result["blocked"] is True
+        assert table in result["reason"], result["reason"]
+        # Not the newer-app advice: updating WIMI fixes nothing here (#174).
+        assert "Update WIMI" not in result["reason"]
+        assert "Nothing on this computer has been changed" in result["reason"]
+
+    def test_an_unchanged_export_is_not_blocked(self, alice_archive, tmp_path):
+        """Positive control: without it the refusals above could be a check
+        that refuses every archive."""
+        result = preflight_schema(_extract_db(alice_archive, tmp_path / "clean"))
+        assert result["verdict"] == VERDICT_OK
+        assert result["blocked"] is False
+
+    def test_an_older_archive_is_checked_after_it_is_migrated(
+        self, alice_archive, tmp_path
+    ):
+        clean, _ = _mutated_archive(
+            alice_archive, tmp_path, lambda conn: None, "older_clean",
+            older=True)
+        assert preflight_schema(clean)["verdict"] == VERDICT_WILL_UPGRADE
+
+        mutated, _ = _mutated_archive(
+            alice_archive, tmp_path, _schema_mutations.alias_id_as_text,
+            "older_mutated", older=True)
+        result = preflight_schema(mutated)
+        assert result["verdict"] == VERDICT_UNRECOGNISED_STRUCTURE
+        assert result["blocked"] is True
+
+    def test_a_value_that_fits_its_column_is_not_this_checks_business(
+        self, alice_archive, tmp_path
+    ):
+        """Option 2's stated boundary (#593 variant B): text stored in a REAL
+        column changes no DDL, so the structure check passes it. It is
+        recorded here so that nobody reads this check as covering values."""
+        def text_in_a_real_column(conn):
+            conn.execute(
+                "UPDATE user_preferences SET font_size_scale = 'not a number'")
+            conn.commit()
+
+        db, _ = _mutated_archive(
+            alice_archive, tmp_path, text_in_a_real_column, "variant_b")
+        assert preflight_schema(db)["blocked"] is False
+
+    def test_install_as_new_refuses_before_any_state_change(
+        self, alice_archive, dest_master, tmp_path
+    ):
+        _, archive = _mutated_archive(
+            alice_archive, tmp_path, _schema_mutations.alias_id_as_text,
+            "install")
+
+        with pytest.raises(ProfileImportError, match="subject_aliases"):
+            install_profile_as_new(dest_master, archive)
+
+        assert dest_master.get_all_users(include_deleted=True) == []
+        assert list(dest_master.users_dir.iterdir()) == []
+
+    def test_replace_refuses_and_leaves_the_target_as_it_was(
+        self, alice_archive, dest_master, replace_setup, tmp_path
+    ):
+        bob, carol = replace_setup
+        bob_db = dest_master.users_dir / bob.database_filename
+        before = _logical_dump(bob_db)
+        _, archive = _mutated_archive(
+            alice_archive, tmp_path, _schema_mutations.drop_alias_type_check,
+            "replace")
+
+        with pytest.raises(ProfileImportError, match="subject_aliases"):
+            replace_profile(dest_master, archive, target_user_id=bob.id,
+                            active_user_id=carol.id, confirm_replace=True)
+
+        assert _logical_dump(bob_db) == before
+        assert dest_master.get_user(bob.id).display_name == "Bob Target"

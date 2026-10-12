@@ -278,8 +278,11 @@ def _qapplication_seams() -> list:
             # A call to the bare name QApplication. Both seams import it
             # as a name rather than using a qualified attribute.
             if "func=Name(id='QApplication'" in dump:
+                # as_posix(), not str(): on Windows str() gives
+                # 'src\\app\\main.py', so the control below named seams that
+                # were found and failed anyway (#351).
                 seams.append(
-                    (str(path.relative_to(_REPO)), node.name, dump)
+                    (path.relative_to(_REPO).as_posix(), node.name, dump)
                 )
     return seams
 

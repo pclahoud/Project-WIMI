@@ -6,9 +6,11 @@ spawn a real WIMI subprocess, so they're fast — unlike the scenario
 tests under ``tests/wimi_test/scenarios/``, which are gated behind
 ``@pytest.mark.slow``.
 
-The full-outline seeder takes ~30 seconds in dev mode (it materialises
-~2,500 ``subject_nodes`` plus their multi-parent edges) so its test is
-marked ``@pytest.mark.slow``. ``seed_minimal`` is fast and stays
+The full-outline seeder materialises 2,471 ``subject_nodes`` plus their
+multi-parent edges. Its test keeps ``@pytest.mark.slow`` because the
+work is unbounded in the fixture's size, but the measured cost on this
+Linux box is **1.16 s**, not the "~30 seconds" this docstring claimed
+from the previous fixture's era. ``seed_minimal`` is fast and stays
 unmarked.
 """
 
@@ -18,16 +20,16 @@ import pytest
 
 from wimi_test.db.seeders import (
     get_seeder,
+    seed_exam_outline,
     seed_minimal,
     seed_multi_dimensional,
-    seed_usmle_step1_outline,
 )
 
 
 def test_get_seeder_lists_known_names() -> None:
     """Every shipped seeder is discoverable by name from the registry."""
     assert get_seeder("minimal") is seed_minimal
-    assert get_seeder("usmle_step1_outline") is seed_usmle_step1_outline
+    assert get_seeder("exam_outline") is seed_exam_outline
     assert get_seeder("multi_dimensional") is seed_multi_dimensional
 
 
@@ -36,7 +38,7 @@ def test_get_seeder_unknown_name_raises_with_valid_list() -> None:
     with pytest.raises(KeyError) as exc:
         get_seeder("not_a_real_seeder")
     assert "minimal" in str(exc.value)
-    assert "usmle_step1_outline" in str(exc.value)
+    assert "exam_outline" in str(exc.value)
 
 
 def test_seed_minimal_creates_one_exam_context(tmp_path) -> None:
@@ -59,15 +61,15 @@ def test_seed_minimal_creates_one_exam_context(tmp_path) -> None:
 
 
 @pytest.mark.slow
-def test_seed_usmle_step1_outline_full_polyhierarchy(tmp_path) -> None:
-    """Full-outline seeder loads ~2,500 nodes with multi-parent edges.
+def test_seed_exam_outline_full_polyhierarchy(tmp_path) -> None:
+    """Full-outline seeder loads ~2,470 nodes with multi-parent edges.
 
     Exercises the canonical polyhierarchy demo from
     ``docs/planning/POLYHIERARCHY_MIGRATION.md`` Section 1: hypertension
     and deep venous thrombosis must each end up with two or more parent
-    edges. We don't assert on exact counts (the parser may legitimately
-    grow new topic detections over time), only on lower bounds and the
-    presence of the canonical multi-parent leaves.
+    edges. We don't assert on exact counts (the fixture may legitimately
+    grow), only on lower bounds and the presence of the canonical
+    multi-parent leaves.
     """
     from database.user_db import UserDatabase
 
@@ -77,16 +79,18 @@ def test_seed_usmle_step1_outline_full_polyhierarchy(tmp_path) -> None:
         username="outline_test",
     )
     try:
-        seed_usmle_step1_outline(db)
+        seed_exam_outline(db)
 
-        # Exam context.
+        # Exam context. The fixture names itself, and the name says it is
+        # synthetic -- it replaced a verbatim copy of a third party's
+        # published content outline (#437).
         contexts = db.fetchall("SELECT id, exam_name FROM exam_contexts")
         assert len(contexts) == 1
-        assert "USMLE Step 1" in contexts[0]["exam_name"]
+        assert "Synthetic Exam Outline" in contexts[0]["exam_name"]
 
-        # Lower bounds — the parser finds 2,544 topics today and 121
+        # Lower bounds — the fixture seeds 2,471 nodes today and 70
         # multi-parent names; assert generously below those so cosmetic
-        # parser tweaks don't break this test.
+        # fixture tweaks don't break this test.
         node_count = db.fetchone("SELECT COUNT(*) AS c FROM subject_nodes")["c"]
         edge_count = db.fetchone("SELECT COUNT(*) AS c FROM subject_edges")["c"]
         multi_parent_count = len(
@@ -101,7 +105,10 @@ def test_seed_usmle_step1_outline_full_polyhierarchy(tmp_path) -> None:
             multi_parent_count >= 50
         ), f"Expected ≥50 multi-parent children, got {multi_parent_count}"
 
-        # Canonical multi-parent leaves from the plan.
+        # Canonical multi-parent leaves from the plan. The fixture places
+        # each of these deliberately, so a cross-listing lost in an edit is
+        # caught here rather than quietly reducing what the polyhierarchy
+        # tests downstream cover.
         for canonical in ("hypertension", "deep venous thrombosis"):
             row = db.fetchone(
                 "SELECT id FROM subject_nodes WHERE LOWER(name) = ?",

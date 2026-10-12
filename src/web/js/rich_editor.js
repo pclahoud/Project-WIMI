@@ -402,7 +402,7 @@ class RichEditor {
                            id="latex-input"
                            class="rich-editor-math-input"
                            placeholder="e.g., E = mc^2 or \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}"
-                           value="${existingFormula.replace(/"/g, '&quot;')}"
+                           value="${WimiEscape.attr(existingFormula)}"
                            autocomplete="off">
                     <div class="rich-editor-math-preview-label">Preview:</div>
                     <div class="rich-editor-math-preview"></div>
@@ -450,7 +450,11 @@ class RichEditor {
                     displayMode: true
                 });
             } catch (e) {
-                preview.innerHTML = `<span class="error">Invalid LaTeX: ${e.message}</span>`;
+                // A KaTeX error message quotes the input it failed on (#548).
+                const error = document.createElement('span');
+                error.className = 'error';
+                error.textContent = `Invalid LaTeX: ${e.message}`;
+                preview.replaceChildren(error);
             }
         };
 
@@ -806,7 +810,7 @@ class RichEditor {
                 if (text.includes('\n')) {
                     const parts = text.split('\n');
                     for (let i = 0; i < parts.length; i++) {
-                        currentParagraph += this._escapeHtml(parts[i]);
+                        currentParagraph += WimiEscape.html(parts[i]);
                         if (i < parts.length - 1) {
                             // End of paragraph
                             if (currentParagraph.trim()) {
@@ -819,13 +823,13 @@ class RichEditor {
                     }
                 } else {
                     // Apply formatting if present
-                    let formatted = this._escapeHtml(text);
+                    let formatted = WimiEscape.html(text);
                     if (op.attributes) {
                         if (op.attributes.bold) formatted = '<strong>' + formatted + '</strong>';
                         if (op.attributes.italic) formatted = '<em>' + formatted + '</em>';
                         if (op.attributes.underline) formatted = '<u>' + formatted + '</u>';
                         if (op.attributes.strike) formatted = '<s>' + formatted + '</s>';
-                        if (op.attributes.link) formatted = '<a href="' + this._escapeHtml(op.attributes.link) + '">' + formatted + '</a>';
+                        if (op.attributes.link) formatted = '<a href="' + WimiEscape.html(op.attributes.link) + '">' + formatted + '</a>';
                     }
                     currentParagraph += formatted;
                 }
@@ -834,23 +838,23 @@ class RichEditor {
                 if (op.insert.formula) {
                     // Math formula
                     const formula = op.insert.formula;
-                    let mathHtml = '<span class="math-tex" data-formula="' + this._escapeHtml(formula) + '">';
+                    let mathHtml = '<span class="math-tex" data-formula="' + WimiEscape.html(formula) + '">';
                     if (typeof katex !== 'undefined') {
                         try {
                             const container = document.createElement('span');
                             katex.render(formula, container, { throwOnError: false });
                             mathHtml += container.innerHTML;
                         } catch (e) {
-                            mathHtml += this._escapeHtml(formula);
+                            mathHtml += WimiEscape.html(formula);
                         }
                     } else {
-                        mathHtml += this._escapeHtml(formula);
+                        mathHtml += WimiEscape.html(formula);
                     }
                     mathHtml += '</span>';
                     currentParagraph += mathHtml;
                 } else if (op.insert.image) {
                     // Image
-                    currentParagraph += '<img src="' + this._escapeHtml(op.insert.image) + '" alt="">';
+                    currentParagraph += '<img src="' + WimiEscape.html(op.insert.image) + '" alt="">';
                 }
             }
         }
@@ -863,16 +867,6 @@ class RichEditor {
         return html || '<p><br></p>';
     }
 
-    /**
-     * Escape HTML special characters
-     * @param {string} text - Text to escape
-     * @returns {string} Escaped text
-     */
-    _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     /**
      * Emptiness test for a raw HTML string.
@@ -1096,7 +1090,7 @@ class RichEditor {
                 + 'insertion point; inserting without added spacing', e);
         }
 
-        this.editor.insertContent(leading + this._escapeHtml(body) + trailing);
+        this.editor.insertContent(leading + WimiEscape.html(body) + trailing);
         return true;
     }
 

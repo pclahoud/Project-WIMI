@@ -180,9 +180,8 @@
     display: inline-block;
     padding: 0.125rem 0.375rem;
     border-radius: 0.1875rem;
-    font-size: 0.625rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
-    text-transform: uppercase;
 }
 
 .level-TRACE { background: var(--text-muted); color: var(--text-inverse, white); }
@@ -194,7 +193,7 @@
 .level-FATAL { background: #9c27b0; color: var(--text-inverse, white); }
 
 .error-time {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
 }
 
@@ -221,7 +220,7 @@
     padding: 0.5rem;
     border-radius: var(--radius-sm);
     font-family: 'Courier New', monospace;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     white-space: pre-wrap;
     word-break: break-all;
@@ -255,7 +254,7 @@
     padding: 0.125rem 0.375rem;
     background: var(--border-color);
     border-radius: 0.1875rem;
-    font-size: 0.625rem;
+    font-size: var(--font-size-xs);
     margin-left: 0.3125rem;
 }
 

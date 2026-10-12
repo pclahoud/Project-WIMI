@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings, and what each one changes - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/80_settings.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 25</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Settings, and what each one changes</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_folder_sync.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Keeping one profile on two computers</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_where_your_work_lives.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Where your work lives, and how to keep it</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Settings, and what each one changes
+
+## In short
+
+Settings is fourteen panels behind the gear at the top right of the dashboard, and nothing you change there takes effect anywhere else until you press Save. Two whole panels and the lower half of a third are openly marked Coming Soon, with their controls greyed out. A few controls save themselves the moment you change them instead of waiting for Save, and a few belong to this computer rather than to your profile. This chapter is a tour, and it says which is which, because a settings page you cannot trust is worse than one with fewer settings on it.
+
+## Getting there, and getting out
+
+The gear at the top right of the dashboard opens Settings. A few places in WIMI
+link straight to a particular panel — the analytics dashboard's own gear opens
+the Dashboard and Analytics panel, and the dashboard's sync notice opens Data
+and Backup — so you sometimes arrive partway down rather than at the top.
+
+The left column is the panel list and the right is the panel. Switching panels
+is free and keeps anything you have changed; the save is for the whole page, not
+for one panel.
+
+**Back to Dashboard** at the top left returns you to wherever you came from, not
+always the dashboard: if you reached Settings from the analytics dashboard, it
+takes you back there.
+
+## Nothing changes until you press Save
+
+<!-- tour
+page: settings
+anchor: settings-save
+text: Nothing you change here reaches the rest of WIMI until you press Save.
+  The strip that appears is literally true: switch the theme and this page
+  restyles itself while every other page stays as it was.
+-->
+
+The bar at the top of the panel area is always there and always holds the same
+three buttons.
+
+- **Save** writes everything you have changed. Ctrl+S does the same thing, and on a Mac so does Cmd+S.
+- **Cancel** throws your changes away and puts every control back to the stored value. Escape does the same thing, from anywhere on the page.
+- **Reset what Save covers** is a different and much larger action — see below.
+
+As soon as you change anything, a strip appears across the top reading *Preview
+mode — these changes only apply to this page until saved*. That is literally
+true and it is the most useful thing on the page: switch the theme and this page
+restyles itself immediately so you can see it, while every other page in WIMI
+stays as it was until you save.
+
+If you try to leave with unsaved changes, WIMI asks whether to save first. Answer
+no and the preview is undone on the way out.
+
+### Reset what Save covers is not an undo
+
+<!-- tour
+page: settings
+anchor: settings-reset-defaults
+text: This is not an undo. It writes the shipped default over everything the
+  page's Save covers, on every panel, not only the one you are looking at.
+  Controls that save themselves are left alone: per-exam analytics, each
+  bank's address and Desktop site switch, and add-ons. So is your data.
+-->
+
+It asks for confirmation, and then it writes the shipped default value over
+**every** setting the page's **Save** button covers — on every panel, not just
+the one you are looking at, and not just the ones you changed in this visit.
+Your theme, your colours, your timer lengths and your keyboard shortcuts all go
+back to how they arrived.
+
+Two kinds of thing it does **not** reset, which is worth knowing because nothing
+on screen says so:
+
+- **Your data**: your exams, your subjects and all of your entries. Reset what Save covers is a settings reset, never a data reset.
+- **Controls that save themselves** instead of waiting for the page's Save. Those are the per-exam choices under **Per-Exam Analytics Configuration**, which have their own **Save Exam Analytics** button; each question bank's web address and its **Desktop site** switch, both saved the moment you change them; and the switches and settings of add-ons. Each keeps whatever you last saved.
+
+Every control that waits for the page's Save does go back, the three Question
+Banks choices included. They were the exception until recently, and silently.
+
+## Appearance
+
+### The six themes
+
+There are six, and all six are real choices that WIMI ships finished: **Default
+(Light)**, **Midnight (Dark)**, **Warm Study (Sepia)**, **Forest (Earthy
+Green)**, **Nord (Arctic)** and **High Contrast**. Two of them are dark —
+Midnight and High Contrast.
+
+A theme in WIMI is a set of background and text shades, from the page behind
+everything to the cards and panels sitting on it. It is **not** the accent
+colour; that is the next section, and the two interact in a way that surprises
+people.
+
+**Be aware that the themes have known colour problems and WIMI's tracker is
+honest about them.** Some small, quiet text — captions inside nested cards,
+the dimension prefix on a filled subject chip — does not reach the contrast WIMI
+is aiming for, in several of the six, and on a dark theme a tinted background
+behind accent-coloured text can come out lighter than the theme intends. These
+are open and being worked through. If a label is hard to read, that is a
+reasonable thing to have noticed rather than a problem with your eyes or your
+screen, and switching themes may well fix that particular label.
+
+### Your two colours
+
+<!-- tour
+page: settings
+anchor: settings-appearance-primary-color-picker
+text: Choose the theme first and the colour second, because picking a theme
+  overwrites both of your colours with its own pair. Your colour then wins
+  over the theme on every page, until you change theme again.
+-->
+
+**Primary Color** is the accent: buttons, links, highlights, the filled subject
+chips. **Secondary Color** is for secondary buttons, borders and quieter
+elements. Each has a swatch you can click and a text box you can type a hex code
+into; they are two views of one setting.
+
+The part that catches people:
+
+- **Choosing a theme overwrites both colours** with that theme's own pair, immediately, in the live preview. If you had typed a colour you liked and then went looking at themes, it is gone — press Cancel before saving and you get it back.
+- **Your colour then wins over the theme**, everywhere, on every page. The theme supplies the greys; the accent is always yours. That is why a colour picked under one theme follows you into the next one you choose, until you change theme again.
+
+So the working order is: pick the theme first, then the colour.
+
+### Fonts, size, density and animation
+
+- **Font Family** — System Default, Sans Serif, Serif or Monospace, for the interface. Your own writing keeps its own typeface, so changing this never reflows an answer or a reflection you have written.
+- **Font Size** — ten steps from 12 px to 24 px. It scales the whole interface, not just body text.
+- **UI Density** — Compact, Comfortable or Spacious. It changes the padding and gaps everywhere, which is the fastest way to fit more on a small screen without shrinking the text.
+- **Show Animations** — untick it and every transition and animation in WIMI is switched off. Useful on a slow machine, and useful if movement bothers you.
+
+All four preview live on the Settings page itself before you save.
+
+## Study Sessions
+
+Defaults for the timer that runs beside the entry form: **work round length**
+(15 to 480 minutes), **short break**, **long break**, and **how many rounds
+before a long break**. These are the numbers a new session starts with; you can
+still change them when you set one up.
+
+**Timer Display Size** is Normal or Large, for the countdown on the entry page.
+
+**Timer Keyboard Shortcuts** are three capture boxes — pause or resume, new
+round, end round. Click one and press the combination you want; press Escape to
+clear it. WIMI refuses combinations it needs for itself, such as Ctrl+S and F5,
+and tells you if you give two of the three the same keys. They arrive set to
+Alt+P, Alt+N and Alt+E.
+
+The timer these numbers configure has its own chapter, [The session timer, rounds and breaks](help_the_session_timer.html), which covers rounds, pausing and the two ways a break starts.
+
+**Only take breaks when I ask** governs one thing: whether reaching the end of a
+work round offers you a break by itself. Leave it off and the end of a round
+offers one, which is what WIMI has always done. Tick it and the round ends
+quietly.
+
+Either way there is a **Take a break** button beside the countdown on the entry
+page, so a break is never something you have to wait for the clock to offer.
+Starting one mid-round stops that round's clock and the time counts as the
+round's break rather than vanishing; the same button then reads **End break**,
+and ending it early or on time starts the clock again. A round you paused
+yourself stays paused, which is the distinction worth knowing: ending a break
+only resumes what the break stopped.
+
+## Dashboard and Analytics
+
+<!-- tour
+page: settings
+anchor: settings-analytics-save-exam-config
+text: These per-exam choices have their own Save button and are not covered by
+  the page's Save. They are stored per exam, so one exam can have a busy
+  dashboard and another a spare one.
+-->
+
+This panel has two halves that work differently, and the difference is worth
+holding on to: the controls at the top apply to **every** exam, and
+**Per-Exam Analytics Configuration** at the bottom applies to one.
+
+Taking the per-exam half first. Choose an exam and you get two things:
+
+- **Default Dimension Filter** — which dimension the subject sunburst and the mistake-type chart open filtered to for that exam. "All Dimensions" means unfiltered. On an exam with no dimensions this does not appear.
+- **Chart Visibility** — a tick box per chart on the analytics dashboard, so you can switch off the ones you do not read. Three of them are only meaningful on an exam with more than one dimension, and they are marked as such.
+
+Press **Save Exam Analytics** for these — they have their own button and are
+**not** covered by the page's main Save. The settings are per exam, so you can
+have a busy dashboard for one exam and a spare one for another.
+
+Now the top half, which applies to every exam at once.
+
+- **Analytics Detail Level** — how much of the analytics dashboard is drawn. *Summary* keeps the overview, the subject sunburst and the mistake-type chart; *Detailed* additionally drops the cross-dimension heatmap, Study Recommendations and Interaction Effects; *Advanced* is the whole page. If you upgraded from a version where this control did nothing, you are on Advanced — nothing was taken away from you.
+- **Auto-Refresh Interval** — how often the dashboard re-reads its figures while you leave it open, so an entry logged in another window appears without a reload. It is skipped while the window is hidden.
+- **Show Performance Trends**, **Show Mistake Patterns**, **Show Subject Breakdown**, **Show Time Analytics** — four master switches, each covering a group of charts on every exam.
+
+**The two halves combine by hiding, never by showing.** A chart appears only if
+both allow it: switching off *Show Subject Breakdown* here hides the sunburst
+on every exam whatever the per-exam tick says, and unticking a chart for one
+exam hides it there whatever the master switch says. Neither half can reveal
+what the other hid. So if a chart is missing and you expected it, check both.
+
+**There is no control here for the efficiency score**, and that is deliberate
+rather than an omission: the analytics dashboard no longer draws an efficiency
+score at all, so a setting about how to draw it would be a setting over nothing.
+The chapter [Reading the analytics](help_reading_the_analytics.html) explains
+what happened to it. If you had set a preference about it in an older version of
+WIMI, that value is still stored, untouched, and will still be there if the
+score ever returns.
+
+## Entry Browser
+
+- **Items Per Page** — 10 to 100, for the entry browser's list.
+- **Default Sort Field** and **Default Sort Direction** — two halves of one choice: what to sort by, and which way round. The entry browser opens every list that way. They are shown separately because that is easier to read than four combined options, but they are stored as a single value, so there is no state in which the two disagree.
+  - A profile older than this pair reads as **Date, newest first**, which is what the entry browser was already doing. Nothing moved under you.
+
+## Question Banks
+
+This panel is the **only** place the facts about each question bank live — its
+web address, and whether the browser pane should identify itself as a desktop
+browser to it. The pane itself, the shortcut buttons and the three choices about
+how it opens are all described in
+[Your question bank beside the form](help_question_bank_pane.html); this panel is
+where you set them.
+
+If you have never set up a question source, the panel says so and tells you where
+they get created, which is when you start a study session.
+
+## Speech to Text
+
+Three status lines — the engine, the model, and the microphone — because those
+three fail independently and have three different fixes. Below them, which
+microphone to record from, which speech model to use, a download button for it,
+and a tick box for whether WIMI primes the recogniser with your own subject
+names.
+
+All of it is covered properly in [Dictation](help_dictation.html), including what
+each status line means and what to do about it. One thing worth repeating here:
+the model you choose and the microphone you choose are **per computer**, because
+each names something that exists on this machine and nowhere else.
+
+## Related Topics
+
+One status line for whether WIMI can suggest relations at all, and one slider:
+**how sure WIMI must be before suggesting a relation**, from 10% to 95% in steps
+of 5, starting at 80%.
+
+The slider's own help text is the honest summary — lower shows more suggestions
+including more wrong ones, higher shows fewer that are more often right — and the
+reason it is safe to experiment is that nothing is added to your subjects until
+you confirm it. A low setting costs you reading time, never your data.
+
+[Letting WIMI find the links](help_finding_links_automatically.html) is the
+chapter for this.
+
+## Calendar and Anki Integration
+
+Both panels carry a **Coming Soon** badge and every control in them is greyed
+out. Nothing in them is connected to anything, and they are honest about that.
+
+## Data and Backup
+
+This panel is in two halves and they are very different.
+
+**Sync Across Devices** at the top is live. It links this profile to a folder
+your own cloud client already syncs, and everything about it — linking, sending,
+fetching, and what happens when two computers disagree — is described in its own
+chapter. WIMI never touches your cloud account; it only writes files into a
+folder you choose.
+
+**Below it, under a Coming Soon badge, sit three greyed-out backup controls**:
+automatic backups, how often, and how long to keep them. None of them does
+anything. There is no automatic backup in WIMI and no *Back up now* button
+anywhere. [Where your work lives, and how to keep it](help_where_your_work_lives.html)
+is the chapter about that, and it matters more than most.
+
+## MCP Server
+
+A local, **read-only** server that lets an AI assistant on this computer read
+your WIMI data — your entries, subjects and analytics — if you point it at the
+address shown.
+
+<!-- tour
+page: settings
+anchor: settings-mcp-server-enabled
+text: This switch and the port belong to this computer, not to your profile,
+  so a profile exported or synced to another computer does not turn the
+  server on there. Ticking it starts the server when you press Save, and WIMI
+  starts it again each time it opens while the box stays ticked.
+-->
+
+- A tick box to enable it, and a port, which defaults to 8000. Both wait for **Save**, which is when the server starts or stops, and while the box stays ticked WIMI starts the server again every time it opens.
+- **Both belong to this computer, not to your profile.** A profile you export, or sync to another computer, does not switch the server on there; each computer keeps its own setting.
+- A status line that reads *Checking…* until WIMI has actually asked, rather than asserting *Stopped* before it knows.
+- Once it is running, the connection address plus two copy-ready configuration blocks for connecting a tool to it.
+
+It listens on this computer only, and it cannot write to your data. It is off
+until you turn it on. Whether you want it is entirely a question of whether you
+use such a tool.
+
+## Profile
+
+Who you are signed in as, a link to switch profile, and the two buttons that
+move a profile between computers: **Export profile…** and **Import profile…**,
+with a tick box for whether an export carries your images.
+
+Export opens an ordinary save dialog. Import opens a file dialog and then hands
+you to the profile picker, which is where the preview and the choice between
+*import as new* and *replace existing* live.
+
+Both are covered in
+[Where your work lives, and how to keep it](help_where_your_work_lives.html),
+because exporting is also the only honest backup WIMI has.
+
+## Addons
+
+Installed plugins, with an **Install from .zip** button. See
+[Plugins](help_plugins.html) before you install anything — a plugin runs with the
+same access to your data that WIMI itself has, and the Addons panel does not ask
+you to agree to anything before it runs one.
+
+## About, which is a legal document rather than a credits screen
+
+It looks like a credits screen and it is not. WIMI is distributed under the GNU
+General Public License version 3, and that licence requires an interactive
+program to show certain things to the person using it. The About panel is where
+WIMI shows them. It carries, deliberately and because it must:
+
+- **The copyright and the licence** WIMI itself is under.
+- **The warranty disclaimer** — WIMI comes with none, which is a statement the licence requires rather than a disclaimer somebody chose to add.
+- **Where to get the source code**, including a file beside the application naming the exact version this copy was built from.
+- **Which licence texts ship beside the application**, by filename, so you can read them without launching anything.
+- **Every third-party component WIMI is distributed with**, its version and its licence. Several of those licences require that this notice travel with the software, which is the other reason the panel exists.
+
+It is also the quickest way to find out which version of WIMI you are running,
+which is the first thing anybody will ask you if something goes wrong.
+
+## Two things settings cannot do
+
+- **There is no per-exam theme, and no setting that changes anything about an exam.** Everything to do with an exam's structure — its dimensions, its levels, its subjects and their weights — lives in the exam wizard and the tree editor, not here.
+- **There is no setting that hides drafts from analytics, and there never will be.** That is a decision rather than a missing feature, and [Goals, and why drafts do not count toward them](help_goals_and_drafts.html) explains it.
+
+## Where to go next
+
+- [Where your work lives, and how to keep it](help_where_your_work_lives.html) — the Data and Backup panel's real answer.
+- [Plugins](help_plugins.html) — read before pressing Install from .zip.
+- [Your question bank beside the form](help_question_bank_pane.html) — what the Question Banks panel is configuring.
+- [Reading the analytics](help_reading_the_analytics.html) — what the per-exam chart settings switch on and off.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

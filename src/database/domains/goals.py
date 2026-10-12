@@ -336,13 +336,25 @@ class GoalsMixin:
         not progress. The drafts it skips are reported separately by
         :meth:`_count_drafts_in_period`.
         """
+        # `'localtime'` is load-bearing, not tidiness (#296). `created_at` is
+        # written by SQLite's CURRENT_TIMESTAMP and is therefore **UTC**, while
+        # `start_date`/`end_date` come from `datetime.now().date()` and are
+        # **local**. Comparing one against the other means that for the hours
+        # when the two calendars disagree -- 20:00 to midnight in America/
+        # New_York -- an entry is dated tomorrow and falls outside the window
+        # it belongs to. On a Sunday evening tomorrow is also next *week*, so
+        # the entry counts toward no week at all, and #70 recounts live rather
+        # than storing progress, so nothing ever corrects it.
+        #
+        # Measured 2026-10-04 22:11 local / 2026-10-05 02:11 UTC: twelve goals
+        # tests failed on untouched master, having passed the same morning.
         query = """
             SELECT COUNT(DISTINCT qe.id) as count
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE rs.user_id = ?
-                AND DATE(qe.created_at) >= ?
-                AND DATE(qe.created_at) <= ?
+                AND DATE(qe.created_at, 'localtime') >= ?
+                AND DATE(qe.created_at, 'localtime') <= ?
                 AND qe.is_draft = FALSE
         """
         params = [self.user_id, start_date.isoformat(), end_date.isoformat()]
@@ -380,13 +392,20 @@ class GoalsMixin:
         Returns:
             Number of draft entries created in the period
         """
+        # Same `'localtime'` as the counter above, and it has to stay the same
+        # (#296). This method's whole contract is being that one's *exact*
+        # complement -- same window, same column, same scope, opposite
+        # `is_draft`. If only one of the two converted, an entry logged in the
+        # disagreeing hours would be absent from the finished count AND absent
+        # from "N drafts remaining", so the student would be told nothing at
+        # all about work they had just done.
         query = """
             SELECT COUNT(DISTINCT qe.id) as count
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
             WHERE rs.user_id = ?
-                AND DATE(qe.created_at) >= ?
-                AND DATE(qe.created_at) <= ?
+                AND DATE(qe.created_at, 'localtime') >= ?
+                AND DATE(qe.created_at, 'localtime') <= ?
                 AND qe.is_draft = TRUE
         """
         params = [self.user_id, start_date.isoformat(), end_date.isoformat()]

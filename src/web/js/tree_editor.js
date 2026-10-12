@@ -102,15 +102,33 @@ const Toast = {
             transition: all 0.2s ease;
         `;
 
-        toast.innerHTML = `
-            <span style="color: ${colorVars[type]}; font-size: 1.25rem;">${icons[type]}</span>
-            <div style="flex: 1;">
-                <div style="font-weight: 500; margin-bottom: 2px;">${title}</div>
-                ${message ? `<div style="font-size: 0.875rem; color: var(--text-muted);">${message}</div>` : ''}
-            </div>
-            <button style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.25rem;">×</button>
-        `;
-        
+        // Built from text nodes, not a template (#548). The messages carry
+        // subject names -- "Renamed to ...", and the importer's own warnings,
+        // which quote a FILE's subject names back -- so an innerHTML template
+        // here ran whatever markup a name held.
+        const icon = document.createElement('span');
+        icon.style.cssText = `color: ${colorVars[type]}; font-size: 1.25rem;`;
+        icon.textContent = icons[type];
+
+        const body = document.createElement('div');
+        body.style.flex = '1';
+        const titleEl = document.createElement('div');
+        titleEl.style.cssText = 'font-weight: 500; margin-bottom: 2px;';
+        titleEl.textContent = title;
+        body.appendChild(titleEl);
+        if (message) {
+            const messageEl = document.createElement('div');
+            messageEl.style.cssText = 'font-size: 0.875rem; color: var(--text-muted);';
+            messageEl.textContent = message;
+            body.appendChild(messageEl);
+        }
+
+        const close = document.createElement('button');
+        close.style.cssText = 'background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.25rem;';
+        close.textContent = '×';
+
+        toast.append(icon, body, close);
+
         this.container.appendChild(toast);
         
         requestAnimationFrame(() => {
@@ -185,6 +203,23 @@ function markTreeEditorReady() {
     }
 }
 
+/**
+ * The first-run tour (#430). Called once the page gate has released, and
+ * again when a view brings a step's target on screen: the Archived subjects
+ * panel (shown only once its asynchronous load finds a deletion) and the
+ * import preview (import_export.js). tour.js rebuilds an open tour from what
+ * renders now. A no-op before the release, when .tree-page is inert. Behind a
+ * typeof check and a try, so a broken tour cannot break the page.
+ */
+function startTreeTour() {
+    if (!TreeState.isPageReady) return;
+    try {
+        if (typeof WimiTour !== 'undefined') WimiTour.start('tree-editor');
+    } catch (err) {
+        console.error('Tour failed to start:', err);
+    }
+}
+
 async function initializeTreeEditor() {
     console.log('🌳 Initializing tree editor...');
 
@@ -252,6 +287,7 @@ async function initializeTreeEditor() {
         // See markTreeEditorReady() for why it is here and not at the end of
         // the try.
         markTreeEditorReady();
+        startTreeTour();
     }
 }
 
@@ -370,6 +406,7 @@ async function loadHierarchy() {
         showLoading(false);
         // Mirrored from the dimension branch above -- see the note there.
         refreshArchivedPanel();
+        refreshUnassignedPanel();   // #605
     }
 }
 
@@ -394,12 +431,31 @@ async function loadHierarchy() {
  *
  * Calls ``api.getAllFeasibilityReports`` and stamps
  * ``node.feasibility_status`` onto every node in the tree that is a
- * parent (i.e. appears as a key in the response). The render path
- * (``renderNode``) uses this field to draw a warning dot on rows whose
- * status is non-``'ok'``.
+ * parent (i.e. appears as a key in the response).
  *
- * Failures are non-fatal — the tree still renders without the warning
- * dots, mirroring ``enrichNodesWithQuestionCounts`` behavior.
+ * **NOTHING DRAWS A WARNING FROM THIS, AND NOTHING MAY (#664, owner
+ * 2026-10-10).** The row used to carry a ⚠ whenever the status was not
+ * ``'ok'``, titled "Children's weights exceed this parent's range"
+ * (``'over'``), "Children's minimums don't fit in this parent's maximum"
+ * (``'infeasible'``) or "Children's weights leave room under this parent"
+ * (``'under'``). All three compared the children's summed weights with
+ * their parent's, and #64 says that comparison has no meaning: a weight is
+ * a share of the **whole exam** at any depth, never of the subject above
+ * it. So the dot fired on correct published blueprints — Step 2 CK lists
+ * Nutrition at 15–20% and Multisystem at 4–8% as siblings, so filing the
+ * first under the second warned about two numbers copied off the document
+ * — while ``docs/manual/20_weights.md`` told students "there is no such
+ * check anywhere in the app, and nothing warns you". The manual was right
+ * and this was the check.
+ *
+ * ``validate_hierarchy_feasibility`` now always reports ``'ok'``, so the
+ * stamp is uniformly ``'ok'`` and this function has nothing to change on
+ * screen. It is kept because the report's *figures* are still real and a
+ * future caller may want them; see the decision point in ``hierarchy.py``
+ * for what it would take to make a per-parent verdict meaningful again.
+ *
+ * Failures are non-fatal — the tree still renders, mirroring
+ * ``enrichNodesWithQuestionCounts`` behavior.
  *
  * Must run on BOTH the non-dimensional and dimensional load paths per
  * the feedback memory in ``feedback_dimension_code_paths.md``.
@@ -598,8 +654,8 @@ function renderDimensionSelector() {
                 data-dimension-id="${dim.id}"
                 data-testid="tree-dimension-tab-${dim.id}"
                 onclick="selectDimension(${dim.id})"
-                title="${escapeHtml(dim.description || dim.name)}">
-            <span class="dimension-tab-name">${escapeHtml(dim.name)}</span>
+                title="${WimiEscape.html(dim.description || dim.name)}">
+            <span class="dimension-tab-name">${WimiEscape.html(dim.name)}</span>
             ${dim.is_required ? '<span class="dimension-tab-badge">Required</span>' : ''}
         </button>
     `).join('');
@@ -721,7 +777,7 @@ function updateDimensionStats() {
         const totalWeight = TreeState.rootNodes.reduce((sum, node) => sum + (node.weight || node.exam_weight_low || 0), 0);
         statsEl.innerHTML = `
             <span class="dimension-stat"><strong>${nodeCount}</strong> subject${nodeCount !== 1 ? 's' : ''}</span>
-            <span class="dimension-stat"><strong>${totalWeight.toFixed(1)}%</strong> total weight</span>
+            <span class="dimension-stat" data-testid="tree-overview-total-weight"><strong>${totalWeight.toFixed(1)}%</strong> total weight</span>
         `;
     }
 }
@@ -778,6 +834,25 @@ async function loadDimensionHierarchy(dimensionId) {
         TreeState.flatNodes = new Map();
     } finally {
         showLoading(false);
+        // #605's panel is refreshed HERE rather than in `loadHierarchy`'s
+        // dimension branch, and the difference is the whole reason the
+        // panel appeared empty the first time it was wired.
+        //
+        // ON A DIMENSIONED EXAM, `loadHierarchy` IS NOT THE INITIAL LOAD
+        // PATH. Init goes `loadDimensions() -> selectDimension() ->
+        // loadDimensionHierarchy()` and never touches `loadHierarchy`,
+        // which this file's own header comment says at the top. So a
+        // refresh hung off `loadHierarchy` runs on every later reload and
+        // not on the one that matters. `loadDimensionHierarchy` is the
+        // function both dimensioned entry points share.
+        //
+        // In the `finally` so the cache-hit early return above is covered
+        // too; not awaited, because a supplementary panel must not make a
+        // slow read look like a slow tree.
+        //
+        // The Archived panel (#37) has this same gap and is NOT fixed here
+        // -- filed separately rather than folded into an unrelated issue.
+        refreshUnassignedPanel();
     }
 }
 
@@ -806,6 +881,13 @@ function renderTree() {
 
     if (TreeState.rootNodes.length === 0) {
         container.innerHTML = '';
+        // On a dimensioned exam this is "this axis is empty", never "this
+        // exam is empty" (#605, see currentAxisName). Text, not markup.
+        const axis = currentAxisName();
+        emptyState.querySelector('.tree-empty-title').textContent = axis
+            ? `No Subjects in ${axis} Yet` : 'No Subjects Yet';
+        document.getElementById('btn-add-first').textContent = axis
+            ? `Add the First Subject to ${axis}` : 'Add Your First Subject';
         emptyState.classList.remove('hidden');
     } else {
         emptyState.classList.add('hidden');
@@ -818,6 +900,11 @@ function renderTree() {
     }
 
     if (focusedRowId !== null) focusTreeRow(focusedRowId);
+
+    // Every row was just replaced, so an open tour tip points at a removed
+    // node, and an expanded row may have brought a step's target on screen
+    // (the shared-parents chip sits on a child). Rebuilding re-resolves both.
+    startTreeTour();
 }
 
 /**
@@ -978,10 +1065,11 @@ function renderNode(node, level) {
                 </button>
                 <span class="tree-node-icon">${icon}</span>
                 <span class="tree-node-name" id="name-${node.id}" data-testid="tree-node-name-${node.id}"
+                      data-tour-anchor="tree-row-name"
                       role="button" tabindex="0"
                       aria-keyshortcuts="Enter F2"
                       ${isSelected ? 'aria-current="true"' : ''}
-                      onkeydown="handleTreeRowKeydown(event, ${node.id})">${TreeState.searchMatchIds.has(node.id) ? highlightSearchMatch(node.name, TreeState.searchQuery) : escapeHtml(node.name)}</span>
+                      onkeydown="handleTreeRowKeydown(event, ${node.id})">${TreeState.searchMatchIds.has(node.id) ? highlightSearchMatch(node.name, TreeState.searchQuery) : WimiEscape.html(node.name)}</span>
                 ${node.is_alias_appearance ? `
                     <span class="tree-node-alias-chip"
                           data-testid="tree-node-alias-${node.id}"
@@ -990,30 +1078,19 @@ function renderNode(node, level) {
                     </span>
                 ` : (TreeState.appearanceCount.get(node.id) || 1) > 1 ? `
                     <span class="tree-node-multi-parent-chip"
-                          data-testid="tree-node-multi-parent-${node.id}"
+                          data-testid="tree-node-multi-parent-${node.id}" data-tour-anchor="tree-row-shared-parents"
                           title="This subject lives in ${TreeState.appearanceCount.get(node.id)} places. Click to manage parents."
                           onclick="event.stopPropagation(); openParentsManagerFor(${node.id})">
                         <span class="tree-node-multi-parent-chip-arrow">↗</span>${TreeState.appearanceCount.get(node.id)}
                     </span>
                 ` : ''}
-                ${node.feasibility_status && node.feasibility_status !== 'ok' ? `
-                    <span class="tree-row-warning-dot"
-                          data-testid="tree-row-warning-dot-${node.id}"
-                          data-feasibility-status="${node.feasibility_status}"
-                          title="${node.feasibility_status === 'infeasible'
-                              ? "Children's minimums don't fit in this parent's maximum. Click to inspect."
-                              : node.feasibility_status === 'over'
-                              ? "Children's weights exceed this parent's range. Click to inspect."
-                              : "Children's weights leave room under this parent. Click to inspect."}"
-                          onclick="event.stopPropagation(); selectNode(${node.id})">⚠</span>
-                ` : ''}
-                <span class="tree-node-level">${levelName}</span>
-                <span class="tree-node-weight ${weightClass} ${confidenceClass} ${node.is_anchor ? 'anchored' : ''}" data-testid="tree-node-weight-${node.id}" title="${getWeightTooltip(node)}" ${node.primary_edge_id ? `data-edge-id="${node.primary_edge_id}"` : ''}>
+                <span class="tree-node-level" data-tour-anchor="tree-row-level">${WimiEscape.html(levelName)}</span>
+                <span class="tree-node-weight ${weightClass} ${confidenceClass} ${node.is_anchor ? 'anchored' : ''}" data-testid="tree-node-weight-${node.id}" data-tour-anchor="tree-row-weight" title="${WimiEscape.attr(getWeightTooltip(node))}" ${node.primary_edge_id ? `data-edge-id="${node.primary_edge_id}"` : ''}>
                     ${lockIcon}${node.is_anchor ? '<span class="weight-anchor-pin filled" data-testid="tree-node-anchor-pin-' + node.id + '" title="Anchored — won\'t auto-adjust on rebalance">⚓</span>' : ''}${weightDisplay}
                 </span>
                 <div class="tree-node-actions">
-                    <button class="tree-action-btn" data-testid="tree-node-add-child-${node.id}" onclick="event.stopPropagation(); addChild(${node.id})" title="Add Child" aria-label="Add a child subject under ${escapeAttr(node.name)}">+</button>
-                    <button class="tree-action-btn danger" data-testid="tree-node-delete-${node.id}" onclick="event.stopPropagation(); confirmDeleteNode(${node.id})" title="Delete" aria-label="Delete subject ${escapeAttr(node.name)}">🗑️</button>
+                    <button class="tree-action-btn" data-testid="tree-node-add-child-${node.id}" onclick="event.stopPropagation(); addChild(${node.id})" title="Add Child" aria-label="Add a child subject under ${WimiEscape.attr(node.name)}">+</button>
+                    <button class="tree-action-btn danger" data-testid="tree-node-delete-${node.id}" onclick="event.stopPropagation(); confirmDeleteNode(${node.id})" title="Delete" aria-label="Delete subject ${WimiEscape.attr(node.name)}">🗑️</button>
                 </div>
             </div>
             ${hasChildren ? `
@@ -1083,9 +1160,79 @@ function getWeightTooltip(node) {
     return parts.join(' | ');
 }
 
+// =========================================================================
+// Weight bands (#347)
+// =========================================================================
+//
+// A subject's published weight is often a band -- `exam_weight_low` to
+// `exam_weight_high`, with `relative_weight` NULL -- and every figure on this
+// page used to read `node.weight || node.exam_weight_low`, i.e. the band's low
+// bound. Eleven Step 1 roots publishing 61-100% were totalled as "61.0%",
+// which reads as "39% of the exam is missing from your outline" when the
+// blueprint is fully covered. A band reads as a band, never as one number
+// from inside it (#250's rule for the import preview), and a total of bands
+// is the band of the lows to the highs, never rescaled (#64).
+//
+// The last figure reading a band as a scalar was the weight-distribution
+// donut's centre, which drew `weight || exam_weight_low` normalised to 360
+// degrees and printed "61%" directly under a "61-100%" stat. A ring states
+// parts of a whole and cannot show a band at all, so the owner replaced it
+// with the range-bar list below rather than re-palette it (#346, 2026-10-04).
+
+/** `{low, high}` for a node; equal when the weight is a single value. */
+function nodeWeightBand(node) {
+    const low = node.exam_weight_low;
+    const high = node.exam_weight_high;
+    if (low !== null && low !== undefined && high !== null && high !== undefined
+            && Number(low) !== Number(high)) {
+        return { low: Number(low), high: Number(high) };
+    }
+    const value = Number(node.weight || node.exam_weight_low || 0);
+    return { low: value, high: value };
+}
+
+/** The band of a set of nodes: lows summed, highs summed. */
+function sumWeightBands(nodes) {
+    return nodes.reduce((acc, n) => {
+        const band = nodeWeightBand(n);
+        return { low: acc.low + band.low, high: acc.high + band.high };
+    }, { low: 0, high: 0 });
+}
+
+/**
+ * "7.0%" for a single value, "7–11%" for a band. The two precisions match the
+ * tree rows' chips, which already render a band as `7–11%`.
+ */
+function formatWeightBand(band) {
+    if (band.low === band.high) return `${band.low.toFixed(1)}%`;
+    const end = x => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+    return `${end(band.low)}–${end(band.high)}%`;
+}
+
+/**
+ * The name of the axis the tree is showing, or null on a plain exam.
+ *
+ * Every count and every "nothing here" on a dimensioned exam is a count of
+ * ONE axis: the dimensioned view loads that axis's subjects and nothing else.
+ * A subject in no axis -- every subject an exam had before its first axis
+ * was added (#605) -- is invisible to it. So on that path a figure must say
+ * which axis it counted. "0 subjects across 0 roots" under "Exam Overview",
+ * and "No Subjects Yet", stated something about the whole exam that the page
+ * had never looked at, and on an exam holding three subjects it was false.
+ *
+ * Naming the axis is the whole of this fix, on purpose. Saying WHERE the
+ * other subjects are, or offering to move them, is #605's decision (ask at
+ * the moment the axis is added), not something an empty state may settle.
+ */
+function currentAxisName() {
+    return (TreeState.usesDimensions && TreeState.currentDimension
+        && TreeState.currentDimension.name) || null;
+}
+
 function updateStats() {
     const nodeCount = TreeState.flatNodes.size;
-    const totalWeight = TreeState.rootNodes.reduce((sum, node) => sum + (node.weight || node.exam_weight_low || 0), 0);
+    const axis = currentAxisName();
+    const totalWeight = sumWeightBands(TreeState.rootNodes);
 
     // Both spans ship empty and `hidden` (#289), because "0 subjects /
     // Total: 0%" in the markup is indistinguishable from a measured zero.
@@ -1099,8 +1246,9 @@ function updateStats() {
     // it means: there is something true to show now.
     const nodeCountEl = document.getElementById('node-count');
     const totalWeightEl = document.getElementById('total-weight');
-    nodeCountEl.textContent = `${nodeCount} subject${nodeCount !== 1 ? 's' : ''}`;
-    totalWeightEl.textContent = `Root Total: ${totalWeight.toFixed(1)}%`;
+    nodeCountEl.textContent = `${nodeCount} subject${nodeCount !== 1 ? 's' : ''}`
+        + (axis ? ` in ${axis}` : '');
+    totalWeightEl.textContent = `Root Total: ${formatWeightBand(totalWeight)}`;
     nodeCountEl.classList.remove('hidden');
     totalWeightEl.classList.remove('hidden');
 
@@ -1185,19 +1333,64 @@ function selectNode(nodeId) {
     showNodeDetails(nodeId);
 }
 
+/**
+ * Say what the details panel now shows (#345).
+ *
+ * The panel is swapped wholesale on every selection and focus stays where the
+ * student is working, so without this the swap is silent to a screen reader.
+ * `#details-announcer` is a polite `role="status"`; writing the same text
+ * twice announces nothing, which is right -- nothing changed.
+ */
+function announceDetails(text) {
+    const el = document.getElementById('details-announcer');
+    if (el) el.textContent = text;
+}
+
+/**
+ * Deselect and go back to the Exam Overview (#343).
+ *
+ * Selecting a subject used to be a one-way door: re-clicking the selected row
+ * toggles its expansion, and nothing else on the page led back. The button
+ * that calls this lives in the subject header, which is hidden as soon as the
+ * overview shows, so focus is moved to the overview's heading -- left where it
+ * was, it would fall to <body>.
+ */
+function returnToExamOverview() {
+    TreeState.selectedNodeId = null;
+    document.querySelectorAll('.tree-node.selected').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('.tree-node-name[aria-current]').forEach(el => el.removeAttribute('aria-current'));
+    showExamOverview();
+    const title = document.querySelector('#details-overview .overview-title');
+    if (title) title.focus();
+    // The subject's controls are hidden now and the overview's total is
+    // back, so an open tip has to be rebuilt from what is on screen (#682).
+    startTreeTour();
+}
+
 function showExamOverview() {
     const placeholder = document.getElementById('details-placeholder');
+    const overview = document.getElementById('details-overview');
     const content = document.getElementById('details-content');
-    
-    // Hide node details, show placeholder with overview
+
+    // The overview has its own element (#341). It used to be written into
+    // #details-placeholder, whose flex centring is right for a graphic and two
+    // lines and wrong for anything taller than the panel: centred overflow
+    // spills out of BOTH ends of the scroll box, and the top end cannot be
+    // scrolled to, so the heading and all three figures were unreachable.
+    // Writing it there also destroyed the placeholder's own markup (#343).
     content.classList.add('hidden');
-    placeholder.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    overview.classList.remove('hidden');
+    announceDetails('Showing the exam overview');
     
     // Calculate stats
     const totalNodes = TreeState.flatNodes.size;
     const rootNodes = TreeState.rootNodes;
-    const totalRootWeight = rootNodes.reduce((sum, n) => sum + (n.weight || n.exam_weight_low || 0), 0);
-    
+    const totalRootWeight = sumWeightBands(rootNodes);
+    // Already escaped: this goes into the overview's innerHTML (#605).
+    const axis = currentAxisName();
+    const axisIn = axis ? ` in ${WimiEscape.html(axis)}` : '';
+
     // Count nodes by level
     // Group by the node's stored level_type, not by tree depth (#49).
     // flatNodes holds one entry per distinct subject id, so a shared child
@@ -1220,14 +1413,11 @@ function showExamOverview() {
         return ai !== bi ? ai - bi : a[0].localeCompare(b[0]);
     });
     
-    // Generate pie chart SVG for root nodes
-    const pieChart = generatePieChart(rootNodes);
-    
     // Build overview HTML.
     //
     // `.overview-title` is an h2 and `.overview-section-title`s are h3 (#317).
-    // This replaces `.details-placeholder`'s content, so the title is the
-    // details panel's own top-level heading and sits directly under the page's
+    // This is the details panel's state when nothing is selected, so the
+    // title is the panel's own top-level heading and sits directly under the page's
     // h1 (`#exam-name`) -- the same slot `.details-title` occupies, which is
     // already an h2. An h3 here made the tree editor's RENDERED outline skip
     // h1 -> h3 in the state the page opens in (subjects exist, nothing
@@ -1236,31 +1426,18 @@ function showExamOverview() {
     // only tests/wimi_test/scenarios/test_heading_levels_descend.py sees this
     // one. Sizes live on both classes in tree.css, which is what leaves the
     // level free to be the one the outline implies.
-    placeholder.innerHTML = `
+    overview.innerHTML = `
         <div class="exam-overview">
-            <h2 class="overview-title">📊 Exam Overview</h2>
-            
-            <div class="overview-stats">
-                <div class="overview-stat">
-                    <span class="overview-stat-value">${totalNodes}</span>
-                    <span class="overview-stat-label">Total Subjects</span>
-                </div>
-                <div class="overview-stat">
-                    <span class="overview-stat-value">${rootNodes.length}</span>
-                    <span class="overview-stat-label">Root Topics</span>
-                </div>
-                <div class="overview-stat">
-                    <span class="overview-stat-value">${totalRootWeight.toFixed(1)}%</span>
-                    <span class="overview-stat-label">Total Weight</span>
-                </div>
-            </div>
-            
+            <h2 class="overview-title" tabindex="-1">📊 Exam Overview</h2>
+
+            <p class="overview-summary">${totalNodes} subject${totalNodes !== 1 ? 's' : ''}${axisIn} across ${rootNodes.length} root${rootNodes.length !== 1 ? 's' : ''}.</p>
+
             <div class="overview-section">
                 <h3 class="overview-section-title">Subjects by Level</h3>
                 <div class="level-counts">
                     ${orderedLevelCounts.map(([level, count]) => `
                         <div class="level-count-item">
-                            <span class="level-count-name">${level}</span>
+                            <span class="level-count-name">${WimiEscape.html(level)}</span>
                             <span class="level-count-value">${count}</span>
                         </div>
                     `).join('')}
@@ -1269,102 +1446,160 @@ function showExamOverview() {
             
             ${rootNodes.length > 0 ? `
                 <div class="overview-section">
-                    <h3 class="overview-section-title">Weight Distribution</h3>
-                    <div class="pie-chart-container">
-                        ${pieChart}
-                    </div>
-                    <div class="pie-legend">
-                        ${rootNodes.map((node, i) => {
-                            const weight = node.weight || node.exam_weight_low || 0;
-                            const color = getPieColor(i);
-                            return `
-                                <div class="pie-legend-item" onclick="selectNode(${node.id})">
-                                    <span class="pie-legend-color" style="background: ${color}"></span>
-                                    <span class="pie-legend-name">${escapeHtml(node.name)}</span>
-                                    <span class="pie-legend-value">${weight.toFixed(1)}%</span>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
+                    <h3 class="overview-section-title">Weight by Root Subject</h3>
+                    ${renderWeightRangeChart(rootNodes, totalRootWeight)}
                 </div>
             ` : `
                 <div class="overview-empty">
-                    <p>No subjects yet. Click "+ Add Root Subject" to get started!</p>
+                    <p>No subjects${axisIn} yet. Click "+ Add Root Subject" to get started!</p>
                 </div>
             `}
         </div>
     `;
 }
 
-function getPieColor(index) {
-    const colors = [
-        '#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626',
-        '#0891b2', '#4f46e5', '#16a34a', '#ca8a04', '#e11d48',
-        '#06b6d4', '#8b5cf6', '#22c55e', '#eab308', '#f43f5e'
-    ];
-    return colors[index % colors.length];
+// =========================================================================
+// The range-bar list (#346, owner's decision 2026-10-04)
+// =========================================================================
+//
+// WHAT THIS REPLACED, AND WHY NOT A PALETTE. The overview drew a donut over
+// the roots' LOW bounds, each slice `weight / total` of 360 degrees. Two
+// things were wrong with it and only one of them was a colour:
+//
+//   * A ring asserts parts of a whole. These are bands -- Step 1 publishes
+//     7-11%, not 7% -- and no arc can be two numbers. #64's rule is that
+//     coverage is surfaced, never corrected; normalising to a full ring
+//     corrects it by construction. Measured on the demo profile: Blood &
+//     Lymphoreticular drew 7/61 = 11.5% of the ring beside a legend row
+//     reading 7.0%, under a centre reading "61%" and a stat reading
+//     "61-100%". Three different quantities, one panel.
+//   * `getPieColor()` held 15 literal hexes, so the swatches rendered the
+//     identical rgb under `default` (#ffffff), `midnight` (#0f172a) and
+//     `high_contrast` (#000000).
+//
+// A shared linear axis can show a band, so the colour question stops being a
+// question: one series, one token. The axis is derived from the LARGEST
+// weight, never from the total -- an axis scaled to the total is the donut's
+// rescale wearing a different shape.
+//
+// The rows are real <button>s because the legend's 11 `onclick` <div>s were
+// half of #304's remaining scope: 11 clickable rows, 0 tabbable, exposed to
+// assistive tech as plain text.
+
+/** Tick ladder for the shared axis; scaled, not open-ended, on purpose. */
+const WEIGHT_AXIS_STEPS = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500];
+
+/**
+ * The axis every band is drawn against: a round ceiling at or above the
+ * largest published high bound, with at most four intervals.
+ *
+ * Returns `null` when nothing carries a weight, which is a real state on a
+ * tree a student has only just started -- the caller then draws names and
+ * figures with no scale rather than eleven marks stacked on the origin.
+ */
+function weightAxisFor(bands) {
+    const maxHigh = bands.reduce((m, b) => Math.max(m, b.high), 0);
+    if (!(maxHigh > 0)) return null;
+    let step = WEIGHT_AXIS_STEPS[WEIGHT_AXIS_STEPS.length - 1];
+    for (const candidate of WEIGHT_AXIS_STEPS) {
+        if (maxHigh / candidate <= 4) { step = candidate; break; }
+    }
+    const max = Math.ceil(maxHigh / step) * step;
+    const ticks = [];
+    for (let v = 0; v <= max + 1e-9; v += step) {
+        ticks.push(Math.round(v * 1000) / 1000);
+    }
+    return { max, step, ticks };
 }
 
-function generatePieChart(nodes) {
-    if (nodes.length === 0) return '';
-    
-    const total = nodes.reduce((sum, n) => sum + (n.weight || n.exam_weight_low || 0), 0);
-    if (total === 0) return '<p class="text-muted">No weights assigned</p>';
-    
-    const size = 200;
-    const center = size / 2;
-    const radius = 80;
-    
-    let paths = '';
-    let currentAngle = -90; // Start from top
-    
-    nodes.forEach((node, i) => {
-        const weight = node.weight || node.exam_weight_low || 0;
-        const percentage = weight / total;
-        const angle = percentage * 360;
-        
-        if (angle > 0) {
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-            
-            const startRad = (startAngle * Math.PI) / 180;
-            const endRad = (endAngle * Math.PI) / 180;
-            
-            const x1 = center + radius * Math.cos(startRad);
-            const y1 = center + radius * Math.sin(startRad);
-            const x2 = center + radius * Math.cos(endRad);
-            const y2 = center + radius * Math.sin(endRad);
-            
-            const largeArc = angle > 180 ? 1 : 0;
-            
-            const pathData = [
-                `M ${center} ${center}`,
-                `L ${x1} ${y1}`,
-                `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
-                'Z'
-            ].join(' ');
-            
-            paths += `<path d="${pathData}" fill="${getPieColor(i)}" 
-                           class="pie-slice" data-node-id="${node.id}"
-                           onclick="selectNode(${node.id})"
-                           style="cursor: pointer;">
-                        <title>${escapeHtml(node.name)}: ${weight.toFixed(1)}%</title>
-                      </path>`;
-            
-            currentAngle = endAngle;
-        }
-    });
-    
+/** One row: the subject, its band on the shared axis, the band in text. */
+function renderWeightRangeRow(node, axis) {
+    const band = nodeWeightBand(node);
+    const text = formatWeightBand(band);
+    // Two escapers, deliberately. `escapeHtml` leaves `"` alone, which is
+    // right for text content and ends the aria-label early on a subject
+    // called `Cardio "fast" track` -- announced as `Cardio ` while the
+    // visible half stayed perfectly correct.
+    const name = WimiEscape.html(node.name);
+    const nameAttr = WimiEscape.attr(node.name);
+    // `left` is the low bound and `width` the band's own length. A bar
+    // starting at 0 with a length taken from the low bound is exactly the
+    // reading this replaced, so the offset is the load-bearing half.
+    const left = axis ? (band.low / axis.max) * 100 : 0;
+    const width = axis ? ((band.high - band.low) / axis.max) * 100 : 0;
+    const isPoint = band.low === band.high;
+    const track = axis ? `
+                <span class="weight-range-track" aria-hidden="true">
+                    <span class="weight-range-mark${isPoint ? ' is-point' : ''}"
+                          style="--band-left: ${left.toFixed(3)}%; --band-width: ${width.toFixed(3)}%"></span>
+                </span>` : '';
     return `
-        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="pie-chart">
-            ${paths}
-            <circle cx="${center}" cy="${center}" r="40" fill="var(--bg-primary, white)" />
-            <text x="${center}" y="${center}" text-anchor="middle" dy="0.35em"
-                  font-size="14" font-weight="600" fill="var(--text-primary, #374151)">
-                ${total.toFixed(0)}%
-            </text>
-        </svg>
-    `;
+            <li class="weight-range-item">
+                <button type="button" class="weight-range-row"
+                        onclick="selectNode(${node.id})"
+                        data-testid="overview-weight-row-${node.id}"
+                        aria-label="${nameAttr}, ${text} of the exam">
+                    <span class="weight-range-name">${name}</span>${track}
+                    <span class="weight-range-value">${text}</span>
+                </button>
+            </li>`;
+}
+
+/** The axis ruler, drawn once under the rows they all share. */
+function renderWeightRangeAxis(axis) {
+    const ticks = axis.ticks.map((v, i) => {
+        const pos = (v / axis.max) * 100;
+        const edge = i === 0 ? ' is-first'
+            : (i === axis.ticks.length - 1 ? ' is-last' : '');
+        return `<span class="weight-range-tick${edge}" `
+            + `style="left: ${pos.toFixed(3)}%">${v}%</span>`;
+    }).join('');
+    return `
+            <div class="weight-range-axis" aria-hidden="true">
+                <span class="weight-range-scale">${ticks}</span>
+            </div>`;
+}
+
+/**
+ * The sentence the three-box stat row became.
+ *
+ * A tile can only hold a scalar, and these quantities are bands: the "Total
+ * Weight" tile rendered "61-100%" wrapped across two lines inside a 103 px
+ * box. The sentence says the same thing in one breath and can name the axis
+ * it is talking about, which matters because coverage is per dimension and
+ * is never pooled (#241).
+ */
+function weightRangeTotalSentence(bands, total) {
+    if (!(total.high > 0)) {
+        return 'No weights are set on these root subjects yet.';
+    }
+    const axis = currentAxisName();
+    const scope = axis ? ` for ${WimiEscape.html(axis)}` : '';
+    const noun = bands.some(b => b.low !== b.high)
+        ? 'Published ranges' : 'Root weights';
+    return `${noun}${scope} total ${formatWeightBand(total)} of the exam.`;
+}
+
+function renderWeightRangeChart(rootNodes, total) {
+    const bands = rootNodes.map(nodeWeightBand);
+    const axis = weightAxisFor(bands);
+    // `--axis-step` draws the same gridlines inside every track, so the rows
+    // read against one scale rather than eleven. Defined here because it is
+    // a property of this exam's numbers, not of the stylesheet.
+    const style = axis
+        ? ` style="--axis-step: ${((axis.step / axis.max) * 100).toFixed(3)}%"`
+        : '';
+    // The tour anchor only when there is a total: its tip explains a total
+    // past 100%, which is false of "No weights are set", and a tip shown
+    // there is recorded as seen and never reaches the tree it is about.
+    return `
+        <div class="weight-range-chart"${style}>
+            <ul class="weight-range-list${axis ? '' : ' is-unweighted'}" role="list">
+                ${rootNodes.map(node => renderWeightRangeRow(node, axis)).join('')}
+            </ul>
+            ${axis ? renderWeightRangeAxis(axis) : ''}
+            <p class="weight-range-total"${total.high > 0 ? ' data-tour-anchor="tree-weight-range-total"' : ''}>${weightRangeTotalSentence(bands, total)}</p>
+        </div>`;
 }
 
 function showNodeDetails(nodeId) {
@@ -1372,10 +1607,13 @@ function showNodeDetails(nodeId) {
     if (!node) return;
 
     const placeholder = document.getElementById('details-placeholder');
+    const overview = document.getElementById('details-overview');
     const content = document.getElementById('details-content');
 
     placeholder.classList.add('hidden');
+    overview.classList.add('hidden');
     content.classList.remove('hidden');
+    announceDetails(`Showing details for ${node.name}`);
 
     // Basic info. The level shown must be the node's own level_type (#49)
     // — anything else contradicts the Level Type dropdown that wrote it.
@@ -1417,6 +1655,11 @@ function showNodeDetails(nodeId) {
     if (typeof initWeightEditor === 'function') {
         initWeightEditor(node, TreeState.examContext);
     }
+
+    // The panel's own controls are on screen from here (#682). The weight
+    // editor and the parent rows arrive later and re-start it themselves;
+    // initWeightEditor has already dropped the previous subject's anchors.
+    startTreeTour();
 }
 
 /**
@@ -1439,9 +1682,23 @@ async function loadAliasesPreview(nodeId) {
         const displayed = aliases.slice(0, 3);
         const remaining = aliases.length - 3;
 
-        const aliasHtml = displayed.map(a =>
-            `<span class="alias-chip alias-type-${a.alias_type}">${escapeHtml(a.alias_name)}</span>`
-        ).join('');
+        // `alias_type` is NOT interpolated (#597). It reached a class
+        // attribute raw here, which is the same break-out measured in the
+        // alias manager, and `alias_type`'s CHECK constraint only holds on a
+        // database WIMI wrote -- an installed profile brings its own schema.
+        // The per-type class is styled for exactly the four known values
+        // (aliases.css:209-224), so an unrecognised one is dropped rather than
+        // escaped: it was styling nothing either way.
+        const knownAliasTypes = new Set(
+            (window.AliasManager && AliasManager.ALIAS_TYPES || [])
+                .map(t => t.value));
+
+        const aliasHtml = displayed.map(a => {
+            const typeClass = knownAliasTypes.has(a.alias_type)
+                ? ` alias-type-${a.alias_type}` : '';
+            return `<span class="alias-chip${typeClass}">`
+                + `${WimiEscape.html(a.alias_name)}</span>`;
+        }).join('');
 
         const moreHtml = remaining > 0
             ? `<span class="alias-more">+${remaining} more</span>`
@@ -1563,7 +1820,7 @@ function renderDetailSubtitle(nodeId, parentCount) {
     const parts = [
         `<span class="details-subtitle-level"
                id="detail-level"
-               data-testid="tree-detail-level">${escapeHtml(levelName)}</span>`,
+               data-testid="tree-detail-level">${WimiEscape.html(levelName)}</span>`,
     ];
 
     if (parentCount !== null && parentCount !== undefined) {
@@ -1581,7 +1838,7 @@ function renderDetailSubtitle(nodeId, parentCount) {
         if (dim?.name) {
             parts.push(
                 `<span class="details-subtitle-dimension"
-                       data-testid="tree-detail-dimension">in ${escapeHtml(dim.name)}</span>`
+                       data-testid="tree-detail-dimension">in ${WimiEscape.html(dim.name)}</span>`
             );
         }
     }
@@ -1594,6 +1851,44 @@ function renderDetailSubtitle(nodeId, parentCount) {
  * Each row shows the parent name, ancestor breadcrumb (if available),
  * a primary-indicator marker (★ for primary, ○ for non-primary that
  * promotes on click), and a remove button (disabled on the primary edge).
+ *
+ * THE META LINE SAYS WHAT THE PARENT DOES, NOT WHAT WE CALL IT (#346, owner
+ * 2026-10-10). It read `primary · canonical breadcrumb` and
+ * `alias · also-here appearance`, which are our words for the data model:
+ * "canonical" and "appearance" are schema vocabulary, and "alias" collides
+ * with `subject_aliases`, a different feature with its own section three
+ * headings further down this same panel.
+ *
+ * The replacements are chapter 11's own two facts, in its own words. That
+ * chapter's "What the primary parent is for" says the primary parent decides
+ * **the breadcrumb** and **which appearance carries the children**, and it
+ * calls a non-primary appearance "also here" — the same phrase the tree row's
+ * chip uses. So the panel, the tree and the manual now agree on one wording
+ * instead of three.
+ *
+ * TWO THINGS DELIBERATELY NOT SAID HERE, both verified rather than assumed:
+ *
+ * - **Rollups.** The marker button's own `title` claims the primary parent is
+ *   "used for breadcrumbs and rollups". No analytics query reads
+ *   `subject_edges.is_primary` — grep `analytics.py`, `advanced_analytics.py`,
+ *   `dimensions.py` and `graph.py` and it appears in none of them. What
+ *   scopes a rollup is `entry_subject_mappings.primary_parent_id`, which is
+ *   per entry; the primary edge is only its default, via `getEdgesForChild`
+ *   ordering `is_primary DESC`. True transitively, so not worth a line here,
+ *   and chapter 12 is where it belongs.
+ * - **Weight settings.** The tree row's `also here` chip says the primary
+ *   location "holds its descendants and weight settings". The second half is
+ *   legacy: `update_subject_relative_weight` keys on the primary edge, but the
+ *   panel writes through `setExplicitWeight(edge_id, …)`, which is per edge —
+ *   that is why the weight header names the pairing at all. Chapter 11 says so
+ *   outright ("A weight in WIMI belongs to the pairing of a subject with one
+ *   of its parents"). The chip is a tree row rather than this panel, so it is
+ *   **#443**, filed 2026-10-06 and confirmed since, not fixed here. (I
+ *   re-found it independently and filed a duplicate, #734, now closed --
+ *   search the tracker before filing.)
+ *
+ * Keep a replacement under roughly 33 characters: at 12px in the 225px parents
+ * column, 33 fits on one line and 38 wraps. Measured per candidate.
  */
 function renderParentsSection(nodeId, parents) {
     const listEl = document.getElementById('parents-list');
@@ -1626,16 +1921,17 @@ function renderParentsSection(nodeId, parents) {
                  data-testid="tree-parent-row-${p.parent_id}">
                 <button class="parent-row-marker"
                         data-testid="tree-parent-marker-${p.parent_id}"
+                        ${isPrimary ? '' : 'data-tour-anchor="tree-parent-make-primary"'}
                         title="${isPrimary ? 'Primary parent — used for breadcrumbs and rollups' : 'Click to make this the primary parent'}"
                         ${isPrimary ? 'disabled' : ''}
                         onclick="switchPrimaryParentTo(${nodeId}, ${p.parent_id})">
                     ${isPrimary ? '★' : '○'}
                 </button>
                 <div class="parent-row-content">
-                    <div class="parent-row-name">${escapeHtml(p.parent_name)}</div>
-                    ${breadcrumbPath ? `<div class="parent-row-path">${escapeHtml(breadcrumbPath)}</div>` : ''}
+                    <div class="parent-row-name">${WimiEscape.html(p.parent_name)}</div>
+                    ${breadcrumbPath ? `<div class="parent-row-path">${WimiEscape.html(breadcrumbPath)}</div>` : ''}
                     <div class="parent-row-meta">
-                        ${isPrimary ? 'primary · canonical breadcrumb' : 'alias · also-here appearance'}
+                        ${isPrimary ? 'Sets the breadcrumb and children' : 'Also here, children not repeated'}
                     </div>
                 </div>
                 <div class="parent-row-actions">
@@ -1650,6 +1946,11 @@ function renderParentsSection(nodeId, parents) {
             </div>
         `;
     }).join('');
+
+    // A circle is on screen only from here, and only for a subject with a
+    // parent that is not primary, which is the one row the tour's
+    // make-primary step is about (#682).
+    startTreeTour();
 }
 
 /**
@@ -1917,7 +2218,7 @@ function renderParentPickerResults(results, emptyMessage, childId) {
     const el = document.getElementById('parents-picker-results');
     if (!el) return;
     if (!results || results.length === 0) {
-        el.innerHTML = `<p class="text-muted text-sm parents-picker-empty">${escapeHtml(emptyMessage || 'No matches.')}</p>`;
+        el.innerHTML = `<p class="text-muted text-sm parents-picker-empty">${WimiEscape.html(emptyMessage || 'No matches.')}</p>`;
         return;
     }
     el.innerHTML = results.map(r => {
@@ -1930,9 +2231,9 @@ function renderParentPickerResults(results, emptyMessage, childId) {
                  data-result-id="${r.id}"
                  data-testid="tree-parents-picker-result-${r.id}"
                  ${onclick}>
-                <span class="parents-picker-result-name">${escapeHtml(r.name)}</span>
-                ${r.path ? `<span class="parents-picker-result-path">${escapeHtml(r.path)}</span>` : ''}
-                ${disabled ? `<span class="parents-picker-result-reason" title="${escapeHtml(r._disabledReason)}">${escapeHtml(r._disabledReason)}</span>` : ''}
+                <span class="parents-picker-result-name">${WimiEscape.html(r.name)}</span>
+                ${r.path ? `<span class="parents-picker-result-path">${WimiEscape.html(r.path)}</span>` : ''}
+                ${disabled ? `<span class="parents-picker-result-reason" title="${WimiEscape.html(r._disabledReason)}">${WimiEscape.html(r._disabledReason)}</span>` : ''}
             </div>
         `;
     }).join('');
@@ -2079,25 +2380,26 @@ function renderSiblingsChart(node) {
         return;
     }
     
-    const total = siblings.reduce((sum, s) => sum + (s.weight || s.exam_weight_low || 0), 0);
-    
+    const total = sumWeightBands(siblings);
+
     chart.innerHTML = siblings.map(s => {
-        const weight = s.weight || s.exam_weight_low || 0;
+        const band = nodeWeightBand(s);
         const isCurrent = s.id === node.id;
         
         return `
             <div class="sibling-bar ${isCurrent ? 'current' : ''}">
-                <span class="sibling-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span>
+                <span class="sibling-name" title="${WimiEscape.html(s.name)}">${WimiEscape.html(s.name)}</span>
                 <div class="sibling-bar-container">
-                    <div class="sibling-bar-fill" style="width: ${weight}%"></div>
+                    <div class="sibling-bar-fill" style="width: ${band.low}%"></div>
                 </div>
-                <span class="sibling-value">${weight.toFixed(1)}%</span>
+                <span class="sibling-value">${formatWeightBand(band)}</span>
             </div>
         `;
     }).join('');
     
-    const isValid = Math.abs(total - 100) < 0.1;
-    totalEl.innerHTML = `Total: <span>${total.toFixed(1)}%</span>`;
+    // Valid when the band can reach 100%, the same test #64's coverage uses.
+    const isValid = total.low <= 100.05 && total.high >= 99.95;
+    totalEl.innerHTML = `Total: <span>${formatWeightBand(total)}</span>`;
     totalEl.className = `siblings-total ${isValid ? '' : 'invalid'}`;
 }
 
@@ -2110,12 +2412,12 @@ function renderChildrenList(node) {
     }
     
     list.innerHTML = node.children.map(child => {
-        const weight = child.weight || child.exam_weight_low || 0;
+        const weight = formatWeightBand(nodeWeightBand(child));
         return `
             <div class="child-item" onclick="selectNode(${child.id}); toggleNode(${node.id}, true);">
                 <span class="child-icon">📄</span>
-                <span class="child-name">${escapeHtml(child.name)}</span>
-                <span class="child-weight">${weight.toFixed(1)}%</span>
+                <span class="child-name">${WimiEscape.html(child.name)}</span>
+                <span class="child-weight">${weight}</span>
             </div>
         `;
     }).join('');
@@ -2313,6 +2615,10 @@ function showAddNodeModal(parentId = null) {
     let isChildNode = parentId !== null;
     let parentNode = null;
 
+    // The tour's level step (#682) says the value is suggested from the
+    // parent's level, so only the child branch carries its anchor.
+    levelSelect.removeAttribute('data-tour-anchor');
+
     if (parentId === null) {
         title.textContent = 'Add Root Subject';
         // Rebuild from the configured levels, dropping any name a
@@ -2332,6 +2638,7 @@ function showAddNodeModal(parentId = null) {
         const suggestedLevel = suggestChildLevelName(parentNode);
         renderLevelOptions(suggestedLevel);
         levelSelect.value = suggestedLevel;
+        levelSelect.setAttribute('data-tour-anchor', 'tree-add-child-level');
 
         // If parent has official weight, child should use relative weight
         if (parentNode.weight_source === 'official' || parentNode.weight_source === 'derived') {
@@ -2343,6 +2650,7 @@ function showAddNodeModal(parentId = null) {
 
     modal.classList.add('active');
     document.getElementById('modal-node-name').focus();
+    startTreeTour();
 }
 
 /**
@@ -2411,6 +2719,10 @@ window.updateWeightSourceHelp = updateWeightSourceHelp;
 function hideAddNodeModal() {
     document.getElementById('node-modal').classList.remove('active');
     addNodeParentId = null;
+    // The closed modal still has a box (it fades by `visibility`, which the
+    // tour cannot see), so dropping the anchor is what closes its tip.
+    document.getElementById('modal-node-level').removeAttribute('data-tour-anchor');
+    startTreeTour();
 }
 
 async function saveNewNode() {
@@ -2570,6 +2882,12 @@ async function confirmDeleteNode(nodeId) {
     previewEl.textContent = 'Checking what this will affect…';
 
     document.getElementById('delete-node-modal').classList.add('active');
+    // The tour's Delete step (#682) exists only while this modal is open: a
+    // closed modal keeps its box, so an anchor in the markup would resolve.
+    document.getElementById('delete-node-confirm')
+        .setAttribute('data-tour-anchor', 'tree-delete-confirm');
+    promoteToggle.removeAttribute('data-tour-anchor');
+    startTreeTour();
 
     try {
         const preview = await api.getSubjectDeletePreview(nodeId);
@@ -2583,6 +2901,12 @@ async function confirmDeleteNode(nodeId) {
             ? `Keep "${exclusive[0].name}" — move it to the top level`
             : `Keep the ${exclusive.length} direct children — move them to the top level`;
         promoteRow.classList.toggle('hidden', exclusive.length === 0);
+        // The checkbox is on screen only from here, and only when there are
+        // children of this subject alone to keep (#682).
+        if (exclusive.length) {
+            promoteToggle.setAttribute('data-tour-anchor', 'tree-delete-promote');
+            startTreeTour();
+        }
 
         renderDeletePreview();
     } catch (error) {
@@ -2645,14 +2969,14 @@ function renderDeletePreview() {
     if (!lines.length) {
         previewEl.innerHTML =
             `<span data-testid="tree-delete-preview-summary">Only ` +
-            `"${escapeHtml(deleteNodePreview.node_name)}" will be deleted. ` +
+            `"${WimiEscape.html(deleteNodePreview.node_name)}" will be deleted. ` +
             `Nothing else is affected.</span>`;
         return;
     }
 
     previewEl.innerHTML =
         `<span data-testid="tree-delete-preview-summary">Deleting ` +
-        `"${escapeHtml(deleteNodePreview.node_name)}" will also:</span>` +
+        `"${WimiEscape.html(deleteNodePreview.node_name)}" will also:</span>` +
         `<ul>${lines.join('')}</ul>` +
         `<span class="delete-preview-note">Deleted subjects are archived, ` +
         `not erased.</span>`;
@@ -2660,7 +2984,7 @@ function renderDeletePreview() {
 
 /** "A, B and 3 more" — keeps a wide subtree from overflowing the modal. */
 function formatDeletePreviewNames(names, limit = 3) {
-    const shown = names.slice(0, limit).map(escapeHtml);
+    const shown = names.slice(0, limit).map(WimiEscape.html);
     const rest = names.length - shown.length;
     if (rest > 0) shown.push(`${rest} more`);
     if (shown.length === 1) return shown[0];
@@ -2671,6 +2995,9 @@ function hideDeleteModal() {
     document.getElementById('delete-node-modal').classList.remove('active');
     deleteNodeTarget = null;
     deleteNodePreview = null;
+    document.getElementById('delete-node-confirm').removeAttribute('data-tour-anchor');
+    document.getElementById('delete-promote-children').removeAttribute('data-tour-anchor');
+    startTreeTour();
 }
 
 async function executeDeleteNode() {
@@ -2744,7 +3071,7 @@ async function refreshArchivedPanel() {
         count.textContent = '!';
         list.innerHTML =
             '<li class="archived-empty">Could not load archived deletions: ' +
-            escapeHtml(error.message || String(error)) + '</li>';
+            WimiEscape.html(error.message || String(error)) + '</li>';
         return;
     }
 
@@ -2763,6 +3090,20 @@ async function refreshArchivedPanel() {
 
     panel.classList.remove('hidden');
     list.innerHTML = batches.map(renderArchivedItem).join('');
+    // Read the batch from data attributes rather than an inline onclick (#548).
+    // An inline handler put the id in a JS string, and HTML escaping does not
+    // protect that: the parser decodes `&#39;` back to `'` before the script
+    // runs. Ids are uuid4 when WIMI writes them, but a .wimi import installs a
+    // whole database. Assigned, not added, so a re-render never stacks it.
+    list.onclick = (event) => {
+        const button = event.target.closest('.archived-restore-btn');
+        const item = button && button.closest('.archived-item');
+        if (!item) return;
+        restoreArchivedBatch(item.dataset.batchId, item.dataset.batchKind);
+    };
+    // Its tour step can show only now: this load is not awaited by init, so
+    // it may land after the gate's release started the tour.
+    startTreeTour();
 }
 
 function renderArchivedItem(batch) {
@@ -2779,7 +3120,7 @@ function renderArchivedItem(batch) {
         where = `dimension, ${trees} ${trees === 1 ? 'tree' : 'trees'}`;
     } else if (batch.parents && batch.parents.length) {
         where = 'was under ' + batch.parents
-            .map(parent => escapeHtml(parent.name))
+            .map(parent => WimiEscape.html(parent.name))
             .join(', ');
     } else {
         where = 'was a top-level subject';
@@ -2791,14 +3132,14 @@ function renderArchivedItem(batch) {
 
     return `
         <li class="archived-item${isDimension ? ' archived-item-dimension' : ''}"
-            data-batch-id="${escapeHtml(batch.batch_id)}"
+            data-batch-id="${WimiEscape.attr(batch.batch_id)}"
+            data-batch-kind="${WimiEscape.attr(batch.kind)}"
             data-testid="tree-archived-item">
             <span class="archived-item-main">
-                <span class="archived-item-name">${escapeHtml(name)}</span>
+                <span class="archived-item-name">${WimiEscape.html(name)}</span>
                 <span class="archived-item-meta">${where} &middot; ${subjectLabel}${when}</span>
             </span>
             <button class="archived-restore-btn"
-                    onclick="restoreArchivedBatch('${escapeHtml(batch.batch_id)}', '${escapeHtml(batch.kind)}')"
                     data-testid="tree-archived-restore">Restore</button>
         </li>`;
 }
@@ -2823,7 +3164,7 @@ async function restoreArchivedBatch(batchId, kind) {
     ARCHIVED_PANEL_STATE.busy = batchId;
 
     const button = document.querySelector(
-        `.archived-item[data-batch-id="${batchId}"] .archived-restore-btn`);
+        `.archived-item[data-batch-id="${CSS.escape(batchId)}"] .archived-restore-btn`);
     if (button) {
         button.disabled = true;
         button.textContent = 'Restoring...';
@@ -2865,6 +3206,195 @@ async function restoreArchivedBatch(batchId, kind) {
     }
 }
 
+// =========================================================================
+// Subjects not in any axis (#605, owner 2026-10-10)
+// =========================================================================
+//
+// Adding the first axis to an exam that already has subjects leaves every
+// one of them at `dimension_id NULL`. The dimensioned tree filters on
+// dimension_id and the plain tree is never drawn once an exam has an axis,
+// so the student's whole tree vanishes with no warning and nothing to
+// click. `exam_uses_dimensions` is DERIVED -- one active dimension flips
+// the exam immediately -- so there is no migration and no moment to hook.
+//
+// The owner chose a panel on the Archived-subjects pattern that CAN MOVE
+// THEM IN: a place the student resolves this from, not a holding pen, and
+// explicitly not a banner. Mirrors that panel deliberately, including the
+// `hidden` on the body so a collapsed panel is out of the accessibility
+// tree rather than merely invisible.
+//
+// It is refreshed from BOTH load paths. The plain path's call returns an
+// empty list (a dimensionless exam has no axis to be outside of) and the
+// panel hides itself -- but it is wired anyway, because the
+// dimension/plain split is exactly where this gets forgotten.
+
+const UNASSIGNED_PANEL_STATE = { subjects: [], busy: null };
+
+async function refreshUnassignedPanel() {
+    const panel = document.getElementById('unassigned-panel');
+    const list = document.getElementById('unassigned-list');
+    const count = document.getElementById('unassigned-panel-count');
+    if (!panel || !list || !count) return;
+
+    let subjects = [];
+    try {
+        const payload = await api.getSubjectsOutsideAnyAxis(TreeState.examContextId);
+        subjects = (payload && payload.subjects) || [];
+    } catch (error) {
+        // Same judgement as the Archived panel: a supplementary panel that
+        // cannot load is not worth a toast on every tree render. Say it
+        // where somebody looking for it will see it.
+        UNASSIGNED_PANEL_STATE.subjects = [];
+        panel.classList.remove('hidden');
+        count.textContent = '!';
+        list.innerHTML =
+            '<li class="unassigned-empty">Could not check for subjects outside your axes: ' +
+            WimiEscape.html(error.message || String(error)) + '</li>';
+        return;
+    }
+
+    UNASSIGNED_PANEL_STATE.subjects = subjects;
+    count.textContent = String(subjects.length);
+
+    if (!subjects.length) {
+        panel.classList.add('hidden');
+        panel.classList.remove('open');
+        setUnassignedPanelExpanded(false);
+        list.innerHTML = '';
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    renderUnassignedList(subjects);
+}
+
+function renderUnassignedList(subjects) {
+    const list = document.getElementById('unassigned-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const axes = (TreeState.dimensions || []).filter(d => d.status !== 'archived');
+
+    subjects.forEach(subject => {
+        const row = document.createElement('li');
+        row.className = 'unassigned-row';
+        row.setAttribute('data-testid', `tree-unassigned-row-${subject.subject_id}`);
+
+        // Built from text nodes, never innerHTML: a subject name is text a
+        // student typed or imported, and an imported profile can carry
+        // anything (#594, #548).
+        const name = document.createElement('span');
+        name.className = 'unassigned-row-name';
+        name.textContent = subject.name;
+        row.appendChild(name);
+
+        const meta = document.createElement('span');
+        meta.className = 'unassigned-row-meta';
+        // The count is what tells a student what travels with the row --
+        // "Cardiovascular System" alone does not say 340 subjects move.
+        meta.textContent = subject.subtree_count === 1
+            ? 'on its own'
+            : `with ${subject.subtree_count - 1} underneath`;
+        row.appendChild(meta);
+
+        const actions = document.createElement('span');
+        actions.className = 'unassigned-row-actions';
+
+        if (!axes.length) {
+            // Reachable: every axis archived while subjects sit outside.
+            // #174 -- do not offer a press when there is nothing to press.
+            const none = document.createElement('span');
+            none.className = 'unassigned-row-note';
+            none.textContent = 'No active axis to move it into';
+            actions.appendChild(none);
+        } else {
+            const select = document.createElement('select');
+            select.className = 'unassigned-row-select';
+            select.setAttribute('data-testid',
+                `tree-unassigned-select-${subject.subject_id}`);
+            select.setAttribute('aria-label', `Move ${subject.name} into an axis`);
+            axes.forEach(axis => {
+                const option = document.createElement('option');
+                option.value = String(axis.id);
+                option.textContent = axis.name;
+                select.appendChild(option);
+            });
+            actions.appendChild(select);
+
+            const button = document.createElement('button');
+            button.className = 'btn btn-secondary btn-sm unassigned-row-move';
+            button.type = 'button';
+            button.setAttribute('data-testid',
+                `tree-unassigned-move-${subject.subject_id}`);
+            button.textContent = 'Move in';
+            button.addEventListener('click', () => {
+                moveUnassignedSubjectInto(subject.subject_id, Number(select.value));
+            });
+            actions.appendChild(button);
+        }
+
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+async function moveUnassignedSubjectInto(subjectId, dimensionId) {
+    if (UNASSIGNED_PANEL_STATE.busy) return;
+    UNASSIGNED_PANEL_STATE.busy = subjectId;
+    try {
+        const result = await api.moveSubjectsIntoAxis([subjectId], dimensionId);
+        const moved = (result && result.moved) || 0;
+        const axisName = (result && result.dimension_name) || 'that axis';
+        // `Toast.success(title, message)`, which is what this page uses --
+        // there is no `showToast` here. An earlier draft called one, and the
+        // ReferenceError fired AFTER the move had already committed and
+        // before the reload below, so the subjects moved and the tree never
+        // redrew. A write that succeeds and a page that does not update is
+        // the worst shape this handler can take, so the reload belongs after
+        // nothing that can throw.
+        Toast.success(
+            'Moved',
+            moved === 1
+                ? `1 subject moved into ${axisName}.`
+                : `${moved} subjects moved into ${axisName}.`);
+
+        // The dimensional cache holds pre-move weights and membership for
+        // the axis that just gained a tree. Invalidate BEFORE reloading or
+        // the tree draws the state from before the write (CLAUDE.md,
+        // "Dimension code path symmetry").
+        invalidateDimensionCache(dimensionId);
+        invalidateDimensionCache(TreeState.currentDimensionId);
+        await loadHierarchy();
+    } catch (error) {
+        // The domain method returns its refusals as sentences, and the
+        // bridge passes them through as `success=false` (#240), so this is
+        // the student-readable reason rather than a stack frame.
+        Toast.error('Could not move them',
+                    error.message || 'Could not move those subjects.');
+    } finally {
+        UNASSIGNED_PANEL_STATE.busy = null;
+    }
+}
+
+function setUnassignedPanelExpanded(expanded) {
+    const panel = document.getElementById('unassigned-panel');
+    const toggle = document.getElementById('unassigned-panel-toggle');
+    const body = document.getElementById('unassigned-panel-body');
+    if (!panel || !toggle || !body) return;
+
+    panel.classList.toggle('open', expanded);
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    // `hidden` as well as the class, for the same reason the Archived panel
+    // does it: collapsed must mean out of the accessibility tree.
+    body.hidden = !expanded;
+}
+
+function toggleUnassignedPanel() {
+    const panel = document.getElementById('unassigned-panel');
+    if (!panel) return;
+    setUnassignedPanelExpanded(!panel.classList.contains('open'));
+}
+
 function setArchivedPanelExpanded(expanded) {
     const panel = document.getElementById('archived-panel');
     const toggle = document.getElementById('archived-panel-toggle');
@@ -2882,6 +3412,8 @@ function toggleArchivedPanel() {
     const panel = document.getElementById('archived-panel');
     if (!panel) return;
     setArchivedPanelExpanded(!panel.classList.contains('open'));
+    // The Restore buttons are on screen only while the panel is open (#682).
+    startTreeTour();
 }
 
 // =========================================================================
@@ -3160,15 +3692,18 @@ function clearTreeSearch() {
 }
 
 function highlightSearchMatch(text, query) {
-    if (!query) return escapeHtml(text);
-    const escaped = escapeHtml(text);
-    const escapedQuery = escapeHtml(query);
-    const idx = escaped.toLowerCase().indexOf(escapedQuery.toLowerCase());
-    if (idx === -1) return escaped;
-    const before = escaped.substring(0, idx);
-    const match = escaped.substring(idx, idx + escapedQuery.length);
-    const after = escaped.substring(idx + escapedQuery.length);
-    return `${before}<mark class="tree-search-highlight">${match}</mark>${after}`;
+    // Find the match in the RAW name and escape each piece afterwards. Matching
+    // in the escaped string let a query land inside an entity -- "p" in
+    // "Salt &amp; Pepper" split "&amp;" and the row read "Salt &amp; Pepper"
+    // (#548).
+    const raw = String(text ?? '');
+    if (!query) return WimiEscape.html(raw);
+    const idx = raw.toLowerCase().indexOf(String(query).toLowerCase());
+    if (idx === -1) return WimiEscape.html(raw);
+    const end = idx + String(query).length;
+    return `${WimiEscape.html(raw.substring(0, idx))}`
+        + `<mark class="tree-search-highlight">${WimiEscape.html(raw.substring(idx, end))}</mark>`
+        + `${WimiEscape.html(raw.substring(end))}`;
 }
 
 function reapplySearchIfActive() {
@@ -3279,6 +3814,7 @@ function setupEventListeners() {
     if (weightValueInput) weightValueInput.onchange = (e) => onWeightInputChange(e.target.value);
     if (applyWeightBtn) applyWeightBtn.onclick = applyWeight;
     if (resetWeightBtn) resetWeightBtn.onclick = resetWeight;
+    document.getElementById('btn-show-overview').onclick = returnToExamOverview;
     document.getElementById('btn-add-child').onclick = () => {
         if (TreeState.selectedNodeId) addChild(TreeState.selectedNodeId);
     };
@@ -3342,6 +3878,11 @@ function setupEventListeners() {
 
     // Archived subjects panel (#37). Collapsed by default; the list itself is
     // loaded by `loadHierarchy` so it tracks the exam and dimension on screen.
+    const unassignedToggle = document.getElementById('unassigned-panel-toggle');
+    if (unassignedToggle) {
+        unassignedToggle.addEventListener('click', toggleUnassignedPanel);
+    }
+
     const archivedToggle = document.getElementById('archived-panel-toggle');
     if (archivedToggle) {
         archivedToggle.addEventListener('click', toggleArchivedPanel);
@@ -3376,7 +3917,7 @@ function showError(message) {
     container.classList.remove('hidden');
     container.innerHTML = `
         <div class="alert alert-error" style="margin: 20px;">
-            <strong>Error:</strong> ${escapeHtml(message)}
+            <strong>Error:</strong> ${WimiEscape.html(message)}
             <br><br>
             <a href="index.html" class="btn btn-secondary">← Back to Exams</a>
         </div>
@@ -3385,26 +3926,7 @@ function showError(message) {
     document.getElementById('tree-loading').classList.add('hidden');
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
-/**
- * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
- *
- * `escapeHtml` round-trips through `textContent` -> `innerHTML`, which
- * escapes `&`, `<` and `>` but leaves `"` alone. That is correct for text
- * content and wrong inside an attribute: a subject called
- * `Cardio "fast" track` would close the attribute early and the rest of
- * the name would be parsed as markup. Used by the #306 aria-labels, which
- * are the first attributes here to carry a user-typed subject name.
- */
-function escapeAttr(text) {
-    return escapeHtml(text).replace(/"/g, '&quot;');
-}
 
 // =========================================================================
 // Expose Global Functions for onclick handlers
@@ -3418,7 +3940,6 @@ window.addChild = addChild;
 window.confirmDeleteNode = confirmDeleteNode;
 window.expandAll = expandAll;
 window.collapseAll = collapseAll;
-window.escapeHtml = escapeHtml;
 window.loadHierarchy = loadHierarchy;
 
 // Polyhierarchy: tree-row chip + parents-section action handlers.

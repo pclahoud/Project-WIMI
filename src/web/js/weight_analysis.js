@@ -1,9 +1,44 @@
 /**
  * Subject vs Exam Weight Analysis Component
  *
- * Displays efficiency score, quadrant analysis, and recommendations
- * for aligning study time with exam priorities
+ * Displays quadrant analysis and recommendations for aligning study time
+ * with exam priorities. The efficiency score is DISABLED -- see below.
  */
+
+/**
+ * #146 -- the efficiency score is withdrawn from the product.
+ *
+ * It cannot report a bad result. On a realistic 15-row blueprint every
+ * distribution a student could plausibly produce scores 88-99 and rates
+ * **Excellent**; `Fair` and `Needs Improvement` are unreachable, and
+ * perfect alignment scores 99.1 rather than 100 because real blueprints
+ * do not total 100% and #64 forbids rescaling them. So the number was
+ * telling every student they were doing well, including the ones who
+ * were not.
+ *
+ * The owner's decision (2026-10-05) is **not** one of #146's five
+ * proposed fixes: *"We have yet to discuss this. The feature should be
+ * disabled for the time being."* So this is a hide, not a removal, and
+ * one flag is the whole of it.
+ *
+ * What deliberately stays, so re-enabling is one word rather than a
+ * reconstruction: `_calculate_efficiency_score`, `_get_efficiency_rating`
+ * and `_build_efficiency_band` in `analytics_advanced.py`; the
+ * `efficiency_score` / `efficiency_rating` / `efficiency_band` keys in the
+ * payload; `user_preferences.efficiency_show_confidence_band` and m022;
+ * and `renderEfficiencyValue`, `renderEfficiencyBandNote` and
+ * `renderEfficiencyInfoIcon` below. Those three render nothing today and
+ * are **not dead code to be swept** -- they are the other half of the
+ * flag.
+ *
+ * The Settings control that chooses one-number-or-band is hidden in the
+ * same change (`settings.html`), because with no score on the page it
+ * would be a control over nothing -- the #289/#174 class of defect.
+ *
+ * Flip to `true` to restore it. `tests/test_efficiency_score_is_disabled.py`
+ * will go red, which is the point: restoring it is a decision, not a drift.
+ */
+const EFFICIENCY_SCORE_ENABLED = false;
 
 class WeightAnalysis {
     constructor(containerId, api) {
@@ -169,27 +204,16 @@ class WeightAnalysis {
 
         this.container.innerHTML = `
             <div class="weight-analysis-layout">
-                <!-- Efficiency Score Header -->
-                <div class="efficiency-header">
-                    <div class="efficiency-score-display">
-                        <span class="efficiency-label">EFFICIENCY SCORE${this.renderEfficiencyInfoIcon()}</span>
-                        <span class="efficiency-value ${this.getScoreClass(this.data.efficiency_score)}"
-                              data-testid="efficiency-score-value">
-                            ${this.renderEfficiencyValue()}
-                        </span>
-                        <span class="efficiency-rating">${this.data.efficiency_rating}</span>
-                        ${this.renderEfficiencyBandNote()}
-                    </div>
-                </div>
+                ${this.renderEfficiencyHeader()}
 
                 <!-- Main Content Grid -->
                 <div class="weight-content-grid">
                     <div class="quadrant-panel">
-                        <h3 class="subsection-title">Quadrant Analysis</h3>
+                        <h3 class="subsection-title" data-tour-anchor="analytics-weight-quadrant">Quadrant Analysis</h3>
                         <div id="quadrantAnalysis"></div>
                     </div>
                     <div class="recommendations-panel">
-                        <h3 class="subsection-title">Top Recommendations</h3>
+                        <h3 class="subsection-title" data-tour-anchor="analytics-weight-recommendations">Top Recommendations</h3>
                         <div id="recommendations"></div>
                     </div>
                 </div>
@@ -217,7 +241,7 @@ class WeightAnalysis {
                 <div class="quadrant-section priority">
                     <div class="quadrant-header">
                         <span class="quadrant-icon">🔴</span>
-                        <span class="quadrant-title">PRIORITY (Focus Here)</span>
+                        <span class="quadrant-title">Priority (Focus Here)</span>
                     </div>
                     <ul class="quadrant-subjects">
             `;
@@ -225,7 +249,7 @@ class WeightAnalysis {
             quadrants.priority.forEach(subject => {
                 html += `
                     <li>
-                        <span class="subject-name">${subject.subject_name}</span>
+                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
                         <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
                     </li>
                 `;
@@ -243,7 +267,7 @@ class WeightAnalysis {
                 <div class="quadrant-section well-maintained">
                     <div class="quadrant-header">
                         <span class="quadrant-icon">🟢</span>
-                        <span class="quadrant-title">WELL-MAINTAINED</span>
+                        <span class="quadrant-title">Well-Maintained</span>
                     </div>
                     <ul class="quadrant-subjects">
             `;
@@ -251,7 +275,7 @@ class WeightAnalysis {
             quadrants.well_maintained.forEach(subject => {
                 html += `
                     <li>
-                        <span class="subject-name">${subject.subject_name}</span>
+                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
                         <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
                     </li>
                 `;
@@ -269,7 +293,7 @@ class WeightAnalysis {
                 <div class="quadrant-section reduce-focus">
                     <div class="quadrant-header">
                         <span class="quadrant-icon">🟡</span>
-                        <span class="quadrant-title">REDUCE FOCUS</span>
+                        <span class="quadrant-title">Reduce Focus</span>
                     </div>
                     <ul class="quadrant-subjects">
             `;
@@ -277,7 +301,7 @@ class WeightAnalysis {
             quadrants.reduce_focus.forEach(subject => {
                 html += `
                     <li>
-                        <span class="subject-name">${subject.subject_name}</span>
+                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
                         <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
                     </li>
                 `;
@@ -295,7 +319,7 @@ class WeightAnalysis {
                 <div class="quadrant-section low-priority">
                     <div class="quadrant-header">
                         <span class="quadrant-icon">⚪</span>
-                        <span class="quadrant-title">LOW PRIORITY</span>
+                        <span class="quadrant-title">Low Priority</span>
                     </div>
                     <ul class="quadrant-subjects">
             `;
@@ -303,7 +327,7 @@ class WeightAnalysis {
             quadrants.low_priority.forEach(subject => {
                 html += `
                     <li>
-                        <span class="subject-name">${subject.subject_name}</span>
+                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
                         <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
                     </li>
                 `;
@@ -340,7 +364,7 @@ class WeightAnalysis {
                 <li class="recommendation-item ${rec.type}">
                     <span class="rec-icon">${rec.icon}</span>
                     <div class="rec-content">
-                        <div class="rec-subject">${rec.subject}</div>
+                        <div class="rec-subject">${WimiEscape.html(rec.subject)}</div>
                         <div class="rec-message">${rec.message}</div>
                     </div>
                 </li>
@@ -398,7 +422,45 @@ class WeightAnalysis {
     }
 
     /**
+     * The score header, or nothing at all (#146).
+     *
+     * One early return rather than four scattered guards, so the
+     * disabled state is a single readable fact and the markup it would
+     * draw stays beside it for when the discussion happens.
+     *
+     * **Nothing is left behind when it returns ''.** No empty
+     * `.efficiency-header`, no placeholder, no greyed-out number -- the
+     * `.weight-analysis-layout` grid would space an empty child, which is
+     * the same mistake #60's proposal panel made with a `gap` over two
+     * empty boxes. A disabled feature occupies no pixels.
+     *
+     * @returns {string} HTML for the score header, or '' while disabled.
+     */
+    renderEfficiencyHeader() {
+        if (!EFFICIENCY_SCORE_ENABLED) {
+            return '';
+        }
+        return `
+                <!-- Efficiency Score Header -->
+                <div class="efficiency-header">
+                    <div class="efficiency-score-display">
+                        <span class="efficiency-label">EFFICIENCY SCORE${this.renderEfficiencyInfoIcon()}</span>
+                        <span class="efficiency-value ${this.getScoreClass(this.data.efficiency_score)}"
+                              data-testid="efficiency-score-value">
+                            ${this.renderEfficiencyValue()}
+                        </span>
+                        <span class="efficiency-rating">${this.data.efficiency_rating}</span>
+                        ${this.renderEfficiencyBandNote()}
+                    </div>
+                </div>
+        `;
+    }
+
+    /**
      * The score, as one number or as a band (#133).
+     *
+     * Reached only when ``EFFICIENCY_SCORE_ENABLED`` (#146). Kept rather
+     * than deleted: it is the other half of the flag.
      *
      * Provenance is not part of the score's arithmetic in either
      * direction -- Stage 9's confidence multiplier scaled a *penalty*,
@@ -502,7 +564,7 @@ class WeightAnalysis {
         this.container.innerHTML = `
             <div class="error-state">
                 <p>Error loading weight analysis</p>
-                <p class="error-detail">${message}</p>
+                <p class="error-detail">${WimiEscape.html(message)}</p>
             </div>
         `;
     }

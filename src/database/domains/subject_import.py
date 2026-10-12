@@ -76,9 +76,15 @@ mean *here* is mostly what this module deliberately does **not** do:
    normalising would store numbers that do not match the document the
    student copied from, which silently falsifies a published source.
 3. **An omitted weight is 0% on import** — the blueprint did not weight this
-   subject. That is the opposite of the tree editor's empty weight field,
-   which means "share out the remainder", and it is why
-   :meth:`_import_weight_bounds` returns ``(0, 0)`` rather than ``None``.
+   subject, which is why :meth:`_import_weight_bounds` returns ``(0, 0)``
+   rather than ``None``. This decision used to be stated as a *contrast*
+   with the tree editor's empty weight field, "which means share out the
+   remainder". **That contrast was false and is retracted (#447):** the
+   editor's create path sends no weight for an empty field either, so both
+   sides store 0% and nothing in WIMI redistributes a weight unless the
+   student presses **Rebalance siblings**. The two rules differ in what the
+   zero *records* — not published, against not yet decided — never in
+   behaviour. Do not reintroduce the contrast, here or in the guide.
 4. **``0`` is data, not an error** (Step 2 CK publishes two tasks at 0%), and
    ``derived`` says only that WIMI computed the number — it never implies
    ``locked``.

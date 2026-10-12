@@ -43,6 +43,37 @@
         return api._callBridge('deleteDimension', dimensionId);
     };
 
+    // Subjects stranded outside every axis (#605). Adding the first axis to
+    // an exam that already has subjects leaves them all at
+    // `dimension_id NULL`, where the dimensioned tree does not draw them and
+    // the plain tree is never drawn again -- so the student's whole tree
+    // vanishes. Returns {subjects: [{subject_id, name, level_type,
+    // subtree_count}]}, roots only, empty on a healthy exam.
+    api.getSubjectsOutsideAnyAxis = async function(examContextId) {
+        if (!examContextId) throw new Error('examContextId is required');
+        return api._callBridge('getSubjectsOutsideAnyAxis', examContextId);
+    };
+
+    // Move those subjects, with their subtrees, into an axis (#605). The
+    // whole subtree travels because cross-dimensional edges are a Non-Goal.
+    api.moveSubjectsIntoAxis = async function(subjectIds, dimensionId) {
+        if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+            throw new Error('subjectIds is required');
+        }
+        if (!dimensionId) throw new Error('dimensionId is required');
+        return api._callBridge('moveSubjectsIntoAxis', subjectIds, dimensionId);
+    };
+
+    // What archiving this dimension would take with it (#210), for the
+    // confirmation the exam wizard shows before it removes one (#486).
+    // The slot has existed since #210 and had no wrapper and no caller, so
+    // the subject and entry counts it computes reached nobody.
+    // Returns {dimension_name, subject_count, entry_count, root_node_ids,
+    // already_archived}.
+    api.getDimensionDeletePreview = async function(dimensionId) {
+        return api._callBridge('getDimensionDeletePreview', dimensionId);
+    };
+
     api.reorderDimensions = async function(examContextId, dimensionIds) {
         if (!examContextId) throw new Error('examContextId is required');
         if (!Array.isArray(dimensionIds)) throw new Error('dimensionIds must be an array');

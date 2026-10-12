@@ -71,6 +71,10 @@
        dead decoration and leave the static guard asserting values that never
        paint. */
     --color-primary-text: #235fe0;
+    /* The keyboard focus indicator (#349, #325); see "Focus" below for why
+       it is the TEXT variant and not --color-primary. Declared here as a
+       reference, so a theme's --color-primary-text reaches it. */
+    --focus-ring-color: var(--color-primary-text);
     --color-primary-hover-text: #1d4fbb;
 
     /* Secondary Colors */
@@ -368,6 +372,90 @@ a:hover {
     text-decoration: underline;
 }
 
+/* =========================================================================
+   Focus
+   =========================================================================
+   One keyboard focus indicator for the whole app (#349, #325): a 2px line in
+   --focus-ring-color. Before this, nothing styled :focus-visible app-wide,
+   so every button fell through to the embedder's default ring -- Blink's
+   amber `auto 1px #e59700`, 2.40:1 on white, the same in every theme.
+
+   --focus-ring-color is --color-primary-TEXT, not --color-primary, and that
+   is measured rather than chosen for symmetry. --color-primary is the
+   student's stored primary colour, not the theme's: _wimiApplyColourPreferences
+   writes it on every load. A new profile stores #2196F3, which drew this
+   ring at 2.99:1 on --bg-secondary in a real-Tab check on Windows machine A --
+   just under the 3:1 WCAG 1.4.11 asks. The text variant is per theme,
+   ignores the stored primary, and test_theme_text_contrast.py already holds
+   it to 4.5:1 on every surface; test_focus_ring_styles.py holds the ring to
+   3:1. The cost is that a custom primary does not tint the ring.
+
+   `outline`, not `box-shadow`. An outline follows border-radius in this
+   Chromium, sits outside any component's own box-shadow rather than
+   competing with it, and Windows High Contrast keeps outlines and drops
+   shadows. Two forms of the same line:
+
+   - Controls without a border (buttons, links, tabbable icons): the ring
+     floats 2px outside, `outline-offset: 2px`. Ten component rules already
+     drew exactly this before there was a global one; this makes it the
+     default rather than a per-component choice.
+   - Bordered fields (text inputs, selects, the custom select): the line is
+     drawn ON the field's edge, `outline-offset: -1px` over a primary border,
+     so it is not clipped by a wrapper and does not double up with the border.
+     It replaces a 3px --color-primary-bg halo that measured about 1.1:1
+     against the page -- a tint, not an indicator.
+
+   Low specificity on purpose: a component that draws its own compliant
+   indicator (the tree row, the weight fields' 2px border) keeps it. */
+:focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
+}
+
+/* =========================================================================
+   Scrollbars
+   =========================================================================
+   Every scroll container on every page, themed from the palette. Without
+   this, Windows draws its stock light-grey bars, and they stay light-grey
+   under Midnight and High Contrast.
+
+   The thumb is a rounded pill inset from a transparent track: the 3px
+   transparent border plus `background-clip: padding-box` draws a 6px bar
+   inside a 12px hit area, so it reads slim without becoming hard to grab.
+   The resting thumb is --text-muted, not a border grey: a scrollbar is a
+   control, and WCAG 1.4.11 asks 3:1 of it against what is behind it.
+   --border-dark measured 2.34-2.98:1 in the four light themes; --text-muted
+   clears 4.5:1 on all three surface steps in all six. Hover and drag go one
+   step stronger, to --text-secondary.
+
+   Deliberately the `::-webkit-scrollbar` form and NOT `scrollbar-color` /
+   `scrollbar-width`. Since Chromium 121, an element with either standard
+   property set ignores its `::-webkit-scrollbar` rules, so putting them here
+   would switch off the hover state and the scoped bars in entry.css,
+   session.css and error-viewer.css. Those scoped rules are more specific
+   and still win where they exist. */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--text-muted);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+    background-color: var(--text-secondary);
+}
+
 
 /* =========================================================================
    Form Elements
@@ -402,12 +490,15 @@ select {
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-input:focus,
-textarea:focus,
-select:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
+/* The bordered-field form of the focus line (see "Focus" above). `:where()`
+   keeps this at the specificity `input:focus` had, so component rules such
+   as `.alias-input:focus` still win where they exist. Checkboxes, radios and
+   ranges are excluded: they have no field edge to draw on, and take the
+   floating ring instead. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"]), textarea, select):focus {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: -1px;
+    border-color: var(--focus-ring-color);
 }
 
 input::placeholder,
@@ -449,13 +540,6 @@ select option:focus,
 select option:checked {
     background-color: var(--color-primary-bg);
     color: var(--text-primary);
-}
-
-/* Remove default blue highlight on focus */
-select:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
 /* Checkbox and Radio */
@@ -764,8 +848,10 @@ input[type="radio"] {
     transform: translateX(1.375rem);
 }
 
-.toggle input:focus + .toggle-slider {
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
+/* The checkbox is visually hidden, so the slider carries its focus ring. */
+.toggle input:focus-visible + .toggle-slider {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
 }
 
 
@@ -801,9 +887,9 @@ input[type="radio"] {
 }
 
 .custom-select-trigger:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: -1px;
+    border-color: var(--focus-ring-color);
 }
 
 .custom-select.open .custom-select-trigger {
@@ -1321,7 +1407,7 @@ input[type="radio"] {
     border-radius: 50%;
     background: var(--bg-secondary);
     color: var(--text-secondary);
-    font-size: 0.625rem;
+    font-size: var(--font-size-xs);
     font-style: normal;
     font-weight: 700;
     line-height: 1;
@@ -1343,7 +1429,7 @@ input[type="radio"] {
 }
 
 .archived-ancestors-note:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 

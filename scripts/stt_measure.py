@@ -1110,7 +1110,7 @@ def render_markdown(corpus: Corpus, configs: Sequence[ConfigResult], *,
     if primed_overlap:
         n_primed = sum(len(cfg.scored) for cfg in configs if cfg.primed) or 1
         add("Of the marked terms, an average of {:.1f} per utterance were also in "
-            "the priming string. Priming is built from the USMLE outline by topic, "
+            "the priming string. Priming is built from the exam outline by topic, "
             "never from the marked-terms list, but the overlap is real and is "
             "reported rather than assumed.".format(primed_overlap / n_primed))
         add("")

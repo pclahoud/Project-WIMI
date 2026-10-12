@@ -1007,19 +1007,28 @@ class EntryDetail {
     /**
      * Load navigation context from sessionStorage.
      * This contains the list of entry IDs and current position from the browser.
+     *
+     * The list is used only when it holds the open entry (#526). The entry
+     * browser writes it, and it outlives the browse: any other route into
+     * this page (the deep dive, the entry form) arrives with whatever list
+     * was left behind. That list, and its stored index, say nothing about
+     * this entry, so it is discarded -- here, once, rather than by each
+     * caller clearing the key before it navigates.
      */
     loadNavContext() {
+        this.navContext = null;
         try {
             const stored = sessionStorage.getItem('entryNavContext');
-            if (stored) {
-                this.navContext = JSON.parse(stored);
-                console.log('Loaded navigation context:', this.navContext);
-
-                // Verify current entry is in the list and update index
-                if (this.navContext.ids && this.navContext.ids.includes(this.entryId)) {
-                    this.navContext.index = this.navContext.ids.indexOf(this.entryId);
-                }
+            if (!stored) return;
+            const context = JSON.parse(stored);
+            const index = Array.isArray(context && context.ids)
+                ? context.ids.indexOf(this.entryId) : -1;
+            if (index < 0) {
+                sessionStorage.removeItem('entryNavContext');
+                return;
             }
+            context.index = index;
+            this.navContext = context;
         } catch (error) {
             console.error('Failed to load navigation context:', error);
             this.navContext = null;

@@ -47,12 +47,13 @@ from database.user_db import UserDatabase
 # ==================== helpers ====================
 
 def _failing_registry(real_registry):
-    """The real registry plus one migration that always raises (v26+ is free)."""
+    """The real registry plus one migration that always raises (the next version after the newest shipped one)."""
     def explode(conn):
         raise sqlite3.OperationalError("deliberate failure from the test")
 
     return list(real_registry) + [
-        Migration(version=26, name="deliberate_failure", upgrade_fn=explode)
+        Migration(version=max(m.version for m in real_registry) + 1,
+                  name="deliberate_failure", upgrade_fn=explode)
     ]
 
 

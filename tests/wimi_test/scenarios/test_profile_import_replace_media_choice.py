@@ -15,6 +15,15 @@ would actually destroy, for this profile and this archive.
 The import is deliberately **not** executed here -- the choice is what is
 under test, and the picker cannot replace the profile it has open anyway.
 
+#497: which hint fires depends on whether the archive HOLDS image files,
+not on the export's *Include media* choice. That box is ticked by default,
+so a profile with no images exports as ``included: true, file_count: 0`` --
+and the hint used to treat that as an archive with images, printing the
+weaker warning for an import that deletes every image and puts none back.
+The second test below exported exactly that shape and asserted the weaker
+hint, so it pinned the defect; it now puts an image in the archive, and the
+third test is the default-export case on its own.
+
 Markers / fixtures: ``@pytest.mark.slow``, ``@pytest.mark.regression``,
 ``wimi_session``, ``wimi_page``, ``tmp_path``.
 """
@@ -66,6 +75,19 @@ def _profile_with_images(session: WimiTestSession, count: int, username: str):
         return user.id, media_dir
     finally:
         master.close()
+
+
+MEDIA_LINE = "document.getElementById('importMediaInfo').textContent"
+
+
+def _give_open_profile_an_image(session: WimiTestSession):
+    """One image file in the open profile's media folder, so an export with
+    *Include media* ticked really carries something."""
+    media_dir = (session.config.app_data_dir / "media"
+                 / f"user_{session.user.user_id}_{session.user.username}")
+    media_dir.mkdir(parents=True, exist_ok=True)
+    (media_dir / "dddddddd-0000-0000-0000-000000000001.png").write_bytes(b"image-bytes")
+    return media_dir
 
 
 def _archive_of_open_profile(page: WimiPage, session: WimiTestSession,
@@ -149,6 +171,7 @@ def test_an_archive_with_media_describes_the_choice_differently(
     would be wrong in one of these two tests.
     """
     target_id, _ = _profile_with_images(wimi_session, 1, "replace_one")
+    _give_open_profile_an_image(wimi_session)
 
     wimi_page.eval_js("window.__wimiPrevDoc = true")
     wimi_page.goto('profile-select')
@@ -169,3 +192,44 @@ def test_an_archive_with_media_describes_the_choice_differently(
         "with media in the archive, unticking deletes only the images the "
         f"archive lacks -- the hint must not claim otherwise: {hint!r}"
     )
+
+    assert "Includes 1 media file" in wimi_page.eval_js(MEDIA_LINE)
+
+
+@pytest.mark.slow
+@pytest.mark.regression
+def test_the_default_export_of_a_profile_with_no_images_gets_the_strong_warning(
+    wimi_session: WimiTestSession, wimi_page: WimiPage, tmp_path,
+) -> None:
+    """#497: *Include media* ticked (the default) and nothing to include.
+
+    The archive's manifest says ``included: true`` with ``file_count: 0``.
+    Replacing a profile that has images with it, unticked, deletes all of
+    them and puts none back -- so it must read exactly like the archive
+    exported without media in the first test, not like the one with media.
+    """
+    target_id, media_dir = _profile_with_images(wimi_session, 2, "replace_two")
+
+    wimi_page.eval_js("window.__wimiPrevDoc = true")
+    wimi_page.goto('profile-select')
+    assert poll(wimi_page, MODAL_READY, True) is True, "the picker never finished loading"
+
+    archive = _archive_of_open_profile(
+        wimi_page, wimi_session, tmp_path / "default_export.wimi", include_media=True
+    )
+    _open_preview(wimi_page, archive, target_id)
+
+    # Positive control: this really is the #497 shape, not a media-less export.
+    media = json.loads(wimi_page.eval_js("JSON.stringify(ImportState.preview.media)"))
+    assert media.get("included") is True and media.get("file_count") == 0, media
+
+    assert "Includes 0" not in wimi_page.eval_js(MEDIA_LINE), (
+        "the media line claims the archive includes files when it holds none")
+    assert wimi_page.eval_js(KEEP_BOX + ".checked") is True, (
+        "keeping the images must stay the default (#150)")
+    wimi_page.eval_js(KEEP_BOX + ".checked = false; updateImportControls();")
+    hint = wimi_page.eval_js(HINT)
+    assert "Deletes all 2 images" in hint and "no images to put back" in hint, (
+        f"an archive holding no images got the weaker warning: {hint!r}")
+    assert wimi_page.eval_js(WARNED) is True
+    assert len(list(media_dir.iterdir())) == 2

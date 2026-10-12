@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linking one topic to another - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/50_related_topics.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 17</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Linking one topic to another</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_reading_the_analytics.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Reading the analytics dashboard</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_finding_links_automatically.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Letting WIMI find the links</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Linking one topic to another
+
+## In short
+
+A relation is two of your subjects joined by a sentence you write. WIMI will not record one without the sentence, and there is no add-now-explain-later state anywhere in the app. Relations are drawn as a plain list on a subject's own page, never as a graph, and the list holds the same relations whichever parent context you are viewing that subject through — the context changes the order and nothing else.
+
+## What a relation is
+
+Four things, and you supply all four:
+
+- **A type and a direction** — *causes*, *risk factor for*, *treats* and three more, read forwards or backwards.
+- **The other topic** — any subject in the same exam, including one in a different dimension.
+- **Your sentence** — why these two are connected. Required.
+- **How sure you are** — Certain, Likely, Possible, or "Checked — not related".
+
+So a relation is not a tag and not a link. It is a claim you made, in your own
+words, that you will read back later. *Hypertension causes hypertensive
+nephrosclerosis* on its own tells you nothing you did not already know;
+*hypertension causes hypertensive nephrosclerosis, because chronic hypertension
+scleroses the afferent arteriole, which is how a blood-pressure problem ends up
+as a renal lesion* is the thing you were missing.
+
+## Where you write one
+
+On a subject's own page. If that subject has no relations yet, the only thing
+there is a single quiet **+ Link a related topic** — no card, no heading, no
+empty box telling you about a feature you are not using. Once it has one, the
+page grows a **Related Topics** card with **+ Link another topic** in its
+header.
+
+The modal is titled **Link a related topic** and its opening line is *"Relations
+are yours to write. Say how this topic connects to another topic in your own
+words — writing it is the part that sticks."* It asks four things, in this
+order.
+
+**Relation.** A dropdown whose options read as the start of a sentence:
+*Hypertension causes…*, *Hypertension caused by…*, *Hypertension risk factor
+for…*, and so on. Picking an option sets both the type and which way round the
+relation points, which is why there is no separate direction control.
+
+**The other topic.** Type two characters or more and matching subjects appear
+with their position in the tree underneath, so two subjects with the same name
+in different branches are telling you apart. The hint says *"Any subject in this
+exam, including one in another dimension."* It means that literally — see
+*Relations cross dimensions* below. Picking a result fills the box with its name
+and shows the path you chose.
+
+**Why are they related?** A text box marked *required*, with a hint that changes
+with the kind of relation you picked: *"One sentence on how the two topics are
+connected"* for a directional type, *"One sentence on what the two topics share,
+or how to tell them apart"* for a symmetric one. Both end the same way — *"A
+relation without a reason is just a bookmark, so this field is required."* Up to
+two thousand characters, so a paragraph is fine, but one sentence really is
+plenty.
+
+**How sure are you?** Certain, Likely, Possible, or "Checked — not related".
+Likely is pre-selected. The last one is not a mistake and is covered below.
+
+**Save relation** stays greyed out until you have both chosen a topic and typed
+something in the reason. **Cancel** throws the whole thing away.
+
+## The sentence is the required field, and that is the whole design
+
+This is worth stating plainly because it is a deliberate refusal rather than an
+oversight.
+
+There is no way to record a relation now and explain it later. The Save button
+is disabled without a non-blank reason, and the database refuses a blank one
+again underneath — if you paste a sentence, press Save, and delete it in the
+same instant, you get *"A relation needs a reason: say in your own words how the
+two subjects are related. This is the point of the feature."*
+
+The reasoning is the same as the entry form's two written fields. A link with no
+sentence is the "people who bought this also bought" of study tools: it looks
+like knowledge, it took no thought, and a hundred of them tell you nothing. A
+link with a sentence is a thing you worked out once and can recognise again.
+Writing the sentence *is* the act of recording the relation, not paperwork
+attached to it.
+
+## The six relation types
+
+Every exam starts with the same six, and each has a forward and a reverse
+wording so one stored relation reads correctly from both subjects' pages:
+
+- **causes**, read backwards as **caused by**.
+- **risk factor for**, read backwards as **has risk factor**.
+- **complication of**, read backwards as **has complication**.
+- **treats**, read backwards as **treated by**.
+- **presents with**, read backwards as **presenting feature of**.
+- **confused with**, which reads the same both ways.
+
+That last one is *symmetric*: *A confused with B* and *B confused with A* are the
+same statement, so WIMI stores it once and shows it on both pages. The other
+five are directional, and the direction carries meaning — *pneumonia complication
+of influenza* is a different claim from *influenza complication of pneumonia*.
+
+**You cannot add, rename or retire a type from inside WIMI yet.** The six are
+what you get. Where that list would be edited has not been decided, so there is
+no screen for it; if you reach for a seventh type, the thing to do today is pick
+the nearest of the six and let your sentence carry the rest. The sentence is the
+part that was always going to do the work.
+
+One consequence you may see: a relation written before types existed has no type
+at all. WIMI does not guess one for it, so those rows keep reading **Leads to**
+and **Caused by** rather than being quietly relabelled.
+
+## Recording that two topics are not related
+
+"Checked — not related" is a real choice and worth using. It records a
+conclusion you reached — you looked at whether these two connect, and they do
+not — which is exactly the thing you would otherwise re-check in three weeks.
+The modal says as much in its own hint: recording it is worth doing, because it
+is a conclusion you reached, and it stops you re-checking the same pair.
+
+Such a row reads **Checked against** rather than asserting a direction it does
+not have, and it sorts below every real relation on the panel, because it is an
+annotation about an absence rather than a related topic.
+
+## Reading the panel
+
+Each row carries, in order along the top: the relation wording for *this*
+subject's side, the other topic as a link, the other topic's dimension if it
+differs from this one's, how sure you said you were, and a **Remove** button.
+Your sentence sits underneath, and under that the other topic's position in the
+tree.
+
+Clicking the other topic takes you to its page, carrying the exam with you. That
+is the main thing the panel is for day to day: it is a one-hop route between two
+things you decided were connected, which is a route no tree gives you, because a
+tree can only express "is part of".
+
+**It is a list and not a diagram, on purpose.** WIMI already has the drawing
+machinery — the sunbursts on the analytics screens use it — and a relation graph
+was considered and rejected. A graph of twenty relations is pretty and
+unreadable, it shows you the shape of your notes rather than their content, and
+it buries the one thing that matters here, which is the sentences.
+
+## The order is the parent context's only effect
+
+If the subject has several parents, its page carries a **Show as part of**
+selector — the subject of its own chapter. On the Related Topics panel that
+selector changes the **order** of the list and never its contents. Every
+relation you wrote is in the list in every context.
+
+What the order does is put the relations that belong to the context you are
+reading in first:
+
+- A related topic that sits under the parent you are currently viewing through comes first.
+- A related topic that sits under none of this subject's parents comes next — it is neither evidence for nor against the context you picked.
+- A related topic that sits under a *different* parent of this subject comes last, because it belongs to a context you are not in.
+
+Within those tiers, surer relations come before less sure ones, newer before
+older, and "Checked — not related" rows sink to the bottom of everything.
+
+**This is the opposite of what the same selector does to the counts beside it on
+the same page**, and the difference is deliberate. The entry rollups narrow when
+you pick a parent — that is the whole point of them. The relations do not,
+because a relation is not a measurement of anything: you wrote that hypertension
+causes nephrosclerosis, and that does not stop being true because you are
+currently looking at hypertension as part of Cardiovascular. Hiding it would be
+hiding your own note from you.
+
+## One relation, two pages
+
+A relation is stored once and drawn from both ends. Write *hypertension causes
+hypertensive nephrosclerosis* from hypertension's page and nephrosclerosis's
+page grows a row reading *Caused by hypertension*, with the same sentence you
+typed. You do not write it twice, and you cannot get the two ends out of step.
+
+## Both directions are allowed, and so are two types for one pair
+
+There is no cycle check, deliberately. *A causes B* and *B causes A* are both
+recordable, and so is a longer loop. Pairs of conditions genuinely do aggravate
+each other, and a tool that refused to let you say so would be enforcing a tidy
+model of the world rather than recording yours. The topic search is aware of
+which way you are pointing, so you can close a loop from either subject's page.
+
+Two *different* types between the same pair also coexist: *A causes B* and *A
+confused with B* are different claims and both fit. What is refused is the same
+pair with the same type twice. WIMI says so, and tells you the route: remove the
+existing one from the panel and write it again.
+
+**That is the only way to change what a relation says.** There is no edit, here
+or anywhere else, and the cost of remove-and-rewrite is worth knowing before you
+reach for it: the new relation starts its own history, so the date you first
+noticed the link is not carried over. If the reason you wrote three weeks ago is
+nearly right, that is a real trade rather than a formality. The message used to
+say *"Edit or remove it"*, which sent people looking for an edit that has never
+existed.
+
+The one structural thing WIMI will not let you do is relate a subject to itself.
+It says so, and adds that two subjects relating to each other in both directions
+is fine.
+
+## Relations cross dimensions
+
+If your exam has several dimensions, a relation may join a subject in one to a
+subject in another. Nothing about a relation belongs to a dimension, so this is
+not a loophole. When the two ends sit in different dimensions, the panel labels
+the other end with its dimension name, so you are never guessing which
+Hypertension you are looking at.
+
+## When one topic collects a lot of incoming relations
+
+Past about four relations pointing *at* a single topic, the panel adds a line:
+*"N topics now point at this one. Past about four the list gets hard to hold in
+your head — worth checking whether some of them are really the same idea."*
+
+Nothing is refused and nothing is hidden. It is a prompt to look, because a
+topic with eleven incoming relations usually means either that it is genuinely
+central or that you have written the same thought five ways. You also get a
+warning inside the modal, before you save, if the topic you just picked is
+already over that line.
+
+## Removing one
+
+**Remove** on a row arms itself rather than acting: the first press changes it to
+**Remove?** and the second press does it. There is no undo, and no dialog — the
+button is its own confirmation.
+
+Removing a relation removes it from both subjects' pages, because it was one
+record all along.
+
+**This is a real deletion, and that is an asymmetry worth knowing.** Delete a
+subject and it is archived, listed, and restorable. Delete a relation and the
+row is gone. The reasoning is that a relation is one sentence you wrote and can
+write again, and no count or rollup anywhere depends on it — whereas an
+archived subject still has your entries hanging off it. So the sentence is the
+thing you lose, and if it took thought to write, copy it somewhere before you
+press Remove twice.
+
+## Archiving a subject takes its relations with it
+
+Archive a subject and every relation touching it disappears from the panel, at
+both ends. They are not deleted: restoring that archive brings them back with
+their sentences, their types and their confidence intact. This is the same
+promise the archive makes about the subjects themselves.
+
+## What relations do not change
+
+Nothing. No count, no weight, no percentage, no chart anywhere in WIMI reads
+your relations. They do not make a subject look more important, they are not in
+the analytics, and writing fifty of them will not move a single number.
+
+They are there to be navigated and read. That is the feature.
+
+One name to disentangle while you are here: an entry's own page has a section
+headed **Related Topics to Review**, and that is a different thing entirely —
+subjects near this one in the tree, worked out by WIMI, with no sentences and
+nothing you wrote. The panel this chapter is about lives on a *subject's* page
+and contains only relations you authored.
+
+## Where to go next
+
+- [Letting WIMI find the links](help_finding_links_automatically.html) — the same relations, proposed from an explanation you wrote, and why that starts from a button.
+- [Choosing which parent an entry counts under](help_parent_context.html) — the Show as part of selector, and what it does to everything that is not this panel.
+- [Dimensions, and questions with several axes](help_dimensions.html) — what it means for a relation to cross one.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

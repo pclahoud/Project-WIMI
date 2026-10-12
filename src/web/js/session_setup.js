@@ -67,14 +67,29 @@ const Toast = {
         const toast = document.createElement('div');
         toast.className = `toast toast--${type}`;
         toast.setAttribute('data-testid', `session-toast-${type}`);
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || 'ℹ'}</span>
-            <div class="toast-content">
-                <p class="toast-title">${title}</p>
-                ${message ? `<p class="toast-message">${message}</p>` : ''}
-            </div>
-            <button class="toast-close" aria-label="Close">×</button>
-        `;
+        // Built from text nodes, not innerHTML (#548): callers pass a
+        // question source's name in the message, and a name is text a
+        // student typed or imported.
+        const icon = document.createElement('span');
+        icon.className = 'toast-icon';
+        icon.textContent = icons[type] || 'ℹ';
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+        const titleEl = document.createElement('p');
+        titleEl.className = 'toast-title';
+        titleEl.textContent = title;
+        content.appendChild(titleEl);
+        if (message) {
+            const messageEl = document.createElement('p');
+            messageEl.className = 'toast-message';
+            messageEl.textContent = message;
+            content.appendChild(messageEl);
+        }
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Close');
+        close.textContent = '×';
+        toast.append(icon, content, close);
         
         this.container.appendChild(toast);
         
@@ -172,12 +187,6 @@ function formatDate(dateStr) {
     }
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 /**
  * The default for #session-date: the student's own calendar day (#286).
@@ -237,14 +246,14 @@ function renderPreviousSessionCard(session) {
     
     // Show Continue for incomplete in-progress sessions, Review for complete or abandoned
     const actionButton = session.session_status !== 'abandoned' && !isComplete
-        ? `<button class="btn btn-primary btn-sm" onclick="continueSession(${session.id})">Continue</button>`
-        : `<button class="btn btn-secondary btn-sm" onclick="viewSession(${session.id})">Review</button>`;
+        ? `<button class="btn btn-primary btn-sm" onclick="continueSession(${session.id})" data-tour-anchor="session-card-continue">Continue</button>`
+        : `<button class="btn btn-secondary btn-sm" onclick="viewSession(${session.id})" data-tour-anchor="session-card-review">Review</button>`;
     
     return `
         <div class="prev-session-card" data-session-id="${session.id}" data-testid="session-card-${session.id}">
             <div class="prev-session-header">
                 <div>
-                    <h4 class="prev-session-name">${escapeHtml(session.session_name || 'Untitled Session')}</h4>
+                    <h4 class="prev-session-name">${WimiEscape.html(session.session_name || 'Untitled Session')}</h4>
                     <div class="prev-session-date">${formatDate(session.date_encountered)}</div>
                 </div>
                 <span class="badge ${statusClass}">${statusText}</span>
@@ -259,7 +268,7 @@ function renderPreviousSessionCard(session) {
                     <span class="prev-session-stat-label">Incorrect</span>
                     <span class="prev-session-stat-value">${session.total_incorrect}</span>
                 </div>
-                <div class="prev-session-stat">
+                <div class="prev-session-stat" data-tour-anchor="session-card-logged">
                     <span class="prev-session-stat-label">Logged</span>
                     <span class="prev-session-stat-value">${session.entries_completed}/${session.total_incorrect}</span>
                 </div>
@@ -275,10 +284,10 @@ function renderPreviousSessionCard(session) {
             <div class="prev-session-actions">
                 ${actionButton}
                 <button class="btn btn-secondary btn-sm" onclick="editSession(${session.id})">Edit</button>
-                <button class="btn btn-secondary btn-sm" onclick="exportSessionIds(${session.id})">
+                <button class="btn btn-secondary btn-sm" onclick="exportSessionIds(${session.id})" data-tour-anchor="session-card-export-ids">
                     Export IDs
                 </button>
-                <button class="btn btn-danger-outline btn-sm" onclick="confirmDeleteSession(${session.id}, '${escapeHtml(session.session_name || 'Untitled Session').replace(/'/g, "\\'")}')">
+                <button class="btn btn-danger-outline btn-sm" data-delete-session-id="${session.id}" data-tour-anchor="session-card-delete">
                     Delete
                 </button>
             </div>
@@ -305,6 +314,16 @@ async function loadPreviousSessions() {
             container.innerHTML = SessionState.previousSessions
                 .map(renderPreviousSessionCard)
                 .join('');
+            // A listener, not an inline handler (#548): the handler used to
+            // carry the session's name as a JavaScript string inside an HTML
+            // attribute, where HTML escaping is undone by the attribute
+            // parser before the script reads it, so a name holding ' ran as
+            // code. The id is all the button needs; the name is looked up.
+            container.querySelectorAll('[data-delete-session-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    confirmDeleteSession(Number(btn.dataset.deleteSessionId));
+                });
+            });
         }
     } catch (error) {
         console.error('Error loading previous sessions:', error);
@@ -362,7 +381,7 @@ function renderSourceItem(source) {
     return `
         <div class="source-item" data-source-id="${source.id}" data-testid="source-item-${source.id}">
             <div class="source-info">
-                <div class="source-name">${escapeHtml(source.source_name)}</div>
+                <div class="source-name">${WimiEscape.html(source.source_name)}</div>
                 <div class="source-type">${getSourceTypeLabel(source.source_type)}</div>
             </div>
             <div class="source-actions">
@@ -727,6 +746,10 @@ function viewSession(sessionId) {
 let deleteSessionId = null;
 
 function confirmDeleteSession(sessionId, sessionName) {
+    if (sessionName === undefined) {
+        const session = SessionState.previousSessions.find(s => s.id === sessionId);
+        sessionName = (session && session.session_name) || 'Untitled Session';
+    }
     deleteSessionId = sessionId;
     document.getElementById('delete-session-name').textContent = sessionName;
     Modal.open('delete-session-modal');
@@ -813,10 +836,29 @@ function editSession(sessionId) {
     totalQEl.addEventListener('input', onEditFieldChange);
     totalIEl.addEventListener('input', onEditFieldChange);
 
+    // The tour's step on this field says lowering it below the logged count
+    // deletes entries, which can happen only once something is logged, so only
+    // then does the field carry its anchor (#682). Removed again on close: the
+    // modal is hidden by visibility, which leaves its fields a box the tour
+    // would count as rendered.
+    if (session.entries_completed > 0) {
+        totalIEl.setAttribute('data-tour-anchor', 'session-edit-incorrect');
+    } else {
+        totalIEl.removeAttribute('data-tour-anchor');
+    }
+
     // Load and render timer round history
     loadRoundHistory(sessionId);
 
     Modal.open('edit-session-modal');
+
+    // The field exists on screen only from here, so the tour rebuilds to
+    // reach its step (#682). Behind a typeof check and a try, as on load.
+    try {
+        if (typeof WimiTour !== 'undefined') WimiTour.start('session-setup');
+    } catch (e) {
+        console.error('Tour failed to start:', e);
+    }
 }
 
 async function loadRoundHistory(sessionId) {
@@ -1061,7 +1103,15 @@ function closeEditSessionModal() {
     if (container) container.innerHTML = '';
     const picker = document.getElementById('inline-entry-picker');
     if (picker) picker.style.display = 'none';
+    document.getElementById('edit-session-total-incorrect')?.removeAttribute('data-tour-anchor');
     Modal.close('edit-session-modal');
+    // A tip left open on that field would ring a closed modal, so rebuild:
+    // its target no longer resolves and it is dropped (#682).
+    try {
+        if (typeof WimiTour !== 'undefined' && WimiTour.isOpen()) WimiTour.start('session-setup');
+    } catch (e) {
+        console.error('Tour failed to start:', e);
+    }
 }
 
 // =========================================================================
@@ -1115,9 +1165,9 @@ async function showEntryPicker(sessionId, entriesToRemove) {
                 <label class="entry-picker-item" data-entry-id="${entry.id}">
                     <input type="checkbox" value="${entry.id}" data-testid="session-entry-${entry.id}" onchange="updateEntryPickerCount()">
                     <div class="entry-picker-details">
-                        <div class="entry-picker-question-id">${escapeHtml(questionId)}</div>
-                        ${subjects ? `<div class="entry-picker-subjects">${escapeHtml(subjects)}</div>` : ''}
-                        ${notes ? `<div class="entry-picker-notes">${escapeHtml(notes.substring(0, 80))}</div>` : ''}
+                        <div class="entry-picker-question-id">${WimiEscape.html(questionId)}</div>
+                        ${subjects ? `<div class="entry-picker-subjects">${WimiEscape.html(subjects)}</div>` : ''}
+                        ${notes ? `<div class="entry-picker-notes">${WimiEscape.html(notes.substring(0, 80))}</div>` : ''}
                     </div>
                 </label>
             `;
@@ -1241,6 +1291,7 @@ async function initializeSessionSetup() {
     }
     
     SessionState.examContextId = parseInt(examId);
+    let initialized = false;
     
     try {
         await api.ready();
@@ -1271,6 +1322,7 @@ async function initializeSessionSetup() {
         initializeFormValidation();
         
         console.log('✅ Session setup page initialized');
+        initialized = true;
         
     } catch (error) {
         console.error('Error initializing session setup:', error);
@@ -1282,6 +1334,20 @@ async function initializeSessionSetup() {
         // permanently dead form on screen. A permanently gated page is a far
         // worse bug than the one this gate fixes (#114's own rule).
         markSessionSetupReady();
+
+        // The first-run tour (#430). AFTER the release: until then the form
+        // is `inert`, so a tour drawn over it could be neither reached nor
+        // read. Both loaders have resolved by now, so every target is painted.
+        // Not on a failed init, where the page is a toast over a half-filled
+        // form. Behind a typeof check and a try, and after the release rather
+        // than before it, so a broken tour can never leave the page gated.
+        if (initialized) {
+            try {
+                if (typeof WimiTour !== 'undefined') WimiTour.start('session-setup');
+            } catch (e) {
+                console.error('Tour failed to start:', e);
+            }
+        }
     }
 }
 

@@ -66,8 +66,11 @@ class TestPreferencesMigration:
         assert prefs.secondary_color_hex == '#FFC107'
         assert prefs.font_family == 'system'
         assert prefs.ui_density == 'comfortable'
-        assert prefs.manual_break_control is True
-        assert prefs.analytics_detail_level == 'detailed'
+        # #504: both became live, and a new profile keeps what every student
+        # saw while they were read by nothing -- the round-end break offer
+        # and the whole analytics page.
+        assert prefs.manual_break_control is False
+        assert prefs.analytics_detail_level == 'advanced'
         assert prefs.show_performance_trends is True
         assert prefs.show_mistake_patterns is True
         assert prefs.show_subject_breakdown is True

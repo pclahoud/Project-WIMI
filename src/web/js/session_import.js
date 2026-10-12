@@ -294,7 +294,7 @@ function renderFileInfo(analysis) {
 
     fileInfo.innerHTML = `
         <div class="import-file-info-header">
-            <div class="import-file-name">📄 ${escapeHtml(fileName)}</div>
+            <div class="import-file-name">📄 ${WimiEscape.html(fileName)}</div>
             <button type="button" class="btn btn-secondary btn-sm" id="btn-change-file">Change File</button>
         </div>
         <div class="import-file-stats">
@@ -311,7 +311,7 @@ function renderFileInfo(analysis) {
                 <div class="import-stat-label">Images</div>
             </div>
         </div>
-        ${analysis.session_metadata?.session_name ? `<div style="margin-top: var(--space-sm); font-size: var(--font-size-sm); color: var(--text-secondary);">Session: ${escapeHtml(analysis.session_metadata.session_name)}</div>` : ''}
+        ${analysis.session_metadata?.session_name ? `<div style="margin-top: var(--space-sm); font-size: var(--font-size-sm); color: var(--text-secondary);">Session: ${WimiEscape.html(analysis.session_metadata.session_name)}</div>` : ''}
     `;
 
     // Re-bind change file button
@@ -372,7 +372,7 @@ function renderMappingTable() {
 
         // Source field column
         const tdSource = document.createElement('td');
-        tdSource.innerHTML = `<span class="import-source-field">${escapeHtml(mapping.source)}</span>`;
+        tdSource.innerHTML = `<span class="import-source-field">${WimiEscape.html(mapping.source)}</span>`;
 
         // Show sample value
         if (ImportState.fileData?.sample_question) {
@@ -381,7 +381,7 @@ function renderMappingTable() {
                 const truncated = String(sampleVal).length > 80
                     ? String(sampleVal).substring(0, 80) + '...'
                     : String(sampleVal);
-                tdSource.innerHTML += `<div class="import-sample-value">${escapeHtml(truncated)}</div>`;
+                tdSource.innerHTML += `<div class="import-sample-value">${WimiEscape.html(truncated)}</div>`;
             }
         }
 
@@ -466,8 +466,8 @@ function renderSamplePreview() {
             : String(value);
         html += `
             <div class="import-entry-field">
-                <div class="import-entry-field-label">${escapeHtml(label)}</div>
-                <div class="import-entry-field-value">${escapeHtml(truncated)}</div>
+                <div class="import-entry-field-label">${WimiEscape.html(label)}</div>
+                <div class="import-entry-field-value">${WimiEscape.html(truncated)}</div>
             </div>
         `;
     }
@@ -591,7 +591,7 @@ async function loadImportSources() {
         let html = '<select id="import-source-id" class="import-target-select" style="width: 100%;">';
         html += '<option value="">-- Select Source --</option>';
         for (const src of sources) {
-            html += `<option value="${src.id}">${escapeHtml(src.source_name)}</option>`;
+            html += `<option value="${src.id}">${WimiEscape.html(src.source_name)}</option>`;
         }
         html += '</select>';
         container.innerHTML = html;
@@ -655,7 +655,7 @@ function renderPreview() {
     let tableHtml = '<table><thead><tr><th>Source</th><th>Target</th></tr></thead><tbody>';
     for (const m of activeMappings) {
         const targetLabel = TARGET_FIELDS.find(f => f.value === m.target)?.label || m.target;
-        tableHtml += `<tr><td>${escapeHtml(m.source)}</td><td>${escapeHtml(targetLabel)}${m.merge_order > 0 ? ` (merge #${m.merge_order})` : ''}</td></tr>`;
+        tableHtml += `<tr><td>${WimiEscape.html(m.source)}</td><td>${WimiEscape.html(targetLabel)}${m.merge_order > 0 ? ` (merge #${m.merge_order})` : ''}</td></tr>`;
     }
     tableHtml += '</tbody></table>';
     mappingPreview.innerHTML = tableHtml;
@@ -674,8 +674,8 @@ function renderPreview() {
                 : String(value);
             html += `
                 <div class="import-entry-field">
-                    <div class="import-entry-field-label">${escapeHtml(label)}</div>
-                    <div class="import-entry-field-value">${escapeHtml(truncated)}</div>
+                    <div class="import-entry-field-label">${WimiEscape.html(label)}</div>
+                    <div class="import-entry-field-value">${WimiEscape.html(truncated)}</div>
                 </div>
             `;
         }
@@ -743,7 +743,7 @@ async function executeImport() {
             <div class="import-results-icon">❌</div>
             <div class="import-results-title">Import Failed</div>
             <div class="import-results-errors">
-                <strong>Error:</strong> ${escapeHtml(err.message)}
+                <strong>Error:</strong> ${WimiEscape.html(err.message)}
             </div>
         `;
         updateNavButtons(5);
@@ -775,7 +775,7 @@ function renderResults(result) {
     if (result.errors && result.errors.length > 0) {
         html += `<div class="import-results-errors"><strong>Errors:</strong><ul>`;
         for (const err of result.errors) {
-            html += `<li>${escapeHtml(err)}</li>`;
+            html += `<li>${WimiEscape.html(err)}</li>`;
         }
         html += '</ul></div>';
     }
@@ -783,7 +783,7 @@ function renderResults(result) {
     if (result.warnings && result.warnings.length > 0) {
         html += `<div class="import-results-warnings"><strong>Warnings:</strong><ul>`;
         for (const w of result.warnings) {
-            html += `<li>${escapeHtml(w)}</li>`;
+            html += `<li>${WimiEscape.html(w)}</li>`;
         }
         html += '</ul></div>';
     }
@@ -933,12 +933,6 @@ async function doSaveProfile() {
 // Utility
 // =========================================================================
 
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
-}
 
 // =========================================================================
 // Event Binding

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dimensions, and questions with several axes - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/13_dimensions.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 7</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Dimensions, and questions with several axes</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_parent_context.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Choosing which parent an entry counts under</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_weights.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Weights: what a percentage means here</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Dimensions, and questions with several axes
+
+## In short
+
+Some exams classify the same question several independent ways at once: which organ system it is about, what the doctor is being asked to do, and where the patient is being seen. A dimension in WIMI is one of those axes, each with its own subject tree, and one question gets tagged in as many of them as apply. The axes describe the same pool of questions from different angles rather than dividing it between them, which is why their weights each run to roughly a hundred per cent on their own and why nothing in WIMI ever adds them together.
+
+## When you need them
+
+You choose between **Simple Exam** and **Multi-Dimensional Exam** on the
+wizard's first step, and only the second one offers dimensions. It is worth a
+minute's thought, because the wizard is where axes are made and there is no
+control for them anywhere else — not in Settings, not in the tree editor. You
+are not stuck with the first answer, though: reopening the exam in the wizard
+through **Edit** returns you to the same step, where an axis can be added or
+removed. The other route is importing a file that declares the whole exam's
+axes, which
+[Building your subject tree from a published outline](help_outline_to_tree.html)
+covers.
+
+The signal that you need several axes is in the exam's own published blueprint.
+If it gives you one table of content areas with percentages, you want a simple
+exam. If it gives you two or three tables that each describe the whole exam from
+a different angle, those tables are your dimensions. Shelf and board-style
+exams are the usual case.
+
+## What an axis is
+
+Each dimension has a name, a description, and **its own subject tree**. Nothing
+is shared between the trees. In the tree editor a multi-dimensional exam grows a
+row of tabs reading **Editing Dimension**, and switching tabs switches which
+tree you are looking at and editing. The Add Subject dialog says which
+dimension it is adding to, so you cannot put a subject in the wrong axis without
+being told.
+
+Two properties are recorded per axis when you define it, and the tree editor
+shows them as a badge beside the dimension's name:
+
+- **Required** says the exam expects every question to be classified on this axis.
+- **Allow multiple selections** says a question may legitimately be tagged with more than one subject from this axis.
+
+Be aware of what these two do not do today: **nothing on the entry form stops
+you saving an entry that skips a required axis, or that carries two subjects
+from an axis that does not allow it.** Five things are required to save an
+entry, and they are the same five on every exam. So treat Required as a note to
+yourself about what a complete tagging looks like, and expect to be the one who
+notices when an entry is short of it.
+
+## Subjects belong to one axis
+
+A subject lives in exactly one dimension, and that is the fact most of the rest
+follows from.
+
+- **Parent and child never cross axes.** A subject's parents are always in its own dimension. There is no way to file a System subject under a Task, and sharing a subject between two parents, which the chapter [Subjects that live in more than one place](help_shared_subjects.html) is about, happens inside one axis.
+- **The same name in two axes is two subjects.** If you have Cardiovascular on the System axis and Cardiovascular on some other axis, those are two unrelated rows with two sets of entries. Nothing links them, and renaming or deleting one does not touch the other.
+- **A subject that existed before its exam had axes belongs to none of them.** That happens if you filled in a tree and then imported a file that created the axes. Those earlier subjects are not moved into an axis, because nothing says which one they would belong to. They still work and they still carry their entries; they are simply outside every per-axis view, and an import preview counts them and says so rather than touching them.
+
+## Tagging one question on several axes
+
+There is no per-axis picker on the entry form, and you do not need one. You
+search for subjects in one box and the results come from every axis in the exam
+at once, each shown with the path above it in its own tree — which is what tells
+one tree's Cardiovascular from another's. Tag one subject from each axis and the
+entry is classified on all of them.
+
+The axes reappear where an entry's subjects are listed. In the entry browser each
+subject chip is labelled with the dimension it came from, so you can read off
+which axes an entry is classified on without opening it.
+
+This is the whole mechanism. An entry reaches an axis because one of the
+subjects you tagged it with lives in that axis. There is no second place to
+record it and nothing extra to fill in.
+
+## The axes overlap, and that is the point
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-step1-type-multi
+text: Several axes describe the same pool of questions from different angles
+  rather than dividing it between them, so each axis's weights run to about a
+  hundred per cent on its own. WIMI never adds them together, and there is no
+  combined figure anywhere in the app.
+-->
+
+Here is the idea to hold on to, because every surprising number about dimensions
+follows from it.
+
+Three axes on one exam are not three slices of the question pool. They are three
+complete descriptions of the same pool. Every question has an organ system, and
+a task, and a setting — so each axis accounts for the exam once over, by itself.
+
+Consequences, all of them intended:
+
+- **Each axis's weights run to about a hundred per cent on their own**, give or take whatever the published blueprint actually totals. That is correct. An axis that only summed to a third of the exam would mean two thirds of the questions were not on that axis at all.
+- **Adding the axes together is meaningless**, and WIMI never does it. There is no combined coverage figure anywhere in the app, in the tree editor or in an import preview, and its absence is deliberate rather than unfinished. A number produced by summing three overlapping descriptions of the same thing would be around three hundred per cent and would describe nothing.
+- **An entry count per axis cannot be added up either.** One entry tagged on the System axis and the Task axis is one entry, counted once on each. Three axes reporting four entries each may be four entries, not twelve.
+
+What weights mean, how a band of two numbers is handled, and why WIMI reports a
+blueprint's own total without ever correcting it, are the subject of the weights
+chapter.
+
+## Analytics that only exist here
+
+Having several axes is what makes a few questions askable that a single tree
+cannot answer. Rather than only "how am I doing on cardiology", you can ask how
+you do on cardiology *when the task is diagnosis*, which is a different and
+usually more actionable finding — one is a gap in what you know, the other a gap
+in what you do with it. The analytics dashboard has the surfaces for this on a
+multi-dimensional exam and hides them on a simple one, because with one axis
+there is nothing to cross.
+
+The honest caveat: those surfaces need entries in enough combinations before
+they say anything. Early on they will tell you there is not enough data yet,
+and that is the truthful answer rather than a failure.
+
+## Where to go next
+
+- [Your subject tree and its levels](help_subject_hierarchies.html) — each axis's tree is an ordinary tree, with its own level names.
+- [Subjects that live in more than one place](help_shared_subjects.html) — sharing inside one axis.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

@@ -301,19 +301,26 @@ def _quadrant_counts(user_db, exam_id):
             for s in result.get("subjects", [])}
 
 
-def test_weight_quadrant_is_not_affected_by_parent_context(user_db, world):
-    """The quadrant has NO §5.4 defect -- it does not roll up at all.
+def test_weight_quadrant_rolls_up_and_honours_parent_context(user_db, world):
+    """The quadrant rolls up now (#468), so it has joined the §5.4 set.
 
-    Its query joins ``sn.id = esm.subject_node_id`` and groups by
-    subject: direct counts per weighted node, no ancestor walk, no
-    reference to primary_parent_id. So the context cannot change its
-    output, and there is nothing here for the §5.4 conditional to fix.
+    Until #468 this test asserted the opposite: the quadrant counted only
+    entries tagged on the node itself, so a parent context could not change
+    it. That was also why a weighted parent whose entries sat on its topics
+    read 0% and was called well-balanced. The owner's decision (2026-10-07)
+    was to include children, through the same ``_aggregate_hierarchy_counts``
+    Top Subject uses -- which brings §5.4 with it:
 
-    The scoping doc originally listed this surface as broken. It is not.
-    Proven rather than reasoned: flip the context to the other parent and
-    assert the numbers are identical.
+    * ``entry_null`` (no context) reaches BOTH parents of hypertension;
+    * ``entry_ctx`` (pinned to Cardio) reaches Cardio only, and moves to
+      Pregnancy when the student re-pins it;
+    * hypertension itself counts both, whichever way they are pinned.
     """
     before = _quadrant_counts(user_db, world["exam_id"])
+    assert before["hypertension"] == 2
+    assert before["Cardio"] == 3, before      # own + ctx + null
+    assert before["Pregnancy"] == 2, before   # own + null
+
     user_db.execute(
         "UPDATE entry_subject_mappings SET primary_parent_id = ? "
         "WHERE question_entry_id = ? AND subject_node_id = ?",
@@ -322,15 +329,10 @@ def test_weight_quadrant_is_not_affected_by_parent_context(user_db, world):
     user_db.conn.commit()
     after = _quadrant_counts(user_db, world["exam_id"])
 
-    assert before == after, (
-        f"Flipping primary_parent_id changed the quadrant: {before} -> "
-        f"{after}. If that is now intended, this surface has joined the "
-        "§5.4 set and needs a real characterisation."
-    )
-    assert before["hypertension"] == 2, (
-        "Both entries are hypertension mistakes and both should count "
-        "against hypertension -- there is no double-counting here."
-    )
+    assert after["hypertension"] == 2, (
+        "re-pinning moves an entry between parents, never off the subject")
+    assert (after["Cardio"], after["Pregnancy"]) == (2, 3), (
+        f"re-pinning entry_ctx to Pregnancy should move it there: {after}")
 
 
 def test_weight_quadrant_and_top_subjects_agree_on_secondary_tags(

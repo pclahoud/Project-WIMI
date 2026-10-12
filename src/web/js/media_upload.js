@@ -537,10 +537,10 @@ class MediaUpload {
             const dimensionSelectorHtml = this.isMultiDimensional && this.dimensions.length > 0
                 ? `<div class="thumbnail-dimension" style="margin-top: 4px;">
                        <select class="dimension-select" data-media-id="${item.id}"
-                               style="width: 100%; padding: 2px 4px; font-size: 0.7rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary);">
+                               style="width: 100%; padding: 2px 4px; font-size: var(--font-size-xs); border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary);">
                            <option value="">No dimension</option>
                            ${this.dimensions.map(d =>
-                               `<option value="${d.id}" ${item.dimension_id === d.id ? 'selected' : ''}>${d.name}</option>`
+                               `<option value="${WimiEscape.attr(d.id)}" ${item.dimension_id === d.id ? 'selected' : ''}>${WimiEscape.html(d.name)}</option>`
                            ).join('')}
                        </select>
                    </div>`
@@ -549,15 +549,16 @@ class MediaUpload {
             // Build subject chips HTML
             const subjectChipsHtml = this.buildSubjectChipsHtml(item);
 
+            const fileName = item.user_filename || item.original_filename;
             const thumbnailHtml = `
                 <div class="thumbnail-image-container">
-                    <img src="${item.thumbnail_url}" alt="${item.user_filename || item.original_filename}"
+                    <img src="${WimiEscape.attr(item.thumbnail_url)}" alt="${WimiEscape.attr(fileName)}"
                          style="max-width: 100%; max-height: 100%; object-fit: contain;"
                          loading="lazy" draggable="false">
                 </div>
                 <div class="thumbnail-info">
-                    <span class="thumbnail-name" title="${item.user_filename || item.original_filename}">
-                        ${this.truncateFilename(item.user_filename || item.original_filename)}
+                    <span class="thumbnail-name" title="${WimiEscape.attr(fileName)}">
+                        ${WimiEscape.html(this.truncateFilename(fileName))}
                     </span>
                     ${subjectChipsHtml}
                     ${dimensionSelectorHtml}
@@ -587,7 +588,8 @@ class MediaUpload {
                     </button>
                     <button type="button" class="thumb-action-btn thumb-delete" title="Delete"
                             aria-label="Delete"
-                            data-testid="entry-form-media-thumbnail-${item.id}-delete-button">
+                            data-testid="entry-form-media-thumbnail-${item.id}-delete-button"
+                            data-tour-anchor="entry-form-media-thumbnail-delete">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -645,14 +647,14 @@ class MediaUpload {
     buildSubjectChipsHtml(mediaItem) {
         const linkedIds = mediaItem.linked_subject_ids || [];
         if (linkedIds.length === 0) {
-            return '<div class="thumbnail-subjects" style="margin-top: 4px;"><span style="font-size: 0.65rem; color: var(--color-error);">No subjects assigned</span></div>';
+            return '<div class="thumbnail-subjects" style="margin-top: 4px;"><span style="font-size: var(--font-size-xs); color: var(--color-error);">No subjects assigned</span></div>';
         }
 
         // Look up subject names from entrySubjects
         const chips = linkedIds.map(id => {
             const subject = this.entrySubjects.find(s => s.id === id);
             const name = subject ? subject.name : `Subject #${id}`;
-            return `<span class="thumbnail-subject-chip" title="${name}">${this.truncateFilename(name, 12)}</span>`;
+            return `<span class="thumbnail-subject-chip" title="${WimiEscape.attr(name)}">${WimiEscape.html(this.truncateFilename(name, 12))}</span>`;
         });
 
         return `<div class="thumbnail-subjects">${chips.join('')}</div>`;
@@ -806,7 +808,26 @@ class MediaUpload {
         if (!this.currentDeleteItem) return;
 
         try {
-            const result = await this.callApi('removeMediaFromEntry', this.currentDeleteItem.id);
+            // SCOPED TO THIS ENTRY (#460). The older `removeMediaFromEntry`
+            // slot takes a media id and nothing else, and its query is
+            // `UPDATE entry_media_mapping SET is_active = 0 WHERE media_id = ?`
+            // -- no entry predicate -- so pressing "Remove from Entry" on an
+            // image used by several entries removed it from ALL of them, while
+            // the hint beside the button promised it stayed available for
+            // reuse. `detachMediaFromEntry` takes the entry id and was already
+            // written, exposed on the bridge and wrapped in `api/media.js`;
+            // nothing had ever called it.
+            //
+            // With no entry id there is nothing to detach from: media is only
+            // mapped to an entry once that entry exists (see the attach call in
+            // `attachPendingMedia`), so a pending image is removed locally and
+            // never reached the database in the first place.
+            let result = { success: true };
+            if (this.entryId) {
+                result = await this.callApi(
+                    'detachMediaFromEntry', this.currentDeleteItem.id, this.entryId
+                );
+            }
 
             if (result.success) {
                 // Remove from local array
@@ -867,13 +888,17 @@ class MediaUpload {
         this.subjectAssignmentCallback = onSave;
 
         // Show image preview
-        this.subjectPreview.innerHTML = `
-            <img src="${mediaItem.thumbnail_url}" alt="${mediaItem.user_filename || mediaItem.original_filename}"
-                 style="max-width: 150px; max-height: 100px; object-fit: contain; border-radius: 4px;">
-            <span style="margin-top: 4px; font-size: 0.75rem; color: var(--text-muted);">
-                ${mediaItem.user_filename || mediaItem.original_filename}
-            </span>
-        `;
+        // Built from nodes: the file name is the student's, and there is
+        // nothing else in this preview worth a template (#548).
+        const previewName = mediaItem.user_filename || mediaItem.original_filename || '';
+        const previewImg = document.createElement('img');
+        previewImg.src = mediaItem.thumbnail_url || '';
+        previewImg.alt = previewName;
+        previewImg.style.cssText = 'max-width: 150px; max-height: 100px; object-fit: contain; border-radius: 4px;';
+        const previewCaption = document.createElement('span');
+        previewCaption.style.cssText = 'margin-top: 4px; font-size: 0.75rem; color: var(--text-muted);';
+        previewCaption.textContent = previewName;
+        this.subjectPreview.replaceChildren(previewImg, previewCaption);
 
         // Group subjects by dimension
         const subjectsByDimension = this.groupSubjectsByDimension(this.entrySubjects);
@@ -893,15 +918,15 @@ class MediaUpload {
         } else {
             for (const [dimensionName, subjects] of Object.entries(subjectsByDimension)) {
                 listHtml += `<div class="media-subject-dimension">
-                    <div class="media-subject-dimension-header">${dimensionName}</div>
+                    <div class="media-subject-dimension-header">${WimiEscape.html(dimensionName)}</div>
                     <div class="media-subject-checkboxes">`;
 
                 for (const subject of subjects) {
                     const isChecked = currentLinkedIds.includes(subject.id);
                     listHtml += `
                         <label class="media-subject-checkbox">
-                            <input type="checkbox" value="${subject.id}" ${isChecked ? 'checked' : ''}>
-                            <span class="media-subject-name">${subject.name}</span>
+                            <input type="checkbox" value="${WimiEscape.attr(subject.id)}" ${isChecked ? 'checked' : ''}>
+                            <span class="media-subject-name">${WimiEscape.html(subject.name)}</span>
                         </label>
                     `;
                 }

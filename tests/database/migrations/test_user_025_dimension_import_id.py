@@ -67,12 +67,7 @@ def test_registry_has_v25_in_order():
     # into real databases by the paused AI-capture branch (#145).
     for skipped in (8, 11, 12, 13, 14):
         assert skipped not in versions
-    # A snapshot claim, held by whichever migration is newest, and by exactly
-    # one file at a time. m026 will make this fail, and the fix is to MOVE the
-    # line into m026's test, not to loosen it -- it is the one assertion in
-    # the suite that notices a migration arriving with nothing else updated.
-    # It has now been carried m023 -> m024 -> here.
-    assert max(versions) == 25
+    # The "newest migration" snapshot moved to m026's test when m026 shipped.
 
 
 def test_it_adds_the_column(fresh_conn):

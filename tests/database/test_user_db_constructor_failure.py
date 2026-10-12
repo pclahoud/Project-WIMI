@@ -73,14 +73,16 @@ def _failing_registry(real_registry):
     and ``preflight_schema`` intercepts the two real hard failures before
     any open happens.
 
-    v26 is pending on every database — CLAUDE.md reserves 26 and up for
-    exactly this reason, m025 being the highest shipped.
+    The next version after the newest shipped one is pending on every
+    database. It is computed rather than written down: this said v26
+    until m026 shipped and made the registry refuse a duplicate.
     """
     def explode(conn):
         raise sqlite3.OperationalError("deliberate failure from the test")
 
     return list(real_registry) + [
-        Migration(version=26, name="deliberate_failure", upgrade_fn=explode)
+        Migration(version=max(m.version for m in real_registry) + 1,
+                  name="deliberate_failure", upgrade_fn=explode)
     ]
 
 
@@ -270,7 +272,11 @@ def test_the_caller_still_sees_the_original_failure(
     with pytest.raises(MigrationFailedError) as excinfo:
         UserDatabase(db_path=db_path, user_id=user.id, username=user.username)
 
-    assert "026" in str(excinfo.value)
+    # The fixture has already patched the deliberate failure into the
+    # registry, so it is the newest entry there.
+    from database.migrations.user import MIGRATIONS
+    failing = max(m.version for m in MIGRATIONS)
+    assert f"{failing:03d}" in str(excinfo.value)
     assert "deliberate_failure" in str(excinfo.value)
 
 

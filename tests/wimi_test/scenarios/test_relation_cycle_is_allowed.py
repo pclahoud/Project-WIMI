@@ -125,7 +125,10 @@ def test_a_cycle_between_two_subjects_is_accepted_and_both_render(
         f'The second half of the cycle did not render: {rows!r}'
     )
     assert {row['direction'] for row in rows} == {'outgoing', 'incoming'}
-    assert {row['label'] for row in rows} == {'Leads to', 'Caused by'}
+    # The seeded half is untyped and still reads "Caused by" here; the half
+    # written through the modal takes its first relation type, "causes"
+    # (m026). Both labels are therefore expected, from different rows.
+    assert {row['label'] for row in rows} == {'Causes', 'Caused by'}
     assert {row['subject'] for row in rows} == {'CY Hypertension'}
 
     # Two rows in the database, and the panel on the *other* subject sees

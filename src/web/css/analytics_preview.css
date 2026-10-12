@@ -132,8 +132,6 @@
     display: block;
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin-bottom: var(--space-xs);
     font-weight: var(--font-weight-medium);
 }
@@ -180,13 +178,7 @@
     margin-top: var(--space-xs);
 }
 
-.preview-stat-trend.positive {
-    color: var(--color-success-text);
-}
-
-.preview-stat-trend.negative {
-    color: var(--color-error-text);
-}
+/* No .positive / .negative: neutral, as on the analytics dashboard (#470). */
 
 .preview-stat-streak-icon {
     margin-right: 0.125rem;

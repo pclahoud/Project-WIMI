@@ -18,9 +18,19 @@ Publishing refuses to run without it.
 
 Usage:
     python scripts/publish_release.py [-m "commit message"] [--dry-run]
+    python scripts/publish_release.py --tag            # vAPP_VERSION
+    python scripts/publish_release.py --tag v0.2.0     # must match APP_VERSION
 
---dry-run performs the PII scan and reports what would be published without
-committing or pushing anything.
+--dry-run performs the PII scan and reports what would be published -- and
+what it would tag -- without committing or pushing anything.
+
+A RELEASE TAG MUST AGREE WITH ``APP_VERSION`` (#425). `--tag` with no value
+derives the tag from it; an explicit value that disagrees is refused before
+anything is built or pushed. Nothing connected the two until this, so
+``--tag v0.2.0`` would have published binaries reporting ``0.1.1-beta`` with
+no gate objecting -- and `v0.1.0-beta` already shipped under the MIT
+declaration that #195 replaced, so two artifacts could claim one version
+under different licences. There is no override: bump ``APP_VERSION``.
 """
 
 import argparse
@@ -28,6 +38,11 @@ import datetime
 import subprocess
 import sys
 from pathlib import Path
+
+# The one build-time APP_VERSION reader (see `app_version` below). Imported as
+# a module rather than a name so the indirection is visible at the call site.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import stage_license_files  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DENYLIST = REPO_ROOT / ".publish_denylist.txt"
@@ -82,6 +97,18 @@ EXCLUDE_PREFIXES = (
     "tests/database/test_graph_phase1.py",
     "tests/database/test_graph_read_switchover.py",
     "tests/database/test_graph_shadow_reads.py",
+    # NOTHING HERE FOR #437 ANY MORE, DELIBERATELY. Eight entries used to sit
+    # below this line: a verbatim copy of NBME/FSMB's published USMLE Content
+    # Outline, the parser written for that one document, that parser's test,
+    # and the five test files thought to invoke it. They are gone because the
+    # document is gone -- `tests/fixtures/exam_outline.json` is synthetic, so
+    # there is nothing left to withhold, and the published suite covers
+    # polyhierarchy rollups, STT priming and the folder-sync round trip again.
+    # One of those five (`tests/app/test_stt_priming.py`) never invoked the
+    # fixture at all; it was classified by a grep that matched a docstring.
+    # If a third party's document is ever added to a published directory
+    # again, this is where it would have to be named -- but excluding tests is
+    # the expensive way to fix it, and replacing the document is the cheap one.
 )
 
 PUBLIC_NAME = "pclahoud"
@@ -116,6 +143,89 @@ def preflight():
         )
     print(f"Publishing {SOURCE_BRANCH} -> {REMOTE}/{REMOTE_BRANCH} "
           f"({remote.stdout.strip()})")
+
+
+#: `--tag` with no value means "derive it from APP_VERSION".
+DERIVE_TAG = "<derive>"
+
+
+def app_version():
+    """APP_VERSION, through the one build-time reader, with a strict policy.
+
+    THE PARSER IS NOT DUPLICATED HERE ON PURPOSE. There are already two ways
+    to get this value and they differ by mechanism, legitimately:
+
+      * `app.profile_archive._app_version()` imports the constant. In-process,
+        Qt available.
+      * `scripts.stage_license_files._app_version()` parses
+        `src/app/__init__.py`, because a build has no Qt and no app on the
+        path.
+
+    A publish is the second case, so it reuses that reader rather than adding
+    a third copy of the same six lines. A first draft of this function did add
+    one, which is the duplication #588 is about -- two readers of one file
+    that can disagree after somebody changes the format.
+
+    What differs is the POLICY, not the parsing: the stager degrades to the
+    string "unknown" because a notices document with a vague version still
+    conveys the licence, while a release tagged `vunknown` -- or, worse, a tag
+    silently *agreeing* because both sides read "unknown" -- is worse than
+    not publishing. So that sentinel is the contract between them, and this
+    refuses on it.
+    """
+    version = stage_license_files._app_version()
+    if version == "unknown":
+        sys.exit(
+            "Could not read APP_VERSION from src/app/__init__.py.\n"
+            "A release tag is derived from it, so publishing cannot continue\n"
+            "without knowing what version this tree calls itself.\n"
+            "(scripts/stage_license_files.py is the one reader; check that the\n"
+            "assignment still begins the line.)"
+        )
+    return version
+
+
+def resolve_tag(requested):
+    """The tag to create, refusing anything APP_VERSION does not back (#425).
+
+    `v0.1.0-beta` was published under the MIT declaration and WIMI is now
+    GPL-3.0, so two artifacts could call themselves one version under
+    different licences -- which is the inverse of what #272's conveyance work
+    is for. Nothing connected a tag to the version until this: `--tag v0.2.0`
+    would have published binaries reporting `0.1.1-beta` and no gate anywhere
+    would have noticed.
+
+    `--tag` with no value derives the tag, so there is nothing to get wrong.
+    An explicit value is still accepted -- muscle memory, and it reads better
+    in a release checklist -- but it has to agree.
+
+    There is deliberately NO override flag. The escape hatch is to bump
+    APP_VERSION, which is the thing you wanted if the tag is ahead; a flag
+    would let the two diverge exactly when somebody is in a hurry, which is
+    when this matters most. Same reasoning as the denylist having no
+    allowlist.
+    """
+    if requested is None:
+        return None
+    expected = f"v{app_version()}"
+    if requested == DERIVE_TAG:
+        print(f"Tag derived from APP_VERSION: {expected}")
+        return expected
+    if requested != expected:
+        sys.exit(
+            f"Refusing to publish: the tag and APP_VERSION disagree.\n"
+            f"  --tag        {requested}\n"
+            f"  APP_VERSION  {app_version()}  (expects the tag {expected})\n"
+            "\n"
+            "A tagged release must report the version it is tagged as, or a\n"
+            "recipient cannot tell two artifacts of the same name apart --\n"
+            "which already happened once: v0.1.0-beta shipped under MIT and\n"
+            "WIMI is now GPL-3.0 (#425, #195).\n"
+            "\n"
+            "Either bump APP_VERSION in src/app/__init__.py to match the tag\n"
+            f"you want, or pass `--tag` with no value to use {expected}."
+        )
+    return requested
 
 
 def load_denylist():
@@ -211,6 +321,17 @@ def public_env():
     return env
 
 
+def _report_tag(tag):
+    """What a dry run would tag, since it returns before the tag is created.
+
+    Without this a `--dry-run --tag` rehearsal said nothing about the tag at
+    all -- so the one command meant for rehearsing a release was silent about
+    the part #425 is concerned with.
+    """
+    if tag:
+        print(f"Would tag the published snapshot as {tag}.")
+
+
 def publish(source_tree, message, dry_run, tag=None):
     public_head = git("rev-parse", PUBLIC_BRANCH).stdout.strip()
     public_tree = git("rev-parse", f"{PUBLIC_BRANCH}^{{tree}}").stdout.strip()
@@ -223,6 +344,7 @@ def publish(source_tree, message, dry_run, tag=None):
         if dry_run:
             diff = git("diff", "--stat", public_tree, source_tree)
             print(f"Would publish these changes:\n{diff.stdout}")
+            _report_tag(tag)
             print("Dry run -- no commit created, nothing pushed.")
             return
         new_head = git(
@@ -233,6 +355,7 @@ def publish(source_tree, message, dry_run, tag=None):
         print(f"Created {PUBLIC_BRANCH} commit {new_head[:9]}: {message}")
 
     if dry_run:
+        _report_tag(tag)
         print("Dry run -- nothing pushed.")
         return
     git("push", REMOTE, f"{PUBLIC_BRANCH}:{REMOTE_BRANCH}")
@@ -258,11 +381,19 @@ def main():
         help="scan and report only; do not commit or push",
     )
     parser.add_argument(
-        "--tag", metavar="NAME",
+        "--tag", metavar="NAME", nargs="?", const=DERIVE_TAG, default=None,
         help="also create an annotated tag on the published snapshot "
-             "(under the public identity) and push it",
+             "(under the public identity) and push it. With no value the tag "
+             "is derived from APP_VERSION; an explicit value must agree with "
+             "it (#425)",
     )
     args = parser.parse_args()
+
+    # Resolved FIRST, before the tree is built or anything is pushed. The tag
+    # is created after the push, so a mismatch found there would leave the
+    # snapshot already public with no tag -- a half-done release is worse than
+    # a refused one.
+    tag = resolve_tag(args.tag)
 
     preflight()
     patterns = load_denylist()
@@ -271,7 +402,7 @@ def main():
         prefixes = ", ".join(EXCLUDE_PREFIXES)
         print(f"Excluded {len(removed)} path(s) under: {prefixes}")
     scan(patterns, source_tree)
-    publish(source_tree, args.message, args.dry_run, args.tag)
+    publish(source_tree, args.message, args.dry_run, tag)
 
 
 if __name__ == "__main__":

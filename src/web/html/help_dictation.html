@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking instead of typing - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/61_dictation.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 21</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Speaking instead of typing</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_changing_your_tree.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Changing your tree later</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_archive_and_restore.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Archiving a subject, and getting it back</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Speaking instead of typing
+
+## In short
+
+The two written fields on the entry form each carry a Speak button, and what you say is turned into text by a program running on your own computer. Nothing is uploaded and nothing is sent anywhere, at any point. The cost of that is a one-off download of about 190 MB of speech model, which happens per computer rather than per profile, and the limits that come with running on a laptop instead of a data centre: English only, and a recogniser that gets most technical terms right rather than all of them.
+
+## What this is for
+
+The premise of WIMI is that you write down why you missed a question, in your
+own words, while you still remember — which is
+[Why WIMI asks for a reason](help_the_premise.html). The honest obstacle to
+that is typing. Explaining a mechanism out loud takes fifteen seconds and
+typing it takes ninety, and at eleven at night the difference decides whether
+the sentence gets written at all.
+
+So dictation is an alternative to typing and never a requirement. Both fields
+work exactly as they always did; nothing about speech ever disables them, and
+if every part of it is broken on your machine you type as if the feature did
+not exist.
+
+## Where it is
+
+On the entry form, under each of the two written fields:
+
+- under **Why did you get this wrong?**
+- under **Why is the correct answer correct?**
+
+Each one is a quiet row with a dot, a label, a level meter, and a line of text
+under it that explains whatever the current situation is. The label is what
+tells you what pressing it will do, and it changes: **Speak** when everything
+is ready, **Download and speak** when the model is not on this computer yet,
+**Stop** while it is recording, **Transcribing…** while it is working out what
+you said.
+
+Everything else about speech lives in **Settings**, under **Speech to Text**.
+
+## It runs on this computer
+
+<!-- tour
+page: entry-form
+anchor: dictation-reflection-button
+text: What you say is turned into text by a program on this computer, and the
+  recording is deleted once it has been read; nothing is uploaded. The first
+  press may offer a one-time download of about 190 MB, and only one of the two
+  fields can record at a time.
+-->
+
+This is the part worth being unambiguous about, because every other voice
+feature you have used works the other way.
+
+There is no account, no service and no network call at the moment you speak.
+WIMI ships a small speech program inside the application itself, and the model
+it needs is a file on your disk. Your voice is recorded, written to a temporary
+file, read by that program, turned into text, and the recording is deleted.
+The app says so itself in several places, and the strongest version is the one
+in Settings: the recording, the recognition and the text all happen on this
+computer, and your voice is never uploaded anywhere, at any point.
+
+One detail that follows from it and is worth knowing: the recording is written
+to your system's temporary folder rather than into WIMI's own data folder, on
+purpose, so a recording of your voice does not accumulate anywhere a backup
+tool would sweep it up.
+
+## The one-off download
+
+WIMI ships the speech *program* and not the speech *model*. The model is the
+part that does the recognising, it is about 190 MB, and it is downloaded once.
+
+The first time you press the button it reads **Download and speak**, and the
+line underneath says what that costs: about 190 MB, once, and after that it
+works offline and your audio never leaves this computer. Pressing it starts the
+download and then records. Beside it, **Download only** fetches the model and
+stops there, which is the one to use on a train.
+
+**There is no confirmation dialog, deliberately.** The button says what pressing
+it will do and the line beneath says what it costs, which is the same
+information a dialog would carry with one fewer thing in the way. While it runs
+the label reads **Downloading…**, the line counts the megabytes, and **Cancel**
+stops it and keeps nothing — you can start again whenever you like.
+
+You can also do it in advance, from Settings, Speech to Text, where the model
+section has its own **Download** button and a progress line in megabytes and
+per cent.
+
+The file is checked after it arrives, against both an expected size and an
+expected fingerprint. A file that does not match is not used, and WIMI says
+the file on this computer does not match what it should be and offers to
+download it again.
+
+## The download and the microphone are per computer, not per profile
+
+Two of the four speech settings travel with your profile and two do not, and
+the split is not arbitrary.
+
+- **Which model to use, and which microphone to record from, stay on this computer.** Both name something that only exists here. The microphone identifier names a piece of hardware plugged in to this machine; on another machine it selects nothing. And the model size names a weights file in this machine's own data folder — so if that choice travelled, a profile carried to a laptop that had only ever downloaded the smaller model would be asking for a file that is not there.
+- **Whether to prime the recogniser is a stated preference, so it travels.** It is a judgement about how you want recognition to behave, and it denotes no machine.
+
+The practical consequence: **set up speech once per computer.** A profile you
+carry to a second machine arrives with no model downloaded and no microphone
+chosen there, and that is correct rather than a lost setting. The chapters on
+profiles and moving data between machines go into what does and does not travel
+in general.
+
+Changing model keeps the old one, so changing back costs nothing — and models
+accumulate at roughly 190 MB each. Settings lists what is installed under
+**On this computer**, with a **Remove** button against each, and warns you if
+you are about to remove the one speech is set to use.
+
+## Choosing a model
+
+The dropdown in Settings opens on **Recommended**, and under it lists nine
+models, smallest first, each labelled with its size in megabytes and whether it
+is downloaded. Taking the recommendation is the right answer unless you have a
+reason not to.
+
+What a bigger model buys is measured rather than assumed, and the figures are
+printed on the page. On this project's own corpus:
+
+- the **recommended** model recognised **84%** of the technical terms, at about half of real time, and is 190 MB;
+- the next size up managed **85%**, for 488 MB;
+- a smaller one managed **75%**, for 148 MB.
+
+Read that honestly: the gap between the recommended model and the biggest one
+offered is one percentage point, for two and a half times the download. The
+useful lever is not model size — it is priming, which has its own section
+below.
+
+## Recording
+
+Press the button, speak, press **Stop**. While you are recording the dot turns
+red and the meter beside it moves with your voice.
+
+**The meter is not decoration.** It is the one thing that can tell you, before
+you have wasted a sentence, that the microphone is muted or that WIMI is
+listening to the wrong one. If it stays flat for three seconds while you are
+talking, the line underneath says so in as many words: WIMI is not hearing
+anything, the meter has been flat, which usually means the microphone is muted
+or the wrong one is selected.
+
+Then the label reads **Transcribing…**, and a few seconds later the text appears
+in the field.
+
+Two things about that wait:
+
+- **Nothing is transcribed until you press Stop, and there is no running transcript.** The whole recording is processed in one go afterwards. The only thing that is live is the meter. A progress figure during transcription would be invented, because the speech program reports nothing at all until it is finished.
+- **One recording at a time, across both fields.** Start one in the reflection field and the explanation field's button goes quiet and says so: WIMI is still working on the other field, and the button comes back when that transcript arrives.
+
+A recording that takes more than two minutes to transcribe is stopped, and WIMI
+says a shorter recording usually goes through and that the audio has been
+discarded. Speaking in a few short passes rather than one long one is the
+practical answer.
+
+## Where the text lands
+
+**At your cursor, and it never replaces anything.** The position is remembered
+when you start recording, so you can speak, type, move the cursor back and
+speak again, and each transcript goes where the cursor was when you pressed the
+button.
+
+Two consequences worth having:
+
+- **Ctrl+Z removes a transcript you did not want**, in one step, like any other edit. The text is inserted as an ordinary editing action.
+- **If you have not clicked into the field at all, the text goes to the end of it.** That is deliberate: an untouched editor's cursor is at the very start, and prepending a dictated sentence to a paragraph you had already written would be the wrong guess.
+
+The transcript is inserted as plain text, spaced sensibly against whatever is
+already there, and the line underneath confirms it: *Added what you said. Edit
+it like any other text — Ctrl+Z removes it.* It counts as an edit for every
+other purpose too, so the autosave picks it up and the Save button's
+requirements notice it.
+
+Occasionally a transcript arrives too late to be useful — you moved to another
+entry, or rewrote the field while it was being processed. WIMI discards it
+rather than writing it over your work, and says which of those happened.
+
+## Priming, and why it matters more than model size
+
+This is the setting that is actually worth understanding.
+
+Before each recording WIMI builds a short piece of prose from the subjects on
+the entry you are writing — their names, your aliases for them, their parents
+and their siblings — and hands it to the recogniser as a hint about the words to
+expect. Settings calls it **Prime the recogniser with my own subject names**,
+and it is on by default.
+
+It is the difference between hearing a drug name or an eponym correctly and
+getting something that sounds like it. The measurement that settled the shape
+of it used the word "WIMI" itself: with no hint the recogniser produced
+"Winnie" every time; with a bare list of terms it produced "Wimmy" every time;
+with the terms wrapped in a sentence saying that a student is explaining an exam
+question out loud, it produced "WIMI" every time.
+
+Two things follow:
+
+- **It works best when your entry is already tagged.** Tag the subjects first, then dictate, and the recogniser is primed with exactly the vocabulary you are about to use. With nothing tagged, WIMI falls back to the subjects you have most often got wrong on that exam, which is a reasonable guess and a weaker one.
+- **Turn it off only for the specific symptom it causes.** The help text says so: turn it off only if it is putting words into your transcripts that you did not say. A hint about expected vocabulary can, occasionally, be taken too seriously.
+
+## What to expect, stated plainly
+
+- **English only.** There is no language setting, and the recommended model is an English-only one. Some of the other models in the dropdown are multilingual, but WIMI asks them for English regardless, so choosing one does not buy you another language.
+- **Most technical terms, not all of them.** 84% term recall is what the recommended model measured. Drug generics and eponyms are the ones that break, and ten different configurations were tried before accepting that better than this is not available from a model that fits inside a desktop application.
+- **Punctuation is whatever the recogniser produced.** WIMI does not add it, normalise it or tidy it. What you get is the program's own output with nothing done to it.
+- **Nothing corrects the transcript against your subject tree afterwards.** Priming is a hint given *before* recognition; checking the finished text against your own subject names would be a different feature and is not built.
+- **Read it before you save.** It is going into a required field that your future self will read, so the thirty seconds you saved typing is worth five of them checking.
+
+## When it does not work
+
+The line under the button is the whole diagnostic, and it is written to tell you
+what to do rather than what went wrong. The button stays on screen either way —
+visible, disabled, with the explanation beneath it — because a control that
+disappears tells you nothing about why.
+
+The ones you are likely to meet:
+
+- **No microphone found.** Plug one in or connect a headset; WIMI notices without a reload. The field still works by typing in the meantime.
+- **WIMI does not have microphone access.** Your operating system is refusing, and it has to be changed there rather than in WIMI. The message names the exact place: on macOS, System Settings, then Privacy and Security, then Microphone; on Windows, Settings, then Privacy and security, then Microphone, including the separate switch that lets desktop applications use it. On macOS the message also tells you the system will not ask again, which is why there is nothing to press in WIMI.
+- **Your microphone is in use by another app.** A video call is the usual one. Close it and press **Try again**.
+- **WIMI heard nothing.** Nothing above silence reached the microphone, so there was nothing to transcribe. Check that the right microphone is selected in Settings and that it is not muted. This one is a real protection rather than a nuisance: three seconds of digital silence does not transcribe to nothing, it transcribes to a word, and putting an invented word into a required field would be worse than refusing.
+
+Notice which of those offer you a button. **Try again** appears only where
+trying again can actually work. A missing microphone and a refused permission
+offer nothing to press, and their messages do not suggest pressing anything,
+because a retry button that cannot work is worse than no button at all.
+
+Settings, Speech to Text has a **Status** block that answers the same questions
+before you are mid-entry: whether the speech engine is present, whether the
+model is downloaded, and how many microphones were found and which one is
+selected. **Check again** re-reads all three.
+
+## Where to go next
+
+- [Logging a mistake](help_logging_a_mistake.html) — the form these two fields live on, and what else is on it.
+- [Why WIMI asks for a reason](help_the_premise.html) — what to put in the field you are speaking into.
+- [Error types: naming the mistake](help_error_types.html) — the tags beside it, and why they are optional.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

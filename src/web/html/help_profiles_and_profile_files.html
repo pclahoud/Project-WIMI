@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profiles, and carrying one to another computer - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/70_profiles_and_profile_files.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 23</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Profiles, and carrying one to another computer</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_archive_and_restore.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Archiving a subject, and getting it back</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_folder_sync.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Keeping one profile on two computers</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Profiles, and carrying one to another computer
+
+## In short
+
+A profile is one student's whole WIMI: their exams, subjects, sessions, entries, images and settings, sharing nothing with any other profile on the same computer. One machine can hold several, and the picker is the only way between them. A profile travels as a portable file with a .wimi extension, which you export from one computer and import on another. What travels in that file is everything about you; what stays behind is everything that was about the machine.
+
+## What a profile is
+
+Everything you create in WIMI belongs to exactly one profile. Not to the app
+and not to the computer: to the profile. Two profiles on one machine share
+nothing at all — no exams, no subjects, no entries, no error types, no goals,
+no theme.
+
+That makes a profile the right unit for a few real situations:
+
+- **Two people, one computer.** A shared laptop in a house with two students in it.
+- **Two exams you do not want mixed.** Possible in one profile, since a profile holds many exams — but if you want the dashboard and the study streak to be about one of them, two profiles is the cleaner answer.
+- **A scratch profile.** Somewhere to try an import, a tree rework or a theme without touching the work you care about.
+
+It is also the unit WIMI moves between computers. A *subject tree* can be
+exported and imported on its own — that is
+[Changing your tree later](help_changing_your_tree.html) — but there is no way
+to send just an exam's entries, or just some of them. **Your written work
+travels as a whole profile or not at all.**
+
+## Several profiles on one computer
+
+The picker is the screen headed **Who's studying?**, under the line *Choose a
+profile to open, or create a new one*. It is both the first screen of a fresh
+installation and the way between profiles afterwards. Each profile is a card;
+clicking a card opens it.
+
+From anywhere inside WIMI you reach the picker through
+**Settings → Profile → Switch profile…**.
+
+Creating one is covered in [Your first hour](help_the_first_hour.html), and the
+thing worth repeating is that **creating a profile does not open it**. The
+picker stays where it is and the new card appears; you click the card to go in.
+
+A card shows the display name, the username beneath it, and when the profile
+was last opened — or **Never opened**, for one you made and have not been into.
+The profile you are currently in is badged **Currently open**.
+
+The **⋮** button on a card opens its actions — three on most cards, two on the
+profile you are in, because Delete is not offered there at all.
+
+- **Rename** changes the display name — the words on the card. It opens a small dialog that says so: the username stays the same. That is not a limitation worth fighting; the username is baked into the names of the files holding your profile, so it is fixed at creation.
+- **Export…** writes that profile out as a file, which is what most of this chapter is about.
+- **Delete** is covered below, and it is less final than it sounds.
+
+## Which profile opens at startup
+
+**Always ask at startup** is a tick box at the foot of the picker. With it on,
+WIMI always opens on the picker. With it off — the default — WIMI tries to go
+straight in, in this order: the profile you used last, if it is still valid;
+otherwise the only active profile, if there is exactly one; otherwise the
+picker.
+
+That last fall-through is why a machine with two profiles and the box unticked
+still shows you the picker after you delete the one you were using. Nothing has
+gone wrong; there is simply no longer an obvious answer.
+
+Leave the box off if WIMI is yours alone, and turn it on the moment a second
+person starts using the machine.
+
+## Deleting a profile, and the ten days after
+
+**Delete** on a card opens a confirmation that states the terms plainly: the
+profile is kept for **10 days** and can be restored from the **Recently
+deleted** section during that time, and after that it is permanently removed.
+
+Deleting a profile is therefore reversible for ten days and then is not, which
+makes it one of only two genuinely irreversible deletions in WIMI — the other
+being permanently deleting a whole exam.
+
+- **Recently deleted** is a collapsed section below the cards, with a count beside it. It is absent entirely when nothing is deleted, so if you cannot find it that is probably why.
+- **Each row counts down** — *7 days remaining* — and offers one thing, **Restore**, which puts the profile back exactly as it was. There is no "delete it now" button anywhere; you cannot shorten the ten days.
+- **The clock runs out at startup.** Nothing deletes on a timer while WIMI is running. The permanent removal happens during housekeeping as WIMI launches, so a profile past its ten days survives until the next time you start the app. It leaves the list the moment the count reaches zero, which can be a little before that.
+- **You cannot delete the profile that is open**, and the menu does not offer it. Switch to another profile first and the option is there. Until recently the item was offered and the refusal came after you had confirmed a deletion that was never going to happen.
+
+If you are deleting a profile because you are moving it elsewhere, export it
+first. A profile file is a complete copy and it costs you nothing to keep one.
+
+## Exporting a profile file
+
+Two places, the same thing with one difference:
+
+- **Settings → Profile → Export profile…** exports the profile that is open. The one decision sits in the panel above the button.
+- **Export…** in a card's menu on the picker exports *that* profile, whichever it is, and asks the same question in a small dialog first. Its confirm button reads **Choose location…** rather than *Export*, because that is honestly what pressing it does next.
+
+The decision either way is **Include media files**, which is **ticked**. Its
+hint is the whole of the trade: images attached to entries, skipping media
+makes the export much smaller, but images will be missing after import.
+
+Then your system's save dialog opens, pre-filled with a filename taken from the
+profile's username, and WIMI writes the file. If you type a name without the
+extension it is added for you.
+
+Leave the tick alone unless you have a reason. An export without media is a
+legitimate thing — it is small, it is quick, and it is fine for carrying your
+written work and your tree to a second machine — but it is not a backup of your
+images, and the section on replacing a profile below is about the one way that
+difference can cost you something.
+
+## Importing one
+
+Also two places, and they converge on one screen:
+
+- **Import profile…** at the foot of the picker.
+- **Settings → Profile → Import profile…**, which opens the file dialog and then *takes you to the picker* to finish. That is not a glitch — there is one import screen in WIMI and it lives on the picker — but it is worth expecting, because Settings gives you no warning and cancelling leaves you on the picker rather than back where you were.
+
+Pick a file and WIMI reads it without unpacking anything, then shows you
+**Import profile** with what it found:
+
+- **who it is** — the display name and username recorded in the file;
+- **what is in it** — three figures, **Entries**, **Sessions** and **Exams**;
+- **whether it carries images**, and how many. If the file was exported without them but the entries inside it refer to images, it says so plainly: images referenced but not included, they will appear missing;
+- **a note about versions**, but only when there is something to say. A file that opens cleanly says nothing at all here.
+
+Underneath is the one real choice, and then **Import**.
+
+### Import as new profile, or replace an existing one
+
+**Import as new profile** is selected for you and is the safe answer. It creates
+a profile beside the ones you have and touches nothing that was already there.
+
+If the username in the file is already taken on this computer, WIMI does not
+refuse and does not overwrite. It appends a number — a second copy of *alice*
+arrives as *alice_2* — and the dialog tells you the name it is going to use.
+
+**Replace existing profile** is the other radio button. It reveals a chooser of
+the profiles you could replace, a tick box reading *I understand this replaces
+all data in the selected profile*, and the images question in the next section.
+
+Two things the replace path will not do:
+
+- **It will not replace the profile that is open.** Switch to another one, or import as new instead.
+- **It keeps the target's username**, because that name is structural. Only the display name comes across from the file.
+
+## What decides whether a file can be opened
+
+This is worth knowing because the obvious guess is wrong.
+
+**It is not the version of WIMI that wrote the file.** A profile file records
+which version of WIMI exported it, and that record is informational — nothing
+reads it to decide anything. Two installations reporting different version
+numbers tell you nothing either way; what matters is the two things below.
+
+Both are checked before anything on your disk changes:
+
+- **The shape of the file.** WIMI will not open a file whose format it does not recognise, and it says so in those terms: this archive was exported from a newer version of WIMI, please update and try again.
+- **How far the profile's own internal structure has moved.** A profile carries a record of every structural upgrade WIMI has applied to it. A file from an older WIMI is **upgraded on import**, automatically, and the preview tells you in advance: *this profile was exported from an older version of WIMI and will be upgraded during import*. A file from a newer WIMI, whose structure has moved past what this copy understands, is refused — and refused rather than opened half way, which is the right answer: there is no safe way to read structure you do not have.
+
+The practical rule that falls out: **update the receiving computer, not the
+sending one.** Carrying a profile to an older WIMI is the direction that fails.
+
+## Installing the same file twice is allowed
+
+A profile carries an identifier of its own, and unlike the computer's
+identifier, that one travels inside the file. It is how a profile stays
+recognisably itself across machines.
+
+What it is deliberately *not* is unique. Import the same file twice on one
+computer and you get two profiles, independent of each other, that both know
+they came from the same original.
+
+**The preview tells you, before you press Import.** If the file is a profile
+this computer already has, the screen you approve names the local copies and
+says that installing it again creates a second, independent copy. That is a
+different question from the *username* being taken — which the same screen
+also reports, naming the one it will use instead — and the two can disagree
+either way: a renamed copy of the same profile collides on neither, and two
+unrelated profiles can share a username. Read both lines; they are telling you
+different things.
+
+Making a second copy is a supported outcome rather than a mistake. There are
+real reasons to want two: a copy to experiment on, or a copy of last month's
+state to compare against. But they are **independent from that moment on**.
+Nothing merges them, and an entry you write in one will never appear in the
+other.
+
+The one place this matters more than curiosity is folder sync, which is
+[Keeping one profile on two computers](help_folder_sync.html). Two profiles
+sharing an identifier **must not both be pointed at the same sync folder** —
+they would write into the same place in it and argue with each other
+indefinitely. Keep a second copy for comparison, and leave the syncing to one
+of them.
+
+## Replacing a profile, and the question about images
+
+The replace path has one tick box that is worth stopping on, because it is the
+only control in this area that can lose you something.
+
+**Keep the images already in this profile** is **ticked whenever the dialog
+opens**, and a hint below it names how many images the profile you are
+replacing currently has. The rule itself is two lines:
+
+- **Ticked** — the images already in the profile stay, and the file's images are added to them.
+- **Unticked** — the profile's images are made to match the file exactly. Any the file does not carry are deleted, and that cannot be undone.
+
+Unticking it is a real choice with a real use: it is how you say *make this
+profile exactly what the file says, images included*. It is styled as the
+warning it is.
+
+The case that makes the default matter is **a file that carries no images at
+all** — either because it was exported with *Include media files* unticked, or
+because the profile it came from had none. Replace with one of those and untick
+the box, and you have asked WIMI to delete every image in the target and put
+nothing back. It will do it, because that is what you said. Ticked, which is
+where it starts, the same import leaves your images alone.
+
+The counts shown on the preview above are the ones to read before you decide:
+the file's own image count is stated there.
+
+### A copy of what was there is kept
+
+Before a replace touches anything, WIMI takes a copy of the profile's database
+and keeps it. It does not delete that copy afterwards, on purpose — a replace is
+the operation most worth being able to walk back from.
+
+Two honest caveats. The copy is verified before anything is allowed to proceed,
+and if it cannot be taken the replace stops rather than continuing without a
+safety net — which is the right way round, since a safety net nobody checked is
+worse than none. But it is a copy of the profile's data and **not of its
+images**: images are the tick box above's business, and unticking it means they
+are gone once the replace succeeds. And recovering from the copy is not a button
+in the app. Knowing it exists is worth something anyway, and so is the habit in
+the next paragraph.
+
+**Export before you replace.** It takes ten seconds, it includes your images,
+and it is the version of this safety net that you can actually use yourself.
+
+## What travels and what stays
+
+This is the rule the whole area turns on, and it is easy to get backwards.
+
+**A value that describes you travels. A value that names a machine does not.**
+
+The example that makes it concrete is the Anki connection setting. Its address
+is *localhost*, meaning "this computer". That string is identical on your
+desktop and your laptop and it means something different on each one, so
+copying it across would be wrong even though the two values match character for
+character.
+
+The test is therefore not *does this look like a machine setting* but **does
+this value point at a machine**. Several settings fail the obvious guess:
+
+- **The question bank pane's zoom, where you dragged the divider, and the page it was last on stay behind.** They are about one screen and one window. But **the three choices about how the pane opens travel**, and so do **your question banks and their web addresses** — a web address means the same thing everywhere.
+- **The speech model size and the chosen microphone stay behind.** The microphone names a piece of hardware plugged into one computer; the model size names a file that was downloaded onto one computer, so carrying it would name something that is not there. But **the speech priming preference travels**, because it is a judgement about how you want decoding to behave and it is true of you on any machine.
+- **Each question bank's Desktop site tick stays behind**, because it is about how one browser behaves on one machine, and so does which banks you opened recently.
+- **The link to a sync folder stays behind**, necessarily: the two computers reach the same folder by different paths.
+
+Everything else you would expect travels: your exams and dimensions, your
+subject trees and their weights and aliases, your sessions and entries and
+drafts, your images when you include them, your error types and their
+definitions, your notes, your goals, your related topics, your theme and your
+appearance settings.
+
+Two things travel in neither direction because they are not settings at all.
+**The pane's logins** are not in a profile file — the pane keeps its own cookies
+on each machine, so a bank you are signed into on the desktop asks you to sign
+in on the laptop. And **the downloaded speech model** is a file on the machine
+that downloaded it; a profile arriving on a new computer will offer to fetch it
+there.
+
+[Your question bank beside the form](help_question_bank_pane.html) and
+[Speaking instead of typing](help_dictation.html) both have a section on their
+own half of this split, which is the same rule seen from inside one feature.
+
+## If you are doing this regularly
+
+Exporting and importing is the right tool for a move — a new laptop, a
+reinstall, a copy for safe keeping. It is a poor tool for *living* on two
+computers, because every round trip is a manual export, a manual copy and a
+manual import, and the moment you forget one you have two profiles drifting
+apart with no way to reconcile them.
+
+That is what the next chapter is for.
+
+## Where to go next
+
+- [Keeping one profile on two computers](help_folder_sync.html) — the same profile on a desktop and a laptop, without exporting by hand every time.
+- [Your first hour](help_the_first_hour.html) — making a profile, and the first three screens.
+- [Your question bank beside the form](help_question_bank_pane.html) — the per-computer half of the pane's settings, in more detail.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

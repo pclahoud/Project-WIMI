@@ -220,8 +220,6 @@
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin: 0 0 var(--space-md) 0;
 }
 
@@ -896,4 +894,22 @@
 .import-axis-table .import-axis-coverage-warn {
     color: var(--color-warning-text);
     font-weight: 600;
+}
+
+/*
+ * The import guide's copy status (#452). `margin-right: auto` keeps it on the
+ * left while the footer's `justify-content: flex-end` holds the buttons right,
+ * so the outcome never shifts the buttons under the pointer.
+ *
+ * It is a live region, so it stays in the DOM and merely empties when idle.
+ * Never give it `display: none` or `visibility: hidden` -- both remove it from
+ * the accessibility tree, which is the only reason it exists (#127) -- and
+ * never select it with `:empty`, which QtWebEngine stops re-invalidating
+ * (#134/#136/#141).
+ */
+.import-help-copy-status {
+    margin-right: auto;
+    align-self: center;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
 }

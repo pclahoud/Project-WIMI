@@ -8,7 +8,7 @@ import time
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .base_db import BaseDatabase, DatabaseConnectionError, DatabaseIntegrityError
 from .exceptions import (
@@ -19,6 +19,16 @@ from .models import User, UserDatabaseSchema, AppSetting
 from .migration_runner import MigrationRunner
 from app_logging import ErrorLevel, ErrorCategory, ErrorContext
 
+
+
+def _utc_now() -> datetime:
+    """Now, as a naive UTC datetime -- the shape ``soft_deleted_at`` is read in.
+
+    ``CURRENT_TIMESTAMP`` writes UTC and ``User.from_row`` parses it naive,
+    so comparing it with ``datetime.now()`` mixes two clocks (#501, the
+    #286 class). Compare it with this instead.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class MasterDatabase(BaseDatabase):
     """
@@ -318,6 +328,19 @@ class MasterDatabase(BaseDatabase):
                 (user_id,)
             )
 
+    @staticmethod
+    def _database_file_names(db_filename: str) -> List[str]:
+        """A user database's file and the WAL sidecars that belong with it."""
+        return [db_filename, f"{db_filename}-wal", f"{db_filename}-shm"]
+
+    def media_dir_for(self, user_id: int, username: str) -> Path:
+        """A profile's media folder: ``{data_dir}/media/user_{id}_{username}``.
+
+        Mirrors ``MediaManager.user_media_path``, which lives in the app layer
+        and so cannot be imported here.
+        """
+        return self.data_dir / "media" / f"user_{user_id}_{username}"
+
     def soft_delete_user(self, user_id: int) -> None:
         """
         Soft delete a user (10-day grace period before permanent deletion).
@@ -345,11 +368,13 @@ class MasterDatabase(BaseDatabase):
                     WHERE id = ?
                 """, (user_id,))
                 
-                # Move user database to archive
-                user_db_path = self.users_dir / user.database_filename
-                if user_db_path.exists():
-                    archive_path = self.archive_dir / user.database_filename
-                    shutil.move(str(user_db_path), str(archive_path))
+                # Move user database to archive, with any -wal/-shm beside
+                # it: a -wal left in users/ holds commits the archived file
+                # lacks, and would belong to no profile (#496)
+                for name in self._database_file_names(user.database_filename):
+                    user_db_path = self.users_dir / name
+                    if user_db_path.exists():
+                        shutil.move(str(user_db_path), str(self.archive_dir / name))
             
             if self.error_logger:
                 self.error_logger.info(
@@ -404,7 +429,7 @@ class MasterDatabase(BaseDatabase):
         # Check grace period
         if user.soft_deleted_at:
             grace_end = user.soft_deleted_at + timedelta(days=self.DELETION_GRACE_PERIOD_DAYS)
-            if datetime.now() > grace_end and user.deletion_confirmed:
+            if _utc_now() > grace_end and user.deletion_confirmed:
                 raise DeletionError(f"Grace period expired for user {user_id}")
         
         try:
@@ -417,11 +442,11 @@ class MasterDatabase(BaseDatabase):
                     WHERE id = ?
                 """, (user_id,))
                 
-                # Restore user database from archive
-                archive_path = self.archive_dir / user.database_filename
-                if archive_path.exists():
-                    user_db_path = self.users_dir / user.database_filename
-                    shutil.move(str(archive_path), str(user_db_path))
+                # Restore user database (and its sidecars) from archive
+                for name in self._database_file_names(user.database_filename):
+                    archive_path = self.archive_dir / name
+                    if archive_path.exists():
+                        shutil.move(str(archive_path), str(self.users_dir / name))
             
             return self.get_user(user_id)
         
@@ -434,6 +459,20 @@ class MasterDatabase(BaseDatabase):
                 )
             raise DeletionError(f"Failed to restore user {user_id}") from e
     
+    def deletion_days_remaining(self, user: User) -> int:
+        """Whole days left before a soft-deleted profile is purged (#501).
+
+        Counted in UTC because ``soft_deleted_at`` is: it is written by
+        SQLite's ``CURRENT_TIMESTAMP`` and read back naive. Elapsed time is
+        floored to whole days, so the figure never overstates what is left
+        by more than the part of a day already spent.
+        """
+        grace = self.DELETION_GRACE_PERIOD_DAYS
+        if user.soft_deleted_at is None:
+            return grace
+        elapsed_days = max(0, (_utc_now() - user.soft_deleted_at).days)
+        return grace - elapsed_days
+
     def permanently_delete_expired_users(self) -> List[int]:
         """
         Permanently delete users past grace period.
@@ -442,16 +481,19 @@ class MasterDatabase(BaseDatabase):
         Returns:
             List of deleted user IDs
         """
-        cutoff_date = datetime.now() - timedelta(days=self.DELETION_GRACE_PERIOD_DAYS)
-        
-        # Find expired users
+        # The cutoff is computed by SQLite, in the regime the stamp was
+        # written in (#501): CURRENT_TIMESTAMP is UTC and so is
+        # datetime('now'), and both are 'YYYY-MM-DD HH:MM:SS', so the
+        # comparison is chronological. A Python cutoff was local time, and
+        # its isoformat() separator 'T' sorts after the stamp's ' ', which
+        # made every stamp on the cutoff DATE compare as expired.
         rows = self.fetchall("""
             SELECT id, username, database_filename 
             FROM users 
             WHERE account_status = 'soft_deleted'
               AND deletion_confirmed = TRUE
-              AND soft_deleted_at <= ?
-        """, (cutoff_date.isoformat(),))
+              AND soft_deleted_at <= datetime('now', ?)
+        """, (f'-{int(self.DELETION_GRACE_PERIOD_DAYS)} days',))
         
         deleted_ids = []
         
@@ -464,11 +506,21 @@ class MasterDatabase(BaseDatabase):
                 with self.transaction():
                     # Delete user record
                     self.execute("DELETE FROM users WHERE id = ?", (user_id,))
-                    
-                    # Delete archived database file
-                    archive_path = self.archive_dir / db_filename
-                    if archive_path.exists():
-                        archive_path.unlink()
+
+                    # The images go too: the delete modal promises "all its
+                    # entries and data", and once the row is gone nothing can
+                    # find this folder again (#506, #496). Removed first and
+                    # inside the transaction, so a file Windows refuses to
+                    # delete rolls the row back and the next launch retries.
+                    media_dir = self.media_dir_for(user_id, username)
+                    if media_dir.exists():
+                        shutil.rmtree(media_dir)
+
+                    # Delete archived database file and its sidecars
+                    for name in self._database_file_names(db_filename):
+                        archive_path = self.archive_dir / name
+                        if archive_path.exists():
+                            archive_path.unlink()
                 
                 deleted_ids.append(user_id)
                 

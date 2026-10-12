@@ -75,28 +75,38 @@ class AnalyticsMixin:
         total_sessions = session_row['total'] or 0
         completed_sessions = session_row['completed'] or 0
 
-        # This week (last 7 days)
+        # This week and last week: two equal, non-overlapping 7-day windows of
+        # the session's Date Encountered, as the student manual defines them
+        # ("the last seven days -- a rolling window", against "the seven days
+        # before that"):
+        #   this week  today-6  .. today
+        #   last week  today-13 .. today-7
+        # Both inclusive, both local calendar days (#286). This Week used to
+        # be `>= today-7` with no upper bound -- eight days -- so an entry
+        # from exactly a week ago counted as this week and the change badge
+        # leaned upward every day (#530).
         today = datetime.now().date()
-        week_ago = today - timedelta(days=7)
-        two_weeks_ago = today - timedelta(days=14)
+        this_week_start = today - timedelta(days=6)
+        last_week_start = today - timedelta(days=13)
+        last_week_end = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 
-        this_week_query = f"""
+        window_query = f"""
             SELECT COUNT(*) as count
             FROM question_entries qe
             JOIN review_sessions rs ON qe.review_session_id = rs.id
-            WHERE {where_clause} AND rs.date_encountered >= ?
+            WHERE {where_clause}
+                AND DATE(rs.date_encountered) >= ?
+                AND DATE(rs.date_encountered) <= ?
         """
-        this_week = self.fetchone(this_week_query, tuple(params + [week_ago.isoformat()]))['count'] or 0
-
-        # Last week (7-14 days ago)
-        last_week_query = f"""
-            SELECT COUNT(*) as count
-            FROM question_entries qe
-            JOIN review_sessions rs ON qe.review_session_id = rs.id
-            WHERE {where_clause} AND rs.date_encountered >= ? AND rs.date_encountered < ?
-        """
-        last_week = self.fetchone(last_week_query, tuple(params + [two_weeks_ago.isoformat(), week_ago.isoformat()]))['count'] or 0
+        this_week = self.fetchone(
+            window_query,
+            tuple(params + [this_week_start.isoformat(), today.isoformat()]),
+        )['count'] or 0
+        last_week = self.fetchone(
+            window_query,
+            tuple(params + [last_week_start.isoformat(), last_week_end.isoformat()]),
+        )['count'] or 0
 
         # This month
         this_month_query = f"""
@@ -741,79 +751,22 @@ class AnalyticsMixin:
                 'days_since_last_entry': int
             }
         """
-        from datetime import datetime, timedelta
-
-        where_conditions = ["rs.user_id = ?"]
-        params = [self.user_id]
-
-        if exam_context_id:
-            where_conditions.append("rs.exam_context_id = ?")
-            params.append(exam_context_id)
-
-        where_clause = " AND ".join(where_conditions)
-
-        # Get all unique dates with entries
-        dates_query = f"""
-            SELECT DISTINCT date(rs.date_encountered) as entry_date
-            FROM review_sessions rs
-            WHERE {where_clause}
-            ORDER BY entry_date DESC
-        """
-        rows = self.fetchall(dates_query, tuple(params))
-
-        if not rows:
-            return {
-                'current_streak': 0,
-                'longest_streak': 0,
-                'streak_at_risk': False,
-                'last_entry_date': None,
-                'days_since_last_entry': None
-            }
-
-        dates = [datetime.fromisoformat(row['entry_date']).date() for row in rows]
-        today = datetime.now().date()
-        last_entry = dates[0]
-        days_since_last = (today - last_entry).days
-
-        # Calculate current streak
-        current_streak = 0
-        check_date = today
-
-        # If last entry was today or yesterday, start counting
-        if days_since_last <= 1:
-            for date in dates:
-                if (check_date - date).days <= 1:
-                    current_streak += 1
-                    check_date = date
-                else:
-                    break
-
-        # Calculate longest streak
-        longest_streak = 0
-        temp_streak = 1
-
-        for i in range(len(dates) - 1):
-            current_date = dates[i]
-            next_date = dates[i + 1]
-            diff = (current_date - next_date).days
-
-            if diff == 1:
-                temp_streak += 1
-                longest_streak = max(longest_streak, temp_streak)
-            else:
-                temp_streak = 1
-
-        longest_streak = max(longest_streak, temp_streak, current_streak)
-
-        # Check if streak is at risk (no entry today)
-        streak_at_risk = (current_streak > 0 and days_since_last >= 1)
+        # A study day is a day with at least one ENTRY, not a day with a
+        # review session (owner's decision on #531, 2026-10-07). This used
+        # to run its own query over review_sessions alone, so a session
+        # started today with nothing logged counted here -- "3 days, safe"
+        # in Patterns & Insights -- while the streak card, which counts
+        # entries, said "2 days, at risk". There is one definition now, in
+        # _calculate_streak_info; this only maps its fields onto this
+        # method's documented shape. Do not reintroduce a query here.
+        info = self._calculate_streak_info(exam_context_id)
 
         return {
-            'current_streak': current_streak,
-            'longest_streak': longest_streak,
-            'streak_at_risk': streak_at_risk,
-            'last_entry_date': last_entry.isoformat(),
-            'days_since_last_entry': days_since_last
+            'current_streak': info['current_streak'],
+            'longest_streak': info['longest_streak'],
+            'streak_at_risk': info['streak_at_risk'],
+            'last_entry_date': info['last_active_date'],
+            'days_since_last_entry': info['days_since_last_active'],
         }
 
     def get_patterns_and_insights(
@@ -860,7 +813,7 @@ class AnalyticsMixin:
                 'title': f"{streak_data['current_streak']}-day streak at risk!",
                 'description': f"You haven't logged any mistakes today. Your current {streak_data['current_streak']}-day streak will break if you don't study today.",
                 'severity': 'warning',
-                'actionable': 'Log a review session today to maintain your streak.',
+                'actionable': 'Log an entry today to maintain your streak.',
                 'data': streak_data
             })
 

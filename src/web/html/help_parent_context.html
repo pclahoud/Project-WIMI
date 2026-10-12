@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choosing which parent an entry counts under - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/12_parent_context.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 6</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Choosing which parent an entry counts under</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_shared_subjects.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Subjects that live in more than one place</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_dimensions.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Dimensions, and questions with several axes</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Choosing which parent an entry counts under
+
+## In short
+
+When you tag an entry with a subject that has more than one parent, a small pill appears under the subject's chip reading "Tag context" and a parent's name. It records which of that subject's parents this particular entry rolls up through. It does not change what the entry is about, and you can always find the entry by that subject no matter which context it carries.
+
+## The question the pill answers
+
+Say pulmonary embolism sits under Respiratory, under Pregnancy and under
+Surgical Complications, and you miss a question about a pregnant patient with a
+PE. The subject is unambiguous. The context is not: when you later look at
+Pregnancy and ask how you are doing, should this mistake be in that number?
+
+It should, and it should not also be sitting in Respiratory's number as though
+you had missed a second question. One mistake, one place in the rollup. So WIMI
+asks which, and the pill is where it asks.
+
+## When it appears, and when it does not
+
+The pill is drawn under a primary subject chip when that subject has two or more
+parents. Three cases where you will not see it, each for a reason:
+
+- **The subject has one parent.** There is nothing to disambiguate, so nothing is asked and nothing is recorded.
+- **The subject is a root.** Same reason.
+- **The subject was added as a secondary, "also tested" tag.** The context is a property of what the entry is primarily about. A secondary tag is you noting that the question touched something else, which is a thing to find later rather than a claim about where the entry belongs.
+
+## What WIMI records if you ignore it
+
+<!-- tour
+page: entry-form
+anchor: entry-form-tag-context
+text: This records which of a shared subject's parents the entry rolls up
+  through on the charts. Leave it alone and WIMI records the parent the pill
+  is already showing you, so the mistake is counted once rather than under
+  every parent at the same time.
+-->
+
+This is the part worth knowing, because the honest answer is not "nothing".
+
+**A multi-parent primary subject always gets a context recorded when the entry
+saves.** If you did not touch the pill, WIMI records the subject's primary
+parent — which is what the pill was already showing you before you ignored it.
+It never saves such an entry with the question left open.
+
+The reason is what the open state actually costs. An entry on a shared subject
+with no context recorded is counted under **every** one of that subject's
+parents. Not none of them: all of them. So one mistake on a three-parent subject
+quietly adds one to Respiratory, one to Pregnancy and one to Surgical
+Complications, and nothing on the entry says which of the three you had in mind,
+because you never said.
+
+Defaulting to the primary parent is a guess, but it is a guess that counts the
+mistake once, in a place you can see and change. And it is a visible guess: the
+pill said what it was going to be, before you saved.
+
+Two consequences of that worth expecting:
+
+- **Single-parent subjects record nothing, deliberately.** With one parent there is no ambiguity for a recorded value to resolve, and "every parent" and "the one parent" are the same place.
+- **Entries from before this rule can still be counted under every parent.** If a subject's entries predate the policy — or predate the subject gaining its second parent — they may carry no context, and a parent's figure that looks high is worth checking against the entries themselves before you believe it.
+
+## Changing it
+
+Press the pill and pick a parent from the list. The pill updates immediately and
+marks the entry as having unsaved changes, so the next save carries your choice.
+
+You can change it later too. Open the entry again, press the pill, pick a
+different parent and save. Nothing about the entry's text, tags or images is
+affected.
+
+## What the context changes, and what it does not
+
+It changes **which chain the entry rolls up through** on the surfaces that total
+your mistakes by parent. Pinning the PE entry to Pregnancy means Pregnancy's
+rollup includes it and Respiratory's does not.
+
+It does not change **what the entry is about**. This is the distinction to hold
+on to, and it is why the following is true and sounds like it should not be:
+
+**Filtering the entry browser by a subject finds every entry tagged with that
+subject, whatever context it carries.** Pin an entry to Pregnancy and you can
+still find it by filtering for pulmonary embolism. The reason is that the
+context names the chain the entry travels *up* through; it does not make the
+entry stop being about the subject you actually tagged. The subject is the
+subject. The context is the route.
+
+The context is findable in its own right as well. Filtering for Pregnancy
+returns the entries whose context you set to Pregnancy, even though none of them
+is tagged with Pregnancy itself — because that is what you said about them.
+
+**Include child subjects**, the tick box in the browser's subject filter,
+widens a filter down the subtree: entries on the subjects beneath the one you
+named. Here the context does narrow things, and this is the one place in the
+browser where it does. An entry on a subject beneath Pregnancy is swept in
+unless it carries a context pointing somewhere outside Pregnancy's branch, in
+which case it is not, because that is the route it told WIMI it travels. So with
+that box ticked, filtering for Pregnancy and filtering for Respiratory divide
+your shared-subject entries between them rather than both returning all of
+them.
+
+The box is off by default.
+
+## The other end of it: a subject's own page
+
+A shared subject's page carries a selector reading **Show as part of**, with
+every parent listed and **All parents** chosen by default. It is the same idea
+from the other direction — not "which context does this entry have" but "which
+context am I looking at this subject through".
+
+Two things about it are deliberate and surprising:
+
+- **All parents shows everything.** Every entry tagged on the subject is counted, whatever context it carries. The page tells you so, and says how many parents the subject has.
+- **That is a more permissive rule than the one the rollups use.** A subject's own page is a view of that subject, and when you open it you want to see your work rather than the part of your work that happens to match a route. The stricter rule still governs the surfaces that total a parent's mistakes. Do not read a figure on one as a prediction of the figure on the other.
+
+Pick a parent in the selector and the page narrows to entries routing through
+it, and tells you how many entries on this subject are tagged with a different
+context and therefore not shown. That sentence is the point of the control: a
+narrowed view that did not say what it was hiding would be worse than no control
+at all.
+
+## A worked example
+
+You have pulmonary embolism under three parents and five entries on it: two you
+pinned to Pregnancy, one to Respiratory, and two you saved without touching the
+pill, whose primary parent is Respiratory.
+
+- The subject's own page, on **All parents**, shows five.
+- The same page, **Show as part of** Pregnancy, shows two and tells you three are tagged elsewhere.
+- Filtering the entry browser for pulmonary embolism finds five, because all five are about it.
+- Filtering it for Pregnancy finds two — the ones whose context you set there — even though neither is tagged with Pregnancy.
+- Pregnancy's rollup counts two. Respiratory's counts three, the one you pinned plus the two that defaulted.
+
+Every one of those numbers is correct, and no two of them are measuring the same
+thing.
+
+## Where to go next
+
+- [Subjects that live in more than one place](help_shared_subjects.html) — where the several parents came from, and how to change which one is primary.
+- [Dimensions, and questions with several axes](help_dimensions.html) — the other way one entry belongs in several places.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

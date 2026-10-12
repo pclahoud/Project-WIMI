@@ -9,21 +9,21 @@ A *seeder* is a small, deterministic function that takes a freshly
 created :class:`UserDatabase` and populates it with whatever fixture
 data a scenario needs (an exam context, a subject hierarchy, sample
 entries, etc.). Seeders are registered by name so test code can ask for
-them symbolically (``user.seed("usmle_step1_outline")``) without
+them symbolically (``user.seed("exam_outline")``) without
 importing private helpers.
 
 Three seeders ship in this module:
 
 * ``seed_minimal`` — one empty exam context, nothing else. Intended
   for smoke tests that just want a non-empty database.
-* ``seed_usmle_step1_outline`` — full hierarchy parse of
-  ``tests/fixtures/usmle_step1_outline.txt`` (the 2025 USMLE Step 1
-  content outline). Produces ~2,500 subject nodes with the parent
-  chain System → Section → Subsection → Topic, plus multi-parent
-  edges (via ``EdgesMixin.add_edge``) for the ~120 topics that the
-  outline lists under more than one section — hypertension under
-  seven systems, deep venous thrombosis under both Cardiovascular
-  and Pregnancy, etc.
+* ``seed_exam_outline`` — the whole synthetic exam outline from
+  ``tests/fixtures/exam_outline.json``. Produces ~2,470 subject nodes
+  with the parent chain System → Category → Topic (one level deeper
+  where the fixture subdivides a category), plus multi-parent edges
+  (via ``EdgesMixin.add_edge``) for the 70 topics the fixture lists
+  under more than one category — hypertension under cardiovascular,
+  renal, endocrine and pregnancy headings, deep venous thrombosis
+  under both cardiovascular and pregnancy, etc.
 * ``seed_multi_dimensional`` — one exam carrying two dimensions, with
   entries in both, an archived subject that still carries an entry, a
   subject with no dimension at all, and a subject under two parents.
@@ -39,8 +39,8 @@ Public API:
   :class:`KeyError` listing valid names if missing).
 * :func:`seed_minimal` — direct callable, also registered as
   ``"minimal"``.
-* :func:`seed_usmle_step1_outline` — direct callable, also registered
-  as ``"usmle_step1_outline"``.
+* :func:`seed_exam_outline` — direct callable, also registered
+  as ``"exam_outline"``.
 * :func:`seed_multi_dimensional` — direct callable, also registered
   as ``"multi_dimensional"``.
 
@@ -67,7 +67,7 @@ __all__ = [
     "seeder",
     "get_seeder",
     "seed_minimal",
-    "seed_usmle_step1_outline",
+    "seed_exam_outline",
     "seed_multi_dimensional",
     "MultiDimensionalFixture",
 ]
@@ -164,7 +164,7 @@ def seed_minimal(db: "UserDatabase") -> None:
 
 
 # ---------------------------------------------------------------------------
-# USMLE outline seeder
+# Exam outline seeder
 # ---------------------------------------------------------------------------
 
 
@@ -172,7 +172,7 @@ def seed_minimal(db: "UserDatabase") -> None:
 # (``wimi_test/db/seeders.py``) so the seeder works whether tests are
 # launched from the project root or from a sibling directory.
 _OUTLINE_PATH: Path = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "usmle_step1_outline.txt"
+    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "exam_outline.json"
 )
 
 
@@ -190,26 +190,34 @@ def _level_type_for_depth(depth: int) -> str:
     return "Topic"
 
 
-@seeder("usmle_step1_outline")
-def seed_usmle_step1_outline(db: "UserDatabase") -> None:
-    """Seed the full USMLE Step 1 content outline as a polyhierarchy.
+@seeder("exam_outline")
+def seed_exam_outline(db: "UserDatabase") -> None:
+    """Seed the whole synthetic exam outline as a polyhierarchy.
 
-    Walks ``tests/fixtures/usmle_step1_outline.txt`` via
-    :func:`tests.fixtures.load_usmle_outline.load_usmle_outline` and
-    materialises every named topic as a ``subject_nodes`` row under
-    a fresh ``"USMLE Step 1 (Test Fixture)"`` exam context. Topics that
-    the outline lists under multiple parent sections (~120 of the
-    ~2,500 total — hypertension, deep venous thrombosis, sepsis,
-    diabetes mellitus, etc.) get a single canonical node with one
-    ``is_primary=TRUE`` edge to their first-seen parent and additional
-    ``is_primary=FALSE`` edges to each subsequent parent. This is the
-    canonical multi-parent demonstration described in
+    Reads ``tests/fixtures/exam_outline.json`` via
+    :func:`tests.fixtures.load_exam_outline.load_exam_outline` and
+    materialises every named topic as a ``subject_nodes`` row under a
+    fresh exam context named by the fixture itself. Topics the fixture
+    lists under more than one category (70 of the ~2,250 distinct names
+    — hypertension, deep venous thrombosis, sepsis, diabetes mellitus,
+    etc.) get a single canonical node with one ``is_primary=TRUE`` edge
+    to their first-seen parent and additional ``is_primary=FALSE`` edges
+    to each subsequent parent. This is the canonical multi-parent
+    demonstration described in
     ``docs/planning/POLYHIERARCHY_MIGRATION.md`` Section 1.
 
-    Performance note: ~2,500 ``create_subject_node`` calls plus a few
-    hundred ``add_edge`` calls take roughly 10–15 seconds in dev mode.
-    Tests that don't need the full hierarchy should use ``seed_minimal``
-    instead.
+    The fixture is synthetic by decision rather than by convenience: it
+    replaced a verbatim copy of a third party's published content
+    outline (#437). Its vocabulary is real; its arrangement is ours.
+
+    Performance note, measured rather than carried over: 2,471
+    ``create_subject_node`` calls plus 110 ``add_edge`` calls take
+    **1.05 s** on this Linux development box (Python 3.12, a tmpdir
+    database), producing 2,471 nodes and 2,560 edges. The figure here
+    said "roughly 10-15 seconds" from the previous fixture's era and
+    was never re-measured. Tests that don't need the full hierarchy
+    should still use ``seed_minimal``, but the cost is a second, not a
+    quarter minute.
 
     Raises
     ------
@@ -219,40 +227,41 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
     """
     if not _OUTLINE_PATH.exists():
         raise FileNotFoundError(
-            f"USMLE outline fixture not found at {_OUTLINE_PATH!s}. "
-            "This file is required by seed_usmle_step1_outline; ensure "
-            "tests/fixtures/usmle_step1_outline.txt is checked in."
+            f"Exam outline fixture not found at {_OUTLINE_PATH!s}. "
+            "This file is required by seed_exam_outline; ensure "
+            "tests/fixtures/exam_outline.json is checked in."
         )
 
-    # The parser lives with the test fixtures rather than under
+    # The loader lives with the test fixtures rather than under
     # wimi_test/, so this is the import boundary we cross. Import lazily
     # so the seeder module stays usable even if tests/fixtures/ isn't on
     # sys.path at collection time (the project conftest puts the repo
     # root on the path before any seeders run).
-    from tests.fixtures.load_usmle_outline import load_usmle_outline
+    from tests.fixtures.load_exam_outline import load_exam_outline
 
-    outline = load_usmle_outline(_OUTLINE_PATH)
+    outline = load_exam_outline(_OUTLINE_PATH)
     if len(outline.topics) < 50:
-        # Defensive: parser shape changed and recovered almost nothing.
-        # Fail loud rather than seed a half-baked DB.
+        # Defensive: the fixture shrank to nothing, or the loader stopped
+        # finding its leaves. Fail loud rather than seed a half-baked DB.
         raise RuntimeError(
-            f"USMLE outline parser recovered only {len(outline.topics)} "
+            f"Exam outline loader recovered only {len(outline.topics)} "
             f"topics from {_OUTLINE_PATH!s}. Expected several hundred. "
-            "The fixture or the parser regressed; refusing to seed."
+            "The fixture or the loader regressed; refusing to seed."
         )
 
     db._ensure_phase2_schema()
     db._ensure_phase4_schema()
 
-    exam_name = "USMLE Step 1 (Test Fixture)"
+    exam_name = outline.exam_name
     db.create_exam_context(
         exam_name=exam_name,
         exam_description=(
-            f"Full polyhierarchy parse of the 2025 USMLE Step 1 content "
-            f"outline. {len(outline.topics)} topics; "
+            f"Full polyhierarchy load of the synthetic exam outline "
+            f"fixture. {len(outline.topics)} topics; "
             f"{len(outline.multi_parent_topics)} appear under multiple "
-            f"parents (e.g. hypertension under 7 systems, DVT under "
-            f"both Cardiovascular and Pregnancy)."
+            f"parents (e.g. hypertension under four headings, deep "
+            f"venous thrombosis under both cardiovascular and "
+            f"pregnancy)."
         ),
     )
 
@@ -313,13 +322,13 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
     edge_skipped = 0
 
     for topic in outline.topics:
-        # Both the parser's parent_path tuple and topic.name come in
-        # different cases (parent_path preserves original case; name is
-        # already normalized lowercase). Build a display_path that uses
-        # original-case ancestors plus the lowercase topic name.
+        # The fixture spells each name exactly once, in the case it should
+        # be displayed in, so nothing is normalised on the way in. The
+        # lookup key below is the name as authored -- which is what makes
+        # a name listed under two categories one node with two parents.
         parent_id = _ensure_path(topic.parent_path, topic.parent_path)
 
-        norm_name = topic.name  # already normalized by the parser
+        norm_name = topic.name
         if norm_name in name_to_node_id:
             # Multi-parent re-encounter — add a non-primary edge.
             if parent_id is None:
@@ -346,7 +355,7 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
                 # not fatal for a seeder.
                 edge_skipped += 1
                 _logger.debug(
-                    "seed_usmle_step1_outline: skipped edge %s -> %s: %s",
+                    "seed_exam_outline: skipped edge %s -> %s: %s",
                     parent_id, existing_id, e,
                 )
             except Exception as e:
@@ -358,7 +367,7 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
                 ):
                     edge_skipped += 1
                     _logger.debug(
-                        "seed_usmle_step1_outline: cycle skipped %s -> %s",
+                        "seed_exam_outline: cycle skipped %s -> %s",
                         parent_id, existing_id,
                     )
                 else:
@@ -385,7 +394,7 @@ def seed_usmle_step1_outline(db: "UserDatabase") -> None:
             edges_attempted.add((parent_id, node.id))
 
     _logger.info(
-        "seed_usmle_step1_outline: %d nodes, %d multi-parent edges added, "
+        "seed_exam_outline: %d nodes, %d multi-parent edges added, "
         "%d edges skipped under %r",
         len(name_to_node_id) + len(path_to_node_id) - len(name_to_node_id),
         edge_added,

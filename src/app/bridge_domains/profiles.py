@@ -9,7 +9,6 @@ All slots work with ``self.user_db is None`` — the profile picker runs
 before any user database is attached.
 """
 import json
-from datetime import datetime
 
 from PyQt6.QtCore import pyqtSlot
 
@@ -86,14 +85,7 @@ class ProfileBridgeMixin:
             for user in self.master_db.get_all_users(include_deleted=True):
                 if user.account_status != 'soft_deleted':
                     continue
-                if user.soft_deleted_at is not None:
-                    # soft_deleted_at is written by SQLite CURRENT_TIMESTAMP
-                    # (UTC); datetime.now() is local. Clamp elapsed at 0 so
-                    # a just-deleted profile never reports > grace_days.
-                    elapsed_days = max(0, (datetime.now() - user.soft_deleted_at).days)
-                    days_remaining = grace_days - elapsed_days
-                else:
-                    days_remaining = grace_days
+                days_remaining = self.master_db.deletion_days_remaining(user)
                 if days_remaining <= 0:
                     continue
                 entry = self._profile_dict(user)
@@ -105,6 +97,7 @@ class ProfileBridgeMixin:
                 'profiles': profiles,
                 'deleted': deleted,
                 'current_user_id': self._current_user_id(),
+                'grace_period_days': grace_days,
             })
         except Exception as e:
             self._log_error(f'listProfiles failed: {e}')

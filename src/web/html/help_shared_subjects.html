@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subjects that live in more than one place - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/11_shared_subjects.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 5</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Subjects that live in more than one place</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_subject_hierarchies.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Your subject tree and its levels</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_parent_context.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Choosing which parent an entry counts under</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Subjects that live in more than one place
+
+## In short
+
+A subject in WIMI can have more than one parent, so pulmonary embolism can sit under Respiratory, under Pregnancy and under Surgical Complications while staying one subject with one set of entries. It is the same subject in every location, not a copy: rename it in one place and it is renamed everywhere, and the entries you logged against it are the same entries wherever you look at it from.
+
+## Why an outline wants this
+
+Most outlines are trees. A topic has subtopics, each subtopic has its own, and
+every specific thing you are studying has exactly one place where it lives.
+
+That works for some material and not for the material WIMI was built for.
+Pulmonary embolism is a respiratory problem. It is also a pregnancy
+complication, and also a post-surgical risk. Published blueprints already
+reflect this: the same named condition appears under several different sections
+because it genuinely matters in each of them, not because somebody duplicated a
+row by accident.
+
+A strict tree gives you two bad options for material like that:
+
+- **Pick one home.** The other contexts lose it, which means that when you look at Pregnancy you are not looking at everything Pregnancy will test you on.
+- **Copy it under each parent.** You now have three subjects named the same thing, sharing nothing. Your eleven entries are split three ways, every total about them is a fraction of the truth, and re-tagging is the only way to merge them later.
+
+Letting one subject have several parents removes the choice. The subject stays
+one thing, and your outline can have the shape the exam's own blueprint has,
+which is the entire reason for keeping an outline.
+
+## What it looks like in the tree editor
+
+<!-- tour
+page: tree-editor
+anchor: tree-row-shared-parents
+text: A subject can have several parents, and every appearance is the same
+  subject rather than a copy, so renaming it in one place renames it
+  everywhere. Only the primary appearance carries its children, which is why
+  a row marked "also here" is not an empty subject.
+-->
+
+A shared subject appears once under each of its parents, so you will meet it in
+several places as you expand the tree. The two places it appears are marked
+differently, and the difference is real rather than cosmetic:
+
+- **One appearance is the primary one.** It carries a small chip with an arrow and a number — the number of places the subject lives. Pressing it opens the parent list for that subject. This appearance is also the one that holds the subject's children: expand it and the subtree is there.
+- **Every other appearance is marked "also here".** It is the same subject, and selecting it selects the same subject, but it is drawn without its children. The subtree is not repeated under each parent, because a subject shared five ways would otherwise multiply its whole subtree five times and bury the rest of your outline.
+
+So "no expand arrow" on an "also here" row does not mean the subject is empty.
+It means you are looking at a second location of a subject whose children are
+drawn at its primary location.
+
+## Managing parents
+
+Select a subject and the details panel has a **Parents** section listing every
+parent it has, with a count. Each row offers:
+
+- **A star or a circle.** The star marks the primary parent. A circle is a parent that is not primary, and pressing it promotes that parent to primary.
+- **A remove button**, which is disabled on the primary parent. To detach the primary one, promote a different parent first. The effect of that ordering is that a subject is never left holding parents with none of them primary, which is the state its breadcrumb and its place in the tree are both read from.
+
+**Add parent…** opens a search box. A result you cannot use is shown greyed out
+with the reason beside it rather than silently omitted — it is already a parent
+of this subject, it is the subject itself, or it sits below the subject and
+choosing it would make a loop. A subject with no parents at all is legitimate:
+that is a root of your tree, and the panel says so.
+
+## What the primary parent is for
+
+<!-- tour
+page: tree-editor
+anchor: tree-parent-make-primary
+text: Pressing a circle makes that parent primary. That changes the
+  breadcrumb, which appearance in the tree carries the children, and the
+  parent a new entry defaults to. It moves nothing, removes no parent, and
+  does not change the parent any logged entry already records.
+-->
+
+A subject's primary parent decides two things:
+
+- **The breadcrumb.** When WIMI needs to show one path for a subject — in a search result, on an entry, at the top of a subject's page — it walks up through primary parents. The other paths still exist; the primary one is the one the single-line breadcrumb uses.
+- **The default context for a new entry.** When you tag an entry with a shared subject, WIMI has to record which of its parents that entry counts under. If you do not choose, it records the primary one. That is the next chapter, [Choosing which parent an entry counts under](help_parent_context.html).
+
+Promoting a different parent is not a destructive act. It changes which path is
+treated as canonical and which appearance in the tree carries the children. It
+does not move the subject, lose a parent, or touch your entries: an entry you
+have already logged keeps the parent it recorded, and only entries you log from
+now on default to the new primary one.
+
+## A shared subject can weigh different amounts in different places
+
+A weight in WIMI belongs to the pairing of a subject with one of its parents,
+not to the subject alone. The weight editor's header says which pairing you are
+editing — the subject's name, the word "under", and the parent — and when the
+subject has other parents it lists them under **Also appears under**, as links
+that switch the editor to that pairing.
+
+That is there because the exam does not emphasise a shared topic equally
+everywhere it appears. A condition can be a major item in one section and a
+minor one in another, and a single number on the subject could only ever be
+wrong in one of those places. What a weight means, and the rules about how
+weights add up, are the subject of their own chapter.
+
+## What a shared subject is not
+
+Three things people reasonably expect, which are not what happens:
+
+- **It is not a copy.** There is one subject. Renaming it, changing its level or deleting it happens once and shows up in every location.
+- **It does not split your entries.** An entry tagged with a shared subject is tagged with the subject, and you can find it by that subject from anywhere.
+- **It does not cross an axis.** On a multi-dimensional exam, each subject belongs to one axis and shares parents inside that axis only. Two axes may each contain a subject with the same name, and those are two different subjects. See [Dimensions, and questions with several axes](help_dimensions.html).
+
+## The cost, stated plainly
+
+There is one, and it is worth knowing in advance rather than meeting it as an
+apparent bug.
+
+**Once a subject can be in several places, some figures about it stop adding up
+the way you would expect, and honestly so.** A subject that routes through three
+parents is reported under each of them, and those three figures need not sum to
+the number of entries on the subject. The overlap is real: the material genuinely
+belongs to all three contexts, so reporting it in only one of them would be the
+distortion. WIMI does not resolve it by dividing a mistake into fractions or by
+choosing a parent for you.
+
+The analytics chapters go through exactly which surface does which, because the
+difference between *counting* your mistakes and *finding* them matters here and
+the two deliberately answer differently.
+
+## Where to go next
+
+- [Choosing which parent an entry counts under](help_parent_context.html) — the per-entry half of this.
+- [Dimensions, and questions with several axes](help_dimensions.html) — the other way one question belongs to several places at once.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

@@ -70,6 +70,10 @@ class AdvancedAnalyticsMixin:
                 'subject_name': str,
                 'full_path': str,
                 'path_omitted_ancestors': [str, ...],  # #301
+                'dimension_id': int,     # #314, ABSENT when in no axis
+                'dimension_name': str,   # #314, ABSENT when in no axis
+                'notes': [{'note_id': int, 'entry_id': int,
+                           'content_html': str, 'updated_at': str}, ...],  # #465
                 'exam_weight': float,
                 'total_mistakes': int,  # Aggregated from all descendants
                 'direct_mistakes': int,  # Only directly tagged to this subject
@@ -116,6 +120,37 @@ class AdvancedAnalyticsMixin:
 
         if not subject:
             return None
+
+        # WHICH AXIS THIS SUBJECT IS ON (#314, owner 2026-10-10). The page
+        # heading was the bare subject name, so on a multi-dimensional exam
+        # "18 to 65" could be a Patient Age group, a Site of Care value or a
+        # topic -- and "Full path: 18 to 65" repeated it rather than
+        # disambiguating, because a dimension root has nothing above it.
+        #
+        # Same shape as ``_base.py``'s ``_subject_with_dimension``, including
+        # the two things that look optional and are not:
+        #
+        # - ``d.status = 'active'`` sits in the JOIN. Every read of
+        #   ``exam_dimensions`` filters on status, partial adoption is worse
+        #   than none, and ``test_dimension_soft_delete.py`` sweeps for it.
+        # - the keys are **absent** rather than null when the subject is in no
+        #   axis, so a reader can treat absence as "no axis" without comparing
+        #   against None. That is this payload's existing convention for
+        #   ``path_omitted_ancestors`` (#301).
+        #
+        # Guarded on the NAME rather than on ``dimension_id``: a node whose
+        # dimension has been archived keeps its ``dimension_id`` and joins to
+        # a NULL name, and emitting ``dimension_name: None`` would put the
+        # word "in" in front of nothing on the page. #210's cascade means an
+        # active subject should not be in that state, so this is cover rather
+        # than a live path -- but it costs one predicate.
+        dimension = self.fetchone("""
+            SELECT sn.dimension_id, d.name AS dimension_name
+            FROM subject_nodes sn
+            LEFT JOIN exam_dimensions d
+                   ON sn.dimension_id = d.id AND d.status = 'active'
+            WHERE sn.id = ?
+        """, (subject_id,))
 
         # Build full path
         full_path_info = self._build_subject_path_info(subject_id)
@@ -562,7 +597,7 @@ class AdvancedAnalyticsMixin:
                 scoped_elsewhere_row['n'] if scoped_elsewhere_row else 0
             ) or 0
 
-        return {
+        payload: Dict[str, Any] = {
             'subject_id': subject_id,
             'subject_name': subject['subject_name'],
             'full_path': full_path,
@@ -590,6 +625,45 @@ class AdvancedAnalyticsMixin:
             'mistake_types': mistake_types,
             'recent_entries': recent_entries,
         }
+
+        # Absent, not null, when the subject is in no axis -- see the query.
+        if dimension and dimension['dimension_name']:
+            payload['dimension_id'] = dimension['dimension_id']
+            payload['dimension_name'] = dimension['dimension_name']
+
+        # NOTES TAGGED WITH THIS SUBJECT (#465, owner 2026-10-10). This
+        # payload carried no notes key at all, and the page's belief that it
+        # did came from one class name: the Recent Entries row's third line
+        # is classed `recent-entry-note` and falls back to the literal string
+        # "No notes", while rendering the entry's reflection. A class name and
+        # a fallback string were enough to convince README.md, a briefing, and
+        # very nearly a published manual chapter.
+        #
+        # THE SET IS THE STRICT ONE: notes whose own `linked_subject_ids`
+        # names this subject, NOT every note hanging off an entry tagged here,
+        # and NOT inherited from descendants. That is the owner's choice of
+        # three, and it is deliberately the OPPOSITE rule from the entries on
+        # this same page -- `get_subject_deep_dive`'s agg WHERE is the most
+        # permissive reading in the app, by design (§5.4 divergence, see this
+        # method's own notes). A note is filed by hand at one subject; an
+        # entry's rollup is derived. Do not "make them consistent".
+        #
+        # `get_notes_by_subjects` already implements exactly this, through
+        # `json_each(linked_subject_ids)`, and had no caller anywhere. It is
+        # reused rather than re-queried so the deep dive and the entry form's
+        # "+ Add existing" picker cannot drift apart.
+        notes = [
+            {
+                'note_id': n.id,
+                'entry_id': n.question_entry_id,
+                'content_html': n.content_html,
+                'updated_at': n.updated_at,
+            }
+            for n in self.get_notes_by_subjects([subject_id], limit=20)
+        ]
+        payload['notes'] = notes
+
+        return payload
 
     def _build_path_via_parent(
         self, subject_id: int, primary_parent_id: int
@@ -654,6 +728,7 @@ class AdvancedAnalyticsMixin:
                 ],
                 'current_streak': 7,
                 'longest_streak': 14,
+                'streak_at_risk': False,
                 'total_active_days': 45,
                 'week_start': 'sunday'
             }
@@ -662,10 +737,14 @@ class AdvancedAnalyticsMixin:
 
         today = datetime.now().date()
 
-        # Calculate start date (weeks ago, aligned to Sunday)
+        # Start on the Sunday `weeks - 1` weeks before this week's Sunday, so
+        # the window is `weeks` columns ending today. It MUST be a Sunday:
+        # heatmap_chart.js puts day i in row i % 7 and labels rows 1/3/5
+        # Mon/Wed/Fri. The old `days=6` here made it a Monday, and every
+        # label sat one row off (#529).
         days_since_sunday = (today.weekday() + 1) % 7
         this_sunday = today - timedelta(days=days_since_sunday)
-        start_date = this_sunday - timedelta(weeks=weeks - 1, days=6)
+        start_date = this_sunday - timedelta(weeks=weeks - 1)
 
         # Get all entry counts by date
         query = """
@@ -734,6 +813,10 @@ class AdvancedAnalyticsMixin:
             'days': days,
             'current_streak': streak_info['current_streak'],
             'longest_streak': streak_info['longest_streak'],
+            # Forwarded, not recomputed (#478): the dashboard's Current
+            # Streak card is the only consumer of this payload that draws
+            # the warning, and it used to hardcode the flag to False.
+            'streak_at_risk': streak_info['streak_at_risk'],
             'total_active_days': total_active_days,
             'total_days': len(days),
             'week_start': 'sunday',
@@ -770,7 +853,14 @@ class AdvancedAnalyticsMixin:
         """
         Calculate streak information from entry data.
 
-        A streak is consecutive days with at least one entry.
+        THE one definition of a study day in WIMI (owner's decision on #531,
+        2026-10-07): **a day with at least one entry**. A review session
+        started with nothing logged does not count. A streak is consecutive
+        such days, as the student's local calendar days (#286). Every streak
+        surface reads this -- the analytics streak card (through the heatmap
+        payload), ``get_streak_info`` (Quick Analytics' STREAK stat) and
+        ``get_study_streak`` (Patterns & Insights, the plugin API, the MCP
+        tool). Do not give any of them its own query.
         """
         from datetime import timedelta
 
@@ -800,7 +890,8 @@ class AdvancedAnalyticsMixin:
                 'streak_start_date': None,
                 'last_active_date': None,
                 'is_active_today': False,
-                'streak_at_risk': False
+                'streak_at_risk': False,
+                'days_since_last_active': None
             }
 
         # Convert to date objects
@@ -819,7 +910,8 @@ class AdvancedAnalyticsMixin:
                 'streak_start_date': None,
                 'last_active_date': None,
                 'is_active_today': False,
-                'streak_at_risk': False
+                'streak_at_risk': False,
+                'days_since_last_active': None
             }
 
         # Find the most recent active date
@@ -874,7 +966,10 @@ class AdvancedAnalyticsMixin:
             'streak_start_date': streak_start_date.isoformat() if streak_start_date else None,
             'last_active_date': last_active.isoformat() if last_active else None,
             'is_active_today': is_active_today,
-            'streak_at_risk': streak_at_risk
+            'streak_at_risk': streak_at_risk,
+            # Same clock as everything above, so get_study_streak never
+            # reads a second `now()` across midnight.
+            'days_since_last_active': (today - last_active).days
         }
 
     # =============================================================================
@@ -1280,9 +1375,16 @@ class AdvancedAnalyticsMixin:
             -- the row was dropped from the quadrant altogether, so the
             -- student's least-finished topics were the ones the chart
             -- could not see.
+            -- A RECORDED weight, including 0% (#468, owner's decision
+            -- 2026-10-07). This read `COALESCE(exam_weight_low, 0) > 0`,
+            -- which excluded unweighted subjects as intended and ALSO a
+            -- subject published at 0%, which #64 says is real data (Step 2
+            -- CK publishes tasks at 0%). NULL on both bounds is the only
+            -- "no weight".
             WHERE sn.exam_context = ?
                 AND sn.status = 'active'
-                AND COALESCE(sn.exam_weight_low, 0) > 0
+                AND (sn.exam_weight_low IS NOT NULL
+                     OR sn.exam_weight_high IS NOT NULL)
                 AND (rs.user_id = ? OR qe.id IS NULL)
             GROUP BY sn.id, sn.name, sn.exam_weight_low, sn.exam_weight_high, sn.weight_source
             ORDER BY exam_weight DESC
@@ -1335,12 +1437,37 @@ class AdvancedAnalyticsMixin:
                 },
             }
 
-        # Calculate total mistakes
-        total_mistakes = sum(row['mistake_count'] for row in results)
+        # Roll mistakes UP, and share them out of the WHOLE exam (#468,
+        # owner's decision 2026-10-07).
+        #
+        # The query above counts entries tagged on each subject itself. A
+        # weighted parent whose entries all sat on its topics therefore read
+        # 0% and was filed as well-maintained -- "maintain current study
+        # level" about the branch carrying the most mistakes -- while the
+        # sunburst and Top Subject on the same page drew it as the largest.
+        # #64 makes a weight a share of the whole exam AT ANY DEPTH, so a
+        # parent's 20-25% includes its children and its mistakes must too.
+        #
+        # Same mechanism as Top Subject (get_subject_analytics), not a second
+        # rollup: _aggregate_hierarchy_counts over subject_edges with the
+        # §5.4 context buckets, so an entry pinned to one parent reaches that
+        # parent only. Rows OVERLAP and no longer sum to 100% -- the
+        # non-additivity #6 settled for the sunburst arcs, and true here for
+        # the same reason. Do not "fix" it by dividing by the sum of rows.
+        #
+        # The denominator is every entry in the exam (the Total Entries
+        # card's figure), not the sum over the weighted rows that survived
+        # the WHERE: that made the left-hand percentage a share of SOME
+        # mistakes while the right-hand one was a share of the whole exam.
+        rolled = self._quadrant_rollup(exam_name, exam_context_id)
+        total_mistakes = rolled['total_entries']
 
         # Calculate mistake percentages
         subjects = []
         for row in results:
+            direct_count = row['mistake_count']
+            row = {**row, 'mistake_count': rolled['totals'].get(
+                row['subject_id'], direct_count)}
             mistake_pct = (row['mistake_count'] / total_mistakes * 100) if total_mistakes > 0 else 0
             weight_pct = row['exam_weight']  # This is now the midpoint
             weight_low = row['exam_weight_low']
@@ -1381,6 +1508,7 @@ class AdvancedAnalyticsMixin:
                 'difference': round(difference, 1),
                 'quadrant': quadrant,
                 'mistake_count': row['mistake_count'],
+                'direct_mistake_count': direct_count,
                 'weight_source': ws,
             })
 
@@ -1419,6 +1547,69 @@ class AdvancedAnalyticsMixin:
             'weighted_subjects': len(subjects),
             'weight_source_distribution': weight_source_distribution,
         }
+
+    def _quadrant_rollup(self, exam_name: str, exam_context_id: int) -> Dict[str, Any]:
+        """Each active subject's mistakes including its descendants (#468).
+
+        Returns ``{'totals': {subject_id: count}, 'total_entries': int}``.
+        ``totals`` comes from :meth:`_aggregate_hierarchy_counts` with the
+        §5.4 buckets, exactly as Top Subject computes its own; every active
+        subject of the exam is passed, so a parent with no entries of its own
+        still receives its children's. ``total_entries`` is every entry in
+        the exam for this user.
+        """
+        nodes = self.fetchall(
+            "SELECT id FROM subject_nodes WHERE exam_context = ? AND status = 'active'",
+            (exam_name,))
+        bucket_rows = self.fetchall(
+            """
+            SELECT esm.subject_node_id AS sid,
+                   esm.primary_parent_id AS ppid,
+                   COUNT(DISTINCT qe.id) AS n
+            FROM entry_subject_mappings esm
+            JOIN question_entries qe ON qe.id = esm.question_entry_id
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            JOIN subject_nodes sn ON sn.id = esm.subject_node_id
+            WHERE sn.exam_context = ? AND sn.status = 'active'
+              AND rs.user_id = ?
+              AND esm.mapping_type = 'primary'
+            GROUP BY esm.subject_node_id, esm.primary_parent_id
+            """,
+            (exam_name, self.user_id))
+        buckets: Dict[int, Dict[Any, int]] = {}
+        direct: Dict[int, int] = {}
+        for b in bucket_rows:
+            buckets.setdefault(b['sid'], {})[b['ppid']] = b['n']
+        # A node's own figure is every entry tagged on it, however the
+        # student pinned it -- counted distinct, not summed across buckets.
+        for r in self.fetchall(
+            """
+            SELECT esm.subject_node_id AS sid, COUNT(DISTINCT qe.id) AS n
+            FROM entry_subject_mappings esm
+            JOIN question_entries qe ON qe.id = esm.question_entry_id
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            JOIN subject_nodes sn ON sn.id = esm.subject_node_id
+            WHERE sn.exam_context = ? AND sn.status = 'active'
+              AND rs.user_id = ?
+              AND esm.mapping_type = 'primary'
+            GROUP BY esm.subject_node_id
+            """,
+                (exam_name, self.user_id)):
+            direct[r['sid']] = r['n']
+        totals = self._aggregate_hierarchy_counts(
+            [{'id': n['id'], 'direct_count': direct.get(n['id'], 0)} for n in nodes],
+            count_field='direct_count',
+            context_buckets=buckets,
+        )
+        total = self.fetchone(
+            """
+            SELECT COUNT(DISTINCT qe.id) AS n
+            FROM question_entries qe
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            WHERE rs.exam_context_id = ? AND rs.user_id = ?
+            """,
+            (exam_context_id, self.user_id))['n'] or 0
+        return {'totals': totals, 'total_entries': total}
 
     def _categorize_subject_quadrant(
         self,

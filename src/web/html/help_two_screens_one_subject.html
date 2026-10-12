@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why two screens can disagree about one subject - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/21_two_screens_one_subject.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 9</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Why two screens can disagree about one subject</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_weights.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Weights: what a percentage means here</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_goals_and_drafts.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Goals, and why drafts do not count toward them</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Why two screens can disagree about one subject
+
+## In short
+
+Filter the entry browser by DVT and you may see eleven entries; look at the same subject on a chart and see five. Both numbers are correct, because WIMI counts and finds by different rules on purpose: a screen that totals your mistakes counts only the subject you named as the main one, and a screen that retrieves entries for you includes every subject an entry mentions. Listing is not measuring.
+
+## The rule in one line
+
+<!-- tour
+page: dashboard
+anchor: exam-card-analytics
+text: Analytics totals only the entries where a subject was the main one,
+  while Browse, beside it, finds every entry that mentions it. So the two can
+  give different numbers for the same subject and both be right.
+-->
+
+**Counting is primary-only. Finding is all tags.**
+
+Everything in this chapter is that sentence applied to particular screens. It
+is a deliberate decision rather than an oversight, and it is the reason two
+honest numbers about one subject can differ.
+
+## Where the two kinds of tag come from
+
+<!-- tour
+page: entry-form
+anchor: entry-form-subject-rows
+text: Primary is what the question tests and secondary is what it also
+  touches. Only primary tags are counted on the charts, so a subject cannot
+  climb them by being mentioned, and the entry browser finds an entry by
+  either kind.
+-->
+
+The entry form asks for subjects twice:
+
+- **Primary Subject(s)**, which is required, under the prompt *search the main
+  topic(s) this question tests*. This is what the question was about.
+- **Secondary Subject(s)**, which is optional, under the prompt *search related
+  topics also tested*. This is what else the question touched on.
+
+That second field is the useful one and it is also the one that makes the two
+numbers differ. A deep-vein-thrombosis question that also leans on warfarin
+pharmacology and on interpreting a D-dimer is genuinely about three things, and
+recording all three is better than recording one.
+
+## Why counting uses only the primary tag
+
+<!-- tour
+page: analytics
+anchor: analytics-by-subject
+text: Every total on this page counts only the subject you named as primary,
+  so a subject cannot inflate its own figure through tags that merely mention
+  it. The entry browser is the surface that includes every tag.
+-->
+
+Suppose secondary tags counted toward totals. Every time you tagged "also
+tested: pharmacology" you would add one to pharmacology's mistake count, and a
+subject you reach for often would climb the charts because you are thorough
+about tagging rather than because you are weak at it.
+
+The subject you are worst at and the subject you mention most would become the
+same thing, and the whole point of the analytics is to tell those apart. So
+every screen that produces a **total** filters to the primary tag:
+
+- the **Top subject** card in the dashboard's Quick Analytics panel;
+- the **By Subject** sunburst and the dimension sunbursts on the analytics
+  dashboard;
+- the **Subject vs Exam Weight Analysis** quadrants and recommendations;
+- performance over time, source comparison, and the subject deep dive's own
+  counts.
+
+What gets counted is the primary tag and nothing else, so a subject cannot
+inflate its own total through tags that merely mention it. Note that **Primary
+Subject(s)** is plural: if a question really was equally about two things and you
+name both as primary, both are counted. That is you saying the question had two
+main subjects, which is a different claim from "it also touched on this".
+
+## Why finding uses all of them
+
+Now suppose the entry browser's subject filter also used only primary tags.
+You half-remember a nasty warfarin question. You filter by warfarin. Nothing,
+because you had filed it as a DVT question and tagged warfarin second — so the
+one place in WIMI where you go looking for an entry would be the one place that
+could not find it.
+
+So every screen that **retrieves entries** includes every tag:
+
+- the entry browser's **Subject** filter;
+- the browser's search box, including the `subject:` operator;
+- the related-topics navigation that walks you from one subject to its
+  neighbours.
+
+A student looking for their DVT questions wants every entry that mentions DVT.
+
+## So: eleven and five
+
+<!-- tour
+page: entry-browser
+anchor: browser-filter-subject
+text: This page retrieves rather than counts, so filtering by a subject finds
+  every entry that mentions it, including the ones where you only noted it as
+  also tested. That is why a filter here can return eleven entries where a
+  chart shows five.
+-->
+
+That is the whole of it. Filter the browser by DVT and you get every entry that
+mentions DVT anywhere — say eleven. Look at DVT on the sunburst and you see the
+entries whose *main* subject was DVT — say five. Neither screen is wrong and
+neither is a cached stale number. They are answers to two different questions
+that happen to be phrased with the same subject name.
+
+The practical reading:
+
+- **A count is "how often is this my actual weakness".** Trust it for deciding
+  what to study.
+- **A list is "everything I have that touches this".** Trust it for finding a
+  specific entry, or for reading back several reasons on a topic in one go.
+- **If a count looks low, check your secondary tags.** A subject you keep
+  tagging second and never first is telling you something real: you notice it,
+  and it is not what is actually catching you out.
+
+## The sunburst's centre and its rings do not match either
+
+<!-- tour
+page: analytics
+anchor: analytics-sunburst-centre
+text: The centre is a count of your entries and each arc counts the entries
+  rolling up through one branch, so the arcs add up to more than the centre
+  whenever a subject sits under several parents. Eleven entries can correctly
+  draw arcs of 5, 6 and 3.
+-->
+
+The **By Subject** chart on the analytics dashboard has a second version of the
+same honesty problem, and it is worth knowing before it bothers you.
+
+- **The centre is a count of entries.** It is literally the same number as the
+  **Total Entries** card above it on the page — read from the same place, so
+  the two cannot drift apart.
+- **The rings are counts per parent.** Each segment says how many entries roll
+  up through that branch.
+
+Those two will not add up, and the gap is not a rounding artefact. A subject
+can sit under more than one parent in WIMI — the chapter *Subjects that live in
+more than one place* is about that — and when it does, an entry on it rolls up
+through each of those branches. Eleven entries can quite correctly draw
+segments of 5, 6 and 3.
+
+The card header carries a small **i** that says so: *shared subjects count
+under each parent, so the segments add up to more than the total.* Hover or tab
+to it and that is the sentence you get.
+
+Do not try to reconcile them, because the reconciliation would have to be a
+lie. Making the rings sum to the centre means deciding which single parent each
+shared subject "really" belongs under and dropping it from the others, and
+there is no honest way to pick. Making the centre the sum of the rings means
+the chart claims you have logged more entries than you have, inches below a
+card that says otherwise.
+
+What each one is for:
+
+- **The centre answers "how much work is in here".** It is a count of your
+  entries, full stop.
+- **A segment answers "how much of this branch is mistakes".** It is the right
+  number for comparing branches, which is what you are doing when you look at a
+  sunburst.
+
+## Drafts are in all of these numbers
+
+One more thing that makes two screens look like they disagree, and the short
+answer is that they do not: an unfinished entry counts on every analytics
+surface in WIMI. It is in the sunburst, in Top subject, in the deep dive, in
+the weight quadrants. The exception is goals, which is a chapter of its own —
+see *Goals, and why drafts do not count toward them*.
+
+## A checklist for a number that looks wrong
+
+In order, because the first two explain most of it:
+
+- **Is this screen counting or finding?** A filter list and a chart segment are
+  answering different questions.
+- **Does the subject have more than one parent?** If so, the sunburst's
+  segments will not sum to its centre, and that is correct.
+- **Are you comparing the same exam?** Most analytics screens carry an exam
+  filter, and two screens on different exams will agree about nothing.
+- **Are you comparing the same window?** "This week" on the dashboard is the
+  last seven days of practice; a weekly goal is Monday to Sunday of entries
+  logged. Again, see *Goals, and why drafts do not count toward them*.
+- **Only then suspect a bug**, and if you do, the numbers worth writing down
+  are both of them and the name of each screen.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

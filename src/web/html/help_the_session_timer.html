@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The session timer, rounds and breaks - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/33_the_session_timer.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 14</p>
+                <h1 class="help-title" data-testid="help-chapter-title">The session timer, rounds and breaks</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_notes.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Notes</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_finding_an_entry.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Finding an entry again</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# The session timer, rounds and breaks
+
+## In short
+
+If you gave your session a length when you set it up, a countdown appears beside the entry form and runs in work rounds. You can pause it, end a round early, start a fresh one, and take a break whenever you want rather than waiting for the clock to offer one. Time you spend paused or on a break is recorded against the round it interrupted, so a round's history shows how long you actually worked and how long you were away. If you set the session to No Limit, none of this appears, and nothing is missing.
+
+## The timer only exists if you asked for one
+
+<!-- tour
+page: session-setup
+anchor: session-duration
+text: This starts filled in from Settings, Study Sessions, Default Work Round
+  Duration, which is 60 minutes until you change it, not at No Limit. Leave it
+  and the session starts with a round already running; pick No Limit for an
+  untimed review.
+-->
+
+The countdown appears on the entry form only when the session carries a
+duration. Set a session up with **No Limit** and there is no timer, no rounds and no
+breaks — you log entries and that is all. Nothing about the rest of WIMI changes.
+
+That is worth saying plainly because the timer is the one part of the entry page
+that is absent rather than empty. If you are looking for it and it is not there,
+the session is why, and the fix is to set a length on the next one rather than
+to look for a setting.
+
+Where the numbers come from: **Settings → Study Sessions** holds the defaults a
+new session starts with — the work round length, the short and long break
+lengths, and how many rounds go by before a break counts as a long one. You can
+still change the length when you set up a particular session. The chapter
+[Settings, panel by panel](help_settings.html) covers that panel.
+
+That default is also why a session can be timed without your asking. **Session
+Duration** on the setup screen is marked optional, but it does not start at No
+Limit: it starts at the work round length from Settings, which is 60 minutes
+until you change it. Press **Start Session** without touching it and the session
+is timed, with round 1 starting at that moment. Choose **No Limit** in that field
+for an untimed review.
+
+## What a round is
+
+A round is one stretch of work with a clock on it. The strip beside the entry
+form shows which round you are in and how much of it is left.
+
+- **Pause** stops the clock. The button becomes Resume, and the strip dims so the paused state is visible rather than only announced.
+- **End round early** closes the current round before its clock runs out.
+- **Start a new round** appears once no round is running, which happens after one ends or after you end the timer.
+
+Those three have keyboard shortcuts, set in Settings and arriving as **Alt+P**,
+**Alt+N** and **Alt+E**. They are capture boxes rather than a fixed list, so you
+can change them, and WIMI refuses combinations it needs for itself.
+
+## Leaving the page pauses your round, and coming back resumes it
+
+<!-- tour
+page: entry-form
+anchor: entry-form-timer-pause-button
+text: Leaving this page pauses the running round for you, and coming back to
+  this session while WIMI is open resumes it, with the time away recorded as
+  break time. So a round measures time spent here. A round you paused yourself
+  stays paused when you come back.
+-->
+
+This is the behaviour most worth knowing, because it happens without being
+asked for and it is correct rather than a bug.
+
+Navigate away from the entry form — to the dashboard, the entry browser, the
+tree editor — and the round you were in is **paused**. Come back and it
+**resumes** from where it stopped. The time you were away is recorded as break
+time against that round.
+
+So a round is a measure of time you spent working on entries, not of wall-clock
+time since it started. Nine minutes of a twenty-minute round spent reading the
+analytics does not eat the round; it is parked and shows up as break time.
+
+What this is not: it is not a reason to avoid leaving the page. The timer is
+built to be left.
+
+**Closing WIMI is different from navigating away, and the difference is one
+press.** The auto-resume is remembered for as long as the app is open, so
+quitting with a round paused means it is still paused when you come back to
+that session — the round and its elapsed time are safe, and you start it again
+with Resume. Only the *automatic* part of the resume is lost.
+
+## Breaks, which come two ways
+
+### When a round's clock runs out
+
+A dialog appears headed **Round Complete!** and offers a break, with a length
+already filled in. It knows the difference between a short break and a long one:
+after however many rounds you set as the long-break interval, it says so and
+offers the longer length instead.
+
+From that dialog you can start the break or **End Timer** and stop there.
+
+### When you decide, which is the newer way
+
+A **Take a break** button sits in the timer strip. Press it and you are asked
+for a length; start the break and the round's clock stops. During the break the
+same button reads **End break**, and pressing it ends the break early. Letting
+it run out ends it too.
+
+Two details that are easy to get wrong by guessing:
+
+- **Ending a break resumes only what the break stopped.** If you had already paused the round yourself before taking a break, ending the break leaves it paused. The break does not become a second way to un-pause.
+- **A break you take yourself is always a short break**, whatever your long-break interval says. The long-break length belongs to the dialog that appears when a clock runs out, not to a break you chose to take. If you want a longer one, type the length you want.
+
+**What the dialog says depends on when you press it.** Mid-round, which is when
+you will usually press it, it says *"The round's clock stops while you are away
+and starts again when the break ends."* Between rounds, when no round is
+running, it says instead that there is no clock to stop. It also says such a
+break is recorded, and that part is not true. Break time is kept only against
+the round a break interrupted, and a break between rounds interrupts none, so
+it appears nowhere afterwards. When it ends you are offered the next round.
+
+## Where break time shows up, and where it does not
+
+Break time is recorded **against the round it interrupted**, and that is the
+only place it is kept.
+
+- **Session setup** shows a round history per session: each round's start, end, length, and `3m break` where there was one.
+- There is **no session-wide break total** anywhere in WIMI. If you took four breaks across six rounds, you can read the four, and nothing adds them up for you.
+
+That is a gap rather than a decision, and it is on WIMI's tracker. It is worth
+knowing because the number you might go looking for — "how long was I actually
+at this today" — is not on any screen, and the arithmetic is yours.
+
+## What the timer does not do
+
+Be clear-eyed about this, because a countdown beside a form looks like it does
+more than it does.
+
+- **It does not stop you.** The clock running out does not lock the form, discard anything, or prevent you logging. It offers a break and you can decline.
+- **It is not tied to how many questions you planned.** The session's question count and the timer's length are two separate numbers you gave it, and nothing reconciles them.
+- **It does not appear in the analytics.** No chart is built from rounds or break time. The analytics are about entries and subjects; the timer is a clock for the sitting you are in.
+- **It does not run while you are elsewhere, and it does not keep running after you quit.** A paused round stays paused, with its elapsed time intact, however long WIMI is closed. Nothing expires behind your back.
+
+## Where to go next
+
+- [Settings, panel by panel](help_settings.html) — the Study Sessions panel, where the default lengths and the three keyboard shortcuts live.
+- [Logging a mistake](help_logging_a_mistake.html) — the form the timer sits beside.
+- [Goals, and why drafts do not count toward them](help_goals_and_drafts.html) — the other thing in WIMI that measures effort, and it counts entries rather than time.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

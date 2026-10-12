@@ -90,8 +90,10 @@ class ExamWizard {
             this.updateUIForEditMode();
         }
 
-        // Load templates (non-blocking - continues even if fails)
-        this.loadTemplates().catch(err => {
+        // Load templates (non-blocking - continues even if fails). The
+        // template-card step can only show once the cards exist, so the tour
+        // is re-started when they do (a no-op unless that view is showing).
+        this.loadTemplates().then(() => this.startTour()).catch(err => {
             console.warn('Failed to load templates:', err);
         });
 
@@ -109,6 +111,23 @@ class ExamWizard {
         }
 
         console.log(`Exam Wizard initialized (${this.isEditMode ? 'Edit' : 'Create'} mode)`);
+        this.startTour();
+    }
+
+    /**
+     * The first-run tour (#430). Every wizard step is a `.wizard-step` in one
+     * document, shown by updateUI(), so a tour step renders only on its own
+     * wizard step: this is called on load and on every step change, and
+     * tour.js rebuilds an open tour from what renders now. The wizard is not
+     * page-gated, so there is no release to wait for. Behind a typeof check
+     * and a try, so a broken tour cannot break the wizard.
+     */
+    startTour() {
+        try {
+            if (typeof WimiTour !== 'undefined') WimiTour.start('exam-wizard');
+        } catch (e) {
+            console.error('Tour failed to start:', e);
+        }
     }
     
     updateUIForEditMode() {
@@ -767,7 +786,7 @@ class ExamWizard {
                 dimensionPreviewHtml = `
                     <div class="template-dimensions-preview">
                         ${template.dimensions.slice(0, 3).map(d =>
-                            `<span class="template-dimension-badge">${this.escapeHtml(d.name)}</span>`
+                            `<span class="template-dimension-badge">${WimiEscape.html(d.name)}</span>`
                         ).join('')}
                         ${template.dimensions.length > 3 ? `<span class="template-dimension-more">+${template.dimensions.length - 3} more</span>` : ''}
                     </div>
@@ -777,14 +796,14 @@ class ExamWizard {
             return `
                 <div class="template-card ${isSelected ? 'selected' : ''}"
                      data-template-id="${template.id}"
-                     data-testid="wizard-step1-template-card-${this.escapeHtml(template.id)}">
+                     data-testid="wizard-step1-template-card-${WimiEscape.html(template.id)}" data-tour-anchor="template-card">
                     <div class="template-card-header">
                         <span class="template-category-badge ${categoryClass}">${categoryLabel}</span>
                         ${template.popularity >= 4 ? '<span class="template-popular-badge">Popular</span>' : ''}
                     </div>
                     <div class="template-card-body">
-                        <h3 class="template-name">${this.escapeHtml(template.name)}</h3>
-                        <p class="template-description">${this.escapeHtml(template.description)}</p>
+                        <h3 class="template-name">${WimiEscape.html(template.name)}</h3>
+                        <p class="template-description">${WimiEscape.html(template.description)}</p>
                         ${dimensionPreviewHtml}
                         ${targetUsersHtml}
                     </div>
@@ -1130,15 +1149,94 @@ class ExamWizard {
         }
     }
     
-    deleteDimension(index) {
-        if (this.data.dimensions.length > 1 || confirm('Delete this dimension?')) {
-            this.data.dimensions.splice(index, 1);
-            // Update display orders
-            this.data.dimensions.forEach((dim, i) => {
-                dim.displayOrder = i + 1;
-            });
-            this.renderDimensions();
+    // Removing an axis that EXISTS in the database archives it and every
+    // subject tree in it when the wizard is saved -- api.deleteDimension ->
+    // archive_dimension -> delete_subject_subtree per root, #210's whole
+    // cascade. The student was told nothing (#486). The only confirm() here
+    // short-circuited on `length > 1` and the button is disabled at <= 1, so
+    // in practice nothing was ever asked.
+    //
+    // An axis with no dbId was added in this wizard session and is in no
+    // database, so there is nothing to archive and nothing to confirm.
+    // Asking there would be the inverse lie.
+    async deleteDimension(index) {
+        const dim = this.data.dimensions[index];
+        if (!dim) return false;
+
+        if (dim.dbId) {
+            const confirmed = await this.confirmDimensionRemoval(dim);
+            if (!confirmed) return false;
         }
+        this.removeDimensionAt(index);
+        return true;
+    }
+
+    removeDimensionAt(index) {
+        this.data.dimensions.splice(index, 1);
+        // Update display orders
+        this.data.dimensions.forEach((dim, i) => {
+            dim.displayOrder = i + 1;
+        });
+        this.renderDimensions();
+    }
+
+    // Resolves true if the student confirms. The counts come from
+    // getDimensionDeletePreview, the slot #210 wrote for exactly this and
+    // that had no caller until now; a failure to read them does NOT skip the
+    // confirmation -- it asks without the numbers, because the action is
+    // destructive either way and silence is the thing being fixed.
+    async confirmDimensionRemoval(dim) {
+        let preview = null;
+        try {
+            preview = await api.getDimensionDeletePreview(dim.dbId);
+        } catch (error) {
+            console.warn('Could not read the dimension delete preview:', error);
+        }
+
+        const name = (preview && preview.dimension_name) || dim.name || 'this dimension';
+        const subjects = preview ? (preview.subject_count || 0) : null;
+        const entries = preview ? (preview.entry_count || 0) : null;
+
+        const messageEl = document.getElementById('remove-dimension-message');
+        if (messageEl) {
+            messageEl.textContent = this.dimensionRemovalMessage(name, subjects, entries);
+        }
+
+        const overlay = document.getElementById('remove-dimension-modal');
+        const yes = document.getElementById('btn-confirm-remove-dimension');
+        const no = document.getElementById('btn-cancel-remove-dimension');
+        if (!overlay || !yes || !no) return true;  // never block on missing markup
+
+        overlay.classList.remove('hidden');
+        return new Promise((resolve) => {
+            const finish = (answer) => {
+                overlay.classList.add('hidden');
+                yes.removeEventListener('click', onYes);
+                no.removeEventListener('click', onNo);
+                resolve(answer);
+            };
+            const onYes = () => finish(true);
+            const onNo = () => finish(false);
+            yes.addEventListener('click', onYes);
+            no.addEventListener('click', onNo);
+            no.focus();
+        });
+    }
+
+    // Says what goes, when it happens, and that it can be undone. "When you
+    // save" is load-bearing: the archive runs in saveDimensions, not here, so
+    // a sentence in the present tense would be wrong about both the timing
+    // and what Cancel still gets you.
+    dimensionRemovalMessage(name, subjects, entries) {
+        const counted = subjects === null
+            ? `Its subjects will be archived with it.`
+            : subjects === 0
+                ? `It has no subjects in it.`
+                : `${subjects} ${subjects === 1 ? 'subject' : 'subjects'} in it will be archived too` +
+                  (entries ? `, carrying ${entries} ${entries === 1 ? 'entry' : 'entries'}` : '') + '.';
+        return `${name} is part of this exam. ${counted} `
+            + 'Nothing happens until you save the wizard, and you can undo it '
+            + 'afterwards from Archived subjects at the foot of the tree editor.';
     }
     
     renderDimensions() {
@@ -1189,7 +1287,7 @@ class ExamWizard {
                             <input type="text" class="dimension-name"
                                    data-testid="wizard-step3-dimension-${index}-name-input"
                                    placeholder="e.g., Site of Care"
-                                   value="${this.escapeHtml(dim.name)}"
+                                   value="${WimiEscape.html(dim.name)}"
                                    required>
                         </div>
                         <div class="form-group">
@@ -1197,7 +1295,7 @@ class ExamWizard {
                             <input type="text" class="dimension-description"
                                    data-testid="wizard-step3-dimension-${index}-description-input"
                                    placeholder="e.g., Where the patient encounter occurs"
-                                   value="${this.escapeHtml(dim.description || '')}">
+                                   value="${WimiEscape.html(dim.description || '')}">
                         </div>
                         <div class="form-row dimension-options">
                             <label class="checkbox-label">
@@ -1260,9 +1358,13 @@ class ExamWizard {
 
         // Delete buttons
         container.querySelectorAll('.btn-delete-dimension').forEach((btn, index) => {
-            btn.addEventListener('click', () => {
-                this.deleteDimension(index);
-                this.markTemplateModified();
+            btn.addEventListener('click', async () => {
+                // Awaited, because deleteDimension now asks first (#486).
+                // Marking the template modified before the answer would
+                // record a change the student declined.
+                if (await this.deleteDimension(index)) {
+                    this.markTemplateModified();
+                }
             });
         });
 
@@ -1328,11 +1430,6 @@ class ExamWizard {
         });
     }
     
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
     
     // =========================================================================
     // Navigation
@@ -1667,6 +1764,12 @@ class ExamWizard {
         
         // Update navigation buttons
         this.updateNavigation();
+
+        // Safe although nextStep() draws the template cards AFTER this call:
+        // The tour's start awaits the tour state before it resolves any
+        // anchor, so it reads the page once this synchronous step change,
+        // displayTemplates() included, has finished.
+        this.startTour();
     }
     
     updateProgressBar() {
@@ -1732,12 +1835,15 @@ class ExamWizard {
             levelEl.innerHTML = `
                 <div class="level-order">${index + 1}</div>
                 <div class="level-info">
-                    <span class="level-name">${level}</span>
+                    <span class="level-name"></span>
                     <span class="badge ${isRequired ? 'badge-required' : 'badge-optional'} level-badge">
                         ${isRequired ? 'Required' : 'Optional'}
                     </span>
                 </div>
             `;
+            // The name is set as text (#548): in edit mode it is the exam's
+            // stored level list, which a profile import carries as written.
+            levelEl.querySelector('.level-name').textContent = level;
             
             container.appendChild(levelEl);
         });
@@ -1818,7 +1924,7 @@ class ExamWizard {
             dimensionsSection.style.display = 'block';
             dimensionsContainer.innerHTML = this.data.dimensions.map(dim => `
                 <div class="summary-dimension-item">
-                    <span class="dimension-name-badge">${this.escapeHtml(dim.name)}</span>
+                    <span class="dimension-name-badge">${WimiEscape.html(dim.name)}</span>
                     ${dim.isRequired ? '<span class="badge badge-required">Required</span>' : ''}
                     ${dim.allowMultiple
                         ? '<span class="badge badge-optional" title="More than one subject from this dimension is expected on an entry.">Multi-select</span>'
@@ -1831,10 +1937,21 @@ class ExamWizard {
         
         // Hierarchy
         const hierarchyContainer = document.getElementById('summary-hierarchy');
-        hierarchyContainer.innerHTML = this.data.hierarchyLevels.map((level, index) => `
-            <span class="hierarchy-item">${level}</span>
-            ${index < this.data.hierarchyLevels.length - 1 ? '<span class="hierarchy-arrow">→</span>' : ''}
-        `).join('');
+        // Built from text nodes (#548): the level names may be the exam's
+        // stored list, which a profile import carries as written.
+        hierarchyContainer.innerHTML = '';
+        this.data.hierarchyLevels.forEach((level, index) => {
+            const item = document.createElement('span');
+            item.className = 'hierarchy-item';
+            item.textContent = level;
+            hierarchyContainer.append(item, ' ');
+            if (index < this.data.hierarchyLevels.length - 1) {
+                const arrow = document.createElement('span');
+                arrow.className = 'hierarchy-arrow';
+                arrow.textContent = '→';
+                hierarchyContainer.append(arrow, ' ');
+            }
+        });
         
         // Weight settings
         document.getElementById('summary-balancing').textContent = 

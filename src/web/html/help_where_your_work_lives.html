@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where your work lives, and how to keep it - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/81_where_your_work_lives.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 26</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Where your work lives, and how to keep it</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_settings.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Settings, and what each one changes</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_plugins.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Plugins</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Where your work lives, and how to keep it
+
+## In short
+
+Everything you have written lives in one folder beside the WIMI application, and the only safe way to take a copy of it is Settings, Profile, Export profile. Copying the database file yourself is the obvious thing to reach for and it is the wrong thing: WIMI keeps your most recent work in a second file beside the database for a while, so a copy of the database alone can be missing your newest entries, or — measured, on a profile that has not been running long — can turn out not to be a readable database at all. WIMI has no automatic backup and no Back up now button, so a copy of your work exists only if and when you make one.
+
+## Everything is in one folder beside the application
+
+WIMI does not put your data in a hidden system location. It keeps it next to
+itself, in a folder called **app_data**.
+
+- **If you are running a downloaded build**, app_data sits in the same folder as the WIMI program. On a Mac, beside the WIMI application rather than inside it.
+- **If you are running WIMI from source**, it is at the top of the project folder.
+
+That has a consequence worth knowing before you learn it the hard way: **moving
+or copying the WIMI folder moves your data with it, and deleting the WIMI folder
+deletes your data.** There is no second copy anywhere on your machine. If you
+reinstall WIMI by deleting the old folder, everything goes.
+
+A **logs** folder sits beside app_data rather than inside it. It holds WIMI's own
+diagnostic logs, nothing of yours, and nothing in it needs keeping.
+
+### What is in app_data
+
+- **users.db** — the list of your profiles and which file belongs to each. It holds no entries. It also holds this computer's identity, which is why it is deliberately not part of anything you move between machines.
+- **users** — one database file per profile, named after the profile. This is where everything you have written actually is: your exams, your subjects and their weights, your sessions, every entry, every reflection, every note, your tags, your goals and your settings.
+- **media** — your attached images, one folder per profile, with scrambled filenames. The names are meaningless on purpose; which image belongs to which entry is recorded in the database, not in the filename.
+- **archive** — the database of any profile you have deleted but not yet lost, plus a safety copy taken before any profile-replacing import. More on both below.
+- **plugins** — one folder per installed plugin. See [Plugins](help_plugins.html).
+- **models** — present once you have fetched a speech model, or, if you are running the larger download, the relation-suggestion model. These are downloaded files rather than your work, and they are large. You never need to keep them: WIMI can fetch them again.
+- **browser_pane** — the cookies and cache of the browser pane, which is how your question-bank logins survive a restart. Nothing of yours is in it, and it is deliberately not carried anywhere.
+- **foldersync** — if you use the sync folder feature, the notes WIMI keeps about which copy this computer is working from, plus a staging area and some safety exports.
+
+## The file that matters, and the two beside it
+
+Open the **users** folder while WIMI is running and you will see three files per
+profile, not one: the database, and two more with the same name and an extra
+suffix. The extra two are not junk and they are not optional.
+
+WIMI's database writes new work into one of those companion files first and folds
+it into the main database later. This is a normal and deliberate way to run
+SQLite — it is what lets WIMI save a field at a time while you type without
+pausing — but it means **the main database file is not always up to date, and
+sometimes is very far from it.**
+
+When WIMI shuts down properly it folds everything in and the two companions
+disappear. While WIMI is running, or after a crash or a force-quit, they are
+where some of your work is.
+
+## Why copying the database file is the wrong backup
+
+This is the thing a careful student works out for themselves and gets wrong, so
+here is what actually happens. These are measurements, not warnings.
+
+Taking a copy of the database file alone, while the database was live:
+
+- **On a profile where nothing had yet been folded in, the copy was not a usable database at all.** Opening it reported that the tables did not exist. Not a damaged copy — a copy with nothing in it, because at that point every row was still in the companion file.
+- **After one fold-in, with one further entry written, the copy had every row except the newest one.** The copy opened cleanly, reported a sensible number of entries, and was quietly missing the last thing written. That is the dangerous outcome, because nothing about the file says so.
+- **Copying all three files together gave a complete copy** — but the three are read one after another, so they can be captured at three different instants and disagree with each other. It happens to work and it is not a guarantee.
+- **The same work read out through WIMI's own copying routine was complete every time**, because that routine reads through the database rather than off the disk.
+
+There is one more trap in the obvious approach. The usual advice for this
+situation is "ask the database to fold everything in first, then copy". That
+**can be refused**: measured, with one other thing reading the database, the
+fold-in copied nothing at all and said so. Anything that asks for a fold-in
+without reading the answer then copies an out-of-date file and calls it a
+backup. WIMI's own code made that mistake once and no longer does, and it is why
+this chapter does not hand you the technique.
+
+So: **a copy of the database file is a copy whose completeness you cannot check.**
+
+## The safe copy is Export profile
+
+<!-- tour
+page: settings
+anchor: settings-profile-export
+text: This is the only backup WIMI has. Nothing runs on a schedule and there
+  is no Back up now anywhere, so a copy of your work exists exactly as often
+  as you press this. Put a date in the filename and keep several.
+-->
+
+Go to **Settings**, then the **Profile** panel, and press **Export profile…**.
+You choose where to save and WIMI writes a single `.wimi` file.
+
+What makes this the right answer rather than merely the official one:
+
+- **It reads your data out through the database, not off the disk.** The companion files are included by definition, because the database is being asked rather than copied. Nothing can be half-written and nothing can be missing.
+- **It works while the profile is open.** You do not have to quit, switch profile or close anything. Export the profile you are using, right now, mid-session.
+- **It is one file.** There is no triplet to keep together and nothing to get wrong when you move it.
+- **It is an ordinary zip.** Rename it and your computer will open it. Inside are a small description of the profile, one database file, and your images if you included them. Nothing is encrypted and nothing is proprietary, which means a future you with no copy of WIMI can still get the data out.
+
+The tick box above the button, **Include media files**, is on by default and
+controls whether your images travel. Turning it off makes the file dramatically
+smaller and the images will simply be missing if you ever import it. For a
+backup, leave it on.
+
+The suggested filename is your profile's username. **Change it to something with
+a date in it.** WIMI will not stop you overwriting last week's export with
+today's, and an export you overwrote is an export you no longer have.
+
+### What an export does not bring with it
+
+- **Your other profiles.** An export is one profile. If you keep two, export both.
+- **Your question-bank logins.** The browser pane's cookies live outside any profile and are not in the file, so a restored profile asks you to sign in again.
+- **The speech or relation models.** Large, re-downloadable, not yours.
+- **Your plugins.** They also live outside any profile and are not carried.
+- **Your profile list and this computer's own identity.** Those are in the file beside your profiles rather than inside one, and that file is deliberately never packed.
+- **Anything that describes a machine rather than you.** Which microphone to record from, which speech model is installed here, the browser pane's zoom and where you dragged the divider. Those settings never arrive as settings on another computer: it looks up its own and finds its own defaults. The chapter on profiles and keeping two computers in step is where that distinction is explained properly.
+
+### What checks it
+
+On import, WIMI inspects the file before it changes anything: it checks the file
+really is a WIMI archive, that it is not from a newer version of WIMI than you
+are running, and that the database inside has the schema history it claims. The
+zip format itself carries a checksum per file, so a `.wimi` that has been
+corrupted in transit will refuse to unpack rather than importing silently wrong
+data.
+
+What nothing checks is whether your three-month-old export is still readable
+**now**. Nothing in WIMI audits your old archives. If you are keeping exports
+seriously, import one into a spare profile occasionally and look at it. An
+untested backup is a hope.
+
+## If you do copy files by hand
+
+Sometimes you want the whole folder rather than one profile — moving to a new
+computer, or keeping a cold copy on an external drive. That is fine, with two
+rules:
+
+- **Quit WIMI first, properly**, from the window rather than by killing it. That is what folds everything into the database files and removes the companions. Then the folder on disk is complete.
+- **Copy the whole app_data folder**, not selected files out of it. Your images and your profile list are as much your work as the database is, and a database without its matching media folder loses every image.
+
+A copy taken while WIMI is running is the case measured above. Do not take one.
+
+## WIMI has no automatic backup
+
+Settings, **Data & Backup**, has three controls that look exactly like an
+automatic backup feature: switch it on, how often, how long to keep. They are
+greyed out beneath a **Coming Soon** badge, and that badge is honest — there is
+no scheduled backup in WIMI, no background job, and **no Back up now button
+anywhere in the application.**
+
+**Backup Retention (days)** is the one worth pointing at specifically, because it
+sounds like a safety feature and is not. Nothing is retained on a schedule and
+nothing is deleted on one.
+
+So the entire answer to "how often is my work backed up" is: **as often as you
+press Export profile.** Nothing else in WIMI will do it for you, and nothing will
+remind you.
+
+The sync-folder feature above those controls is a genuinely useful thing and it
+is **not** a backup. It keeps two computers in step, which means it is just as
+happy to carry a deletion as an addition. Treat it as a way to work in two places
+and keep exports as well.
+
+## Two copies WIMI does leave behind, almost by accident
+
+Neither is a backup feature and neither is ever cleaned up, which cuts both ways.
+
+- **Before replacing a profile with an imported one**, WIMI copies the profile's database into the **archive** folder, named after the profile with a date and time. It uses the safe routine described above and reads the copy back to check it is complete before touching anything; if the copy came back short it refuses the whole import rather than proceeding. It is **kept** after a successful import rather than deleted, so if a replace turns out to have been a mistake, the version you had is still there.
+  Your images are a separate question on that screen. The import dialog's **Keep the images already in this profile** is ticked every time it opens, and with it ticked nothing is deleted — the archive's images are simply added to the ones you have. Untick it and the replace makes your images match the archive exactly, which on an archive exported without media means deleting all of them. Leave it ticked unless that is what you want.
+- **Before resolving a disagreement between two synced computers**, WIMI writes a full export, images included, into a safety folder inside app_data. Same idea: it exists so a choice you regret is recoverable.
+
+Both accumulate for ever. Nothing prunes them, no setting governs them, and over
+a lot of imports they will take real space. You can delete old ones yourself once
+you are sure you do not want them; just be sure.
+
+## Deleting a profile keeps more than you might expect
+
+Deleting a profile from the picker does not erase anything immediately. The
+profile's database is **moved** into the archive folder and the profile appears
+under **Recently deleted** with a countdown, where **Restore** puts it straight
+back.
+
+After ten days, WIMI's next launch removes the profile and that database file for
+good, and Restore is no longer offered. That part works, and it is final.
+
+**Its images go with it**, which is worth stating because it did not use to.
+The permanent removal now takes the profile's folder from inside **media** along
+with its database, so the confirmation's promise — permanently removed,
+including all its data — is true of the pictures too. If you deleted a profile
+in an older WIMI to get rid of its contents, its image folder may still be
+sitting in **media** under the old username; nothing will find it for you, and
+deleting that folder by hand is safe.
+
+## An honest routine
+
+Nothing here is enforced by the application, so it is a habit rather than a
+feature.
+
+- **Export after any session you would be upset to lose**, which in practice means any session where you wrote a lot. It takes a few seconds and the file is small without images, modest with them.
+- **Put a date in the filename** and keep several. One export that you keep overwriting protects you from a disk failure and not from your own mistake three days ago.
+- **Keep at least one copy somewhere that is not this computer.** A folder your cloud client syncs is fine for this; so is a memory stick.
+- **Export before anything large and irreversible** — before replacing a profile from a file, before a big subject-tree import, before deleting a profile. The tree editor can undo its own archiving, and [Archiving and restoring](help_archive_and_restore.html) explains how far that goes; an export is the cover for everything it does not.
+- **Open an old export occasionally**, as a new profile, and look at it.
+
+## What cannot be promised
+
+Stated plainly, because reassurance you have not earned is worse than none.
+
+- **There is no route that is safe while WIMI is being killed or crashing.** An export taken deliberately is consistent. A machine losing power mid-write is a different question, and WIMI trades a little of that safety for not pausing while you type: a crash of the application itself is safe, a sudden loss of power can cost the last few saves.
+- **Nothing verifies your archives over time.** Only you can do that, by opening one.
+- **There is no partial restore of your entries.** You cannot pull one entry or one exam out of a `.wimi`. You import the profile whole, either as a new one beside your current one or over the top of an existing one; if you only want one thing back, import as new, switch to it, read it and retype what you need. The one exception is **structure**: the tree editor exports and imports subject trees as their own files, so a tree really can be moved from one profile to another without touching anything else. [Changing your tree](help_changing_your_tree.html) covers that.
+- **There is no undo for an import that replaced a profile**, beyond the safety copy in the archive folder described above, and putting that back is a file-level operation rather than a button.
+
+## Where to go next
+
+- [Settings, and what each one changes](help_settings.html) — where Export and Import live, and what the Data & Backup panel really offers.
+- [Archiving and restoring](help_archive_and_restore.html) — the undo that does exist, for subjects and dimensions.
+- [Plugins](help_plugins.html) — the one thing you can install that gets the same access to all of the above that WIMI has.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

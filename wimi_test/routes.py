@@ -29,6 +29,10 @@ Valid route names:
 - ``exam-wizard``
 - ``error-viewer``
 - ``profile-select``
+- ``help`` (the manual's index; chapter pages are generated per
+  chapter and are reached from it by link, so they deliberately have no
+  route of their own -- one per chapter would mean editing this file every
+  time a chapter is written)
 
 This is a leaf module: stdlib imports only, no imports from any ``wimi_test.*``
 sibling. File existence is intentionally not checked at import or resolve
@@ -58,6 +62,7 @@ ROUTES: MappingProxyType = MappingProxyType({
     "exam-wizard": "wizards/exam_wizard.html",
     "error-viewer": "error-viewer.html",
     "profile-select": "profile_select.html",
+    "help": "help.html",
 })
 
 

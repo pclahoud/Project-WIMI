@@ -46,6 +46,11 @@ from . import m022_efficiency_confidence_band
 from . import m023_speech_to_text_settings
 from . import m024_dimension_soft_delete
 from . import m025_dimension_import_id
+from . import m026_relation_types
+from . import m027_relation_rejections
+from . import m028_relation_confidence_threshold
+from . import m030_settings_defaults_reset
+from . import m031_tour_seen_steps
 
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
@@ -68,4 +73,9 @@ MIGRATIONS: list[Migration] = [
     build_migration(m023_speech_to_text_settings),
     build_migration(m024_dimension_soft_delete),
     build_migration(m025_dimension_import_id),
+    build_migration(m026_relation_types),
+    build_migration(m027_relation_rejections),
+    build_migration(m028_relation_confidence_threshold),
+    build_migration(m030_settings_defaults_reset),
+    build_migration(m031_tour_seen_steps),
 ]

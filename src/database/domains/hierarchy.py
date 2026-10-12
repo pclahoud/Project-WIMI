@@ -2992,18 +2992,20 @@ class HierarchyMixin:
     #  docs/planning/HIERARCHICAL_WEIGHT_ALLOCATION_REWORK.md §3.5)
     #
     # Save-then-warn: backend never refuses a write. These methods are
-    # pure read-side validators that produce a per-parent report
-    # describing whether the children's [low, high] ranges fit inside
-    # the parent's range — including the rounding-class infeasibility
-    # case (Σ⌈child_lo·N/100⌉ > ⌊parent_hi·N/100⌋) where integer
-    # rounding makes the configuration mathematically unsatisfiable.
+    # pure read-side validators.
     #
-    # Status taxonomy:
-    #   * 'ok'          — children [low, high] fit cleanly in parent's range
-    #   * 'under'       — Σ child highs < parent low (room for more)
-    #   * 'over'        — Σ child lows > parent high (over-claimed)
-    #   * 'infeasible'  — Σ⌈child_lo·N/100⌉ > ⌊parent_hi·N/100⌋
-    #                     (rounding-class violation)
+    # **THEY NO LONGER REPORT A FAULT (#664, owner 2026-10-10).** They
+    # produced a per-parent verdict on whether the children's [low, high]
+    # ranges fit inside the parent's — 'over', 'infeasible', 'under' — and
+    # every one of those presumed that a parent's weight CONTAINS its
+    # children's. #64 denies it: a weight is a percentage of the whole exam
+    # at any depth. So `status` is always 'ok' now and what remains is the
+    # arithmetic: the children's summed low and high, in per cent and in
+    # questions, beside the parent's own q range. The full reasoning is at
+    # the decision point inside validate_hierarchy_feasibility.
+    #
+    # The name of this section is left as Stage 7 wrote it, because the two
+    # planning documents it cites are the record of what was built and why.
     #
     # Appended at the end of the mixin to dodge merge conflicts with the
     # parallel Stage 8 (CAT) work that modifies allocate_questions_hamilton
@@ -3189,21 +3191,25 @@ class HierarchyMixin:
           *widens* intervals rather than over-constraining them, per
           design §3.5.
 
-        Status decision tree (most-actionable first):
+        **`status` is always ``'ok'`` and ``violators`` is always empty
+        (#664, owner 2026-10-10).** This method reports figures, not a
+        verdict.
 
-        1. ``Σ child_low_pct > parent_high_pct`` ⇒ ``'over'`` — the
-           percentages alone over-claim. Reported first because the
-           user's fix is "reduce a weight", which is simpler than the
-           rounding-class advice. (Note: when percentages over-sum, the
-           integer rounding class is also violated, but the percentage
-           message is the more actionable one.)
-        2. ``Σ child_low_q > parent_high_q`` ⇒ ``'infeasible'`` —
-           percentages COULD fit but ceiling-rounded q minimums sum
-           past the floor-rounded q ceiling. The genuine
-           "round more aggressively" case.
-        3. ``Σ child_high_pct < parent_low_pct`` ⇒ ``'under'`` —
-           children sum to less than the parent's floor.
-        4. Otherwise ⇒ ``'ok'``.
+        It used to decide between ``'over'``, ``'infeasible'`` and
+        ``'under'``, each by summing the children's weights and comparing
+        them with the parent's. **#64 makes that comparison meaningless**:
+        a weight is a percentage of the whole exam at any depth, never a
+        share of the subject above it, so a child may legitimately carry
+        more than its parent and the three faults fired on correct data.
+        The reasoning, the measurement and why ``'under'`` went with the
+        other two are at the decision point in the body — read that before
+        reinstating anything here.
+
+        What the figures below still mean is unchanged and is honest: the
+        children's summed low and high, in per cent and in ceiling-rounded
+        questions, beside the parent's own floor-rounded q range. A caller
+        that wants to *show* those numbers may; one that wants to call them
+        a fault may not.
 
         Args:
             parent_id: ``subject_nodes.id`` whose outgoing edges to
@@ -3221,7 +3227,7 @@ class HierarchyMixin:
 
         Returns:
             ``{
-                'status': 'ok' | 'under' | 'over' | 'infeasible',
+                'status': 'ok',   # always; see above (#664)
                 'parent_low_q':  int | None,
                 'parent_high_q': int | None,
                 'children_low_sum_q':  int,
@@ -3331,86 +3337,47 @@ class HierarchyMixin:
         violators: List[Dict[str, Any]] = []
         status = 'ok'
 
-        # Decision precedence:
+        # THERE IS NO PARENT/CHILD WEIGHT COMPARISON. The status is always
+        # 'ok' and `violators` is always empty (#664, owner 2026-10-10).
         #
-        #   1. 'over'       — percentage sum exceeds parent's high. The
-        #                     simple "you've over-claimed" case; reported
-        #                     BEFORE 'infeasible' so the user gets
-        #                     actionable copy ("reduce a weight") instead
-        #                     of the rounding-class message ("round more
-        #                     aggressively"). When percentages sum over,
-        #                     the integer rounding class is *also*
-        #                     violated, but the percentage-level fix is
-        #                     what the user needs first.
-        #   2. 'infeasible' — rounding-class: percentages COULD fit
-        #                     (each child's low pct ≤ parent high), but
-        #                     ceiling-rounded q minimums sum past the
-        #                     floor-rounded q ceiling. The genuine
-        #                     "fix needs rounding aggression, not
-        #                     weight reduction" case from design §3.5.
-        #   3. 'under'      — Σ children's high pct < parent's low pct.
-        #                     Room for more children / heavier weights.
-        #   4. 'ok'         — children fit.
-
-        # --- over (percentage sum exceeds parent high) -------------------
-        if (
-            parent_high_pct is not None
-            and children_low_sum_pct > parent_high_pct
-        ):
-            status = 'over'
-            # Violators: children whose low_pct alone contributes to the
-            # overrun. List those whose individual low > 0 (all
-            # contributors).
-            for c in child_data:
-                if c['low_pct'] > 0:
-                    violators.append({
-                        'edge_id': c['edge_id'],
-                        'child_id': c['child_id'],
-                        'child_name': c['child_name'],
-                        'reason': (
-                            f"low={c['low_pct']:.1f}% contributes to the "
-                            f"over-allocated sum of "
-                            f"{children_low_sum_pct:.1f}% > "
-                            f"parent high {parent_high_pct:.1f}%"
-                        ),
-                    })
-
-        # --- infeasibility (rounding-class) -----------------------------
-        # Only checkable when we have N and a parent q ceiling.
-        elif (
-            N > 0
-            and parent_high_q is not None
-            and children_low_sum_q > parent_high_q
-        ):
-            status = 'infeasible'
-            # Violators: children whose ceiling-rounded mins materially
-            # contribute. Use the simple "child_low_q > 0" filter so the
-            # UI can highlight every contributing edge; this keeps the
-            # report actionable without an arbitrary threshold.
-            for c in child_data:
-                if c['low_q'] > 0:
-                    violators.append({
-                        'edge_id': c['edge_id'],
-                        'child_id': c['child_id'],
-                        'child_name': c['child_name'],
-                        'reason': (
-                            f"low={c['low_pct']:.1f}% → ceil({c['low_pct']}·"
-                            f"{N}/100) = {c['low_q']} q contributes to the "
-                            f"infeasible sum of {children_low_sum_q} q > "
-                            f"parent high {parent_high_q} q"
-                        ),
-                    })
-
-        # --- under (children sum less than parent low) -------------------
-        elif (
-            parent_low_pct is not None
-            and children_high_sum_pct < parent_low_pct
-        ):
-            status = 'under'
-            # No specific violators per spec — under-allocation is a
-            # parent-level "add more children" message, not a
-            # per-child action.
-            violators = []
+        # Stage 7 reported three faults here -- 'over' (Σ child low pct >
+        # parent high pct), 'infeasible' (the same in ceiling-rounded
+        # question counts) and 'under' (Σ child high pct < parent low pct).
+        # All three presumed that a parent's weight CONTAINS its children's.
+        # #64 denies exactly that: a weight is a percentage of the whole
+        # exam at any depth, never a share of the subject above it, so
+        # summing children and comparing them with their parent has no
+        # referent.
+        #
+        # It was not a theoretical objection. #64's own published example
+        # tripped it: Step 2 CK lists Nutrition at 15-20% and Multisystem
+        # Processes & Disorders at 4-8% as SIBLING rows, so a student who
+        # files nutrition under multisystem -- a perfectly good way to
+        # organise revision -- got a warning dot on the parent, using two
+        # numbers copied straight off the blueprint. Measured in the real
+        # app: status 'over', children_low_sum_pct 15 > parent_high 8.
+        #
+        # 'under' is not an oversight in this list. The issue named only
+        # 'over' and 'infeasible', and the owner was asked about the third
+        # separately once it was found (#664 comment #9705): it is the same
+        # comparison pointing the other way, and `tree_editor.js` drew the
+        # same warning dot for it, so dropping two of three would have left
+        # the defect live in its third form.
+        #
+        # WHY THE FUNCTION STAYS. `getFeasibilityReport` and
+        # `getAllFeasibilityReports` are registered bridge slots, and
+        # deleting a registered slot is a breaking change. The figures below
+        # are also honest -- children's summed low/high in per cent and in
+        # questions, and the parent's own q range -- and a caller may
+        # legitimately want them. Only the VERDICT rested on the false
+        # premise, so only the verdict is gone.
+        #
+        # DO NOT REINTRODUCE A COMPARISON HERE. If WIMI ever gains a way to
+        # know that a particular tree is genuinely nested -- that its
+        # children partition their parent's share rather than cross-cutting
+        # it -- then this check becomes meaningful for those trees and needs
+        # that notion first (#664 option 3). That is new product surface,
+        # not a revival of this code.
 
         return {
             'status': status,

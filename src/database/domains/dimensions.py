@@ -416,6 +416,207 @@ class DimensionsMixin:
         )
         return [row['id'] for row in rows]
 
+    def get_subjects_outside_any_axis(
+        self, exam_context_id: int
+    ) -> List[Dict[str, Any]]:
+        """Active subjects on a dimensioned exam that are in no axis (#605).
+
+        These exist, they carry the student's entries, and **nothing in WIMI
+        renders them**: the dimensioned tree filters on ``dimension_id`` and
+        the plain tree is never drawn once an exam has an axis. So a student
+        who adds their first axis to an exam that already had subjects
+        watches their whole tree vanish, with no warning and nothing to click.
+        That is the live half of #605, and this is the read that ends it.
+
+        **Roots only.** Moving a root moves its subtree (see
+        :meth:`move_subjects_into_axis`), so a flat list of every orphan
+        would offer the student the same operation dozens of times and
+        obscure the shape of what is stranded. "Root" here means *no active
+        parent that is also outside every axis* -- the mirror of
+        :meth:`_dimension_root_node_ids`, and chosen for the same reason:
+        anchoring on "no parent at all" would skip a subject whose only
+        parent has already been moved into an axis, which is precisely the
+        half-moved state a student can reach.
+
+        ``subtree_count`` is what the panel shows beside each row, because
+        "Cardiovascular System" alone does not tell a student that 340
+        subjects travel with it.
+
+        Returns ``[]`` for an exam with no active dimensions. A dimensionless
+        exam has no axes to be outside of, and every subject there is drawn
+        by the plain path already -- reporting them would turn a healthy
+        exam's panel on for no reason.
+        """
+        active_axes = self.fetchone(
+            "SELECT COUNT(*) AS n FROM exam_dimensions "
+            "WHERE exam_id = ? AND status = 'active'",
+            (exam_context_id,),
+        )
+        if not active_axes or not active_axes['n']:
+            return []
+
+        exam = self.fetchone(
+            "SELECT exam_name FROM exam_contexts WHERE id = ?",
+            (exam_context_id,),
+        )
+        if not exam:
+            return []
+
+        rows = self.fetchall(
+            """
+            SELECT sn.id, sn.name, sn.level_type
+            FROM subject_nodes sn
+            WHERE sn.exam_context = ?
+              AND sn.dimension_id IS NULL
+              AND sn.status = 'active'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM subject_edges se
+                  JOIN subject_nodes parent ON parent.id = se.parent_id
+                  WHERE se.child_id = sn.id
+                    AND parent.status = 'active'
+                    AND parent.dimension_id IS NULL
+              )
+            ORDER BY sn.sort_order, sn.name
+            """,
+            (exam['exam_name'],),
+        )
+
+        return [
+            {
+                'subject_id': row['id'],
+                'name': row['name'],
+                'level_type': row['level_type'],
+                'subtree_count': len(self._subtree_outside_any_axis(row['id'])),
+            }
+            for row in rows
+        ]
+
+    def _subtree_outside_any_axis(self, root_id: int) -> List[int]:
+        """``root_id`` and every active descendant still in no axis.
+
+        UNION, not UNION ALL: a subject reachable by two paths inside the
+        same subtree would otherwise be visited twice and, worse, a data
+        cycle would recurse forever. The same choice ``get_subject_deep_dive``
+        makes, for the same reason.
+
+        The walk stops at a descendant that is already in an axis. That is
+        not a tidiness check -- continuing would drag a subject back OUT of
+        the axis somebody deliberately put it in.
+        """
+        rows = self.fetchall(
+            """
+            WITH RECURSIVE outside(id) AS (
+                SELECT id FROM subject_nodes
+                 WHERE id = ? AND status = 'active' AND dimension_id IS NULL
+                UNION
+                SELECT child.id
+                  FROM outside
+                  JOIN subject_edges se ON se.parent_id = outside.id
+                  JOIN subject_nodes child ON child.id = se.child_id
+                 WHERE child.status = 'active'
+                   AND child.dimension_id IS NULL
+            )
+            SELECT id FROM outside
+            """,
+            (root_id,),
+        )
+        return [row['id'] for row in rows]
+
+    def move_subjects_into_axis(
+        self, subject_ids: List[int], dimension_id: int
+    ) -> Dict[str, Any]:
+        """Move subjects, and their subtrees, into an axis (#605).
+
+        The owner's decision, 2026-10-10: the panel listing subjects outside
+        every axis is *a place the student resolves them from*, not a holding
+        pen. This is what the row action calls.
+
+        **IT IS A NODE-COLUMN UPDATE, AND NO EDGE IS TOUCHED.** CLAUDE.md
+        described ``subject_edges`` as holding
+        ``(parent_id, child_id, dimension_id, ...)``; it does not --
+        ``m004`` creates no such column, and the ``dimension_id`` in
+        ``get_edges_for_child``'s payload is ``sn.dimension_id`` aliased, the
+        **node's** column. A design that trusted that sentence would have
+        rewritten edge rows that do not exist. Corrected in CLAUDE.md with
+        this change.
+
+        **The whole subtree moves.** Cross-dimensional edges are a Non-Goal
+        (``POLYHIERARCHY_MIGRATION.md``), so moving a parent and leaving its
+        children behind would manufacture exactly the thing the data model
+        forbids -- and leave those children stranded in the same invisible
+        state this issue exists to end.
+
+        Two refusals, each a sentence rather than an ``IntegrityError`` from
+        three frames down (#66 2.2): an axis that is not active, and an axis
+        belonging to another exam. The second matters because the ids come
+        from a page that can have two exams in play across a navigation.
+
+        One transaction: a half-moved tree is the cross-dimensional state
+        above, reached by failure instead of by design.
+        """
+        if not subject_ids:
+            return {'success': True, 'moved': 0, 'subject_ids': []}
+
+        axis = self.fetchone(
+            "SELECT id, exam_id, name, status FROM exam_dimensions WHERE id = ?",
+            (dimension_id,),
+        )
+        if not axis:
+            return {'success': False,
+                    'error': 'That axis no longer exists.'}
+        if axis['status'] != 'active':
+            return {'success': False,
+                    'error': f"\"{axis['name']}\" has been archived, so "
+                             f"subjects cannot be moved into it."}
+
+        placeholders = ", ".join("?" for _ in subject_ids)
+        rows = self.fetchall(
+            f"""
+            SELECT sn.id, sn.dimension_id, ec.id AS exam_context_id
+            FROM subject_nodes sn
+            JOIN exam_contexts ec ON ec.exam_name = sn.exam_context
+            WHERE sn.id IN ({placeholders}) AND sn.status = 'active'
+            """,
+            tuple(subject_ids),
+        )
+        if len(rows) != len(subject_ids):
+            return {'success': False,
+                    'error': 'Some of those subjects no longer exist.'}
+        wrong_exam = [r['id'] for r in rows
+                      if r['exam_context_id'] != axis['exam_id']]
+        if wrong_exam:
+            return {'success': False,
+                    'error': f"\"{axis['name']}\" belongs to a different "
+                             f"exam from those subjects."}
+
+        to_move: List[int] = []
+        seen = set()
+        for subject_id in subject_ids:
+            for node_id in self._subtree_outside_any_axis(subject_id):
+                if node_id not in seen:
+                    seen.add(node_id)
+                    to_move.append(node_id)
+
+        if not to_move:
+            return {'success': True, 'moved': 0, 'subject_ids': [],
+                    'dimension_name': axis['name']}
+
+        with self.transaction():
+            move_placeholders = ", ".join("?" for _ in to_move)
+            self.execute(
+                f"UPDATE subject_nodes SET dimension_id = ? "
+                f"WHERE id IN ({move_placeholders})",
+                (dimension_id, *to_move),
+            )
+
+        return {
+            'success': True,
+            'moved': len(to_move),
+            'subject_ids': to_move,
+            'dimension_name': axis['name'],
+        }
+
     def archive_dimension(self, dimension_id: int) -> Dict[str, Any]:
         """Soft-delete a dimension **and the subject trees inside it** (#210).
 
@@ -2233,10 +2434,16 @@ class DimensionsMixin:
         dim_a_nodes = self.get_hierarchy_nodes_by_dimension(exam_context_id, dim_a_id)
         dim_b_nodes = self.get_hierarchy_nodes_by_dimension(exam_context_id, dim_b_id)
 
-        weights_a = {n['id']: n.get('exam_weight_low', 0) + n.get('exam_weight_high', 0) / 2
-                     for n in dim_a_nodes}
-        weights_b = {n['id']: n.get('exam_weight_low', 0) + n.get('exam_weight_high', 0) / 2
-                     for n in dim_b_nodes}
+        # A subject with no recorded weight is LEFT OUT of these maps rather
+        # than given a number (#469). `SELECT *` means both keys are always
+        # present and are None when unset, so `n.get(key, 0)` never applied
+        # its default and `None / 2` raised -- on the default state of every
+        # new exam. Left out, such a subject reaches the `.get(id, 5)` fallback
+        # below exactly as a subject missing from the map always has, so the
+        # ranking is unchanged in kind; nothing here invents a weight, and
+        # nothing rescales one (#64).
+        weights_a = self._weight_midpoints(dim_a_nodes)
+        weights_b = self._weight_midpoints(dim_b_nodes)
 
         total_entries = cross_perf['total'] or 1
         recommendations = []
@@ -2246,8 +2453,13 @@ class DimensionsMixin:
             dim_b_hid = cell['dim_b_hierarchy_id']
             count = cell['count']
 
-            # Calculate weight (average of both dimensions)
+            # Calculate weight (average of both dimensions). A side with no
+            # recorded weight uses the long-standing fallback of 5 for RANKING
+            # only; the weight REPORTED for display is None unless both sides
+            # have a real one, so the page never prints the fallback as if it
+            # were the student's figure (#469).
             weight = (weights_a.get(dim_a_hid, 5) + weights_b.get(dim_b_hid, 5)) / 2
+            known = dim_a_hid in weights_a and dim_b_hid in weights_b
 
             # Calculate gap (mistake rate)
             gap = count / total_entries
@@ -2267,7 +2479,7 @@ class DimensionsMixin:
                 'dim_b_hierarchy_id': dim_b_hid,
                 'count': count,
                 'priority_score': round(priority, 3),
-                'weight': round(weight, 1),
+                'weight': round(weight, 1) if known else None,
                 'gap': round(gap, 3),
                 'avg_difficulty': avg_diff,
                 'recommendation': self._generate_recommendation_text(
@@ -2278,6 +2490,26 @@ class DimensionsMixin:
         # Sort by priority score (highest first)
         recommendations.sort(key=lambda x: x['priority_score'], reverse=True)
         return recommendations[:limit]
+
+    @staticmethod
+    def _weight_midpoints(nodes) -> Dict[int, float]:
+        """``{id: (low + high) / 2}`` for nodes with a recorded weight (#469).
+
+        ``(low + high) / 2``, parenthesised: the expression this replaces was
+        ``low + high / 2``, which printed an 11-15% band as 18.5%. A node with
+        one bound uses that bound; a node with neither is omitted.
+        """
+        midpoints = {}
+        for n in nodes:
+            low, high = n.get('exam_weight_low'), n.get('exam_weight_high')
+            if low is None and high is None:
+                continue
+            if low is None:
+                low = high
+            if high is None:
+                high = low
+            midpoints[n['id']] = (low + high) / 2
+        return midpoints
 
     def _generate_recommendation_text(
         self,

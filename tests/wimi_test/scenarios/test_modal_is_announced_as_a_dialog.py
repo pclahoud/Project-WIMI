@@ -40,6 +40,13 @@ import pytest
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+from _helpers.modal_focus import (
+    FRAME_BUDGET,
+    changes,
+    frames_until,
+    read_timeline,
+    start_timeline,
+)
 from _helpers.page_gate import (
     ax_mentions,
     ax_snapshot,
@@ -58,6 +65,33 @@ def _wait_for(page: WimiPage, expression: str, *, what: str, tries: int = 60) ->
             return
         page.wait_for_timeout(100)
     raise AssertionError(f"timed out waiting for {what}: {expression}")
+
+
+def _snapshot_once_the_boundary_lands(page: WimiPage, before: dict,
+                                      *, tries: int = 30) -> dict:
+    """The AX snapshot after the tree has caught up with the DOM, or the last
+    one taken if it never does within ~3 s (#350).
+
+    ``modal_dialog.js`` writes its ``aria-hidden`` attributes synchronously on
+    open, but Chromium hands the accessibility tree the change on a later
+    update. Measured on Windows machine B at 8930f11, 10 runs: when the first
+    snapshot was taken the helper already held 10 attributes every time, yet
+    the tree still read 112 -> 138 (the dialog added, nothing hidden) in 8 of
+    10; one poll later, ~118 ms, it read 31 in all 10. A single snapshot at a
+    fixed delay therefore failed 6-7 runs in 10 on both Windows machines and
+    read as the boundary having a hole.
+
+    Polling is a ceiling, not a weakening: a helper that never hides anything
+    still exposes MORE than before after 3 s, and the assertion below fails
+    exactly as it did.
+    """
+    after = ax_snapshot(page)
+    for _ in range(tries):
+        if after["exposed"] < before["exposed"]:
+            return after
+        page.wait_for_timeout(100)
+        after = ax_snapshot(page)
+    return after
 
 
 def _focus_state(page: WimiPage) -> dict:
@@ -156,7 +190,7 @@ def test_a_modal_is_a_named_dialog_in_the_accessibility_tree(
     wimi_page.wait_for_timeout(400)  # past the backdrop's opacity transition
 
     # ---- Assert: it is a dialog, and it has a name -------------------
-    after = ax_snapshot(wimi_page)
+    after = _snapshot_once_the_boundary_lands(wimi_page, before)
     assert _dialog_nodes(after) >= 1, (
         f"the modal is open but no node in the accessibility tree has role "
         f"'dialog', so nothing tells a reader a dialog opened -- which is "
@@ -231,21 +265,34 @@ def test_focus_enters_the_dialog_is_trapped_and_comes_back(
     # A hit-tested click rather than `el.click()`, because the invoker this
     # test asserts focus returns to is whatever the click leaves focused --
     # and `el.click()` dispatches no pointer events, so it focuses nothing.
+    opener_sel = '[data-testid="%s"]' % opener
+    start_timeline(wimi_page, _SURFACE, opener_sel)
     wimi_page.locator(testid=opener).click()
-    _wait_for(
-        wimi_page,
-        "(() => { const b = document.getElementById('delete-node-modal');"
-        " return !!b && b.classList.contains('active'); })()",
-        what="the delete modal to open")
-    wimi_page.wait_for_timeout(400)
+    # A ceiling, not the assertion: the latency below is the assertion. The
+    # old fixed 400 ms wait EQUALLED the helper's SETTLE_MS, so pass or fail
+    # depended on which side of the settle pass it landed (#373).
+    for _ in range(60):
+        if _focus_state(wimi_page)["inside"]:
+            break
+        wimi_page.wait_for_timeout(50)
+    wimi_page.wait_for_timeout(100)
 
-    # ---- Assert: focus went in ---------------------------------------
+    # ---- Assert: focus went in, promptly, to the first control -------
+    frames = read_timeline(wimi_page)
+    shown_at, open_lag = frames_until(frames, "vis", True, "inside")
+    assert shown_at is not None, (
+        f"the dialog never became visible on the frame clock: {changes(frames)}")
+    assert open_lag is not None and open_lag <= FRAME_BUDGET, (
+        f"focus took {open_lag} frames to enter the dialog after it became "
+        f"visible (budget {FRAME_BUDGET}); for every one of them it sat on the "
+        f"control BEHIND the dialog, where a held Enter key re-activates it "
+        f"(#374). Before the fix this measured ~20. Timeline: {changes(frames)}")
     landed = _focus_state(wimi_page)
-    assert landed["inside"], (
-        f"focus is still outside the dialog after it opened ({landed}). With "
-        f"aria-modal=\"true\" on the surface, everything focus can reach out "
-        f"here is absent from the accessibility tree, so a keyboard user is "
-        f"somewhere their reader cannot describe (#319).")
+    assert landed["testid"] == "tree-delete-modal-cancel", (
+        f"focus entered the dialog but landed on {landed} rather than its "
+        f"first control, Cancel. Landing on the dialog box itself is the "
+        f"fallback for a dialog with nothing focusable; reaching it here "
+        f"means a sweep caught the frame before the buttons rendered (#374).")
 
     # ---- Assert: Tab stays inside ------------------------------------
     # Walk forward more times than there are stops. Without a trap this
@@ -269,13 +316,22 @@ def test_focus_enters_the_dialog_is_trapped_and_comes_back(
             f"from the accessibility tree (#319).")
 
     # ---- Act: close it, and assert focus comes home ------------------
+    start_timeline(wimi_page, _SURFACE, opener_sel)
     wimi_page.eval_js(f"(() => document.querySelector('{_CANCEL}').click())()")
-    _wait_for(
-        wimi_page,
-        "(() => { const b = document.getElementById('delete-node-modal');"
-        " return !!b && !b.classList.contains('active'); })()",
-        what="the delete modal to close")
-    wimi_page.wait_for_timeout(400)
+    for _ in range(60):
+        if _focus_state(wimi_page)["testid"] == opener:
+            break
+        wimi_page.wait_for_timeout(50)
+    wimi_page.wait_for_timeout(100)
+
+    frames = read_timeline(wimi_page)
+    gone_at, close_lag = frames_until(frames, "vis", False, "onOpener")
+    assert gone_at is not None, (
+        f"the dialog never became hidden on the frame clock: {changes(frames)}")
+    assert close_lag is not None and close_lag <= FRAME_BUDGET, (
+        f"focus took {close_lag} frames to return to the opener after the "
+        f"dialog disappeared (budget {FRAME_BUDGET}); in between it was on "
+        f"<body> (#374). Timeline: {changes(frames)}")
 
     back = _focus_state(wimi_page)
     assert back["testid"] == opener, (

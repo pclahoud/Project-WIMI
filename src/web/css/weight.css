@@ -34,8 +34,6 @@
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 .weight-precision-badge {
@@ -168,7 +166,7 @@
 }
 
 .weight-input-field:focus {
-    border-color: var(--color-primary);
+    border-color: var(--focus-ring-color);
     outline: none;
 }
 
@@ -244,8 +242,6 @@
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 .weight-preview-badge {
@@ -467,8 +463,15 @@
    Weight Actions
    ========================================================================= */
 
+/* `wrap` is load-bearing (#348). The panel's column is ~314 px and the
+   three buttons' min-content widths plus two gaps exceed it; with `nowrap`
+   `flex: 1` cannot shrink a button below min-content (`min-width: auto`), so
+   the row overflowed and "Apply Changes" -- the action that commits the edit
+   -- sat past the panel's right edge, reachable only by scrolling sideways.
+   Wrapped, a button that does not fit takes the next line at full width. */
 .weight-actions-enhanced {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-md);
     padding-top: var(--space-md);
 }
@@ -541,8 +544,6 @@
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 .weight-history-toggle {
@@ -967,8 +968,6 @@
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     text-align: center;
 }
 
@@ -989,20 +988,17 @@
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
+/* Both range fields focus the same way: their 2px border turns
+   --focus-ring-color, which is the app's focus line drawn on the field's own
+   edge (styles.css, "Focus"). The low field used to turn --color-warning
+   (2.15:1) and the high field --color-success (2.54:1). The owner's #325
+   decision (2026-10-04) removed that coding rather than darkening it: it
+   told low from high by hue on two fields already labelled low and high,
+   and cost a focus indicator below 3:1. Do not reintroduce per-field focus
+   colours. */
 .weight-range-input-group .weight-input-field:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
+    border-color: var(--focus-ring-color);
     outline: none;
-}
-
-.weight-range-input-group .weight-input-field.weight-low-field:focus {
-    border-color: var(--color-warning);
-    box-shadow: 0 0 0 3px var(--color-warning-bg);
-}
-
-.weight-range-input-group .weight-input-field.weight-high-field:focus {
-    border-color: var(--color-success);
-    box-shadow: 0 0 0 3px var(--color-success-bg);
 }
 
 .weight-input-suffix {
@@ -1088,11 +1084,20 @@
     font-weight: var(--font-weight-semibold);
 }
 
+/* "Weight for X under Y" is ONE SENTENCE, not four labels, and the caps were
+   hiding that (#346, owner 2026-10-10). The four spans sit in a baseline-
+   aligned flex row, so uppercasing the two connectives painted
+   "WEIGHT FOR hyperkalemia UNDER Disorders of rhythm and conduction" — the
+   joining words shouting over the two names they join. Measured: with
+   `--font-size-xs` the connectives also sat 3px off the names' baseline, so
+   the row carried three baselines for two visual lines.
+
+   The size matches `--font-size-sm` on the container and on `strong` for that
+   reason. The grey stays: it is what keeps the two names emphasised once the
+   sentence reads as a sentence. */
 .weight-modal-context-label {
     color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: var(--font-size-sm);
 }
 
 /* --- Switch-parent link list ------------------------------------------ */
@@ -1155,7 +1160,7 @@
 }
 
 .weight-unit-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: -2px;
 }
 
@@ -1406,8 +1411,6 @@
     font-size: var(--font-size-sm, 0.875rem);
     font-weight: var(--font-weight-semibold, 600);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin: 0 0 1rem 0;
 }
 

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logging a mistake - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/30_logging_a_mistake.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 11</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Logging a mistake</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_goals_and_drafts.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Goals, and why drafts do not count toward them</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_error_types.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Error types: naming the mistake</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Logging a mistake
+
+## In short
+
+The entry form is one long page with twelve things on it, five of which it refuses to save without. The two written fields are the reason the page exists and are deliberately the largest things on it; everything above them is a short fact that takes a second. WIMI saves in the background every thirty seconds, and an entry that is missing one of the five required things is stored as a draft until it is not.
+
+## What this screen is
+
+<!-- tour
+page: session-setup
+anchor: session-questions-incorrect
+text: This decides how many entry slots the next screen gives you, and the
+  form counts "Entry 3 of 12" against it. If you miscounted, + Add Entries in
+  the form's header asks for more.
+-->
+
+One entry is one question you got wrong. The form opens on the first slot of your
+session and the header counts your way through it — **Entry 3 of 12** — where the
+twelve came from the *Questions Incorrect* you entered at session setup. If you
+miscounted, or decide to log a question you had marked right, **+ Add Entries**
+in the header asks *"How many entries to add?"* and gives you that many more
+slots, up to fifty at a time.
+
+Five things are required, and they are marked with a red asterisk:
+
+- **Your Answer**
+- **Correct Answer**
+- at least one **Primary Subject**
+- **Why did you get this wrong?**
+- **Why is the correct answer correct?**
+
+Everything else on the page is optional. That is not an oversight: the point of
+the screen is the two written fields, and a form that insisted on nine facts
+before letting you write would get the writing skipped.
+
+### Adding entries
+
+<!-- tour
+page: entry-form
+anchor: entry-form-add-entries-button
+text: + Add Entries raises this session's Questions Incorrect by the number you
+  give and reopens a finished session, and Logged on the session card counts
+  against the new figure. Leaving the extra slots empty does not take it back;
+  Edit on the session card lowers it.
+-->
+
+**+ Add Entries** changes the session, not just the form. It raises the
+session's *Questions Incorrect* itself, which is the figure **Logged** on the session's
+card counts against, and it reopens a session you had finished, so a block you
+pad by three and never write up reads as three short. If you overshot, **Edit**
+on the session card lowers *Questions Incorrect* again. Nor is it held to the
+session's *Total Questions*: added slots can take the incorrect count above the
+number of questions the session says you sat.
+
+## The short facts at the top
+
+These are the five rows above the writing. None is required and all of them are
+worth having.
+
+- **Question ID / Reference** is whatever lets you find the question again — `Q15`, a page number, a block name. It is free text; WIMI never parses it. It has one other use, described under *Answering the same question twice* below.
+- **Perceived Difficulty** is five dots, 1 to 5, hovering as Very Easy through Very Hard. It is *perceived* on purpose: it records how hard the question felt to you, not how hard the question bank says it was. The pair of "felt easy" and "got it wrong" is one of the more useful things you can record about yourself.
+- **Your Answer** and **Correct Answer** sit on one row because they are only ever read as a pair. Both are free text and both grow as you type, so a full option sentence is fine — you do not have to reduce them to letters.
+- **Time Spent** is a number plus a *minutes* or *seconds* picker. It is stored in seconds, so a round number of minutes reads back as minutes when you reopen the entry and anything else reads back as seconds. Do not agonise over it; it exists so that "I spent four minutes and still got it wrong" is distinguishable from "I spent twenty seconds".
+- **Primary Subject(s)** and **Secondary Subject(s)** are what the question was about. Type to search; the chips you pick are what every analytics screen later groups your mistakes by. The difference between the two, and why it matters a great deal, is the subject of [Why two screens can disagree about one subject](help_two_screens_one_subject.html) — in one line, primary is what the question *tests* and secondary is what it also *touches*. If the subject you need does not exist yet, **+ Add New Subject** creates it without leaving the page.
+- **Tags** is the error-type field. It has its own chapter, [Error types: naming the mistake](help_error_types.html), because it is the field most worth getting right and the one most easily filled in badly.
+
+## The two written fields
+
+This is the rest of the page, and both are rich text editors rather than plain
+boxes.
+
+**Why did you get this wrong?** is the larger of the two and the more valuable.
+Its help line is *"Say it out loud, as if you were teaching it. Where the spoken
+explanation runs out is the thing you actually missed."* What belongs here is
+the mechanism of the miss — what happened in your head — not the content you
+should have known. [Why WIMI asks for a reason](help_the_premise.html) is the
+chapter about why, and is worth reading once before you have fifty of these.
+
+**Why is the correct answer correct?** is the content half. Its help line is
+*"Explain it the way you would to a classmate who asked. If you cannot say it
+plainly, you have found the gap."* Write it in your own words rather than
+pasting the question bank's explanation. The pasted version will be better
+written and will teach you nothing, because the work is the rewriting.
+
+Each of the two also carries a microphone button for dictating instead of
+typing. That has its own chapter and is not covered here.
+
+## Formatting, tables and maths
+
+Both written fields, and every note, use the same editor with the same toolbar.
+What you actually get:
+
+- Undo and redo.
+- A **Paragraph / Heading 1–6** dropdown.
+- **Bold**, *italic*, underline, strikethrough.
+- Text colour and highlight colour.
+- Bulleted and numbered lists.
+- Block quote.
+- Insert link.
+- **Insert table.** Click inside a table afterwards and a second small toolbar appears beside it, with table properties, delete table, insert row above or below, delete row, insert column before or after, and delete column. Tables come out with visible borders at full width, which is usually what you want for a two-column comparison of the answer you picked against the one that was right.
+- **Insert maths** — see below.
+- Clear formatting, and a source-code view for the stubborn cases.
+
+There is no menu bar and no word count, and there is no button for inserting an
+image — see *Attaching an image* below for why that is a different thing.
+
+**Maths is a toolbar button, not a syntax.** The button's tooltip reads *Insert
+Math Equation (LaTeX)* and it opens a small dialog: one field labelled **LaTeX
+Expression**, a live **Preview** underneath that redraws as you type, and six
+one-click examples — `E = mc^2`, Fraction, Square Root, Power, Sum, Integral.
+Press **Insert** and the rendered equation lands inline in your sentence. Click
+it again later and the same dialog reopens on it, with a **Delete** button.
+
+Two things about that worth knowing before you fight it. **There are no
+delimiters**: typing `$x^2$` into the editor stores and shows you literal dollar
+signs, because nothing scans your prose for maths. And the dialog's preview is
+drawn in display size while the inserted result is inline size, so the equation
+in your sentence will look smaller than the preview did. Nothing has gone wrong.
+
+## Attaching an image
+
+<!-- tour
+page: entry-form
+anchor: entry-form-media-block
+text: Pasting an image while the cursor is inside one of the written fields
+  embeds it in your prose; the same keystroke anywhere else on the page makes
+  a real attachment you can label and reuse. Both are legitimate and only the
+  second is manageable afterwards.
+-->
+
+Below the writing there is a **Media Attachments** block with a drop zone
+reading *Drop images here, paste (Ctrl+V), or browse files*. All three work, and
+multiple files at once work. PNG, JPEG, GIF, WebP, BMP and SVG are accepted;
+anything else is refused by name. There is no size limit, which is a reason to
+crop a screenshot rather than attach a whole monitor.
+
+**You have to save the entry once first.** An image is attached to an entry, so
+until the entry exists there is nothing to attach it to, and the drop zone will
+tell you *"Please save the entry first before adding images."* In practice this
+resolves itself: type anything, wait for the autosave or press **Save as
+Draft**, and the drop zone starts working.
+
+**Pasting has two different outcomes and this is the one trap on the page.** If
+your cursor is inside one of the rich text editors, Ctrl+V embeds the image
+*into your writing* — part of the paragraph, with no thumbnail and no subject.
+If your cursor is anywhere else on the page, the same keystroke makes a real
+attachment. Both are legitimate; they are just different things, and only the
+second one is an attachment you can manage afterwards.
+
+**An image is asked which subjects it belongs to.** After an upload, if the
+entry already has subjects tagged, a small dialog opens headed **Assign Subjects
+to Image**, and until an image has at least one subject the **Save & Next**
+button is blocked with the label *Assign subjects to images*. That is the one
+optional field on the page that can hold that button back, and it is deliberate: an
+unlabelled diagram is a file you will never find again.
+
+### Reusing an image
+
+**One image can serve several entries.** Images are stored separately from
+entries and linked to them, so the same diagram can sit on five questions
+without five copies. Two buttons reach that:
+
+- **🔍 Browse Existing Images**, inside the drop zone, opens a picker titled *Select Image* over everything you have ever uploaded, in any exam, searchable by filename and showing at most fifty matches. It is the way to an image from another exam, or to one whose subjects do not match this entry's.
+- **+ Add existing**, in the Media Attachments header, offers only images whose own subjects include one of this entry's **primary** subjects — that subject itself, not its parent or its child, and secondary subjects are not consulted. On an exam with dimensions it also keeps to images set to the dimension of your first primary subject. It is the useful one once you have a few hundred, and is why giving an image its subjects pays off. It stays greyed with *No primary subjects yet — tag one to see matches* until you have tagged something.
+
+<!-- tour
+page: entry-form
+anchor: entry-form-media-attach-existing-button
+text: + Add existing lists only images whose own subjects include one of this
+  entry's primary subjects: secondary subjects, parents and children do not
+  count. For any other image, including one from another exam, use Browse
+  Existing Images, which searches all your images by file name.
+-->
+
+### Removing an image
+
+<!-- tour
+page: entry-form
+anchor: entry-form-media-thumbnail-delete
+text: Delete asks which you mean. Remove from Entry takes the image off this
+  entry only and leaves it on every other entry using it. Delete Permanently
+  removes it from every entry and from your library, and cannot be undone.
+-->
+
+Removing an image offers two choices in a dialog headed **Remove Image**:
+*Remove from Entry*, which takes it off this entry and leaves it on every other
+entry using it, and *Delete Permanently*, which says it cannot be undone and
+means it. The first is the one you want nearly always — the image stays in your
+library, and **🔍 Browse Existing Images** can find it again.
+
+**One thing that is by design and still surprises.** An image belongs to the
+entry you first uploaded it on, even after you have attached it elsewhere. Delete
+*that* entry and the image goes with it, off every other entry too. So an image
+you have come to rely on across several questions is safest if the question it
+arrived on stays logged.
+
+Reordering is one button, **↕ Sort by Name**. There is no drag to reorder.
+
+## Autosave
+
+<!-- tour
+page: entry-form
+anchor: entry-form-auto-save-indicator
+text: WIMI writes the form to the database every thirty seconds while there
+  is anything unsaved, and this indicator is the whole truth about it. A
+  failed background save is silent, so if it reads "Unsaved changes" for a
+  long while, press Save as Draft, which does report failures.
+-->
+
+WIMI writes the form to the database **every thirty seconds, whenever there is
+something unsaved.** The indicator in the header is the whole of what it tells
+you, and it says exactly one of three things:
+
+- **Unsaved changes** — you have typed since the last write.
+- **Saving...** — a save is in flight. You will only ever see this after pressing *Save as Draft*; a background save does not announce itself.
+- **Saved at 2:41 PM** — the time of the last successful write.
+
+The first background save of a new entry is what creates the entry, which is
+also what unlocks image attachment.
+
+Two honest limits. **A failed background save is silent** — no message, no
+change of colour; the indicator simply stays on *Unsaved changes*. If it has
+been reading that for a long while, press **Save as Draft**, which does report
+failures. And if you type *while* a save is in flight, WIMI deliberately leaves
+the indicator reading *Unsaved changes* rather than a time that describes text
+you can no longer see; the next save picks the newer version up.
+
+Closing the page with unsaved changes raises the browser's own
+are-you-sure prompt.
+
+## What a draft is
+
+<!-- tour
+page: entry-form
+anchor: entry-form-form
+text: An entry missing any of these five is stored as a draft, and a draft
+  still counts as a mistake on every analytics screen. Save as Draft does not
+  force one and Save & Next does not clear one; they differ in what they
+  check, not in what they store.
+-->
+
+<!-- tour
+page: session-setup
+anchor: session-card-continue
+text: A session you left unfinished is not lost: reopening it takes you to its
+  first unfinished entry rather than to the first one, so a half-written block
+  is picked up where you stopped.
+-->
+
+**A draft is an entry that is missing one of the five required things.** It is
+not a mode you choose and not a kind of entry you decide to create. Every time
+WIMI writes your entry it looks at what is there, and if your answer, the
+correct answer, a primary subject, or either written field is still empty, the
+entry is stored as a draft. Fill the last one in and the next save stops it
+being one.
+
+This has a consequence that surprises people, and it is the right way round:
+
+- **Save as Draft** does not force a draft. If the entry happens to be complete, pressing it stores a complete entry.
+- **Save & Next** does not clear a draft flag. It cannot be pressed until the entry is complete, which is *why* what it saves is not a draft.
+
+The two buttons differ in what they check and where they send you, not in what
+kind of entry they make.
+
+While something is missing, the footer shows **📝 Draft - missing required
+fields** and the **Save & Next** button is disabled and relabelled to say why —
+*Assign subjects to images* whenever an attached image has no subject, even if
+a required field is empty too, and *Complete required fields* otherwise. On the
+last slot of the session it reads **Complete Review** instead.
+
+**A draft still counts as a mistake everywhere in the analytics.** You got the
+question wrong; an unfinished reflection does not un-happen that. The single
+exception is weekly goals, and [Goals, and why drafts do not count toward
+them](help_goals_and_drafts.html) is the chapter about why.
+
+To find your drafts later: the entry browser has a **Drafts only** filter and
+shows a **Draft** badge on each one, and reopening a session takes you straight
+to the first unfinished entry rather than to the first entry.
+
+### What holds Save & Next back
+
+<!-- tour
+page: entry-form
+anchor: entry-form-save-next-button
+text: This stays disabled until the five starred fields are filled and every
+  attached image has a subject, and its label says which is holding it. The
+  image rule holds back only this button: whether the entry is stored as a
+  draft depends on the five fields alone.
+-->
+
+**The image rule belongs to the button, not to the draft.** An image without a
+subject stops **Save & Next**, but it has no part in whether the entry is stored
+as a draft, which the five required fields alone decide. So an entry with all
+five filled and an unlabelled image is saved as finished by the autosave or by
+**Save as Draft**, and counts as finished on the session card, even though the
+footer still shows its Draft line.
+
+## Moving around inside a session
+
+The row of dots under the header is one dot per slot, filled for a complete
+entry and marked for a draft, and clicking one jumps to it. **Previous** and
+**Next** step through them. If you have unsaved changes when you jump, WIMI
+asks before leaving rather than choosing for you.
+
+**Back**, at the top left, returns you to where you came from.
+
+## Answering the same question twice
+
+Question banks repeat questions, and you will sometimes log one you have logged
+before. If you type a **Question ID / Reference** you have used before in the
+same exam and then click out of the field, a small panel appears reading
+**Auto-fill available** with the number of previous entries it found, and a
+button labelled **Apply All Data**.
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-id-input
+text: Type a reference you have used before in this exam and click away, and
+  WIMI offers to copy the newest earlier entry's subjects and error types, and
+  its correct answer and explanation where yours are empty. Your answer and
+  reflection are never copied, and the match is exact: q15 is not Q15.
+-->
+
+Three things decide whether it appears. The reference has to match exactly,
+capital letters included, so `q15` does not find `Q15`. The earlier entry has
+to carry subjects or error types, since those are what is worth copying. And it
+is not offered on an entry you have already saved with a primary subject.
+However many earlier entries it found, everything it applies comes from the
+most recent of them.
+
+What it actually applies is narrower than the button suggests, and the narrowness
+is the point:
+
+- the **correct answer**, but only if yours is still empty;
+- the **explanation**, but only if your editor is still empty;
+- the **primary and secondary subjects**;
+- the **error types**.
+
+It never touches **your answer**, your **reflection**, the difficulty or the
+time. Those are the facts about this attempt, and the whole value of logging the
+question a second time is finding out whether you missed it the same way twice.
+**Dismiss** declines the offer and nothing is changed.
+
+## Your sessions, afterwards
+
+Every session you have started for an exam is a card under **Previous Sessions**
+on the session setup screen, below the form. A card shows the session's
+**Total**, **Incorrect** and **Logged** counts, a progress bar, and four buttons:
+**Continue** (or **Review**), **Edit**, **Export IDs** and **Delete**.
+
+### What Logged counts
+
+<!-- tour
+page: session-setup
+anchor: session-card-logged
+text: Logged counts an entry once it is finished, not when its slot is first
+  saved as a draft, so a block with a slot written for every mistake can still
+  read 7/10. A session set up with 0 incorrect has nothing to log and reads
+  Complete straight away.
+-->
+
+**Logged** reads like *7/10*: finished entries against the session's
+*Questions Incorrect*. An entry is counted at the moment it stops being a draft,
+when its five required fields are all filled in, so the gap between the two
+numbers is your drafts plus any slots you have not written yet. The percentage
+under the bar is the same figure, and it stops at 100% if you added entries
+beyond the count. A session set up with 0 incorrect has nothing to log, so its
+card reads **Complete** and 100% from the start.
+
+### Review opens the ordinary form
+
+<!-- tour
+page: session-setup
+anchor: session-card-review
+text: Review opens the session in the ordinary entry form, not a read-only
+  copy, so anything you change there is saved as usual. It starts at entry 1,
+  where Continue starts at the first unfinished one.
+-->
+
+A finished session's card offers **Review** where an unfinished one offers
+**Continue**. Both open the same entry form, with the same autosave; there is no
+read-only view. The difference is only where they land: **Review** opens the
+session's first entry, and **Continue** its first unfinished one.
+
+### Export IDs
+
+<!-- tour
+page: session-setup
+anchor: session-card-export-ids
+text: Export IDs collects the Question ID / Reference you typed on each of
+  this session's entries, so you can paste them into a question bank to redo
+  them. An entry with none is skipped, and WIMI tells you how many were.
+-->
+
+**Export IDs** gathers the **Question ID / Reference** from every entry in the
+session, drafts included, into a box you can copy from, which is how you build a
+set of just the questions you got wrong. An entry with no reference has nothing
+to give and is skipped; the box says how many were, and if none of the entries
+has a reference you are told so instead. The entry browser has the same button
+for entries across sessions.
+
+### Changing a session's numbers
+
+<!-- tour
+page: session-setup
+anchor: session-edit-incorrect
+text: Lowering this below the number of entries already logged does not hide
+  the extra ones. WIMI asks you to tick that many, and Confirm Removal deletes
+  them for good before the session is saved.
+-->
+
+**Edit** changes a session's name, source, date and both counts. Raising
+*Questions Incorrect* above the Logged count reopens a finished session, and an
+Incorrect figure above *Total Questions* is cut down to it when you save.
+
+Lowering *Questions Incorrect* below the number already logged is different. The
+extra entries are not hidden: a list of the session's entries appears with the
+message *"You need to remove N entries. Select which to delete"*, **Save
+Changes** refuses until you have dealt with it, and **Confirm Removal**, which
+unlocks once exactly that many are ticked, deletes the ticked entries
+permanently and then saves the session. Cancel before pressing it and nothing
+is deleted.
+
+### Deleting a session
+
+<!-- tour
+page: session-setup
+anchor: session-card-delete
+text: Delete removes the session and every entry in it, drafts included, and
+  there is no undo. A note or image first added on one of those entries goes
+  too, from every other entry that reuses it.
+-->
+
+**Delete** asks once and then removes the session together with every entry in
+it, finished or draft. There is no archive and no undo, and the entries leave
+every analytics screen with it. Because a note belongs to the entry it was first
+created on, as [Notes](help_notes.html) explains, a note or image first added on
+one of these entries is deleted from every other entry that reuses it too.
+
+## If you remember three things
+
+- **Write the first field about yourself, not about the topic.** That is the sentence the rest of the app is built on.
+- **The indicator in the header is the truth about whether your work is saved.** If it says *Unsaved changes* for a long time, press Save as Draft.
+- **A draft is a state, not a decision.** Finish the five required fields and it stops being one, whichever button you press.
+
+## Where to go next
+
+- [Error types: naming the mistake](help_error_types.html) — the Tags field, what each of the sixteen means, and how to add your own.
+- [Notes](help_notes.html) — the other thing an entry can carry, and what attaching one to a subject is for.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

@@ -155,9 +155,21 @@ def test_the_analytics_info_tooltips_show_their_focus(
     wimi_page.wait_for_timeout(4000)
 
     findings: list[str] = []
-    for selector, what in ((".sunburst-info-icon", "the By Subject tooltip"),
-                           (".efficiency-info-icon",
-                            "the efficiency-confidence tooltip")):
+    # `.efficiency-info-icon` was checked here until 2026-10-05 and is
+    # deliberately gone: #146 disabled the efficiency score, so the icon is
+    # not rendered and this loop treats a selector that never renders as a
+    # finding -- correctly, since a test that quietly checks nothing is
+    # worse than no test.
+    #
+    # Its `:focus` rule and `renderEfficiencyInfoIcon()` both still exist,
+    # because #146 is a hide pending a discussion rather than a removal. So
+    # WHEN THE SCORE COMES BACK, PUT THE SELECTOR BACK IN THIS TUPLE --
+    # otherwise the icon returns with its focus ring unchecked, which is the
+    # #304 defect this file exists to catch. That is coupled rather than
+    # trusted to memory: `tests/test_efficiency_score_is_disabled.py`
+    # asserts this absence against the flag, so re-enabling the score turns
+    # it red and names this file.
+    for selector, what in ((".sunburst-info-icon", "the By Subject tooltip"),):
         present = wimi_page.eval_js(
             f"document.querySelectorAll('{selector}').length")
         if not present:

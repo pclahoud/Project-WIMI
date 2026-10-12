@@ -240,13 +240,27 @@ class ImageBrowser {
                 ? item.exam_names.join(', ')
                 : '';
 
-            card.innerHTML = `
-                <div class="image-browser-thumb">
-                    <img src="${item.thumbnail_url}" alt="${displayName}" loading="lazy">
-                </div>
-                <div class="image-browser-name" title="${displayName}">${truncatedName}</div>
-                ${examLabel ? `<div class="image-browser-exam" title="${examLabel}">${examLabel}</div>` : ''}
-            `;
+            // Built from nodes: the file name and the exam names are the
+            // student's own text (#548).
+            const thumb = document.createElement('div');
+            thumb.className = 'image-browser-thumb';
+            const img = document.createElement('img');
+            img.src = item.thumbnail_url || '';
+            img.alt = displayName;
+            img.loading = 'lazy';
+            thumb.appendChild(img);
+            const name = document.createElement('div');
+            name.className = 'image-browser-name';
+            name.title = displayName;
+            name.textContent = truncatedName;
+            card.append(thumb, name);
+            if (examLabel) {
+                const exam = document.createElement('div');
+                exam.className = 'image-browser-exam';
+                exam.title = examLabel;
+                exam.textContent = examLabel;
+                card.appendChild(exam);
+            }
 
             card.addEventListener('click', () => {
                 this.selectImage(item);

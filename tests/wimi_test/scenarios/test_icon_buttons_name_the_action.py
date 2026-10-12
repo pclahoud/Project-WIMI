@@ -251,15 +251,22 @@ def test_the_wizard_header_and_the_analytics_toggles(
     # ---- analytics size toggles --------------------------------------
     wimi_page.goto("analytics")
     wimi_page.wait_for_timeout(4000)
+    # Only the toggles a student can reach are measured. Since #473 the three
+    # multi-dimensional sections stay hidden on this single-dimension exam,
+    # and a toggle inside a `display: none` section has a 0x0 box -- which
+    # this read as "smallest is 0x0 px across 15 buttons" and failed on
+    # master. A hidden target is not an undersized one. The count of rendered
+    # toggles is reported and must be non-zero, so an empty page cannot pass.
     sizes = wimi_page.eval_js(
-        "(() => { const els = document.querySelectorAll('.size-preset-btn');"
+        "(() => { const els = Array.from(document.querySelectorAll('.size-preset-btn'))"
+        "   .filter(e => e.getClientRects().length > 0);"
         " if (!els.length) return null;"
         " let worst = null;"
         " els.forEach(e => { const r = e.getBoundingClientRect();"
         "   if (!worst || r.height < worst[1]) worst ="
         "     [Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10];"
         " }); return JSON.stringify({n: els.length, worst: worst}); })()")
-    assert sizes, "the analytics size toggles did not render"
+    assert sizes, "no analytics size toggle is rendered at all"
     import json as _json
     parsed = _json.loads(sizes)
     w, h = parsed["worst"]

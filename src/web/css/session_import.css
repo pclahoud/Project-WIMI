@@ -205,8 +205,6 @@
 .import-stat-label {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 /* Step 2: Field Mapping */
@@ -369,7 +367,6 @@
 .import-preview-stat-label {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
 }
 
 .import-mapping-preview {
@@ -414,8 +411,6 @@
 .import-entry-field-label {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin-bottom: var(--space-xs);
 }
 
@@ -492,7 +487,6 @@
 .import-result-stat-label {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
 }
 
 .import-results-errors {

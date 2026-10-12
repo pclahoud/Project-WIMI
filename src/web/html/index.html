@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="../css/landing.css">
     <link rel="stylesheet" href="../css/analytics_preview.css">
     <link rel="stylesheet" href="../css/profiles.css">
+    <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -18,14 +20,54 @@
 </head>
 <body>
     <div class="landing-page">
-        <!-- Header -->
-        <header class="landing-header">
+        <!--
+          #313: the hero is COMPACT BY DEFAULT and expands only when we have
+          positively learned the profile has no exams.
+
+          The owner's decision is "shrink or collapse it once the profile has
+          exams" — a first run wants the hero, the 500th launch does not. The
+          default has to be one of the two, and compact is the right one for
+          three reasons:
+
+          * it is the common case, so the usual launch paints correctly once
+            instead of painting a tall header and then collapsing it, which
+            would shove the whole page upward a few hundred ms after load;
+          * on a first run the expansion lands in the same frame as the "No
+            Exams Yet" empty state, because `loadExams()` decides both from
+            one predicate — so the page settles once rather than twice;
+          * if the bridge call fails or the script never runs, a compact
+            header is a cosmetically smaller but entirely working page. The
+            reverse default would leave a first-run visitor the full welcome
+            and no way to know it was stale.
+
+          `applyHeroState()` in landing.js owns the class. Do not set the
+          expanded form here as a "safer" default — that reintroduces the
+          layout shift on every launch that has exams.
+        -->
+        <header class="landing-header landing-header--compact"
+                data-testid="dashboard-hero">
             <div class="landing-logo">📚</div>
             <h1 class="landing-title">WIMI</h1>
             <p class="landing-subtitle">
                 Why I Missed It — A metacognitive exam preparation tool for analyzing
                 mistakes and improving learning outcomes
             </p>
+            <!--
+              The way into the manual (#428). The hero's top-RIGHT corner is
+              already full: the settings gear sits at `right: 1.5rem` and the
+              profile chip at `right: 4rem`, and the chip grows leftward by up
+              to ~13rem as a profile name gets longer. So this goes on the
+              left, where nothing has to be moved to make room for it and
+              nothing can collide with it at any window width.
+
+              Not hidden and not conditional: unlike the profile chip there is
+              nothing to load before it can be shown, and the manual is most
+              use to the student who has just arrived.
+            -->
+            <a href="help.html" class="help-link" data-testid="dashboard-help-link" title="The WIMI manual">
+                <span class="help-link-icon" aria-hidden="true">?</span>
+                <span class="help-link-label">Manual</span>
+            </a>
             <a href="profile_select.html" class="profile-chip hidden" id="profileChip" data-testid="dashboard-profile-chip" title="Switch profile">
                 <span class="profile-chip-avatar" id="profileChipAvatar"></span>
                 <span class="profile-chip-name" id="profileChipName"></span>
@@ -121,6 +163,10 @@
     </div>
     
     <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         landing.js starts it once the exams have rendered. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/landing.js"></script>
 </body>
 </html>

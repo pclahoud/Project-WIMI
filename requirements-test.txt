@@ -34,3 +34,25 @@ pytest-asyncio==1.4.0
 # only makes the dependency explicit for anyone installing the test
 # requirements alone.
 jsonschema==4.26.0
+
+# The IANA time zone database, as a package. Windows ships NO system tz
+# database, so `zoneinfo` has nothing to read there and
+# `available_timezones()` returns ZERO keys -- measured on Windows machine B,
+# Python 3.14.4. Every ZoneInfo(...) call then raises
+# ZoneInfoNotFoundError, which is how
+# tests/wimi_test/scenarios/test_deep_dive_dates_are_local_days.py fails on
+# Windows: 'No time zone found with key Pacific/Pago_Pago' (#612). CPython
+# falls back to this package precisely when the system database is absent, so
+# on Linux and macOS it changes nothing.
+#
+# It is a TEST dependency, not a production one. Nothing in src/ imports
+# zoneinfo: the application's own timezone work is #286's, and that drives
+# the clock through CDP's Emulation.setTimezoneOverride, which is Chromium's
+# database and needs none of this. Only test processes name a zone.
+#
+# Skipping that scenario on Windows was the alternative and was rejected: a
+# skip buys a green run and no coverage on a shipped platform, and #286's
+# class -- a UTC date naming the wrong local day -- is invisible for part of
+# every day. The platform where the defect was found is the one that would
+# have stopped testing for it.
+tzdata==2026.5

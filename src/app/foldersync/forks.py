@@ -349,8 +349,8 @@ def build_fork_report(
             # a table of equal numbers.
             report.notes.append(
                 "Every figure recorded here is the same on both copies. They "
-                "may still hold different entries -- nothing here compares "
-                "entries one by one -- but there is no evidence of a "
+                "may still hold different entries — nothing here compares "
+                "entries one by one — but there is no evidence of a "
                 "difference to show you."
             )
     return report

@@ -6,7 +6,9 @@
     <title>WIMI - Settings</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/settings.css">
+    <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -99,6 +101,10 @@
                     <span class="nav-icon">&#127897;&#65039;</span>
                     <span class="nav-label">Speech to Text</span>
                 </button>
+                <button class="settings-nav-item" data-panel="related_topics" data-testid="settings-nav-related-topics">
+                    <span class="nav-icon">&#128376;&#65039;</span>
+                    <span class="nav-label">Related Topics</span>
+                </button>
                 <button class="settings-nav-item" data-panel="calendar">
                     <span class="nav-icon">&#128197;</span>
                     <span class="nav-label">Calendar</span>
@@ -110,10 +116,6 @@
                 <button class="settings-nav-item" data-panel="data_backup" data-testid="settings-nav-data-backup">
                     <span class="nav-icon">&#128190;</span>
                     <span class="nav-label">Data & Backup</span>
-                </button>
-                <button class="settings-nav-item" data-panel="performance">
-                    <span class="nav-icon">&#9889;</span>
-                    <span class="nav-label">Performance</span>
                 </button>
                 <button class="settings-nav-item" data-panel="mcp_server">
                     <span class="nav-icon">&#128268;</span>
@@ -145,11 +147,11 @@
                 <!-- Sticky Actions Bar -->
                 <div id="actionsBar" class="actions-bar">
                     <div class="actions-left">
-                        <button class="btn-reset" id="resetDefaultsBtn">Reset to Defaults</button>
+                        <button class="btn-reset" id="resetDefaultsBtn" data-testid="settings-reset-defaults">Reset what Save covers</button>
                     </div>
                     <div class="actions-right">
                         <button class="btn-cancel" id="cancelBtn">Cancel</button>
-                        <button class="btn-save" id="saveBtn">Save</button>
+                        <button class="btn-save" id="saveBtn" data-testid="settings-save">Save</button>
                     </div>
                 </div>
 
@@ -239,6 +241,21 @@
                         </label>
                         <p class="field-description">Enable or disable UI transition animations.</p>
                     </div>
+
+                    <!-- Replay for the first-run tour (#430, owner: in the first
+                         build). An action, not a saved field: pressing it forgets
+                         every tip shown, at once, and Save has nothing to do with
+                         it. Without it, Skip on the first tip would lose the tour
+                         for good. -->
+                    <div class="form-group">
+                        <label for="tour-replay-btn" id="tour-replay-label">Tips</label>
+                        <p class="field-description" id="tour-replay-description">
+                            Each page shows short tips the first time the thing they describe is on screen. Showing them again brings back every tip, including any you skipped.
+                        </p>
+                        <button type="button" class="btn btn-secondary btn-sm" id="tour-replay-btn"
+                                aria-describedby="tour-replay-description" data-testid="settings-tour-replay">Show the tips again</button>
+                        <p class="field-description" id="tour-replay-status" role="status" data-testid="settings-tour-replay-status"></p>
+                    </div>
                 </div>
 
                 <!-- ============================================================
@@ -283,9 +300,9 @@
                     <div class="form-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="manual_break_control" data-field="manual_break_control">
-                            <span>Manual Break Control</span>
+                            <span>Only take breaks when I ask</span>
                         </label>
-                        <p class="field-description">When enabled, breaks are manually triggered instead of automatically prompted.</p>
+                        <p class="field-description">When ticked, WIMI does not offer a break at the end of a round. Either way, <strong>Take a break</strong> beside the timer starts one whenever you like, and stops the round's clock until it ends.</p>
                     </div>
 
                     <hr class="settings-divider">
@@ -327,17 +344,17 @@
 
                     <div class="form-group">
                         <label for="analytics_detail_level">Analytics Detail Level</label>
-                        <p class="field-description">Controls the depth of analytics data shown on dashboards.</p>
+                        <p class="field-description">How much the analytics dashboard shows, for every exam. <strong>Summary</strong>: the overview figures, the subject sunburst and the mistake-type chart. <strong>Detailed</strong>: everything except the cross-dimension heatmap, study recommendations and interaction effects. <strong>Advanced</strong>: everything.</p>
                         <select id="analytics_detail_level" data-field="analytics_detail_level">
                             <option value="summary">Summary</option>
-                            <option value="detailed" selected>Detailed</option>
-                            <option value="advanced">Advanced</option>
+                            <option value="detailed">Detailed</option>
+                            <option value="advanced" selected>Advanced</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="dashboard_auto_refresh_seconds">Auto-Refresh Interval (seconds)</label>
-                        <p class="field-description">How often the dashboard data automatically refreshes.</p>
+                        <p class="field-description">How often the analytics dashboard reloads its figures while it is open, so entries logged in another window appear without leaving the page.</p>
                         <input type="number" id="dashboard_auto_refresh_seconds" data-field="dashboard_auto_refresh_seconds" min="30" max="3600" value="300">
                     </div>
 
@@ -346,7 +363,7 @@
                             <input type="checkbox" id="show_performance_trends" data-field="show_performance_trends" checked>
                             <span>Show Performance Trends</span>
                         </label>
-                        <p class="field-description">Display performance trend charts on the dashboard.</p>
+                        <p class="field-description">The activity chart and streak statistics, for every exam.</p>
                     </div>
 
                     <div class="form-group">
@@ -354,7 +371,7 @@
                             <input type="checkbox" id="show_mistake_patterns" data-field="show_mistake_patterns" checked>
                             <span>Show Mistake Patterns</span>
                         </label>
-                        <p class="field-description">Display common mistake pattern analysis on the dashboard.</p>
+                        <p class="field-description">The mistake-type chart, patterns &amp; insights and the difficulty distribution, for every exam.</p>
                     </div>
 
                     <div class="form-group">
@@ -362,7 +379,7 @@
                             <input type="checkbox" id="show_subject_breakdown" data-field="show_subject_breakdown" checked>
                             <span>Show Subject Breakdown</span>
                         </label>
-                        <p class="field-description">Display per-subject performance breakdown on the dashboard.</p>
+                        <p class="field-description">The subject sunburst, the cross-dimension heatmap and weight analysis, for every exam.</p>
                     </div>
 
                     <div class="form-group">
@@ -370,15 +387,34 @@
                             <input type="checkbox" id="show_time_analytics" data-field="show_time_analytics" checked>
                             <span>Show Time Analytics</span>
                         </label>
-                        <p class="field-description">Display time-based analytics and study duration insights.</p>
+                        <p class="field-description">The activity heatmap and the weekly goal, for every exam.</p>
                     </div>
 
                     <!-- #133. The score no longer discounts itself for
                          weights it cannot vouch for; the student decides
                          whether the remaining uncertainty is drawn. Off by
                          default: the rating bands (Excellent / Good / ...)
-                         assume a single number. -->
-                    <div class="form-group">
+                         assume a single number.
+
+                         #146, 2026-10-05: HIDDEN, because the score it
+                         decorates is hidden. This control's only effect is
+                         to choose whether the efficiency score is drawn as
+                         one number or as a range, and there is no score on
+                         the page to draw -- so offering it would be a
+                         setting that changes nothing a student can see
+                         (#289's "the page states what it does not know",
+                         and #174's rule against directing a press that
+                         cannot work).
+
+                         `hidden` rather than deleted, and the input stays
+                         in the DOM on purpose: settings.js binds it by
+                         `data-field`, so the preference still loads and
+                         saves, and a value a student set before this is
+                         neither lost nor silently rewritten. Removing the
+                         attribute is the whole of re-enabling it, in the
+                         same change that flips
+                         EFFICIENCY_SCORE_ENABLED in weight_analysis.js. -->
+                    <div class="form-group" hidden data-disabled-by="146">
                         <label class="checkbox-label">
                             <input type="checkbox" id="efficiency_show_confidence_band"
                                    data-testid="settings-analytics-efficiency-band"
@@ -410,7 +446,7 @@
 
                         <div class="form-group">
                             <label>Chart Visibility</label>
-                            <p class="field-description">Toggle which charts appear on the analytics dashboard for this exam.</p>
+                            <p class="field-description">Toggle which charts appear on the analytics dashboard for this exam. A chart switched off by the settings above stays off whatever is ticked here.</p>
                             <div class="chart-toggle-list" id="chartToggleList">
                                 <!-- Generated dynamically -->
                             </div>
@@ -434,18 +470,19 @@
 
                     <div class="form-group">
                         <label for="entry_review_default_sort_field">Default Sort Field</label>
-                        <p class="field-description">The field used to sort entries by default.</p>
+                        <p class="field-description">What the entry browser sorts by when it opens.</p>
+                        <!-- #504: stored composed with the direction below as
+                             e.g. "date_desc", which is the one value the entry
+                             browser reads; settings.js splits and joins it. -->
                         <select id="entry_review_default_sort_field" data-field="entry_review_default_sort_field">
-                            <option value="date_desc">Date (Newest First)</option>
-                            <option value="date_asc">Date (Oldest First)</option>
-                            <option value="difficulty_desc">Difficulty (Hardest First)</option>
-                            <option value="difficulty_asc">Difficulty (Easiest First)</option>
+                            <option value="date">Date</option>
+                            <option value="difficulty">Difficulty</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="entry_review_default_sort_direction">Default Sort Direction</label>
-                        <p class="field-description">The default ordering direction for entry lists.</p>
+                        <p class="field-description">Descending is newest or hardest first.</p>
                         <select id="entry_review_default_sort_direction" data-field="entry_review_default_sort_direction">
                             <option value="asc">Ascending</option>
                             <option value="desc" selected>Descending</option>
@@ -456,8 +493,8 @@
                 <!-- ============================================================
                      Panel 5: Question Banks
                      ============================================================ -->
-                <div class="settings-panel" data-panel="question_banks">
-                    <h2 class="panel-title">Question Banks</h2>
+                <div class="settings-panel" data-panel="question_banks" data-testid="settings-panel-question-banks">
+                    <h2 class="panel-title" data-tour-anchor="settings-question-banks">Question Banks</h2>
                     <p class="field-description">
                         Shortcuts appear in the browser pane. Add a web address to get a button.
                     </p>
@@ -662,6 +699,132 @@
                 </div>
 
                 <!-- ============================================================
+                     Related Topics: relation proposals (#60, decided on #380).
+                     The confidence cutoff is a stated preference and travels
+                     with the profile (m028). The slider's min/max/step are
+                     asserted against runtime.THRESHOLD_* by a test, so the
+                     control cannot offer a value the extraction refuses.
+                     The feature's availability line (#5183) belongs in this
+                     panel too, above the dial; it arrives with the bridge.
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="related_topics">
+                    <h2 class="panel-title">Related Topics</h2>
+                    <p class="field-description">
+                        WIMI can read the explanation you write on an entry and suggest
+                        relations between your subjects, such as one condition causing
+                        another. Nothing is added until you confirm it.
+                    </p>
+
+                    <!-- ONE line, not three (#5183, owner's decision).
+                         Speech to Text gets three rows because its engine, its
+                         model and the microphone fail independently with three
+                         different fixes. Relation extraction is one state
+                         machine of five states, and the decision is explicit:
+                         "Silence in the entry form in every one of these
+                         states; one line in Settings". So one row, and the
+                         line says which state and what the next step is.
+
+                         The dot is aria-hidden because the text states the
+                         state in words -- the colour is never the only carrier.
+                         The dial below stays visible and enabled in EVERY
+                         state, including the ones where nothing can run: the
+                         cutoff is a stated preference that travels in a .wimi
+                         (m028), so a student on the build without the runtime
+                         is setting it for the machine that has it. -->
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div class="feature-status" data-testid="settings-relations-status">
+                            <div class="feature-status-row">
+                                <span class="feature-status-dot unknown" id="relationsStatusDot"
+                                      aria-hidden="true"></span>
+                                <div class="feature-status-body">
+                                    <div class="feature-status-title">Relation suggestions</div>
+                                    <!-- role="status" (#401): the line changes when
+                                         a download finishes, fails or is
+                                         cancelled -- the transitions a student
+                                         needs to hear -- and on the first
+                                         resolve from "Checking". Polite, and
+                                         never display:none, so it is in the
+                                         tree before its text changes. -->
+                                    <div class="feature-status-text" id="relationsStatusText"
+                                         role="status"
+                                         data-testid="settings-relations-status-text">Checking&hellip;</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="feature-actions">
+                            <!-- Hidden rather than disabled. A button that
+                                 cannot work must not be offered at all (#174),
+                                 and in four of the five states a download is
+                                 either pointless or not the fix. -->
+                            <button class="btn-save" id="relationsDownloadBtn"
+                                    data-testid="settings-relations-download"
+                                    style="display: none;">Download the model</button>
+                            <button class="btn-cancel" id="relationsCancelDownloadBtn"
+                                    data-testid="settings-relations-cancel-download"
+                                    style="display: none;">Cancel</button>
+                            <!-- Only when partial files exist and nothing is
+                                 running. A cancel KEEPS what it fetched, so
+                                 the next press resumes; this is the explicit
+                                 way to throw that away, for a transfer that
+                                 stalled on a bad link. -->
+                            <button class="btn-cancel" id="relationsDiscardBtn"
+                                    data-testid="settings-relations-discard"
+                                    style="display: none;">Start the download again</button>
+                        </div>
+                        <!-- The progress is a real progressbar (#401): the bar
+                             was a div whose width only a sighted user could
+                             read. settings.js writes aria-valuenow and an
+                             aria-valuetext in megabytes where it sets the
+                             width. The text line beside it is deliberately NOT
+                             a live region: it changes every 400 ms poll, and
+                             over 845 MB that would talk continuously. -->
+                        <div class="feature-progress" id="relationsDownloadProgress"
+                             data-testid="settings-relations-progress" style="display: none;">
+                            <div class="feature-progress-track" id="relationsDownloadTrack"
+                                 role="progressbar" aria-label="Model download"
+                                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                <div class="feature-progress-bar" id="relationsDownloadBar"></div>
+                            </div>
+                            <div class="feature-progress-text" id="relationsDownloadText"
+                                 data-testid="settings-relations-progress-text"></div>
+                        </div>
+                        <!-- role="alert", and therefore NEVER display:none
+                             (#401). A live region has to be in the tree before
+                             its text changes or the change is not announced,
+                             so this stays rendered and empty -- an empty <p>
+                             adds no height here, measured -- and settings.js
+                             only ever writes its text. -->
+                        <p class="field-description feature-problem" id="relationsDownloadError"
+                           role="alert"
+                           data-testid="settings-relations-error"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relation_confidence_threshold">How sure WIMI must be before suggesting a relation</label>
+                        <div class="range-group">
+                            <input type="range" id="relation_confidence_threshold"
+                                   data-field="relation_confidence_threshold"
+                                   data-display="percent"
+                                   data-testid="settings-relation-threshold"
+                                   min="0.10" max="0.95" step="0.05" value="0.8"
+                                   aria-describedby="relationThresholdHelp">
+                            <div class="range-labels" aria-hidden="true">
+                                <span>More suggestions</span>
+                                <span class="range-value" data-testid="settings-relation-threshold-value">80%</span>
+                                <span>Fewer, surer suggestions</span>
+                            </div>
+                        </div>
+                        <p class="field-description" id="relationThresholdHelp">
+                            Lower shows more suggestions, including more that are wrong; higher
+                            shows fewer that are more often right. 80% is the default. Every
+                            suggestion waits for you to confirm it, so a lower setting costs
+                            your time, never your data.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ============================================================
                      Panel 6: Calendar (COMING SOON)
                      ============================================================ -->
                 <div class="settings-panel" data-panel="calendar">
@@ -746,7 +909,7 @@
 
                         <div class="form-group">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="cloud_sync_enabled">
+                                <input type="checkbox" id="cloud_sync_enabled" data-tour-anchor="settings-sync-enable">
                                 <span>Enable Cloud Sync</span>
                             </label>
                             <p class="field-description">
@@ -879,18 +1042,10 @@
                     </div>
                 </div>
 
-                <!-- ============================================================
-                     Panel 9: Performance
-                     ============================================================ -->
-                <div class="settings-panel" data-panel="performance">
-                    <h2 class="panel-title">Performance</h2>
-
-                    <div class="form-group">
-                        <label for="realtime_update_delay_ms">Real-time Update Delay (ms)</label>
-                        <p class="field-description">The delay in milliseconds before the UI refreshes after data changes. Lower values feel more responsive but use more resources.</p>
-                        <input type="number" id="realtime_update_delay_ms" data-field="realtime_update_delay_ms" min="100" max="5000" value="500">
-                    </div>
-                </div>
+                <!-- Panel 9, Performance, held one control, realtime_update_delay_ms,
+                     which nothing in WIMI ever read: there is no delayed UI refresh
+                     for it to govern. Removed by decision on #504; the column stays,
+                     so a stored value is neither lost nor rewritten. -->
 
                 <!-- ============================================================
                      Panel 10: MCP Server
@@ -1009,9 +1164,9 @@
                     <div class="addon-panel-header">
                         <div>
                             <h2 class="panel-title">Addons</h2>
-                            <p class="field-description">Manage installed plugins. Install from a <code>.zip</code> file or place plugin folders in <code>app_data/plugins/</code>.</p>
+                            <p class="field-description">Manage installed plugins. Install from a <code>.zip</code> file or place plugin folders in <code>app_data/plugins/</code> and restart WIMI, which looks in that folder only when it starts.</p>
                         </div>
-                        <button class="btn-save" id="installPluginBtn">Install from .zip</button>
+                        <button class="btn-save" id="installPluginBtn" data-tour-anchor="settings-addons-install">Install from .zip</button>
                     </div>
                     <div id="addonList" class="addon-list"></div>
                 </div>
@@ -1171,6 +1326,42 @@
                             are present only in Windows builds.
                         </p>
 
+                        <h4 class="about-subhead">Relation suggestions (the larger download only)</h4>
+                        <!--
+                            #336. The relations build bundles the extraction runtime and its
+                            dependencies; scripts/relations_third_party.py stages every
+                            component's own licence and notice files into
+                            licenses/third-party/ with an INDEX.txt giving each one's version,
+                            licence and source. That index is generated from the build's own
+                            metadata, which is why exact versions live there rather than in
+                            this table: a version typed here would drift from the build.
+                        -->
+                        <table class="about-notices-table" data-testid="about-notices-relations">
+                            <thead>
+                                <tr><th>Component</th><th>Licence</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>PyTorch &mdash; the PyTorch contributors</td><td>BSD-style for its own code; Apache 2.0, BSD 2- and 3-Clause, Boost 1.0 and MIT for code it includes</td></tr>
+                                <tr><td>Transformers, Tokenizers, Safetensors, Hugging Face Hub, Accelerate, PEFT &mdash; Hugging Face</td><td>Apache License 2.0</td></tr>
+                                <tr><td>GLiNER2 (the Python package)</td><td>Apache License 2.0</td></tr>
+                                <tr><td>NumPy, SymPy and their supporting libraries</td><td>BSD, MIT and other permissive licences</td></tr>
+                                <tr><td>tqdm</td><td>MPL 2.0 and MIT</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="field-description">
+                            These are present only in the download that includes relation
+                            suggestions. That download carries each component's own licence
+                            and notice files in <code>licenses/third-party/</code>, beside the
+                            application, with <code>INDEX.txt</code> listing every component,
+                            its version, its licence and where its source is published.
+                        </p>
+                        <p class="field-description">
+                            The relation model itself is not part of any download. On first
+                            use WIMI fetches GLiNER2 (<code>fastino/gliner2-base-v1</code>,
+                            Apache License 2.0), which is built on Microsoft's DeBERTa-v3-base
+                            (MIT), from Hugging Face.
+                        </p>
+
                         <h4 class="about-subhead">Where the full licence texts are</h4>
                         <p class="field-description">
                             Full texts for the web libraries and for whisper.cpp
@@ -1196,6 +1387,12 @@
     </div>
 
     <!-- Scripts -->
+    <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         settings.js starts it once the page gate releases, and again on
+         every panel switch. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/settings.js"></script>
 </body>
 </html>

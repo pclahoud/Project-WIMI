@@ -24,6 +24,13 @@
  * - **Decision 11: degrade to absent.** With zero relations nothing but
  *   a single quiet "Link a related topic" action is rendered — no card,
  *   no heading, no empty state. Zero is the normal state for months.
+ * - **Relation types (owner, 2026-10-03; m026).** A relation is written
+ *   with one of the exam's types, read from both ends: the backend sends
+ *   `relation_label` already chosen for this page (forward, reverse, or
+ *   the one label of a symmetric type). An **untyped** relation sends
+ *   `null` and keeps rendering "Leads to"/"Caused by" — nothing is
+ *   guessed for it. The modal offers active types only; if an exam has
+ *   none it falls back to the untyped pair. Editing the list is parked.
  */
 
 const RELATION_STRENGTHS = [
@@ -52,6 +59,8 @@ class SubjectRelationsPanel {
         this.payload = null;
         this.modal = null;
         this._searchTimer = null;
+        // The exam's active relation types, fetched when the modal opens.
+        this.relationTypes = [];
     }
 
     // ---------------------------------------------------------------- data
@@ -118,6 +127,23 @@ class SubjectRelationsPanel {
         header.appendChild(title);
         header.appendChild(this._buildAddButton(false));
         card.appendChild(header);
+
+        // Decision 1 of #382: the save that landed was a CONFIRMATION of a
+        // suggestion the student never saw, so the panel says so. Cleared as
+        // it is drawn, because it is about the last action rather than about
+        // the subject -- a note that stayed would start reading as a property
+        // of the relation.
+        if (this._adoptedNote) {
+            const adopted = document.createElement('p');
+            adopted.className = 'relations-adopted-note';
+            adopted.setAttribute('data-testid', 'deep-dive-relations-adopted-note');
+            adopted.textContent =
+                'WIMI had already suggested this relation from an explanation '
+                + 'you wrote, and was waiting for you to confirm it. Your '
+                + 'words have replaced its guess.';
+            card.appendChild(adopted);
+            this._adoptedNote = null;
+        }
 
         if (this.payload.fanin_over_cap) {
             const note = document.createElement('p');
@@ -244,6 +270,10 @@ class SubjectRelationsPanel {
         if (relation.is_refuted) {
             return 'Checked against';
         }
+        if (relation.relation_label) {
+            const label = relation.relation_label;
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        }
         return relation.direction === 'outgoing' ? 'Leads to' : 'Caused by';
     }
 
@@ -278,8 +308,21 @@ class SubjectRelationsPanel {
 
     // ---------------------------------------------------------------- modal
 
-    openModal() {
+    async openModal() {
         this.closeModal();
+        // Fetched per opening rather than once per page: the list is short
+        // and a type retired elsewhere must not still be offered here.
+        this.relationTypes = [];
+        if (window.api && api.getRelationTypes) {
+            try {
+                this.relationTypes = await api.getRelationTypes({
+                    subjectId: this.subjectId
+                }) || [];
+            } catch (err) {
+                // Degrade to the untyped pair rather than refusing to open.
+                console.warn('Could not load relation types:', err);
+            }
+        }
         const modal = document.createElement('div');
         modal.className = 'relation-modal';
         modal.setAttribute('data-testid', 'relation-modal');
@@ -330,10 +373,10 @@ class SubjectRelationsPanel {
     }
 
     _modalMarkup() {
-        const name = escapeRelationHtml(this.subjectName || 'this topic');
+        const name = WimiEscape.html(this.subjectName || 'this topic');
         const options = RELATION_STRENGTHS.map(s =>
             `<option value="${s.value}"${s.value === 2 ? ' selected' : ''}>`
-            + `${escapeRelationHtml(s.label)}</option>`
+            + `${WimiEscape.html(s.label)}</option>`
         ).join('');
         return `
             <div class="modal-backdrop"></div>
@@ -353,10 +396,9 @@ class SubjectRelationsPanel {
                     </p>
 
                     <div class="relation-field">
-                        <label for="relationDirection">Direction</label>
+                        <label for="relationDirection">Relation</label>
                         <select id="relationDirection" data-testid="relation-direction">
-                            <option value="outgoing">${name} leads to&hellip;</option>
-                            <option value="incoming">${name} is caused by&hellip;</option>
+                            ${this._relationOptions(name)}
                         </select>
                     </div>
 
@@ -415,17 +457,47 @@ class SubjectRelationsPanel {
         `;
     }
 
+    /**
+     * The Relation select's options: each active type from this subject's
+     * side, forward then reverse, and a symmetric type once. Values are
+     * `<typeId>|<direction>`; an untyped choice has an empty type id and
+     * is offered only when the exam has no active types.
+     */
+    _relationOptions(escapedName) {
+        const option = (typeId, direction, label) =>
+            `<option value="${typeId}|${direction}">${escapedName} `
+            + `${WimiEscape.html(label)}&hellip;</option>`;
+        if (!this.relationTypes.length) {
+            return option('', 'outgoing', 'leads to')
+                + option('', 'incoming', 'is caused by');
+        }
+        return this.relationTypes.map(type => type.is_symmetric
+            ? option(type.id, 'symmetric', type.label)
+            : option(type.id, 'outgoing', type.label)
+              + option(type.id, 'incoming', type.reverse_label)
+        ).join('');
+    }
+
+    /** `{typeId: number|null, direction}` for the current Relation choice. */
+    _currentChoice() {
+        const raw = this.modal.querySelector(
+            '[data-testid="relation-direction"]').value || '|outgoing';
+        const [typeId, direction] = raw.split('|');
+        return { typeId: typeId ? parseInt(typeId, 10) : null, direction };
+    }
+
     _refreshDirectionCopy() {
         if (!this.modal) return;
-        const direction = this.modal.querySelector(
-            '[data-testid="relation-direction"]').value;
+        const { direction } = this._currentChoice();
         const hint = this.modal.querySelector(
             '[data-testid="relation-reason-hint"]');
-        hint.textContent = direction === 'outgoing'
-            ? 'One sentence on how this topic leads to the other. A relation '
-              + 'without a reason is just a bookmark, so this field is required.'
-            : 'One sentence on how the other topic leads to this one. A relation '
-              + 'without a reason is just a bookmark, so this field is required.';
+        // The relation's own words are in the select above; the hint asks
+        // for the mechanism, which is what the type cannot say.
+        const lead = direction === 'symmetric'
+            ? 'One sentence on what the two topics share, or how to tell them apart.'
+            : 'One sentence on how the two topics are connected.';
+        hint.textContent = `${lead} A relation without a reason is just a `
+            + 'bookmark, so this field is required.';
     }
 
     /**
@@ -456,15 +528,18 @@ class SubjectRelationsPanel {
         }
         let results = [];
         try {
+            const choice = this._currentChoice();
             results = await api.searchRelatableSubjects({
                 subjectId: this.subjectId,
                 query: term,
                 limit: 8,
                 // Direction-aware so a subject already related the other
                 // way is still offered — closing a cycle from the second
-                // subject's page is legitimate content (decision 7).
-                direction: this.modal.querySelector(
-                    '[data-testid="relation-direction"]').value
+                // subject's page is legitimate content (decision 7) — and
+                // type-aware, so *A causes B* does not hide B when the
+                // student is writing *A confused with B*.
+                direction: choice.direction,
+                relationTypeId: choice.typeId
             });
         } catch (err) {
             console.warn('Relation subject search failed:', err);
@@ -481,13 +556,13 @@ class SubjectRelationsPanel {
             button.className = 'relation-result';
             button.setAttribute('data-testid', `relation-result-${result.id}`);
             button.innerHTML =
-                `${escapeRelationHtml(result.name)}`
+                `${WimiEscape.html(result.name)}`
                 + (result.crosses_dimension && result.dimension_name
                     ? ` <span class="relation-dimension">`
-                      + `${escapeRelationHtml(result.dimension_name)}</span>`
+                      + `${WimiEscape.html(result.dimension_name)}</span>`
                     : '')
                 + `<span class="relation-result-path">`
-                + `${escapeRelationHtml(result.path || '')}</span>`;
+                + `${WimiEscape.html(result.path || '')}</span>`;
             button.addEventListener('click', () => this._choose(result));
             box.appendChild(button);
         });
@@ -529,8 +604,7 @@ class SubjectRelationsPanel {
         const modal = this.modal;
         const reason = modal.querySelector(
             '[data-testid="relation-reason"]').value.trim();
-        const direction = modal.querySelector(
-            '[data-testid="relation-direction"]').value;
+        const { typeId, direction } = this._currentChoice();
         const strength = parseInt(
             modal.querySelector('[data-testid="relation-strength"]').value, 10);
         const error = modal.querySelector('[data-testid="relation-error"]');
@@ -549,14 +623,20 @@ class SubjectRelationsPanel {
         save.disabled = true;
         error.hidden = true;
         try {
-            await api.createSubjectRelation({
-                fromSubjectId: direction === 'outgoing'
-                    ? this.subjectId : this._chosen.id,
-                toSubjectId: direction === 'outgoing'
-                    ? this._chosen.id : this.subjectId,
+            // A symmetric type has no direction; the backend stores it in
+            // canonical order whichever way round it is sent.
+            const outgoing = direction !== 'incoming';
+            const saved = await api.createSubjectRelation({
+                fromSubjectId: outgoing ? this.subjectId : this._chosen.id,
+                toSubjectId: outgoing ? this._chosen.id : this.subjectId,
                 reason,
-                strength
+                strength,
+                relationTypeId: typeId
             });
+            // Not a new relation: an unconfirmed proposal for this exact
+            // pair and type was confirmed with the student's sentence
+            // instead (#382). `render` says so after the reload below.
+            this._adoptedNote = !!(saved && saved.adopted_proposal);
         } catch (err) {
             // The database layer writes these messages for the student;
             // show them rather than a generic failure.
@@ -570,14 +650,5 @@ class SubjectRelationsPanel {
     }
 }
 
-/** Minimal escape — subject names and dimension names are user input. */
-function escapeRelationHtml(value) {
-    return String(value === null || value === undefined ? '' : value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
 
 window.SubjectRelationsPanel = SubjectRelationsPanel;

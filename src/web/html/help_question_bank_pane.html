@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your question bank beside the form - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/52_question_bank_pane.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 19</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Your question bank beside the form</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_finding_links_automatically.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Letting WIMI find the links</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_changing_your_tree.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Changing your tree later</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Your question bank beside the form
+
+## In short
+
+WIMI can put a web browser in the right half of its own window, so the question you are logging stays on screen while you write about it. The pane keeps its own logins, so signing in to a question bank survives closing the pane and restarting WIMI; it carries one-press shortcuts built from the question banks you have already set up; and it has tabs, because sign-in flows open pop-ups. Where you left it, how far you zoomed and where the divider sits are remembered for this computer rather than for your profile.
+
+## Why it exists
+
+Logging a mistake means reading a question and an explanation while writing
+about both. Done in two windows that is a lot of alt-tabbing, and the thing that
+suffers is the written reflection, because every switch is a chance to decide
+you will come back to it later.
+
+So the pane is not a browser WIMI happens to contain. It is a way to keep the
+question visible while you type the sentence about it.
+
+## Opening and closing it
+
+<!-- The five tour blocks in this chapter that name
+entry-form-question-bank-button are one explainer, shown as consecutive
+slides on that button (#682, owner 2026-10-10). They share an anchor, so
+the tour has no screen position to sort them by and falls back to the
+order they appear here: moving one of these sections moves a slide.
+Keep them in reading order. -->
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-bank-button
+text: This button puts a browser in the right half of WIMI's own window, so
+  the question stays on screen while you write about it. Ctrl+B and View,
+  Browser Pane do the same, and closing the pane keeps your page and your
+  login rather than signing you out.
+-->
+
+Three ways in, and they are the same pane:
+
+- **View → Browser Pane** in the menu bar. It is a tick box, so the menu always shows whether the pane is up.
+- **Ctrl+B** from anywhere in WIMI.
+- **Open question bank**, a button in the entry form's header. It changes to **Hide question bank** while the pane is up, so the button also tells you the current state.
+
+Closing the pane — the **✕** at the right of its toolbar, or any of the three
+toggles above — **keeps your page and your login**. It is not a sign-out and not
+a fresh start; reopening puts you back where you were.
+
+If the copy of WIMI you are running cannot offer a pane at all, the entry form's
+button is not drawn. There is no greyed-out button and no explanation, for the
+same reason the relation-suggestion button is absent when it cannot run.
+
+## The toolbar, left to right
+
+- **←** goes back one page.
+- **↻** reloads. On a question bank you page through items constantly, so this is the button you will want most.
+- **−**, a **percentage**, and **+** are the zoom. Eleven steps from 50% to 200%. The percentage in the middle is itself a button: press it to go straight back to 100%.
+- **The shortcut buttons** for your question banks — see below.
+- **The address bar**, with the placeholder *Your qbank's address — uworld.com, amboss.com…*. Type a bare domain and WIMI puts the *https://* on for you. Enter, or the **Go** beside it, opens it.
+- **+ Tab** opens a new tab in the pane.
+- **✕** closes the pane.
+
+The divider between WIMI and the pane is draggable, and the pane starts at about
+forty per cent of the window. It can be dragged down to roughly 280 pixels, which
+is narrower than the toolbar comfortably fits — so at that width the toolbar
+clips rather than the pane refusing to move. That trade is deliberate: a pane you
+can squeeze out of the way is worth more than a tidy toolbar you cannot get past.
+
+## The shortcut buttons
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-bank-button
+text: The named buttons in the pane's toolbar are your own question banks,
+  one for every bank you have given a web address, most recently opened
+  first. A bank gets its address in Settings, Question Banks, never at
+  session setup.
+-->
+
+The row of named buttons in the toolbar is built from your own question banks —
+every bank you have given a web address to. It is not a second list of
+bookmarks to keep up to date, and there is nothing to curate: give a bank an
+address and it gets a button.
+
+- **Most recently opened first.** The bank you are using today drifts to the left on its own, and a bank you have never opened in the pane sorts after every bank you have, alphabetically — so a new one appears in a predictable place rather than wherever it happens to land.
+- **Three are shown.** The rest live behind a **⋯** button, tooltipped *More question banks*, which drops down the remainder by name.
+- **Each button's tooltip names the bank and its address**, which is how you tell two similarly named ones apart.
+
+If you have no banks with addresses, the row is not there at all.
+
+## Giving a question bank an address
+
+<!-- tour
+page: settings
+anchor: settings-question-banks
+text: This panel is the only place a question bank's web address lives. The
+  Add Question Source dialog at session setup never asks for one, so a source
+  you made there has no address until you type it here.
+-->
+
+This is in two places, and knowing that saves a confused five minutes.
+
+A **question source** is created when you set up a study session — the **Add
+Question Source** dialog there asks for a name, a type and an optional
+description. It does **not** ask for a web address, and there is no address
+field anywhere in that dialog.
+
+The address lives in **Settings → Question Banks**, whose own opening line is
+*"Shortcuts appear in the browser pane. Add a web address to get a button."*
+Every question source you have ever made gets a row there, with its name as the
+label and a box reading **Add a web address**. Type one, click away, and the row
+has an address: it is saved there and then, with a short confirmation, and the
+page's **Save** and **Cancel** have nothing to do with it. Before you have any sources at all the panel says *"No question
+banks yet. Add one when you start a study session"*, which is the route
+described above.
+
+### Desktop site
+
+<!-- tour
+page: settings
+anchor: settings-qbank-desktop
+text: Desktop site makes the pane tell this bank's website it is an ordinary
+  desktop browser, which some sign-in pages insist on, so leave it on unless
+  the site misbehaves. Like the address beside it, it is saved the moment you
+  change it, not by Save, and it applies to this computer only.
+-->
+
+The moment a row has an address it also gains a **Desktop site** checkbox,
+ticked by default. Like the address, it is saved the moment you change it rather
+than by the page's **Save**.
+
+With it on, the pane tells the website it is an ordinary desktop Chrome. That is
+not cosmetic: several question banks' sign-in providers refuse the identity the
+pane would otherwise send, so the honest setting is the one that cannot log in.
+Leave it on unless a particular site misbehaves, in which case turn it off for
+that bank alone.
+
+The setting is per bank **and per computer**, so switching it off on your laptop
+does not switch it off on your desktop.
+
+## The three choices about how it opens
+
+Also in Settings → Question Banks:
+
+- **When the pane opens** — *Where I left off*, *A question bank*, or *Blank page*. This is where the pane starts each time you open it.
+- **Question bank to open** — which bank the two cases above mean. It is used both when the pane opens to a bank and whenever you open a new tab. Only banks that have an address can be chosen; if none do, the only option reads *Add a web address to a question bank first*.
+- **Question bank shortcuts** — *Open in the current tab* or *Open in a new tab*, for what happens when you press one of the shortcut buttons. The current tab is the default, because pressing the AMBOSS button usually means "go to AMBOSS" rather than "and also keep UWorld open".
+
+**Every one of those falls back to a blank page rather than an error.** If you
+nominated a bank and later deleted it, or cleared its address, or this is the
+first run and there is nowhere you left off, the pane opens blank. A blank pane
+with the shortcut row right there is a recoverable situation; an error dialog on
+open is not.
+
+## Tabs
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-bank-button
+text: A pop-up a site opens becomes a new tab in the pane, which is what
+  single sign-on log-ins expect. The tab strip appears only once there are
+  two tabs, and closing the last one closes the pane.
+-->
+
+The tab strip is hidden whenever there is only one tab, so the ordinary
+one-question-bank case looks exactly as it would with no tabs at all and costs
+no height in an already narrow pane. It appears as soon as there are two.
+
+**+ Tab** adds one. Tabs can be dragged to reorder and each has its own close
+button. **Closing the last tab closes the pane**, because an empty tabbed pane
+is a dead rectangle taking up half the window.
+
+**A pop-up the site opens becomes a new tab**, rather than a separate window and
+rather than replacing the page you are on. That is what institutional and
+single-sign-on log-ins expect: they hand you a pop-up, you sign in there, and it
+reports back to the page that opened it. Replacing the current page would break
+those flows, and a separate floating window would defeat the point of a pane.
+
+## Logins survive restarts
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-bank-button
+text: The pane keeps its own logins, separate from your normal browser, so
+  each question bank needs one sign-in here and then stays signed in across
+  restarts. Those logins do not travel in a profile file.
+-->
+
+The pane has its own store of cookies and site data, kept separately from
+everything else, and it persists. Sign in to a question bank once and you are
+signed in next time, after closing the pane and after quitting WIMI.
+
+Two consequences:
+
+- **It is not your normal browser's session.** The pane does not see the logins in Chrome or Safari, so the first visit to each bank needs a sign-in even if you are already signed in elsewhere. It is once per bank, not once per session.
+- **It does not travel with your profile.** A profile file carries your entries, your subjects and your settings. It does not carry the pane's logins, so a profile moved to another computer will ask you to sign in there.
+
+### One site-specific warning
+
+The first time you navigate to UWorld in the pane, a strip appears across the
+top reading *"UWorld allows one active session — logging in here signs you out
+elsewhere."* It has a **Dismiss** button and appears at most once per run of
+WIMI.
+
+That is a fact about UWorld rather than about WIMI, and it is worth knowing
+before you wonder why your other tab logged itself out. No other site gets a
+note like this.
+
+## What is remembered where
+
+This split matters if you use WIMI on two computers.
+
+**Remembered per computer**, and deliberately not carried in a profile file:
+
+- Where the pane was last pointed.
+- The zoom level.
+- Where you dragged the divider.
+- Each bank's Desktop site tick.
+- Which banks you have opened recently, and therefore the order of the shortcut row.
+
+All five describe one machine — its screen, its window, how one browser behaves
+there, what you have been doing on it. Copying your zoom level from a 27-inch
+desktop onto a laptop would be copying a setting that was never about you, and a
+bank you opened on the desktop this morning is not one you opened on the laptop.
+
+A profile opened on a computer it has never met therefore shows every bank with
+its defaults rather than the other machine's history.
+
+**Carried with your profile**, so it arrives on the other computer:
+
+- The three choices about how the pane opens.
+- Your question banks and their web addresses.
+
+The addresses travel because a question bank's address means the same thing
+everywhere, which is exactly what a window size does not.
+
+## What the pane does not do
+
+<!-- tour
+page: entry-form
+anchor: entry-form-question-bank-button
+text: WIMI never reads the page in the pane. Nothing from a question or its
+  explanation is copied into an entry, so what ends up in your entries is
+  only what you typed.
+-->
+
+It is worth being clear, because the arrangement invites the assumption.
+
+**WIMI does not read the page in the pane.** Nothing is copied, scraped,
+extracted or watched. No part of a question, an answer or an explanation crosses
+from the pane into an entry; if you want the question reference in your entry
+you type it, and if you want the explanation in your own words you write it —
+which is the entire point of the entry form, and would be defeated by a feature
+that pasted the question bank's wording in for you.
+
+The pane is a browser that happens to be next to the form. Everything that ends
+up in your entries, you put there.
+
+## Where to go next
+
+- [Logging a mistake](help_logging_a_mistake.html) — the form the pane sits beside, and the Open question bank button in its header.
+- [Your first hour](help_the_first_hour.html) — where a question source gets created in the first place.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

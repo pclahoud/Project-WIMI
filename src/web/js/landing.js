@@ -28,7 +28,12 @@ const LandingState = {
     isLoading: true,
     selectedExamId: null,
     deleteModalExam: null,
-    suspendModalExam: null
+    suspendModalExam: null,
+    // What applyHeroState was last handed: true, false, or null before the
+    // exams have loaded (and after a failed load, which does not know). The
+    // tour's `has-exams` fork reads this rather than counting cards itself,
+    // so the step and the hero cannot disagree (#313, #430).
+    hasExams: null
 };
 
 // =========================================================================
@@ -56,16 +61,30 @@ const Toast = {
             info: 'ℹ'
         };
         
+        // Built from text nodes, not innerHTML (#548): callers pass an exam's
+        // name in the message, and a name is text a student typed or imported.
         const toast = document.createElement('div');
         toast.className = `toast toast--${type}`;
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || 'ℹ'}</span>
-            <div class="toast-content">
-                <p class="toast-title">${title}</p>
-                ${message ? `<p class="toast-message">${message}</p>` : ''}
-            </div>
-            <button class="toast-close" aria-label="Close">×</button>
-        `;
+        const icon = document.createElement('span');
+        icon.className = 'toast-icon';
+        icon.textContent = icons[type] || 'ℹ';
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+        const titleEl = document.createElement('p');
+        titleEl.className = 'toast-title';
+        titleEl.textContent = title;
+        content.appendChild(titleEl);
+        if (message) {
+            const messageEl = document.createElement('p');
+            messageEl.className = 'toast-message';
+            messageEl.textContent = message;
+            content.appendChild(messageEl);
+        }
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Close');
+        close.textContent = '×';
+        toast.append(icon, content, close);
         
         this.container.appendChild(toast);
         
@@ -256,7 +275,7 @@ function renderExamCard(exam) {
                     <button class="btn btn-ghost btn-sm" onclick="reactivateExam(${exam.id})" title="Reactivate Exam" data-testid="dashboard-exam-${exam.id}-reactivate-btn">
                         ▶️ Reactivate
                     </button>
-                    <button class="btn btn-ghost btn-sm btn-danger-text" onclick="confirmHardDeleteExam(${exam.id}, '${escapeHtml(exam.exam_name).replace(/'/g, "\\'")}')\" title="Permanently Delete Exam" data-testid="dashboard-exam-${exam.id}-delete-btn">
+                    <button class="btn btn-ghost btn-sm btn-danger-text" data-hard-delete-exam-id="${exam.id}" title="Permanently Delete Exam" data-testid="dashboard-exam-${exam.id}-delete-btn" data-tour-anchor="exam-card-delete">
                         🗑️ Delete Permanently
                     </button>
                 </div>`;
@@ -266,14 +285,14 @@ function renderExamCard(exam) {
                     <button class="btn btn-ghost btn-sm" onclick="editExam(${exam.id})" title="Edit Exam Settings" data-testid="dashboard-exam-${exam.id}-edit-btn">
                         ✏️ Edit
                     </button>
-                    <button class="btn btn-ghost btn-sm btn-danger-text" onclick="confirmSuspendExam(${exam.id})" title="Suspend Exam" data-testid="dashboard-exam-${exam.id}-suspend-btn">
+                    <button class="btn btn-ghost btn-sm btn-danger-text" onclick="confirmSuspendExam(${exam.id})" title="Suspend Exam" data-testid="dashboard-exam-${exam.id}-suspend-btn" data-tour-anchor="exam-card-suspend">
                         ⏸️ Suspend
                     </button>
                 </div>`;
     }
 
     return `
-        <div class="exam-card" data-exam-id="${exam.id}"${suspendedStyle} data-testid="dashboard-exam-card-${exam.id}">
+        <div class="exam-card" data-exam-id="${exam.id}"${suspendedStyle} data-testid="dashboard-exam-card-${exam.id}" data-tour-anchor="exam-card">
             <div class="exam-card-header">
                 <div class="exam-card-icon">📚</div>
                 <div class="exam-card-status">
@@ -284,9 +303,9 @@ function renderExamCard(exam) {
                 </div>
             </div>
 
-            <h3 class="exam-card-title">${escapeHtml(exam.exam_name)}</h3>
+            <h3 class="exam-card-title">${WimiEscape.html(exam.exam_name)}</h3>
             <p class="exam-card-description">
-                ${exam.exam_description ? escapeHtml(exam.exam_description) : 'No description provided'}
+                ${exam.exam_description ? WimiEscape.html(exam.exam_description) : 'No description provided'}
             </p>
 
             <div class="exam-card-stats">
@@ -328,13 +347,13 @@ function renderExamCard(exam) {
 
                 <!-- Secondary actions row -->
                 <div class="exam-card-actions-row">
-                    <button class="btn btn-secondary" onclick="browseEntries(${exam.id})" title="Browse All Entries" data-testid="dashboard-exam-${exam.id}-browse-btn">
+                    <button class="btn btn-secondary" onclick="browseEntries(${exam.id})" title="Browse All Entries" data-testid="dashboard-exam-${exam.id}-browse-btn" data-tour-anchor="exam-card-browse">
                         📋 Browse
                     </button>
-                    <button class="btn btn-secondary" onclick="viewAnalytics(${exam.id})" title="View Analytics" data-testid="dashboard-exam-${exam.id}-analytics-btn">
+                    <button class="btn btn-secondary" onclick="viewAnalytics(${exam.id})" title="View Analytics" data-testid="dashboard-exam-${exam.id}-analytics-btn" data-tour-anchor="exam-card-analytics">
                         📈 Analytics
                     </button>
-                    <button class="btn btn-secondary" onclick="openExam(${exam.id})" title="Edit Subject Tree" data-testid="dashboard-exam-${exam.id}-subjects-btn">
+                    <button class="btn btn-secondary" onclick="openExam(${exam.id})" title="Edit Subject Tree" data-testid="dashboard-exam-${exam.id}-subjects-btn" data-tour-anchor="exam-card-subjects">
                         🗂️ Subjects
                     </button>
                 </div>
@@ -366,7 +385,7 @@ function renderEmptyState() {
             <p class="empty-state-text">
                 Create your first exam to start tracking your mistakes and improving your study strategy.
             </p>
-            <a href="wizards/exam_wizard.html" class="btn btn-primary btn-lg empty-state-action">
+            <a href="wizards/exam_wizard.html" class="btn btn-primary btn-lg empty-state-action" data-testid="dashboard-create-first-exam">
                 Create Your First Exam
             </a>
         </div>
@@ -386,12 +405,36 @@ function renderLoadingState() {
     `.repeat(3);
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+/**
+ * Size the hero to whether this profile has exams (#313).
+ *
+ * The owner's decision: a first-run profile wants the hero, the 500th
+ * launch does not. At 1130x689 the full hero filled about the top half, so
+ * the dashboard needed a scroll every launch to reach anything actionable.
+ *
+ * **One predicate, called from the same branch that picks the empty
+ * state.** The expanded hero and "No Exams Yet" are two renderings of one
+ * fact, and deriving them separately is how they end up disagreeing — a
+ * full welcome above a grid of exam cards, or a compact bar above "Create
+ * your first exam". `loadExams()` already decides this once; this reads the
+ * same decision rather than asking again.
+ *
+ * Deliberately NOT called from the error branch. A failed load means we do
+ * not know how many exams there are, and the honest answer is to leave the
+ * markup's compact default alone rather than guess a welcome.
+ *
+ * @param {boolean} hasExams Whether this profile has at least one exam,
+ *     active or suspended — the same set `getAllExamContexts(false)`
+ *     returns, so a profile holding only suspended exams is still a
+ *     returning profile and still gets the compact hero.
+ */
+function applyHeroState(hasExams) {
+    LandingState.hasExams = !!hasExams;
+    const hero = document.querySelector('.landing-header');
+    if (!hero) return;
+    hero.classList.toggle('landing-header--compact', !!hasExams);
 }
+
 
 // =========================================================================
 // Exam Operations
@@ -422,14 +465,28 @@ async function loadExams() {
             }
         }
         
-        // Render exams
+        // Render exams. #313: the hero's size comes off this same
+        // predicate -- see applyHeroState for why it is not derived
+        // separately.
         if (LandingState.exams.length === 0) {
+            applyHeroState(false);
             container.innerHTML = renderEmptyState();
         } else {
+            applyHeroState(true);
             const cardsHtml = LandingState.exams.map(renderExamCard).join('');
             container.innerHTML = cardsHtml + renderCreateCard();
+            // A listener, not an inline handler (#548): the handler used to
+            // carry the exam's name as a JavaScript string inside an HTML
+            // attribute, where HTML escaping is undone by the attribute
+            // parser before the script reads it, so a name holding ' ran as
+            // code. The id is all the button needs; the name is looked up.
+            container.querySelectorAll('[data-hard-delete-exam-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    confirmHardDeleteExam(Number(btn.dataset.hardDeleteExamId));
+                });
+            });
         }
-        
+
     } catch (error) {
         console.error('Error loading exams:', error);
         container.innerHTML = `
@@ -488,6 +545,10 @@ async function reactivateExam(examId) {
 }
 
 async function confirmHardDeleteExam(examId, examName) {
+    if (examName === undefined) {
+        const exam = LandingState.exams.find(e => e.id === examId);
+        examName = exam ? exam.exam_name : '';
+    }
     if (!confirm('Are you sure you want to permanently delete "' + examName + '"? This will remove all sessions, entries, and data. This cannot be undone.')) {
         return;
     }
@@ -600,6 +661,22 @@ async function initializeLandingPage() {
     // and nothing on the dashboard waits for it.
     checkFolderSyncAtStartup();
 
+    // The first-run tour (#430), after the exams and Quick Analytics have
+    // rendered, because every anchor on this page is drawn by JS. Behind a
+    // typeof check and a try, so a broken tour can never break the dashboard.
+    try {
+        if (typeof WimiTour !== 'undefined') {
+            // hasExams is null when the exams did not load. `=== true` folds
+            // that into false deliberately: the failed-load branch paints
+            // neither the Create button nor an exam card, so the fork step
+            // has nothing to point at and waits (see anchorFor in tour.js).
+            WimiTour.registerPredicate('has-exams', () => LandingState.hasExams === true);
+            WimiTour.start('dashboard');
+        }
+    } catch (e) {
+        console.error('Tour failed to start:', e);
+    }
+
     console.log('✅ Landing page initialized');
 }
 
@@ -642,11 +719,22 @@ function folderSyncNoticeText(status) {
     // and every entry added then turns a catch-up into a choice.
     if (status.base_relation === 'behind') {
         const from = (status.relation_detail && status.relation_detail.device_name) || 'your other computer';
-        const changed = status.local_changes && (status.local_changes.differs || []).length;
-        return 'A newer copy of this profile from ' + from + ' is in the sync folder. '
-            + (changed
-                ? 'This computer has changes of its own since it last synced - open sync settings to choose what to keep.'
-                : 'Take it before adding work here, or the two copies will need choosing between.');
+        // Three states, as the Settings panel reads them (#499): changes
+        // found, none found, and could not look. An unchecked comparison
+        // has an empty `differs`, so it must not share the "none found"
+        // sentence -- that is the confident advice given where WIMI does
+        // not know.
+        const changes = status.local_changes || {};
+        const changed = changes.checked && (changes.differs || []).length > 0;
+        let advice;
+        if (changed) {
+            advice = 'This computer has changes of its own since it last synced - open sync settings to choose what to keep.';
+        } else if (changes.checked) {
+            advice = 'Take it before adding work here, or the two copies will need choosing between.';
+        } else {
+            advice = 'WIMI could not check whether this computer has changes of its own since it last synced - open sync settings before taking it.';
+        }
+        return 'A newer copy of this profile from ' + from + ' is in the sync folder. ' + advice;
     }
     return null;
 }

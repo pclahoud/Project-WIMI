@@ -139,6 +139,22 @@ LINUX_CPU_SOS = (
     "libggml-cpu-zen4.so",
 )
 
+# The macOS dylib set, by INSTALL NAME -- the name dyld asks for, read with
+# `otool -D`, not the versioned filename CMake writes. Measured by T19 on a Mac
+# mini M4 and again on a MacBook Pro M1 at whisper.cpp 1.9.4 (#181): six real
+# files, each shadowed by two CMake version symlinks (libX.dylib and
+# libX.<major>.dylib). Not fetchable (see SOURCE_BUILD_PLATFORMS), so nothing
+# here downloads them; build_macos.sh copies exactly these and refuses a build
+# that produced a different set, the way the CPU-variant check refuses drift.
+MACOS_DYLIBS = (
+    "libwhisper.1.dylib",
+    "libggml.0.dylib",
+    "libggml-base.0.dylib",
+    "libggml-cpu.0.dylib",
+    "libggml-metal.0.dylib",
+    "libggml-blas.0.dylib",
+)
+
 PLATFORMS = {
     "windows": {
         "asset": "whisper-bin-x64.zip",
@@ -191,7 +207,8 @@ MACOS_BUILD_RECIPE = """\
     cmake --build build -j --config Release
     mkdir -p "{dest}"
     cp build/bin/whisper-cli "{dest}/"
-    cp build/src/libwhisper*.dylib build/ggml/src/libggml*.dylib "{dest}/"
+    find build -type f \\( -name 'libwhisper*.dylib' -o -name 'libggml*.dylib' \\) |
+        while read -r f; do cp "$f" "{dest}/$(otool -D "$f" | sed -n 2p | xargs basename)"; done
     cp LICENSE "{dest}/"
 """
 
@@ -435,10 +452,11 @@ def source_build_refusal(key: str) -> int:
         "\n"
         + MACOS_BUILD_RECIPE.format(tag=RELEASE_TAG, dest=dest)
         + "\n"
-        "  The exact dylib set is not pinned here because nobody has run that\n"
-        "  build yet; inventing a file list would make --check assert a guess.\n"
-        "  T19 measures it on the hardware and pins it, and only then can this\n"
-        "  platform be checked the way windows and linux are.",
+        "  Copy each library under its install name (what `otool -D` reports),\n"
+        "  once: a plain glob also matches CMake's two version symlinks per\n"
+        "  library and lands every one three times (#181). The six it must\n"
+        "  produce are pinned as MACOS_DYLIBS, and build_macos.sh refuses any\n"
+        "  other set.",
         file=sys.stderr,
     )
     return 2

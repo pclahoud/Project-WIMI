@@ -75,7 +75,7 @@
    `.difficulty-badge--dots` rather than applied to every badge. */
 .difficulty-badge--dots::before {
     letter-spacing: -2px;
-    font-size: 0.625rem;
+    font-size: 0.625rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
     content: '○○○○○';
 }
 

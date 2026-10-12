@@ -9,7 +9,9 @@
     <link rel="stylesheet" href="../css/weight.css">
     <link rel="stylesheet" href="../css/import_export.css">
     <link rel="stylesheet" href="../css/aliases.css">
+    <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -40,6 +42,19 @@
     -->
     <div class="page-gate" data-page-gate role="status" aria-live="polite"
         >Preparing the subject hierarchy&hellip;</div>
+
+    <!--
+      The details panel's status line (#345): "Showing details for X".
+      A <body> child, NOT inside the panel, and that is load-bearing.
+      modal_dialog.js hides the page behind a dialog by writing aria-hidden
+      on each sibling along the dialog's path, and deliberately skips any
+      sibling that CONTAINS a live region so a toast stays audible. A status
+      line inside the panel therefore exempted the whole page container, and
+      every tree-editor dialog left the page behind it exposed (122 -> 148
+      nodes instead of a drop; test_modal_is_announced_as_a_dialog.py).
+    -->
+    <div class="details-announcer" id="details-announcer" role="status"
+        aria-live="polite" data-testid="tree-details-announcer"></div>
 
     <!--
       Ships `inert` (#114, #121). Until initializeTreeEditor() has wired it,
@@ -262,6 +277,49 @@
                 </div>
 
                 <!--
+                  Subjects not in any axis (#605, owner 2026-10-10).
+
+                  Adding the first axis to an exam that already has subjects
+                  leaves every one of them at `dimension_id NULL`. The
+                  dimensioned tree filters on dimension_id and the plain tree
+                  is never drawn once an exam has an axis, so the student's
+                  whole tree vanishes with no warning and nothing to click.
+                  This panel is where they are, and it is where they are
+                  resolved from -- the owner chose a panel that can move them
+                  in, not a read-only list and not a banner.
+
+                  Same shape as the Archived panel below: collapsed, hidden
+                  entirely when empty, so it costs no attention on an exam
+                  that never had this happen. Roots only -- moving a root
+                  moves its subtree, so listing descendants would offer the
+                  same operation dozens of times.
+                -->
+                <section class="unassigned-panel hidden" id="unassigned-panel"
+                         aria-labelledby="unassigned-panel-title"
+                         data-testid="tree-unassigned-panel">
+                    <button class="unassigned-panel-toggle" id="unassigned-panel-toggle"
+                            type="button" aria-expanded="false"
+                            aria-controls="unassigned-panel-body"
+                            data-testid="tree-unassigned-toggle">
+                        <span class="unassigned-panel-arrow" aria-hidden="true">&#9656;</span>
+                        <span class="unassigned-panel-title" id="unassigned-panel-title">Subjects not in any axis</span>
+                        <span class="unassigned-panel-count" id="unassigned-panel-count"
+                              data-testid="tree-unassigned-count">0</span>
+                    </button>
+                    <div class="unassigned-panel-body" id="unassigned-panel-body"
+                         data-testid="tree-unassigned-body" hidden>
+                        <p class="unassigned-panel-hint">
+                            These subjects were here before this exam had axes,
+                            so they belong to none of them and the tree above
+                            does not show them. Moving one brings everything
+                            underneath it along.
+                        </p>
+                        <ul class="unassigned-list" id="unassigned-list"
+                            data-testid="tree-unassigned-list"></ul>
+                    </div>
+                </section>
+
+                <!--
                   Archived subjects (#37). Collapsed by default and hidden
                   entirely when there is nothing archived, so it costs no
                   attention on a healthy tree.
@@ -274,13 +332,14 @@
                   student needs to recognise their own deletion.
                 -->
                 <section class="archived-panel hidden" id="archived-panel"
+                         aria-labelledby="archived-panel-title"
                          data-testid="tree-archived-panel">
                     <button class="archived-panel-toggle" id="archived-panel-toggle"
                             type="button" aria-expanded="false"
                             aria-controls="archived-panel-body"
                             data-testid="tree-archived-toggle">
                         <span class="archived-panel-arrow" aria-hidden="true">&#9656;</span>
-                        <span class="archived-panel-title">Archived subjects</span>
+                        <span class="archived-panel-title" id="archived-panel-title">Archived subjects</span>
                         <span class="archived-panel-count" id="archived-panel-count"
                               data-testid="tree-archived-count">0</span>
                     </button>
@@ -298,7 +357,15 @@
             </div>
             
             <!-- Details Panel -->
-            <div class="details-panel" id="details-panel">
+            <!-- A named region (#345). Picking a subject replaces this whole
+                 panel, and that swap used to be silent: no role, no name, no
+                 live region, and focus left on <body>. Focus is deliberately
+                 NOT moved on selection -- a keyboard user choosing subjects in
+                 the tree would be thrown out of it on every Enter -- so the
+                 change is announced instead, by #details-announcer, which is
+                 at the top of <body> for the reason given there. -->
+            <div class="details-panel" id="details-panel" role="region" aria-label="Details"
+                 data-testid="tree-details-panel">
                 <!-- Placeholder when nothing selected -->
                 <div class="details-placeholder" id="details-placeholder" data-testid="tree-details-placeholder">
                     <svg class="details-placeholder-graphic"
@@ -312,14 +379,22 @@
                     </svg>
                     <!-- h2 (#317): this occupies the same slot as
                          .details-title below, which is already an h2 -- the
-                         details panel's own heading. showOverview() replaces
-                         this whole block, so its h2 matches (tree_editor.js).
-                         Size is on .details-placeholder-title in tree.css. -->
+                         details panel's own heading. The Exam Overview's
+                         title in #details-overview is an h2 to match
+                         (tree_editor.js). Size is on .details-placeholder-title
+                         in tree.css. -->
                     <h2 class="details-placeholder-title">No subject selected</h2>
                     <p class="details-placeholder-text">
                         Pick a subject from the tree to inspect and edit it.
                     </p>
                 </div>
+
+                <!-- Exam Overview: the panel's state when nothing is selected.
+                     Its own element, not #details-placeholder's (#341, #343):
+                     the placeholder centres its content, which pushed a tall
+                     overview's top out of reach, and writing the overview into
+                     it destroyed the placeholder's markup for good. -->
+                <div class="details-overview hidden" id="details-overview" data-testid="tree-details-overview"></div>
 
                 <!-- Node Details (hidden initially) -->
                 <div class="details-content hidden" id="details-content" data-testid="tree-details-content">
@@ -327,7 +402,16 @@
                          Carries the panel identity (eyebrow), the node name (title),
                          and a meta subtitle (level · parents · dimension when multi-dim). -->
                     <header class="details-panel-header" data-testid="tree-details-panel-header">
-                        <div class="details-panel-eyebrow">Subject Details</div>
+                        <!-- The way back to the Exam Overview (#343). Without it,
+                             selecting a subject was a one-way door: the only
+                             routes back were switching dimension, deleting the
+                             subject, or reloading. In the sticky header so it is
+                             reachable from anywhere in the body. -->
+                        <div class="details-panel-topline">
+                            <div class="details-panel-eyebrow">Subject Details</div>
+                            <button type="button" class="btn btn-ghost btn-sm details-overview-link"
+                                    id="btn-show-overview" data-testid="tree-show-overview">Back to overview</button>
+                        </div>
                         <h2 class="details-title" id="detail-name" data-testid="tree-detail-name">Subject Name</h2>
                         <div class="details-subtitle" id="detail-subtitle" data-testid="tree-detail-subtitle">
                             <span class="details-subtitle-level" id="detail-level" data-testid="tree-detail-level">Level 1</span>
@@ -500,7 +584,7 @@
                         <input type="number" id="modal-node-weight" data-testid="tree-node-modal-weight-input" min="0" max="100" step="0.1" placeholder="0-100">
                         <span class="input-suffix">%</span>
                     </div>
-                    <p class="form-help">Leave empty to auto-distribute among siblings</p>
+                    <p class="form-help">Leave empty and the subject is created at 0%. Rebalance siblings, in the weight panel, shares out a parent's remainder when you ask it to.</p>
                 </div>
 
                 <!-- Weight Range Input (toggle) -->
@@ -600,14 +684,13 @@
          block and the markdown have drifted, which they already had over
          #61 and #62 before the gate existed. -->
     <script type="text/markdown" id="import-help-source">
-# Subject Tree Import Format
+# Subject tree import format
 
-This document describes the JSON format for importing subject hierarchies into WIMI.
+This guide describes the JSON file WIMI imports into the tree editor.
 
 ## How to read this guide
 
-Three kinds of statement appear below, and they are marked so you never
-have to guess which one you are reading:
+Three kinds of statement appear below, each with a marker.
 
 | Marker | Meaning |
 |--------|---------|
@@ -619,17 +702,17 @@ Anything with no marker is a plain statement of what WIMI does.
 
 ## Overview
 
-The import format allows you to define:
-- Hierarchical subject structure (unlimited nesting depth)
-- Weight configurations (official ranges and single values)
+A file can set:
+- The subject hierarchy, nested to any depth
+- Weights, as published ranges or single values
 - Synonyms for each subject, as aliases
-- Sibling order
+- The order of siblings
 
-Importing does **not** create or rename an exam. The file is merged into
-the exam context you have open in the tree editor, and for a
-multi-dimensional exam into the dimension you are looking at.
+Importing does **not** create or rename an exam. WIMI merges the file into
+the exam you have open in the tree editor. For an exam with dimensions,
+it merges into the dimension on screen.
 
-## File Structure
+## File structure
 
 ```json
 {
@@ -648,22 +731,21 @@ multi-dimensional exam into the dimension you are looking at.
 **Rule:** the file must be a JSON object carrying `root_nodes`,
 `subjects` or `dimensions`, and that key's value must be an array. If a
 file carries both `root_nodes` and `subjects`, `root_nodes` wins. If it
-carries `dimensions`, that wins over both — a file that describes the
-whole exam is not also a single tree.
+carries `dimensions`, that wins over both, because a file that describes
+the whole exam is not also a single tree.
 
 **A file whose subject array is empty removes nothing.** A misspelled
-`root_nodes` key arrives at the importer as an empty list, and "this
-file lists no subjects" must never be read as "remove every subject".
-The preview says the file is empty instead.
+`root_nodes` key reaches the importer as an empty list, and WIMI never
+reads "this file lists no subjects" as "remove every subject". The
+preview says the file is empty instead.
 
 ### `exam_context` is descriptive only
 
 Older versions of this guide documented an `exam_context` object with
-`name`, `description` and a `source` block. Import reads none of it: the
-exam you are importing into is the one open in the tree editor, and no
-part of `exam_context` is stored. It is kept in the format because it
-documents the file for whoever reads it next, and because thousands of
-existing files carry it.
+`name`, `description` and a `source` block. Import reads none of it. The
+exam you import into is the one open in the tree editor, and WIMI stores
+no part of `exam_context`. The key stays in the format because it tells
+the next reader what the file is, and because existing files carry it.
 
 ```json
 {
@@ -683,12 +765,12 @@ existing files carry it.
 ## The whole-exam form: one file, every dimension
 
 Some exams classify the same questions several ways at once. USMLE Step 2
-CK publishes three separate tables over one item pool — System,
-Discipline and Physician Task — and a question belongs to one row of each.
-WIMI calls those **dimensions**.
+CK publishes three separate tables over one item pool: System, Discipline
+and Physician Task. Each question belongs to one row of each table. WIMI
+calls those tables **dimensions**.
 
-A file with a top-level `dimensions` array describes all of them in one
-go, instead of importing one dimension at a time:
+A file with a top-level `dimensions` array describes all of them at
+once, instead of one dimension per import:
 
 ```json
 {
@@ -726,7 +808,7 @@ go, instead of importing one dimension at a time:
 |-----|------|----------|-------------|
 | `name` | string | Yes | What the dimension is called. Must be unique within the file, and unique within the exam. |
 | `root_nodes` | array | No | That dimension's top-level subjects, exactly as in a single-tree file. `subjects` is accepted here too. |
-| `id` | string | No | A stable id for the dimension itself. Strongly recommended — see below. |
+| `id` | string | No | A stable id for the dimension itself. Recommended; the next section explains why. |
 | `display_order` | number | No | Where the dimension sits in the list. Leave it out and the file's own order is used. |
 | `is_required` | boolean | No | Whether an entry must be tagged in this dimension. Defaults to true for a new dimension. |
 | `allow_multiple` | boolean | No | Whether an entry may be tagged with several subjects from this dimension. Defaults to false for a new dimension. |
@@ -734,8 +816,8 @@ go, instead of importing one dimension at a time:
 
 **A dimension's subjects are its own.** Two dimensions may each contain a
 subject called *Immune System* and those are two different subjects.
-Matching never crosses from one dimension into another, so a file cannot
-accidentally move a subject from one axis to another by naming it twice.
+Matching never crosses from one dimension into another, so naming a
+subject in two dimensions cannot move it between them.
 
 **Subjects that are not in any dimension are left completely alone.** If
 you built a tree before the exam used dimensions, a whole-exam file
@@ -744,10 +826,10 @@ there are.
 
 ### `id` on a dimension does the same job as `id` on a subject
 
-Without it, renaming a dimension in the file reads as *remove that
-dimension and add a different one* — and removing a dimension archives
-every subject tree inside it. With it, a rename is a rename and nothing
-moves.
+Without it, WIMI reads a renamed dimension as *remove that dimension and
+add a different one*, and removing a dimension archives every subject
+tree inside it. With an `id`, WIMI treats the change as a rename and
+nothing moves.
 
 A dimension that WIMI already has **adopts** the id the first time a file
 supplies one, so an exam you set up by hand is not stuck without them.
@@ -768,37 +850,37 @@ same dimensions. It is also safe to re-import unchanged: it lists every
 dimension, so nothing is treated as dropped.
 
 **A one-dimension file deliberately carries no dimension `id`.** It does not
-need one — you import it *into* the dimension you have open, so WIMI already
-knows which one you mean. And it must not have one: a file with a
-`dimensions` list is a statement about the whole exam, so a file naming one
-dimension would say your exam has exactly one, and the others would be
-removed.
+need one, because you import it *into* the dimension you have open. It also
+must not have one. A file with a `dimensions` list describes the whole exam,
+so a file naming one dimension would say your exam has exactly one, and
+WIMI would remove the others.
 
 **What WIMI never writes as an `id` is its own internal row number.** Ids in
 an exported file are only ever the ids a file gave WIMI in the first place.
-A tree or a dimension you built by hand exports without an `id`, which is
-honest: there is no stable id to write, and inventing one would claim to
-identify something in another profile that it does not.
+A tree or a dimension you built by hand exports without an `id`. It has
+no stable id to write, and an invented one would match nothing in another
+profile.
 
-### `is_required` and `allow_multiple` you leave out are left as they are
+### Fields a file leaves out keep their current values
 
-On a dimension WIMI already has, a field the file does not mention is not
-changed. A blueprint describes the exam's structure; it does not describe
-the settings you have since adjusted. On a dimension the file creates
-there is nothing to preserve, so the defaults in the table above apply.
+On a dimension WIMI already has, WIMI leaves alone any field the file does
+not mention. A blueprint describes the exam's structure, not the settings
+you have changed since. On a dimension the file creates, the defaults in
+the table above apply.
 
 ### Coverage is reported for each dimension separately
 
-Never added up. The dimensions are different ways of cutting the *same*
-questions, so their weights all describe 100% of the exam on their own —
-the three real Step 2 CK tables total 84–153%, 78–113% and 97–142%. A
-combined figure would describe nothing. See *Coverage* under **Weight
-semantics** for what WIMI does with a band that does not span 100%.
+WIMI never adds them together. The dimensions classify the *same*
+questions in different ways, so each dimension's weights describe 100% of
+the exam on their own. The three real Step 2 CK tables total 84–153%,
+78–113% and 97–142%, and a combined figure would describe nothing. See
+*Coverage* under **Weight semantics** for what WIMI does with a band that
+does not span 100%.
 
 ### Removing a dimension
 
-The same rule as for subjects, one level up. **A dimension carrying
-entries is never removed by an import.**
+Dimensions follow the same rule as subjects. **An import never removes a
+dimension that carries entries.**
 
 | Situation | What happens |
 |-----------|--------------|
@@ -807,11 +889,11 @@ entries is never removed by an import.**
 | The file does not list it, and nothing is tagged inside it | It is archived, along with the subject trees inside it. |
 | The file's `dimensions` array is empty | Nothing is removed at all. |
 
-That last row matters for the same reason an empty `root_nodes` removes
-nothing: a misspelled `dimensions` key arrives as an empty array, and
-"this file lists no dimensions" must never be read as "remove every
-dimension". Archiving a dimension takes its whole tree with it, so this is
-the most expensive way for a typo to go wrong.
+The last row exists for the same reason an empty `root_nodes` removes
+nothing. A misspelled `dimensions` key arrives as an empty array, and WIMI
+never reads "this file lists no dimensions" as "remove every dimension".
+Archiving a dimension takes its whole tree with it, so this is the costliest
+typo a file can contain.
 
 ### Two things a whole-exam file cannot do
 
@@ -819,15 +901,14 @@ the most expensive way for a typo to go wrong.
 have two dimensions with the same name. WIMI refuses the file and says
 which name is doubled, rather than importing half of it.
 
-**It cannot take a name that a dimension being kept is still using.** If
-the file renames *Discipline* to *System* while an existing *System* is
-being kept because entries point into it, there is nowhere for the new
-name to go. WIMI says so and changes nothing; rename one of them in the
-file.
+**It cannot take a name that a kept dimension still uses.** Suppose the
+file renames *Discipline* to *System*, and WIMI keeps the existing *System*
+because entries point into it. The new name has nowhere to go. WIMI says
+so and changes nothing. Rename one of them in the file.
 
-## Subject Structure
+## Subject structure
 
-Each subject can contain:
+Each subject can have these fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -841,25 +922,25 @@ Each subject can contain:
 
 ### Unknown fields are ignored
 
-WIMI reads the fields above and nothing else. Any other key — at the top
-level, on a subject, or inside `weight` — is **silently ignored**, not
-rejected. WIMI's own export writes several such keys (`exam_weight_low`,
+WIMI reads the fields above and nothing else. It **silently ignores** any
+other key, at the top level, on a subject or inside `weight`, rather than
+rejecting it. WIMI's own export writes several such keys (`exam_weight_low`,
 `exam_weight_high`, `is_alias_appearance`, `import_id`, `aliasesString`,
-a top-level `_metadata` block), and an export re-imports cleanly because
-of it.
+a top-level `_metadata` block), and that is why an export re-imports
+cleanly.
 
-The cost of that leniency is that a **misspelled** field is also
-ignored, with no message: a subject carrying `"weights"` or `"alias"`
-imports as though it carried nothing. Validate against the schema at the
+The cost is that WIMI also ignores a **misspelled** field, with no
+message. A subject carrying `"weights"` or `"alias"` imports as though it
+carried nothing. Validate against the schema at the
 end of this guide if you are generating files by script.
 
 ## Names: case, whitespace and Unicode
 
-Names are stored **exactly as written**, apart from leading and trailing
-whitespace, which is trimmed. Nothing else is normalised.
+WIMI stores names **exactly as written**, apart from trimming leading and
+trailing whitespace. It normalises nothing else.
 
-- **Unicode is kept verbatim.** Dashes (– —), accents (ü é), Greek (α β)
-  and any other non-ASCII text are stored and displayed as given. There
+- **Unicode is kept verbatim.** WIMI stores and displays dashes (– —),
+  accents (ü é), Greek (α β) and any other non-ASCII text as given. There
   is no transliteration and no Unicode normalisation, so `é` written as
   one code point and `é` written as `e` + a combining accent are two
   different names to WIMI.
@@ -868,19 +949,17 @@ whitespace, which is trimmed. Nothing else is normalised.
 - **Rule:** a name that is empty, or is only whitespace, stops the
   import with a message naming its parent.
 
-**Case:** two siblings whose names differ only in case are ambiguous and
-should be avoided.
+Avoid two siblings whose names differ only in case. They are ambiguous:
 
 - Matching an existing subject on re-import is **case-insensitive**, so
   `Neoplasms` in the file matches a stored `neoplasms`.
 - Creating a subject checks for a duplicate **case-sensitively**, so
   `Neoplasms` and `neoplasms` can both exist under one parent.
 
-The two halves disagree, which is exactly why case-differing siblings
-are a bad idea: a file containing both imports the first time and can
-fail on re-import. A parent and its child may differ only in case
-(`Shock` containing `shock`) with no trouble at all — the restriction is
-between siblings.
+Because the two checks disagree, a file containing both names imports the
+first time and can fail on re-import. A parent and its child may differ
+only in case (`Shock` containing `shock`). The problem is only between
+siblings.
 
 **Guidance:** pick one capitalisation per name and keep it. If your
 source document writes the same topic two ways, make one the name and
@@ -888,9 +967,9 @@ the other an alias.
 
 ## What `level_type` is for
 
-`level_type` is the **name of the level a subject sits at** — `System`,
-`Domain`, `Topic`, `Skill`. It is free text, stored per subject exactly
-as given, and it is used in four places:
+`level_type` is the **name of the level a subject sits at**, such as
+`System`, `Domain`, `Topic` or `Skill`. It is free text, stored per subject
+exactly as given. WIMI uses it in four places:
 
 1. **As a label.** The tree editor shows it on each subject's chip and
    in the details panel.
@@ -899,94 +978,88 @@ as given, and it is used in four places:
    two subjects at different depths that share a level name are counted
    together.
 3. **As the basis for the next level down.** When you add a child in the
-   tree editor, the level offered is derived from the *parent's stored
-   `level_type`* — its position in the exam's configured level list,
-   plus one. A level name that is not in that list is offered back as
+   tree editor, WIMI offers the level after the *parent's stored
+   `level_type`* in the exam's configured level list. A level name that is not in that list is offered back as
    itself.
 4. **As an analytics filter.** Cross-dimension correlation filters and
    groups subjects by the literal `level_type` string, so two subjects
    are "the same level" there only if they spell it identically.
 
-So it is more than decoration, but it is matched **by name, not by
-depth**. Two consequences:
+WIMI matches it **by name, not by depth**, which has two consequences.
 
 **Guidance:** spell a level the same way everywhere you mean the same
 level. `Topic` and `topic` are two levels as far as points 2 and 4 are
 concerned.
 
-**Guidance:** do **not** try to keep level types uniform by depth. Real
-outlines are not uniform-depth — one branch may run three levels and
-another eight — and forcing a shared name onto subjects that mean
-different things is worse than letting depth vary. Keep level types
+**Guidance:** do **not** try to keep level types uniform by depth. In real
+outlines one branch may run three levels and another eight. Forcing a
+shared name onto subjects that mean different things is worse than
+letting depth vary. Keep level types
 consistent *within a branch* and consistent *in meaning*, and let the
 depth fall where the source document puts it.
 
-**Omitting `level_type` is not free on re-import.** When the field is
-absent, WIMI substitutes the exam's configured level name for that
-*depth* (and `Level 4`, `Level 5`, … past the end of the configured
-list). On a re-import that means an omitted `level_type` will overwrite
-a level name you set by hand. Write the field if you care about it.
+**Omitting `level_type` has a cost on re-import.** When the field is
+absent, WIMI uses the exam's configured level name for that *depth*
+(and `Level 4`, `Level 5` and so on past the end of the configured
+list). On a re-import, an omitted `level_type` overwrites a level name
+you set by hand. Write the field if you care about it.
 
 ## Weight semantics
 
-This section is the answer to "what does the number actually mean".
-
 ### A weight is a percentage of the whole exam
 
-At every depth. Not a percentage of its parent.
-
-This is how published blueprints write their numbers, and it has three
-consequences worth stating outright:
+This holds at every depth. A weight is never a percentage of its parent.
+Published blueprints write their numbers this way, and it has three
+consequences:
 
 - **Absolute weights may appear at any level.** The examples further
   down mostly put them at the top, which is an accident of those
   examples and not a rule.
-- **A child may legitimately exceed its parent.** Step 2 CK publishes
-  Nutrition (15–20%) and Multisystem Processes & Disorders (4–8%) as
-  separate top-level rows — but nothing stops you filing nutrition under
-  multisystem in your own tree, and then a 15–20% child sits inside a
-  4–8% parent using two numbers taken straight from the blueprint. Your
+- **A child may exceed its parent.** Step 2 CK publishes Nutrition
+  (15–20%) and Multisystem Processes & Disorders (4–8%) as separate
+  top-level rows. If you file nutrition under multisystem in your own
+  tree, a 15–20% child sits inside a 4–8% parent, using two numbers taken
+  straight from the blueprint. Your
   hierarchy is yours; the weights stay exam-wide either way. This is
   **not** an error, nothing validates against it, and nothing rescales it.
-- **Any two weights anywhere in the tree are directly comparable**, which
-  is what makes "what is my heaviest untouched topic" a meaningful
-  question across branches.
+- **Any two weights anywhere in the tree are directly comparable**, so
+  "what is my heaviest untouched topic" has an answer across branches.
 
 ### Coverage: accept the published numbers, warn, never normalise
 
-The weights of the top-level subjects will often not total 100%, and
-that is usually the document's fault rather than yours. Overlapping
-classification is a genuine property of blueprints — USMLE's own
-Clinical Science table exceeds 100% *by design*, because an item can
-classify to several disciplines at once. Two real USMLE files totalled
+The weights of the top-level subjects often do not total 100%, and the
+cause is usually the document rather than you. Blueprints classify items
+in overlapping ways. USMLE's own Clinical Science table exceeds 100% *by
+design*, because an item can belong to several disciplines at once. Two real USMLE files totalled
 78–113% and 84–153%.
 
-WIMI therefore:
+So WIMI:
 
 - imports exactly what the document says;
-- **never rescales** — normalising would store numbers that do not match
-  the source you copied from, which silently falsifies a published
-  document;
-- reports the total so a genuine typo is visible.
+- **never rescales**, because normalising would store numbers that do not
+  match the document you copied them from;
+- reports the total, so a real typo is visible.
 
-**Warning:** if the top-level weights do not span 100% at all — their
-low total is above 100, or their high total is below it — the import
-warns. A total outside 100% is **never** a hard failure. The check is
+**Warning:** the import warns if the top-level weights cannot reach 100%,
+meaning their low total is above 100 or their high total is below it. A total outside 100% is **never** a hard failure. The check is
 skipped entirely for a file whose top-level subjects carry no weights.
 
-### An omitted weight means zero, on import only
+### An omitted weight means zero, and records two different things
 
 **On import, a subject with no `weight` is 0%: the blueprint did not
-weight it.** This is the non-obvious half, because the tree editor's own
-weight field means the opposite.
+weight it.** Leaving the tree editor's weight field empty also stores 0%.
+The two agree on the number and differ on what it records.
 
 | Where | An empty weight means |
 |-------|-----------------------|
-| An import file | 0% — the blueprint did not weight this |
-| The tree editor's weight field | Share out the remainder among siblings |
+| An import file | 0%, because the blueprint did not weight this |
+| The tree editor's weight field | 0%, because you have not decided yet |
 
-The tree editor's help text ("Leave empty to auto-distribute among
-siblings") is correct for the tree editor. It does not describe imports.
+Nothing in WIMI shares out a weight on its own. The tree editor's
+**Rebalance siblings** button divides a parent's remainder among its
+children, and only when you press it; an import never rebalances at all.
+So a real outline may well import a shelf of subjects at 0%, and that is
+the rule working rather than a failed import.
 
 ### Zero is a weight, and `derived` does not mean `locked`
 
@@ -998,16 +1071,17 @@ siblings") is correct for the tree editor. It does not describe imports.
 
 ### Locked weights and auto-balance
 
-Auto-balancing never fights a lock. Rebalancing siblings is opt-in — no
-write to one subject's weight silently rewrites its siblings — and when
-it does run it **excludes** anchored and locked edges. A weight you
+Auto-balance never changes a locked weight. Rebalancing siblings only
+happens when you ask for it, so writing one subject's weight never
+rewrites its siblings. When it runs, it **excludes** anchored and locked
+edges. A weight you
 locked stays where you put it, and the remainder is shared out among the
 weights you did not lock.
 
 ### Weight forms
 
-`weight` may be an object or a bare number. Both are supported, and both
-will stay supported.
+`weight` may be an object or a bare number. WIMI accepts both and will
+keep accepting both.
 
 | Form | Example | Result |
 |------|---------|--------|
@@ -1016,15 +1090,14 @@ will stay supported.
 | Low only | `{"low": 50}` | Exactly 50%, because `high` defaults to `low` |
 | Bare number | `50` | Exactly 50%. Identical to `{"value": 50}` |
 
-The object form is canonical: it is what the examples use, what the
-schema describes first, and the only form that can express a range. The
+The object form is the standard one. The examples use it, the schema
+describes it first, and it is the only form that can express a range. The
 bare number is a shorthand kept for files written against earlier
 versions of this guide.
 
-**Rule:** `low` must be less than or equal to `high` — except that WIMI
-does not stop an import over it. A file with `low` above `high` imports
-as written and **warns**, because rejecting a 2,000-subject outline over
-one transposed pair helps nobody.
+**Warning:** `low` should be less than or equal to `high`. A file with
+`low` above `high` imports as written and **warns**, because rejecting a
+2,000-subject outline over one transposed pair helps nobody.
 
 **Warning:** a weight below 0 or above 100 imports as written and warns.
 
@@ -1034,12 +1107,12 @@ one transposed pair helps nobody.
 |-------|--------------|
 | `source` | Ignored by import. The subject keeps the default weight source. |
 | `locked` | Ignored by import. Lock the weight in the tree editor instead. |
-| `relative` | Ignored by import, and there is nothing to read it as — a weight is a share of the exam, never of its parent. A subject whose only weight is `{"relative": 25}` imports as 0%. |
+| `relative` | Ignored by import. There is nothing to read it as, because a weight is a share of the exam, never of its parent. A subject whose only weight is `{"relative": 25}` imports as 0%. |
 
 These three appear in files written against earlier versions of this
 guide, which documented them. They have never been applied by the
-importer. They are harmless — they are ignored like any other unknown
-field — but do not expect them to do anything.
+importer. WIMI ignores them like any other unknown field, so they do no
+harm and have no effect.
 
 ## Aliases
 
@@ -1047,12 +1120,10 @@ An alias is another name for the same subject: an eponym, an acronym, a
 colloquialism, a synonym your question bank uses. Aliases feed subject
 search, so a student searching "shortness of breath" finds Dyspnea.
 
-**Put synonyms here, not in the name.** A name is the subject's
-identity, and packing synonyms into it —
-`Dyspnea, shortness of breath, breathlessness` — makes every screen that
-shows a subject show the whole list, and makes search treat the
-synonyms as part of the subject's identity rather than as ways of
-reaching it.
+**Put synonyms here, not in the name.** A name such as
+`Dyspnea, shortness of breath, breathlessness` shows the whole list on
+every screen that shows the subject. Search then treats the synonyms as
+part of the name rather than as other ways to find it.
 
 ```json
 {
@@ -1083,8 +1154,8 @@ How aliases behave on import:
   the same file adds nothing.
 - **An alias that will not write is a warning, not a failure.** One bad
   alias never costs you the rest of the import.
-- An unrecognised `type` is quietly corrected to `alternate_name`
-  rather than refused.
+- WIMI changes an unrecognised `type` to `alternate_name` rather than
+  refusing it.
 
 ### The four alias types
 
@@ -1093,20 +1164,20 @@ How aliases behave on import:
 | `eponym` | A name from a person | `Crohn disease` for Regional enteritis |
 | `acronym` | An initialism | `DVT` for Deep vein thrombosis |
 | `alternate_name` | A formal synonym | `Myocardial infarction` for Heart attack |
-| `colloquial` | What people actually say | `shortness of breath` for Dyspnea |
+| `colloquial` | Everyday speech | `shortness of breath` for Dyspnea |
 
 Type is a label for you; search treats all four the same.
 
 ## Sibling order
 
-Sibling order is taken from the file: the first subject in an array is
-shown first, so a hierarchy copied from a published outline keeps that
+Sibling order comes from the file. The first subject in an array shows
+first, so a hierarchy copied from a published outline keeps that
 outline's order. Siblings without `sort_order` are numbered by their
 position, starting at 1.
 
 Give `sort_order` only when you want an order different from the one the
 file is written in. It is an integer, and it orders siblings within one
-parent only — values need not be unique or contiguous across the tree.
+parent only. Values need not be unique or contiguous across the tree.
 
 ## Re-importing a corrected file
 
@@ -1126,15 +1197,14 @@ The difference matters as soon as you correct something. If you rename
 "Anemias" to "Anemias, cytopenias, and polycythemia" and the subject
 carries an `id`, WIMI understands it as a rename, and your entries,
 weights and related topics stay attached to it. Without an `id`, the old
-name has simply vanished and a new one has appeared, so the old subject
-is removed and a new one created — and everything attached to the old one
-stays with the old one. The preview says so plainly when your file has no
-ids.
+name has disappeared and a new one has appeared. WIMI removes the old
+subject and creates a new one, and everything attached to the old one
+stays with the old one. The preview warns you when your file has no ids.
 
-Ids only have to be unique within the file, and any string will do — the
-numbering from an official outline (`"1.2.3"`) works well because it
-survives a rename. Add them once and every later correction is
-understood.
+Ids only have to be unique within the file, and any string works. The
+numbering from an official outline (`"1.2.3"`) is a good choice because
+it survives a rename. Once a file has ids, WIMI matches every later
+correction.
 
 ```json
 {
@@ -1144,19 +1214,18 @@ understood.
 }
 ```
 
-**Rule:** no two subjects in one file may share an `id`. Two that do
-stop the import, naming both.
+**Rule:** no two subjects in one file may share an `id`. If two do, the
+import stops and names both.
 
-**Subjects you have used are never removed by an import.** If the file no
+**An import never removes a subject you have used.** If the file no
 longer lists a subject but some of your entries are tagged to it, WIMI
 keeps the subject and says so in the preview, with a link to those
-entries. Your own history outranks the blueprint. Re-tag those entries if
-you want the subject gone, and it can then be deleted normally. Subjects
-kept this way keep their parents too, so nothing is left rolling up
-nowhere.
+entries. Your entries outrank the blueprint. To remove the subject, re-tag
+those entries and then delete it normally. A subject kept this way also
+keeps its parents, so its entries still count toward them.
 
-A subject the file no longer lists and that no entry uses is removed —
-the same soft delete as deleting it by hand.
+WIMI removes a subject that the file no longer lists and no entry uses.
+This is the same soft delete as deleting it by hand.
 
 **Edges the file does not mention are left alone.** If you gave a
 subject a second parent by hand, the blueprint does not take it away;
@@ -1167,8 +1236,8 @@ exporting, editing and re-importing keeps everything matched up.
 
 ## What import reports
 
-**Errors stop the import before anything is written.** They are listed
-in the preview, and there are only three of them:
+**Errors stop the import before anything is written.** The preview lists
+them. There are only three:
 
 - a subject with no name, or a name that is only whitespace;
 - two subjects sharing one `id`;
@@ -1177,49 +1246,49 @@ in the preview, and there are only three of them:
 **Warnings never stop anything.** The import runs, and the warnings are
 shown afterwards. They cover weights that look wrong (see **Weight
 semantics**), an alias that could not be written, and a move WIMI refused
-because it would have made a subject its own ancestor. Per-subject
-warnings are capped so a large file cannot bury you; the message says
-how many more there were.
+because it would have made a subject its own ancestor. WIMI caps
+per-subject warnings so a large file does not flood the list, and the
+message says how many more there were.
 
-**The preview is the real report.** It is computed by the same code that
-performs the import, so it cannot promise something different from what
-happens. Read it before confirming — especially the counts of removed
-subjects and of subjects kept because entries point at them.
+**The preview is the real report.** The same code computes the preview
+and performs the import, so the two cannot disagree. Read it before
+confirming, especially the counts of removed subjects and of subjects
+kept because entries point at them.
 
 ## Limits
 
-**Nothing in the list below is enforced.** These are the real
-boundaries, stated so you can tell whether your file is near one.
+**WIMI enforces none of these.** The table lists the practical limits so
+you can tell whether your file is near one.
 
 | Thing | Limit |
 |-------|-------|
 | Subjects per file | None. 2,211 subjects is a routine real-world file. |
 | Nesting depth | None enforced. The importer walks the tree recursively, so depth in the hundreds would eventually exhaust Python's recursion limit. Real outlines run 3–8 levels. |
-| Name length | None enforced. Long names are stored in full and are simply hard to read on screen. |
+| Name length | None enforced. WIMI stores long names in full; they are hard to read on screen. |
 | Aliases per subject | None. |
 | File size | None. The file is read into memory whole. |
-| Level count | None. The exam's configured level names run out, after which levels are named `Level 5`, `Level 6`, and so on — which only affects subjects that omit `level_type`. |
+| Level count | None. Past the end of the exam's configured level names, levels are named `Level 5`, `Level 6` and so on. This only affects subjects that omit `level_type`. |
 
 The tree editor's own file check warns about nesting beyond 10 levels.
-That is advice about legibility, not a limit.
+That warning is about readability, not a limit.
 
-## Validation Rules
+## Validation rules
 
-**Rules — these stop the import:**
+**Rules.** These stop the import.
 
-1. The file is a JSON object with a `root_nodes` or `subjects` array.
+1. The file is a JSON object with a `root_nodes`, `subjects` or `dimensions` array.
 2. Every subject has a `name` with at least one non-space character.
 3. No two subjects in one file share an `id`.
 4. Every element of a subject array is an object.
 
-**Warnings — these are reported, and the import proceeds:**
+**Warnings.** WIMI reports these and the import proceeds.
 
 1. `low` is greater than `high`.
 2. A weight is below 0 or above 100.
 3. The top-level weights do not span 100%.
 4. An alias could not be written, or a move would have created a cycle.
 
-**Guidance — nothing checks these:**
+**Guidance.** Nothing checks these.
 
 1. Give every subject an `id` if you will ever correct the file.
 2. Keep level names consistent in meaning, not by depth.
@@ -1231,11 +1300,11 @@ That is advice about legibility, not a limit.
 
 All weights below are percentages of the whole exam.
 
-### Example 1: USMLE Step 1 (Medical Licensing)
+### Example 1: USMLE Step 1
 
 Absolute weights at two levels. The children's weights are shares of the
 exam, not of the parent, which is why they are small numbers rather than
-20 / 25 / 35 / 20.
+20, 25, 35 and 20.
 
 ```json
 {
@@ -1293,11 +1362,11 @@ exam, not of the parent, which is why they are small numbers rather than
 }
 ```
 
-### Example 2: SAT (College Admission)
+### Example 2: SAT
 
 Two sections at 50% each, and domains whose weights are shares of the
 whole test. They total 100% here because the College Board's blueprint
-does; yours may not, and WIMI will not adjust it either way.
+does. Yours may not, and WIMI will not adjust it either way.
 
 ```json
 {
@@ -1418,11 +1487,11 @@ does; yours may not, and WIMI will not adjust it either way.
 }
 ```
 
-### Example 3: CPA Exam — REG Section
+### Example 3: CPA exam, REG section
 
-Ranges that overlap. The lows total 75 and the highs total 125, so this
-file does span 100% and imports without a coverage warning — even though
-no single reading of it adds up to exactly 100.
+Ranges that overlap. The lows total 75 and the highs total 125, so the
+band contains 100% and the file imports without a coverage warning, even
+though no single reading of it adds up to exactly 100.
 
 ```json
 {
@@ -1499,9 +1568,9 @@ no single reading of it adds up to exactly 100.
 
 ### Example 4: Uneven depth, zero weights and aliases
 
-A small file that exercises the awkward cases: branches of different
-depths, a task published at 0%, a child heavier than its parent, and a
-subject with no weight at all.
+A small file with the awkward cases: branches of different depths, a
+task published at 0%, a child heavier than its parent, and a subject with
+no weight at all.
 
 ```json
 {
@@ -1556,10 +1625,10 @@ subject with no weight at all.
 }
 ```
 
-### Example 5: Minimal Structure (No Weights)
+### Example 5: No weights
 
-For exams where official weights are not available. Every subject
-imports at 0%, and you can set weights in the tree editor afterwards.
+For exams with no published weights. Every subject imports at 0%, and
+you can set weights in the tree editor afterwards.
 
 ```json
 {
@@ -1587,12 +1656,12 @@ imports at 0%, and you can set weights in the tree editor afterwards.
 
 ---
 
-## Common Level Types
+## Common level types
 
-Starting points, not requirements — branches of different depths are
-normal, and a real outline will need names these lists do not have.
+These are starting points, not requirements. Branches of different depths
+are normal, and a real outline will need names these lists do not have.
 
-| Exam Type | Common Hierarchy |
+| Exam type | Common hierarchy |
 |-----------|------------------|
 | Medical (USMLE) | System → Category → Topic → Subtopic |
 | SAT/ACT | Section → Domain → Skill |
@@ -1781,19 +1850,19 @@ unknown fields, because the importer ignores them.
 
 ---
 
-## Tips for Creating Import Files
+## Tips for creating import files
 
-1. **Start with official content outlines** when available, and copy the
-   numbers exactly as published — WIMI will not rescale them.
-2. **Give every subject an `id`.** It is what lets WIMI tell a rename
-   from a replacement, and adding them later does not recover the
-   history you lost in between.
+1. **Start with the official content outline** when there is one, and
+   copy the numbers exactly as published. WIMI will not rescale them.
+2. **Give every subject an `id`.** It lets WIMI tell a rename from a
+   replacement. Adding ids later does not reconnect subjects that were
+   already replaced.
 3. **Put synonyms in `aliases`**, never in the name.
 4. **Write `level_type` on every subject**, or accept that WIMI will
    name the level after its depth on every re-import.
 5. **Leave a weight out** rather than inventing one. An unweighted
-   subject is honestly 0% from the blueprint's point of view, and you
-   can weight it by hand afterwards.
+   subject imports at 0%, which is what the blueprint says, and you can
+   weight it by hand afterwards.
 6. **Use `value`** for a single weight rather than `{"low": 50, "high": 50}`.
 7. **Test with a small sample** before importing a full structure, and
    read the preview before confirming.
@@ -1814,12 +1883,37 @@ unknown fields, because the importer ignores them.
                 </div>
             </div>
             <div class="modal-footer">
+                <!--
+                  #452. The manual's "Building your subject tree from a published
+                  outline" chapter tells a student to give this guide to an AI
+                  assistant, which made the guide load-bearing on a documented
+                  path. Without this button that step means hand-selecting more
+                  than a thousand lines inside a scrolling modal.
+
+                  The status span is a live region and is ALWAYS in the DOM,
+                  empty when idle. It must never be hidden with `display: none`
+                  or `visibility: hidden` -- both remove it from the
+                  accessibility tree, which is the one thing it exists for
+                  (#127). It carries the outcome because toasts in this app are
+                  not announced at all (#417).
+                -->
+                <span class="import-help-copy-status" id="import-help-copy-status"
+                      data-testid="tree-import-help-modal-copy-status"
+                      role="status" aria-live="polite"></span>
+                <button class="btn btn-secondary" id="btn-copy-import-format"
+                        data-testid="tree-import-help-modal-copy"
+                        onclick="copyImportFormatGuide()">Copy the whole guide</button>
                 <button class="btn btn-secondary" data-testid="tree-import-help-modal-close-footer" onclick="hideImportHelpModal()">Close</button>
             </div>
         </div>
     </div>
     
     <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         tree_editor.js starts it once the page gate releases, and again when
+         the Archived subjects panel or the import preview comes on screen. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/tree_editor.js"></script>
     <script src="../js/weight_editor.js"></script>
     <script src="../js/import_export.js"></script>

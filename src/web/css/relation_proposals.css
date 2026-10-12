@@ -1,0 +1,256 @@
+/* ============================================================================
+   Relation proposals on the entry form (#60)
+   ============================================================================
+   The suggestions WIMI reads out of the explanation, each waiting to be
+   confirmed. Linked only from question_entry.html: stylesheets are loaded per
+   page here, so a class defined in a file a page does not link renders with
+   browser defaults and no error anywhere.
+
+   Everything is a token. No hardcoded colour, per the theme rule -- and the
+   fill/text split from #325 matters in one place below.
+   ============================================================================ */
+
+.relation-proposals-mount {
+    /* Nothing of its own while empty, which is the usual state. A margin here
+       would leave a gap under the explanation on every entry that never used
+       the feature. */
+    display: contents;
+}
+
+.relprop {
+    /* `display: contents` and NO gap, both deliberate. The two children below
+       are always present -- the module keeps them so the button can be
+       re-drawn without rebuilding the cards -- so a flex container with a
+       `gap` here would contribute one gap's height between two empty boxes,
+       on every entry, on every machine where the feature cannot run. That is
+       the opposite of "degrade to absent". Spacing lives on the elements the
+       module actually creates instead, as `margin-top`, which an absent
+       element cannot contribute. `:empty` would express this in one line and
+       is exactly what #134/#136/#141 forbid. */
+    display: contents;
+}
+
+.relprop-bar {
+    margin-top: var(--space-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.relprop-find,
+.relprop-cancel,
+.relprop-retry {
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.relprop-find:hover:not(:disabled):not([aria-disabled="true"]),
+.relprop-cancel:hover,
+.relprop-retry:hover {
+    background: var(--bg-tertiary);
+}
+
+/* While a pass runs the button is aria-disabled rather than disabled, so the
+   student who pressed it keeps focus on it (#397). It looks the same as a
+   disabled one; the difference is only that it can still hold focus. */
+.relprop-find:disabled,
+.relprop-find[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* The live region that says what a press produced (#397). Clipped to
+   nothing rather than hidden: `display: none` and `visibility: hidden` both
+   take a node out of the accessibility tree, and then nothing written to it
+   is ever announced (#127). The same recipe as the tree editor's
+   `.details-announcer`. Not a box, so it adds no gap under the explanation
+   when it is empty, which is always the case where the feature is silent. */
+.relprop-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.relprop-note {
+    margin: var(--space-sm) 0 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+/* Why the Find button cannot be pressed (#398). It was the button's `title`,
+   which opens on hover -- and a `disabled` button cannot take focus at all
+   (measured on this engine, programmatically as well as by Tab), so a keyboard
+   user could never surface it and a touch user has no hover to surface it
+   with. The module removes this element from the tree rather than emptying it,
+   so it needs no `:empty` (forbidden -- #134/#136/#141) and contributes no box
+   while the button is pressable. Tighter than `.relprop-note` because it
+   belongs to the bar directly above it rather than standing alone.
+   `--text-secondary`, the same text token as the note, never a fill token
+   (#325). */
+.relprop-hint {
+    margin: var(--space-xs) 0 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.relprop-failure {
+    margin: var(--space-sm) 0 0 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-error-bg);
+    border-left: 4px solid var(--color-error);
+}
+
+.relprop-failure-text {
+    margin: 0 0 var(--space-xs) 0;
+    font-size: var(--font-size-xs);
+    /* The text token, not the fill: #325 keeps --color-error bright for fills
+       and borders, and painting a sentence with it is what
+       test_no_fill_token_is_painted_as_text exists to catch. */
+    color: var(--color-error-text);
+}
+
+/* One proposal. The pair, the sentence it came from, and the two things the
+   student may change before confirming -- both visible rather than hidden
+   behind the button, which is the whole anti-rubber-stamp property. */
+.relprop-card {
+    margin-top: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.relprop-pair {
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+/* The passage. Quoted visually as well as semantically, because the point is
+   that these are the student's own words and not WIMI's. */
+.relprop-passage {
+    margin: 0;
+    padding: 0 0 0 0.75rem;
+    border-left: 3px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.relprop-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.relprop-type,
+.relprop-reason {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.375rem;
+}
+
+/* Two lines, and this rule is what makes `rows="2"` true (#399).
+   styles.css gives every textarea `min-height: 6.25rem`, and a class that
+   declares no min-height cannot undo it -- so the field rendered at 100px
+   with `rows="2"` silently ignored, measured on a rendered card. The floor
+   here is exactly two lines of this field's own line-height plus its
+   padding and border (box-sizing is border-box), i.e. the height `rows`
+   asks for, so a drag on the handle cannot collapse it below that either.
+   `resize: vertical` restates the global default on purpose: the reason is
+   editable (#5494) and a long one must be able to grow. No max-height, for
+   the same reason. */
+.relprop-reason {
+    min-height: calc(2lh + 0.5rem + 2px);
+    resize: vertical;
+    font-family: inherit;
+}
+
+.relprop-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+
+/* "Add this relation" is a `.btn .btn-primary` (#400). It used to restate
+   .btn-primary's three resting colours by hand and so had no hover at all --
+   the one control on the card that did not answer the pointer, and the
+   primary one. The colours, the hover step and the transition now come from
+   styles.css, so the app's button system reaches this button too.
+
+   What stays here is SIZE ONLY, so it sits level with the two rejections:
+   .btn's own padding, font-size and line-height measured 42px tall beside
+   their 30px. These are (0,1,0) like .btn and win by file order, which is
+   safe because none of them is a colour. Do NOT put a colour back here:
+   at (0,1,0) after styles.css it silently replaces .btn-primary's RESTING
+   colour while .btn-primary:hover:not(:disabled), at (0,3,0), still owns
+   the hover -- two sources for one button, which is how this drifted in the
+   first place. */
+.relprop-confirm {
+    padding: 0.375rem 0.75rem;
+    font-size: var(--font-size-sm);
+    line-height: normal;
+}
+
+/* Disabled while a confirm or reject is in flight. Listed with the
+   rejections so all three dim alike; this also wins over .btn:disabled's
+   0.5 / not-allowed by file order at equal specificity. */
+.relprop-confirm:disabled,
+.relprop-reject:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* The two rejections carry equal weight on purpose. "Not in this entry" --
+   the local one -- was 25 of 45 rejections in #60's adjudication, so it is not
+   the secondary choice, and making one quieter than the other would push
+   students toward the global suppression when they meant the local one. ONE
+   rule for both buttons, which is what keeps that true: #398 put each
+   rejection's scope in its own label and the owner's decision there says in
+   terms that it is a text change and not a hierarchy change. */
+.relprop-reject {
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.relprop-reject:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+/* The bar and the list are separate children so the button can be re-drawn
+   as the explanation changes without rebuilding the cards -- which hold a
+   textarea the student may be part way through editing. `display: contents`
+   for the same reason as .relprop: an empty one must occupy nothing. */
+.relprop-bar-wrap,
+.relprop-list {
+    display: contents;
+}

@@ -119,7 +119,7 @@ READY = "Settings ready"
 
 # A control: a label only the gated container has. If this is in the
 # accessibility tree the page is not gated, whatever the attribute says.
-PAGE_ONLY = "Reset to Defaults"
+PAGE_ONLY = "Reset what Save covers"
 
 # Make `api.ready()` reject, from before the page's first script. `init()`'s
 # very first statement awaits it, so this is the failure that reaches the

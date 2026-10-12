@@ -166,6 +166,19 @@ def main(args: Optional[argparse.Namespace] = None):
     from console_encoding import configure_stdio
     configure_stdio()
 
+    # Before ANY PyQt6 import, on every path that can reach one (#367). Qt
+    # ships an old msvcp140.dll and the first copy loaded wins the name for
+    # the whole process, so once Qt is in, torch's c10.dll cannot initialise.
+    # Loading the newest copy first fixes that. It is a no-op off Windows and
+    # outside the relations runtime, and it never raises: the outcome is
+    # recorded in app.msvc_runtime.last_result(), not reported here.
+    # This call is what does the work in a CHECKOUT. In a frozen bundle it
+    # is too late -- PyInstaller's pyi_rth_pyqt6 hook has already imported
+    # QtCore -- so packaging/rthook_relations_build.py makes the same call
+    # first, and this one returns that result unchanged.
+    from app.msvc_runtime import preload_newest
+    preload_newest()
+
     # Check for MCP server mode before importing GUI dependencies.
     # ``--mcp-server`` is declared in ``app.cli`` so strict parsing
     # accepts it, but the dispatch stays a ``sys.argv`` peek so a

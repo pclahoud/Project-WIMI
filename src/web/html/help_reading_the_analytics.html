@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading the analytics dashboard - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/41_reading_the_analytics.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 16</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Reading the analytics dashboard</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_finding_an_entry.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Finding an entry again</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_related_topics.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Linking one topic to another</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Reading the analytics dashboard
+
+## In short
+
+The analytics dashboard is one long page of cards, each answering a different question about where your mistakes fall. They are not variations on one number, and several of them deliberately disagree with each other because they are measuring different things. This chapter goes through them in page order and says what each one is for, what it cannot tell you, and what to do about what it says.
+
+## Two places numbers appear
+
+The dashboard has a small **Quick Analytics** panel with four stats and a
+**View Full Report** link. That link opens the analytics dashboard, which is
+what this chapter is about. You can also get there from an exam card's
+**Analytics** button.
+
+The four stats on the small panel are worth naming because one of them is the
+closest thing WIMI has to a league table:
+
+- **This week**, how many entries, with the change against the week before.
+- **Top subject**, the subject carrying the most mistakes, with its count.
+- **Top mistake**, the error type you have tagged most. Empty until you tag something, because tagging is optional.
+- **Streak**, consecutive days with an entry.
+
+**Top subject totals your mistakes, so it counts only the subject you named as
+primary.** An also-tested tag never adds to it. That rule runs through every
+counting surface on the full dashboard too, and
+[Why two screens can disagree about one subject](help_two_screens_one_subject.html)
+is the chapter about why. A subject's count includes entries on the subjects
+beneath it, but only through subjects that carry entries of their own: a system
+you never name as primary on any entry is not ranked at all, however many of its
+topics you have tagged, and an untagged topic in between stops its subtopics
+reaching the system above it.
+
+### The panel's exam list
+
+<!-- tour
+page: dashboard
+anchor: dashboard-preview-exam-filter
+text: All Exams adds up every exam in this profile, suspended ones included,
+  although only active exams are offered in this list. Pick one exam here to
+  see its figures alone.
+-->
+
+The panel has its own exam list, separate from the full dashboard's. It offers
+**All Exams** and then your active exams; a suspended exam is not offered. All
+Exams is not limited to that list, though: it adds up every exam in the profile,
+suspended ones included, so an exam you have parked still counts there.
+
+### Where View Full Report goes
+
+<!-- tour
+page: dashboard
+anchor: dashboard-preview-report-link
+text: The full report is always about one exam. With an exam picked in this
+  panel it opens on that one; with All Exams it opens on the exam you created
+  most recently, so its figures will not match the combined ones here.
+-->
+
+**View Full Report** opens the analytics dashboard on the exam picked in the
+panel. That dashboard is always about one exam, so with **All Exams** picked it
+opens on the exam you created most recently, suspended or not, and its figures
+are that exam's alone rather than the combined ones you were just reading.
+
+## The exam selector scopes everything
+
+<!-- tour
+page: analytics
+anchor: analytics-exam-filter
+text: Every card below this selector is about one exam, and two screens on
+  different exams agree about nothing. It is the first thing to check when a
+  figure here surprises you.
+-->
+
+The selector at the top of the analytics dashboard picks one exam, and every
+card below it is about that exam alone. Suspended exams are in the list, marked
+as such, so an exam you have parked still has readable analytics. With no exam
+chosen in the URL you get the most recently created one.
+
+### When a card is missing
+
+<!-- tour
+page: analytics
+anchor: analytics-settings-btn
+text: If a card you expect is missing, look in Settings, which this opens,
+  before looking for a bug. Cards can be hidden for one exam, for every exam,
+  or by Analytics Detail Level, whose Summary keeps only the four counts at
+  the top, the sunburst and the mistake-type chart.
+-->
+
+Two controls worth knowing about before you start distrusting a card:
+
+- The five drawn charts carry **S / M / L** buttons that change how big they are, and the choice is remembered per exam.
+- The cog beside the selector opens Settings, Dashboard & Analytics, where cards can be hidden three ways: ticks for one exam under **Per-Exam Analytics Configuration**, switches that apply to every exam, and **Analytics Detail Level**, whose **Summary** keeps only the four counts at the top, the sunburst and the mistake-type chart. If a card you expect is missing, look there before looking for a bug.
+
+Some cards also stay away on their own. The cross-dimension cards appear only on an exam with dimensions, and **Question Banks Compared** only once you have logged an entry in roughly the last six months.
+
+## Overview: the four cards at the top
+
+<!-- tour
+page: analytics
+anchor: analytics-stat-avg-difficulty
+text: This is the mean of the difficulty ratings you gave, over the entries
+  where you gave one, and every one of those is a question you got wrong. It
+  describes your mistakes rather than the exam.
+-->
+
+<!-- tour
+page: analytics
+anchor: analytics-stat-this-week
+text: This counts entries whose session is dated in the last seven days,
+  today included, by Date Encountered rather than the day you typed them. It
+  is a rolling week, not Monday to Sunday, and the number beside it is the
+  change against the seven days before.
+-->
+
+- **Total Entries** is every entry in this exam, drafts included.
+- **This Week** is entries from practice in the **last seven days**, today included — a rolling window on the session's Date Encountered, not Monday to Sunday. The figure beside it is the difference against the seven days before that, and it is absent when the two are equal.
+- **Sessions** is how many review sessions you have started, with how many you completed underneath.
+- **Avg Difficulty** is the mean of the difficulty ratings you gave, out of 5, over the entries where you gave one.
+
+Two honest readings. **This Week counts practice, not typing**, so logging a
+backlog from three weeks ago leaves it at zero; that is the same thing
+[Your first hour](help_the_first_hour.html) warns about. And **Avg Difficulty is about the questions you got
+wrong**, not about the exam — if you only rate the ones that felt hard, it will
+tell you your mistakes are hard.
+
+## By Subject: the sunburst
+
+A ring chart of your subject tree, with the centre carrying a total and each arc
+a branch. It is the main picture on the page and the one most worth learning to
+read.
+
+- **The centre is a count of entries** — the same number as the Total Entries card above, read from the same place so the two cannot drift apart.
+- **An arc is one position of a subject in your tree**, and its size is every mistake that rolls up through that branch.
+- **Hovering an arc** puts that branch's name and count in the centre; moving away puts the total back.
+- **Clicking an arc** zooms the chart into that branch, and a breadcrumb appears above the legend to climb back out. The chart draws three levels at a time, so zooming is how you see deeper.
+- **The legend** lists the five largest top-level subjects with their counts, and each one is a link into that subject's own page.
+- **Subject Deep Dive** at the bottom opens the page for whichever subject you last clicked, or for your largest one if you have not clicked anything.
+
+**The arcs add up to more than the centre, on purpose.** A subject can sit under
+several parents in WIMI, and when it does, a mistake on it rolls up through each
+of them — so eleven entries can quite correctly draw arcs of 5, 6 and 3. The
+small **i** in the card header says exactly that.
+[Why two screens can disagree about one subject](help_two_screens_one_subject.html)
+is the chapter that explains it properly, including why making them match would
+have to be a lie.
+
+What to do with it: compare branches. The sunburst is good at "which part of this
+exam is my problem" and bad at "exactly how many", which is what the entry
+browser is for.
+
+## By Mistake Type: the error-type donut
+
+<!-- tour
+page: analytics
+anchor: analytics-by-mistake-type
+text: This is a picture of your tagging rather than of your mistakes, because
+  error types are optional and one entry can carry several. If it looks thin,
+  that is a fact about how much you tagged.
+-->
+
+The same card holds a second chart, a donut of your five most-used error types.
+The centre counts the entries that carry at least one tag, each ring segment
+counts the entries carrying that tag, and the legend gives each tag's name and
+count. Hovering a legend row shows that error type's definition, which is the
+quickest place in the app to remind yourself what you meant by *Misread
+Question*.
+
+Two things to hold in mind while reading it. **An entry can carry several
+tags**, so the segments and the centre are not the same quantity here either.
+And **tags are optional**, so this chart is a picture of your tagging rather
+than of your mistakes — if it looks thin, that is a fact about how much you
+tagged, not about how you are doing.
+
+## Cross-dimension analysis
+
+This card only means anything on an exam with several axes, and
+[Dimensions, and questions with several axes](help_dimensions.html) is the
+chapter about those. It is the surface that answers the question a single tree
+cannot: not "how am I on cardiology" but "how am I on cardiology *when the task
+is diagnosis*".
+
+- **Pick an axis for the rows and an axis for the columns**, and a level within each — System, Topic and so on. The level selectors say how many subjects sit at each level.
+- **A cell is a count of entries** tagged in both. Hovering gives the pair, the count and the average difficulty of those entries.
+- **Clicking a cell opens the entry browser** showing you those entries, which is the point of the whole card: it turns a hot spot into a reading list.
+- **Clicking a row or column heading drills down** one level into that subject, and a breadcrumb with a **Reset** button takes you back.
+- **Export CSV** writes the matrix out with its counts and average difficulties.
+
+### The colours
+
+<!-- tour
+page: analytics
+anchor: analytics-cross-dim-legend
+text: Colours run from none to the most mistakes in any cell on screen, so
+  the reddest cell is the worst one here, not a fixed amount, and drilling
+  down recolours everything. A grey cell, marked Insufficient data in this
+  key, has no entries at all; no figure is being held back.
+-->
+
+Two cautions about the colours. **The scale is relative to the busiest cell in
+the view you are looking at**, so the reddest cell means "the worst one here",
+not "a lot" — and drilling down recolours everything. And a **grey cell is one
+with nothing in it**, not a figure WIMI has withheld, even though the key under
+the grid calls it *Insufficient data*: this page asks for cells with at least
+one entry, so a grey cell has none.
+
+Early on the card will say *No cross-dimension data available* and ask for more
+entries with dimension tags. That is the truthful answer: a crossing of two axes
+needs entries in enough combinations before any pattern in it is real.
+
+## Activity over time
+
+A line of how many entries you logged per day across the last 7, 30 or 90 days,
+or all time. It keys on the session's Date Encountered, like everything else, so
+it is a picture of when you practised.
+
+Read it for shape rather than for values. A long flat stretch and a spike the
+night before a deadline is a finding about how you study; the exact height of
+the spike is not.
+
+## Study activity: the calendar and the streak
+
+A sixteen-week calendar of small squares, one per day, darker for more entries,
+with **Less** and **More** under it. Hovering a square tells you the count and
+the date.
+
+Two things about it are worth knowing:
+
+- **A day is your own calendar day.** An entry logged against a session dated today lands on today's square, whatever the hour — WIMI does not quietly roll a late-night entry onto tomorrow.
+- **The shading is relative to your busiest day in the window.** The darkest square is your personal maximum, not a fixed number of entries, so the pattern is comparable within one view and not between two.
+
+### The streak cards
+
+<!-- tour
+page: analytics
+anchor: analytics-current-streak
+text: A streak day is a day with at least one entry in this exam, dated by
+  its session's Date Encountered, not by when you typed it. Writing up last
+  week's block can lengthen a streak, and an entry typed today into a session
+  dated yesterday does not count for today.
+-->
+
+Beside the calendar are three cards:
+
+- **Current Streak**, consecutive days with at least one entry, and whether today is one of them. A day you have not logged yet does not break it — it is still alive until the day after, and on that day the card says **At risk! Log an entry today** rather than leaving you to work it out from the date. The days are the same ones the calendar shows: each entry falls on its session's Date Encountered, not on the day you typed it. So writing up last week's block today can lengthen a streak, and an entry added today to a session dated yesterday does not make today count. **Log an entry today** means an entry in a session dated today.
+- **Longest Streak**, your best run ever, with a note when the current one is it.
+- **Active Days**, how many of the calendar's days have anything on them.
+
+The streaks are all-time while Active Days is the sixteen weeks on screen, so a
+longest streak larger than anything visible in the grid is correct rather than a
+glitch.
+
+A streak is the one number here that measures the habit rather than the
+material, which makes it the most and the least useful thing on the page: worth
+glancing at, not worth protecting at the cost of writing a real reason.
+
+## Weekly goal
+
+The goal card sits in the middle of the page and is the single exception to
+everything else here: it counts finished entries only, and tells you how many
+drafts it skipped. It has a chapter of its own —
+[Goals, and why drafts do not count toward them](help_goals_and_drafts.html).
+
+## Difficulty distribution
+
+Five rows, Easy through Very Hard, each with a count and a percentage of the
+entries you rated. Unrated entries are not in it, which means the shape depends
+on how consistently you fill the difficulty field in.
+
+The useful reading is the one you did not expect. Mistakes clustered on hard
+questions is ordinary. Mistakes clustered on *easy* questions is the finding —
+that is not a knowledge problem, and the reasons you wrote on those entries will
+say what it is instead.
+
+## Patterns and insights
+
+Up to five short cards, each one a sentence WIMI noticed. They are warnings
+first, then observations, then the encouraging ones, and they key on things like
+a streak about to break, a subject whose mistakes are rising over the last
+fortnight, a subject taking a bigger share of your mistakes than its exam weight
+would suggest, a lopsided difficulty spread, one error type dominating, and
+sessions you started and never finished.
+
+They are prompts rather than conclusions. Each names a subject or a number you
+can go and check on another card, and the checking is where the value is.
+
+### Interaction effects
+
+<!-- tour
+page: analytics
+anchor: analytics-interaction-effects
+text: These compare only the exam's first two dimensions, whichever pair the
+  heatmap shows. Expected is what a pairing would hold if the two axes were
+  unrelated, and the severity word grades the gap as a percentage alone, so a
+  pairing with one or two entries can read high.
+-->
+
+On an exam with two or more dimensions, a second panel under the insights lists
+**Interaction Effects**: pairings, one subject from each of two axes, whose
+count of mistakes differs from what the two axes' own totals would predict if
+they had nothing to do with each other. Each card gives an **Expected** and an
+**Actual** count, whether there are more or fewer mistakes than expected, and a
+severity word.
+
+- **It always compares the exam's first two dimensions**, in their order, whichever pair you have picked in the cross-dimension heatmap above.
+- **Expected is arithmetic, not a target.** It is what that pairing would hold if your mistakes on one axis told you nothing about the other.
+- **The severity word is the size of the gap as a percentage and nothing else**: low from 10%, medium from 25%, high from 50%. It takes no account of how few entries are involved, so a pairing with one entry where half of one was expected reads **high**. Read the two counts before the word.
+
+## Question banks compared
+
+A line chart and a table, one line and one row per question bank you have
+logged entries from. Entries in sessions that name no bank are grouped as
+**Unspecified**. The card is absent until an entry falls inside its window.
+
+<!-- tour
+page: analytics
+anchor: analytics-source-trend
+text: Trend compares how many entries you logged from a bank per month,
+  recently against earlier, over about six months, by the day you typed them.
+  It is a count, not a rate: practising less from a bank reads as Better just
+  as surely as missing less, and practising more reads as Worse.
+-->
+
+It keeps different books from the rest of the page:
+
+- **It counts by the day you typed an entry**, not the session's Date Encountered, and only over roughly the last six months (180 days). So its **Entries** column need not match Total Entries, and a backlog logged today all lands in this month.
+- **Trend** compares how many entries you logged from that bank per month in the later half of the months that have any entries against the earlier half. **Better** means more than a fifth fewer, **Worse** more than a fifth more, and **Stable** anything between, or entries in only one month.
+- **That is a count, not a rate.** Doing fewer questions from a bank reads as Better as surely as making fewer mistakes on them, and doing more reads as Worse. Read Trend beside how much you have actually been practising before taking it as a verdict on the bank or on you.
+- **Top Subject** is the subject you named as primary most often on that bank's entries, over all time rather than the six months the rest of the row covers.
+
+## Subject vs Exam Weight Analysis
+
+The last card on the page, and the only one that compares you against the exam
+rather than against yourself. It needs weights on your subjects to say anything;
+with none it tells you so.
+[Weights: what a percentage means here](help_weights.html) is the chapter about
+where those numbers come from.
+
+Today the card holds two panels.
+
+### Quadrant Analysis
+
+<!-- tour
+page: analytics
+anchor: analytics-weight-quadrant
+text: Reduce Focus is not praise. It lists subjects light on the exam, under
+  10% at the middle of their band, where your share of mistakes is over 1.3
+  times the top of that band: subjects you keep getting wrong. It ranks them
+  below heavier subjects; it does not say you have learned them.
+-->
+
+**Quadrant Analysis** sorts your weighted subjects into four groups. What
+decides the group is two questions: does this subject carry a lot of the exam,
+and are you missing more of it than its weight would lead you to expect?
+
+- **Priority (focus here)** — heavy on the exam and you are over-represented in it. This is the list to act on.
+- **Well-maintained** — heavy on the exam and not over-represented: your share of mistakes is inside its band, below it, or above it by less than the margin below. Nothing to change.
+- **Reduce focus** — light on the exam and over-represented in your mistakes. You keep getting it wrong, but the exam asks little of it, so it ranks below the heavy subjects. It is not a sign you have mastered it.
+- **Low priority** — light on the exam and not over-represented. Leave it.
+
+A subject counts as heavy when the middle of its band is 10% of the exam or
+more, and as over-represented once your share of mistakes is more than 1.3
+times the top of its published band, rather than merely above its middle. A
+share that falls inside the band is never over-represented. The thresholds are
+blunt on purpose: this is a sorting aid, not a score.
+
+**That is what makes a weak small topic rank below a middling large one, and it
+is the whole point of the card.** A 2% topic you keep missing lands in Reduce
+focus; a 15% subject you miss about as often as its weight predicts lands in
+Well-maintained. Studied as a pure weakness list those two would be the wrong
+way round, and the exam would punish you for it.
+
+Each row reads as a pair — your share of the mistakes beside the exam's weight,
+as in 18% against a published 8–12% — followed by a small glyph saying where
+that weight came from. Both halves are shares of the same thing, which is what
+makes the comparison mean something: the left is your share of **every** mistake
+you have logged in this exam, and the right is that subject's share of the exam.
+
+Two consequences worth knowing, because they look like errors and are not.
+
+- **A parent's row includes everything beneath it.** A weight is a share of the whole exam at every level, so Cardiovascular's 20–25% already covers its topics, and its mistake share has to cover them too. Tag three mistakes on Hypertension and Cardiovascular's row moves, even though nothing is tagged on Cardiovascular itself.
+- **The rows therefore overlap, and they will add up to more than 100%.** Those same three mistakes are counted on Hypertension's row and on Cardiovascular's. That is the same non-additivity the sunburst's arcs have, for the same reason, and summing the column would describe nothing.
+
+A subject with **no** weight recorded is left off the card, since there is
+nothing to compare against. A subject weighted at **0%** is on it: a blueprint
+that prints 0% has told you something, and mistakes piling up against a 0% row
+is a real finding.
+
+### Top Recommendations
+
+<!-- tour
+page: analytics
+anchor: analytics-weight-recommendations
+text: Consider reducing time is about exam weight, not about how long you
+  study, which WIMI never sees. It is said of a light subject you get wrong
+  far more often than its weight predicts, and means heavier subjects come
+  first, not that this one is done.
+-->
+
+**Top Recommendations** turns the same grouping into at most five lines, naming
+a subject and what to do about it: increase focus on up to three Priority
+subjects, heaviest first; consider reducing time on up to two Reduce focus
+ones; and maintain the first Well-maintained one. It is the quadrant restated
+as sentences, so if a recommendation surprises you, the quadrant above it is
+where the reasoning is.
+
+**"Consider reducing time" does not know how long you study.** WIMI records
+mistakes, not hours. The line is said of a light subject you are getting wrong
+far more often than its weight predicts, and what it means is that the heavier
+subjects come first. It is not a sign the subject is done.
+
+### No overall score
+
+**There is no overall score on this card.** It used to open with a single
+efficiency figure out of 100 and a rating word, and that is gone: on a realistic
+blueprint the number could not report a bad result, so what it should mean is
+being reconsidered rather than left on screen saying "Excellent" to everybody.
+Nothing replaces it, and the quadrant analysis beside it was never the part in
+doubt.
+
+## Weight sources
+
+A small card under the weight analysis, counting your subjects by where their
+weight came from: taken from an official outline, anchored by you, defined by
+you, derived, or estimated.
+
+<!-- tour
+page: analytics
+anchor: analytics-weight-sources
+text: These counts say where your subjects' weights came from, and nothing on
+  this page uses them: an estimated or derived weight is compared exactly like
+  an official one. A subject with no recorded source counts as derived.
+-->
+
+**It describes your data, not you, and it changes nothing WIMI calculates.** A
+weight marked as your own estimate is treated identically to one off a published
+blueprint by every count and every chart on this page. The card exists so that
+when a figure surprises you, you can ask the right next question: is the weight
+behind this one I guessed?
+
+## Drafts are in all of it
+
+<!-- tour
+page: analytics
+anchor: analytics-stat-total-entries
+text: Every card on this page except Weekly Goal includes your unfinished
+  drafts, because the mistake happened whether or not the reflection is
+  finished. The weekly goal is the one surface in WIMI that leaves them out,
+  and its card says how many are left.
+-->
+
+One rule covers the whole page bar one card. **Apart from the weekly goal, no
+card on the analytics dashboard leaves out your drafts** — not the sunburst, not Top subject, not the heatmaps, not the
+difficulty spread, not the weight quadrant. A draft exists because you got a
+question wrong, and an unfinished reflection does not un-happen the mistake.
+
+The weekly goal is that one exception, and it says so in its own card: it
+counts finished entries and shows how many drafts are still to finish.
+[Goals, and why drafts do not count toward them](help_goals_and_drafts.html) has
+the reasoning.
+
+## A reading order that works
+
+The page is long and most of it is context. A short circuit through it:
+
+- **Start at the sunburst** and find the branch carrying the most. That is where your mistakes are.
+- **Then look at the weight quadrant** and find the subjects in it by name, to see which of them the exam actually weights heavily. This is the step that stops you spending a fortnight on something worth 2%.
+- **Then read the error-type donut.** A knowledge gap and a misread question in the same subject need completely different work.
+- **Then click through.** Every figure on this page is a pointer; the entries behind it are the content, and [Finding an entry again](help_finding_an_entry.html) is how you get to them.
+- **Ignore the streak when deciding what to study.** It is a habit meter, and no amount of it tells you anything about the material.
+
+## Where to go next
+
+- [Finding an entry again](help_finding_an_entry.html) — the entries behind every number on this page.
+- [Why two screens can disagree about one subject](help_two_screens_one_subject.html) — why a chart and a filter give different counts, and which to trust for what.
+- [Weights: what a percentage means here](help_weights.html) — where the exam weights in the quadrant come from, and why they need not add to 100%.
+- [Goals, and why drafts do not count toward them](help_goals_and_drafts.html) — the one card on this page that leaves drafts out.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

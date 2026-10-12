@@ -31,6 +31,7 @@ from uuid import uuid4
 
 import pytest
 
+from database.master_db import MasterDatabase
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
@@ -147,6 +148,11 @@ def test_profile_rename_delete_restore(
         "document.getElementById('deleteModal').classList.contains('active')",
         desc="delete confirmation modal open",
     )
+    # #501: the period comes from the bridge, not a literal in the page.
+    grace = MasterDatabase.DELETION_GRACE_PERIOD_DAYS
+    assert wimi_page.eval_js(
+        "document.getElementById('deleteModalGrace').textContent"
+    ) == f"{grace} days", "the delete modal must state the grace period it was given"
     wimi_page.eval_js("document.getElementById('deleteConfirmBtn').click()")
 
     # Card leaves the grid; "Recently deleted" section appears.

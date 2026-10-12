@@ -1,6 +1,6 @@
 """WIMI subject-relation bridge operations (issue #14).
 
-Four slots, all of them thin: the decisions live in
+Five slots, all of them thin: the decisions live in
 ``database/domains/relations.py`` and this layer only marshals.
 
 ``getSubjectRelations`` carries ``primary_parent_id`` because the deep
@@ -78,6 +78,15 @@ class RelationsBridgeMixin:
             JSON response with the created row, or ``success=false``
             carrying the reason it was refused. A blank reason lands
             here, and the message is written for the student.
+
+            **The row may be an adopted proposal rather than a new
+            relation** (#382). When the pair and type already hold an
+            unconfirmed extraction, that row is confirmed with this
+            caller's reason instead of a second one being created, and the
+            payload carries ``adopted_proposal: true`` with
+            ``adopted_from_entry_id``. The page must say so: the student
+            pressed Save and what happened was an edit to a row they never
+            saw, which is only not a surprise if it is named.
         """
         if not self.user_db:
             return serialize_response(False, error='No user database connected')
@@ -97,6 +106,8 @@ class RelationsBridgeMixin:
                 kwargs['origin'] = params['origin']
             if params.get('source_entry_id'):
                 kwargs['source_entry_id'] = int(params['source_entry_id'])
+            if params.get('relation_type_id'):
+                kwargs['relation_type_id'] = int(params['relation_type_id'])
 
             relation = self.user_db.create_subject_relation(
                 int(from_id), int(to_id), params.get('reason'), **kwargs
@@ -163,12 +174,54 @@ class RelationsBridgeMixin:
                     params.get('query') or '',
                     int(params.get('limit') or 10),
                     direction=params.get('direction'),
+                    relation_type_id=(
+                        int(params['relation_type_id'])
+                        if params.get('relation_type_id') else None),
                 ),
             )
-        except SubjectNodeError as e:
+        except (ValidationError, SubjectNodeError) as e:
             return serialize_response(False, error=str(e))
         except Exception as e:
             self._log_error(f'Error searching relatable subjects: {e}',
                             {'params_json': params_json})
             return serialize_response(
                 False, error=f'Failed to search subjects: {e}')
+
+    @pyqtSlot(str, result=str)
+    @instrumented_slot
+    def getRelationTypes(self, params_json: str) -> str:
+        """An exam's relation types, for the new-relation picker (m026).
+
+        Args:
+            params_json: JSON with ``subject_id`` (the exam is looked up
+                from it) or ``exam_id``, and optional ``include_retired``.
+                Retired types are left out by default: this is what the
+                picker reads, and a retired type must not be offered there.
+                Relations already using a retired type still render -- that
+                is ``getSubjectRelations``'s business, not this slot's.
+
+        Returns:
+            JSON response with a list of ``{id, label, reverse_label,
+            is_symmetric, is_retired, sort_order, ...}`` in display order.
+            An empty list is a success: an exam with no list (or one whose
+            every type is retired) falls back to untyped relations.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+        try:
+            params = json.loads(params_json) if params_json else {}
+            subject_id = params.get('subject_id')
+            exam_id = params.get('exam_id')
+            if not subject_id and not exam_id:
+                return serialize_response(
+                    False, error='subject_id or exam_id is required')
+            return serialize_response(True, data=self.user_db.get_relation_types(
+                int(exam_id) if exam_id else None,
+                subject_id=int(subject_id) if subject_id else None,
+                include_retired=bool(params.get('include_retired')),
+            ))
+        except Exception as e:
+            self._log_error(f'Error getting relation types: {e}',
+                            {'params_json': params_json})
+            return serialize_response(
+                False, error=f'Failed to get relation types: {e}')

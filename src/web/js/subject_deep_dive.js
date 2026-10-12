@@ -90,21 +90,46 @@ class SubjectDeepDive {
      * Load exam name for display in header (read-only, no switching)
      */
     async loadExamLabel() {
+        const labelEl = document.getElementById('examLabel');
         try {
             if (this.examContextId) {
                 const exam = await api.getExamContext(this.examContextId);
                 if (exam) {
-                    document.getElementById('examLabel').textContent = exam.exam_name;
+                    labelEl.textContent = exam.exam_name;
+                    // #314 item 2 (owner 2026-10-10): this was a <span>
+                    // bordered and filled like a button that did nothing on
+                    // click -- an affordance that lies. It is a real link
+                    // now, and the destination is the exam's SUBJECT TREE.
+                    //
+                    // Why there and not analytics: "Back to Analytics" in
+                    // this same header already goes to analytics for this
+                    // exam, so pointing the exam name at it would give the
+                    // header two controls with one destination. The tree is
+                    // the exam itself rather than a view of its data, and it
+                    // is continuous with the "Full path" line directly below
+                    // -- a student reading where this subject sits can go and
+                    // see it sitting there. The query key is `exam_id`, which
+                    // is what tree_editor.html reads; analytics and the entry
+                    // browser use `exam`, and mixing them up yields "No exam
+                    // ID provided".
+                    labelEl.href =
+                        `tree_editor.html?exam_id=${encodeURIComponent(this.examContextId)}`;
                 }
             } else {
-                document.getElementById('examLabel').textContent = 'No exam selected';
+                labelEl.textContent = 'No exam selected';
+                // Nothing to link to. Removing the attribute (rather than
+                // leaving "#") takes it out of the tab order and stops it
+                // presenting as a link at all, which is #174's rule: do not
+                // offer a press when there is nothing to press.
+                labelEl.removeAttribute('href');
             }
             
             // Update the back link with exam context
             this.updateBackLink();
         } catch (error) {
             console.error('Error loading exam label:', error);
-            document.getElementById('examLabel').textContent = 'Unknown exam';
+            labelEl.textContent = 'Unknown exam';
+            labelEl.removeAttribute('href');
         }
     }
 
@@ -185,6 +210,7 @@ class SubjectDeepDive {
             this.renderChildSubjects();
             this.renderMistakeTypes();
             this.renderRecentEntries();
+            this.renderSubjectNotes();
             this.renderRecommendations();
             this.renderRelations();
 
@@ -246,24 +272,11 @@ class SubjectDeepDive {
         return `
             <p class="multi-parent-banner multi-parent-banner--active"
                data-testid="multi-parent-selector-banner">
-                Viewing entries that route through <strong>${this._escape(activeName)}</strong>.${elsewhere}
+                Viewing entries that route through <strong>${WimiEscape.html(activeName)}</strong>.${elsewhere}
             </p>
         `;
     }
 
-    /**
-     * Minimal HTML escape so a malicious parent_name in the DB can't
-     * inject markup through the banner. Subject and parent names come
-     * from user input.
-     */
-    _escape(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
 
     /**
      * Stage 9 (with follow-up) — render the "Show as part of"
@@ -291,15 +304,25 @@ class SubjectDeepDive {
 
         // Build the dropdown. We list parents in the order returned by
         // get_edges_for_child (primary first), with "All parents" at
-        // the top as the default.
-        const options = [
-            '<option value="" data-testid="multi-parent-selector-option-all">All parents</option>',
-        ].concat(edges.map(edge => {
+        // the top as the default. Built from nodes, not an HTML string
+        // (#548): a parent's name is text a student typed or imported.
+        const control = document.createElement('select');
+        control.id = 'multiParentSelectorControl';
+        control.setAttribute('data-testid', 'multi-parent-selector-control');
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.setAttribute('data-testid', 'multi-parent-selector-option-all');
+        allOption.textContent = 'All parents';
+        control.appendChild(allOption);
+        edges.forEach(edge => {
             const pid = edge.parent_id;
-            const name = edge.parent_name || `Parent ${pid}`;
-            const selected = this.activeParentId === pid ? ' selected' : '';
-            return `<option value="${pid}" data-testid="multi-parent-selector-option-${pid}"${selected}>${name}</option>`;
-        })).join('');
+            const option = document.createElement('option');
+            option.value = String(pid);
+            option.setAttribute('data-testid', `multi-parent-selector-option-${pid}`);
+            option.textContent = edge.parent_name || `Parent ${pid}`;
+            if (this.activeParentId === pid) option.selected = true;
+            control.appendChild(option);
+        });
 
         // Names of the non-selected parents for the "also: ..." hint.
         const alsoNames = edges
@@ -315,15 +338,19 @@ class SubjectDeepDive {
         // current view + what they're not seeing explicit.
         const banner = this._buildSelectorBanner(edges);
 
-        container.innerHTML = `
-            <label for="multiParentSelectorControl">Show as part of:</label>
-            <select
-                id="multiParentSelectorControl"
-                data-testid="multi-parent-selector-control"
-            >${options}</select>
-            ${alsoNames ? `<span class="also-list">(also: ${alsoNames})</span>` : ''}
-            ${banner}
-        `;
+        container.innerHTML = '';
+        const label = document.createElement('label');
+        label.htmlFor = 'multiParentSelectorControl';
+        label.textContent = 'Show as part of:';
+        container.append(label, ' ', control);
+        if (alsoNames) {
+            const also = document.createElement('span');
+            also.className = 'also-list';
+            also.textContent = `(also: ${alsoNames})`;
+            container.append(' ', also);
+        }
+        // The banner escapes the one name it carries (_buildSelectorBanner).
+        container.insertAdjacentHTML('beforeend', banner);
         container.style.display = '';
 
         const select = container.querySelector('#multiParentSelectorControl');
@@ -342,10 +369,40 @@ class SubjectDeepDive {
     }
 
     /**
-     * Render header with subject name
+     * Render header with subject name, and the axis it is on.
+     *
+     * THE TITLE ALONE DOES NOT IDENTIFY THE SUBJECT (#314, owner
+     * 2026-10-10). On a multi-dimensional exam the heading read "18 to 65"
+     * and "Full path: 18 to 65" repeated it, because a dimension root has
+     * nothing above it to disambiguate with. Nothing on the page said it was
+     * a **Patient Age** group rather than a topic or a Site of Care value.
+     *
+     * The app already had this habit and had not applied it here: subject
+     * relations deliberately label the *other* subject's dimension when the
+     * two differ, and the tree editor's details subtitle carries an
+     * `in <Axis>` fragment. This is the same fragment on the page's own
+     * title.
+     *
+     * `dimension_name` is ABSENT from the payload when the subject is in no
+     * axis, so the check is presence rather than truthiness of a null, and
+     * the element stays hidden on every single-dimension and dimensionless
+     * exam. Hidden via a class rather than left empty: `:empty` is banned by
+     * a CI gate (#134/#136/#141) and an empty qualifier still occupies the
+     * line.
      */
     renderHeader() {
         document.getElementById('subjectTitle').textContent = this.subjectData.subject_name;
+
+        const dimEl = document.getElementById('subjectDimension');
+        if (!dimEl) return;
+        const axis = this.subjectData.dimension_name;
+        if (axis) {
+            dimEl.textContent = `in ${axis}`;
+            dimEl.classList.remove('hidden');
+        } else {
+            dimEl.textContent = '';
+            dimEl.classList.add('hidden');
+        }
     }
 
     /**
@@ -394,7 +451,31 @@ class SubjectDeepDive {
         const change = (this.subjectData.this_week || 0) - lastWeek;
         const trendEl = document.getElementById('trendChange');
 
-        if (change === 0) {
+        // NOTHING HAPPENED AND NO CHANGE ARE DIFFERENT STATES (#314 item 3,
+        // owner 2026-10-10). A 0-vs-0 comparison used to fall into the same
+        // branch as a genuine 4-vs-4, so a subject whose last mistake was 122
+        // days ago reported "No change from last week" in a highlighted box.
+        // Technically true, and it reads as a status report on current
+        // activity: "no change" implies something is being tracked and is
+        // steady, where the truth is that nothing has been tracked for four
+        // months. That is #289's and #174's class -- the page stating
+        // something that does not mean what it appears to.
+        //
+        // This is a THIRD BRANCH rather than a reworded string, deliberately.
+        // The two states have to stay distinguishable to anything that reads
+        // this later -- a copy change would merge them again the moment
+        // somebody wants to style, announce or count them separately.
+        //
+        // No new visual treatment: the neutral `trend-change` class is kept
+        // for both. Quietening this box is exactly the de-emphasis that #326
+        // still owns, and item 2 was decided the way it was to stay out of
+        // that; the words were the lie, so the words are the fix.
+        const bothWeeksEmpty = (this.subjectData.this_week || 0) === 0 && lastWeek === 0;
+
+        if (bothWeeksEmpty) {
+            trendEl.textContent = 'No activity this week or last';
+            trendEl.className = 'trend-change';
+        } else if (change === 0) {
             trendEl.textContent = 'No change from last week';
             trendEl.className = 'trend-change';
         } else if (change < 0) {
@@ -541,10 +622,15 @@ class SubjectDeepDive {
             item.setAttribute('data-testid', `deep-dive-child-row-${child.subject_id}`);
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', '0');
-            item.innerHTML = `
-                <span class="child-subject-name">${child.subject_name}</span>
-                <span class="child-subject-count">${child.mistake_count}</span>
-            `;
+            // Text nodes, not innerHTML (#548): a subject name is text a
+            // student typed or imported.
+            const nameEl = document.createElement('span');
+            nameEl.className = 'child-subject-name';
+            nameEl.textContent = child.subject_name;
+            const countEl = document.createElement('span');
+            countEl.className = 'child-subject-count';
+            countEl.textContent = child.mistake_count;
+            item.append(nameEl, countEl);
             const navigate = () => {
                 // Navigate to this child subject's deep dive
                 const url = `subject_deep_dive.html?subject=${child.subject_id}${this.examContextId ? `&exam=${this.examContextId}` : ''}`;
@@ -579,14 +665,22 @@ class SubjectDeepDive {
         types.forEach(type => {
             const item = document.createElement('div');
             item.className = 'mistake-type-item';
-            item.innerHTML = `
-                <span class="mistake-type-name">
-                    <span class="mistake-type-badge" data-testid="deep-dive-mistake-type-badge-${type.tag_name}" style="background-color: ${type.color || 'var(--border-color)'}22; color: ${type.color || 'var(--text-muted)'}">
-                        ${type.tag_name}
-                    </span>
-                </span>
-                <span class="mistake-type-count">${type.count} (${type.percentage}%)</span>
-            `;
+            // Nodes, not innerHTML (#548): an error type's name is text a
+            // student typed or imported, and its colour went into a style
+            // attribute where a quote ended the attribute.
+            const nameWrap = document.createElement('span');
+            nameWrap.className = 'mistake-type-name';
+            const badge = document.createElement('span');
+            badge.className = 'mistake-type-badge';
+            badge.setAttribute('data-testid', `deep-dive-mistake-type-badge-${type.tag_name}`);
+            badge.style.setProperty('background-color', `${type.color || 'var(--border-color)'}22`);
+            badge.style.setProperty('color', type.color || 'var(--text-muted)');
+            badge.textContent = type.tag_name;
+            nameWrap.appendChild(badge);
+            const countEl = document.createElement('span');
+            countEl.className = 'mistake-type-count';
+            countEl.textContent = `${type.count} (${type.percentage}%)`;
+            item.append(nameWrap, countEl);
             // Surface the tag definition as a hover tooltip when one is set
             if (typeof type.description === 'string' && type.description.trim() !== '') {
                 item.title = type.description;
@@ -598,6 +692,97 @@ class SubjectDeepDive {
     /**
      * Render recent entries
      */
+    /**
+     * Notes TAGGED with this subject (#465, owner 2026-10-10).
+     *
+     * The strict set: a note whose own `linked_subject_ids` names this
+     * subject. Not every note on an entry tagged here, and not inherited
+     * from descendants. That is **deliberately the opposite rule** from the
+     * entries list above it, which uses this page's permissive
+     * "show everything" semantic — a note is filed by hand at one subject,
+     * where an entry's rollup is derived. Both lists are on one page on
+     * purpose, and the headings are what keeps them apart.
+     *
+     * Until this landed, `get_subject_deep_dive` returned no notes key at
+     * all, and the only thing on the page resembling one was the Recent
+     * Entries row's third line — classed `recent-entry-note`, rendering a
+     * reflection, falling back to the literal string "No notes".
+     *
+     * The row behaviour is copied from `renderRecentEntries`, not invented:
+     * same `entryNavContext` clearing, same URL shape, same Enter/Space
+     * handling. #464 established that a row announced as a button has to go
+     * somewhere; two lists on one page behaving differently would be worse
+     * than either behaviour alone.
+     */
+    renderSubjectNotes() {
+        const container = document.getElementById('subjectNotesList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const notes = this.subjectData.notes || [];
+
+        if (notes.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.setAttribute('data-testid', 'deep-dive-empty-state-subject-notes');
+            // Says which set is empty. "No notes" alone would read as "this
+            // subject has nothing written about it", when what is true is
+            // that nothing has been TAGGED to it -- the entry reflections
+            // above may be full.
+            empty.textContent = 'No notes are tagged with this subject yet';
+            container.appendChild(empty);
+            return;
+        }
+
+        notes.forEach(note => {
+            const item = document.createElement('div');
+            item.className = 'subject-note-item';
+            item.setAttribute('data-testid', `deep-dive-subject-note-${note.note_id}`);
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+
+            // Stored rich text, reduced to its words through the same inert
+            // path the entry browser's card and the row above use (#525,
+            // #591). Never innerHTML: a note's content is student-supplied
+            // and a profile import can carry anything.
+            const toText = html => (window.WimiTextPreview
+                ? window.WimiTextPreview.htmlToPreviewText(html) : '');
+            const body = toText(note.content_html) || '(empty note)';
+
+            const when = note.updated_at
+                ? LocalDate.parse(String(note.updated_at).slice(0, 10))
+                : null;
+            const dateStr = when
+                ? when.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '';
+
+            [
+                ['subject-note-date', dateStr],
+                ['subject-note-body', body],
+            ].forEach(([className, text]) => {
+                const cell = document.createElement('div');
+                cell.className = className;
+                cell.textContent = text;
+                item.appendChild(cell);
+            });
+
+            const activate = () => {
+                try { sessionStorage.removeItem('entryNavContext'); } catch (e) { /* storage unavailable */ }
+                const exam = this.examContextId ? `&exam=${this.examContextId}` : '';
+                window.location.href = `entry_detail.html?id=${note.entry_id}${exam}`;
+            };
+            item.addEventListener('click', activate);
+            item.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    activate();
+                }
+            });
+
+            container.appendChild(item);
+        });
+    }
+
     renderRecentEntries() {
         const container = document.getElementById('recentEntriesList');
         container.setAttribute('data-testid', 'deep-dive-list-recent-entries');
@@ -617,19 +802,43 @@ class SubjectDeepDive {
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', '0');
 
-            const date = new Date(entry.date_encountered);
+            // A date-only string is a LOCAL day (#534). `new Date('YYYY-MM-DD')`
+            // parses it as UTC midnight, which names the previous day west
+            // of Greenwich -- #471's defect on the heatmap, here again.
+            const date = LocalDate.parse(entry.date_encountered);
             const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-            item.innerHTML = `
-                <div class="recent-entry-date">${dateStr}</div>
-                <div class="recent-entry-subject">${entry.subject_name}</div>
-                <div class="recent-entry-note">${entry.reflection || entry.explanation || 'No notes'}</div>
-            `;
+            // Built from text nodes, never innerHTML (#525). The subject name
+            // is plain text a student types or imports, and a profile or
+            // subject import can carry anything, so `<img onerror=...>` in
+            // one ran when this page opened. The reflection is stored
+            // rich-text HTML: it reads as its words, through the same inert
+            // reduction the entry browser's card uses (text_preview.js).
+            const toText = html => (window.WimiTextPreview
+                ? window.WimiTextPreview.htmlToPreviewText(html) : '');
+            const note = toText(entry.reflection) || toText(entry.explanation)
+                || 'No notes';
+            [
+                ['recent-entry-date', dateStr],
+                ['recent-entry-subject', entry.subject_name || ''],
+                ['recent-entry-note', note],
+            ].forEach(([className, text]) => {
+                const cell = document.createElement('div');
+                cell.className = className;
+                cell.textContent = text;
+                item.appendChild(cell);
+            });
 
-            // Click to view entry details (future implementation)
+            // Open the entry, at the same URL the entry browser and the entry
+            // form use. The row is announced as a button, so pressing it has
+            // to go somewhere (#464).
             const activate = () => {
-                console.log('View entry:', entry.entry_id);
-                // TODO: Navigate to entry detail view
+                // entry_detail reads a prev/next list the entry browser leaves
+                // in sessionStorage; one left from an earlier browse would
+                // draw a stale "N of M" bar around an entry opened from here.
+                try { sessionStorage.removeItem('entryNavContext'); } catch (e) { /* storage unavailable */ }
+                const exam = this.examContextId ? `&exam=${this.examContextId}` : '';
+                window.location.href = `entry_detail.html?id=${entry.entry_id}${exam}`;
             };
             item.addEventListener('click', activate);
             item.addEventListener('keydown', (e) => {
@@ -700,10 +909,14 @@ class SubjectDeepDive {
             if (rec.type) {
                 item.setAttribute('data-testid', `deep-dive-recommendation-${rec.type}`);
             }
-            item.innerHTML = `
-                <div class="recommendation-icon">${rec.icon}</div>
-                <div class="recommendation-text">${rec.text}</div>
-            `;
+            // Text nodes (#548): the child-focus line quotes a subject name.
+            const icon = document.createElement('div');
+            icon.className = 'recommendation-icon';
+            icon.textContent = rec.icon;
+            const text = document.createElement('div');
+            text.className = 'recommendation-text';
+            text.textContent = rec.text;
+            item.append(icon, text);
             container.appendChild(item);
         });
     }
@@ -769,11 +982,14 @@ class SubjectDeepDive {
      * Calculate days ago from date string
      */
     getDaysAgo(dateStr) {
-        const date = new Date(dateStr);
-        const today = new Date();
-        const diffTime = today - date;
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+        // Whole calendar days between two LOCAL days (#534). This parsed the
+        // date-only `last_mistake_date` as UTC midnight and measured to the
+        // current instant, so west of Greenwich a mistake logged today read
+        // "1 day ago" for the evening. Local midnight to local midnight, and
+        // rounded, because a DST day is 23 or 25 hours long.
+        const date = LocalDate.parse(dateStr);
+        const today = LocalDate.parse(LocalDate.today());
+        return Math.round((today - date) / (1000 * 60 * 60 * 24));
     }
 
     /**

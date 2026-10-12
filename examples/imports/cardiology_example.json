@@ -1,0 +1,507 @@
+{
+  "exam_context": {
+    "name": "Cardiology example",
+    "description": "A synthetic example of the import format: one subject tree, written for this repository. It is not taken from any exam's published outline, and it carries no weights on purpose: a weight belongs to your own exam's published outline, never to an example."
+  },
+  "root_nodes": [
+    {
+      "name": "Cardiology",
+      "level_type": "System",
+      "aliases": [
+        {
+          "name": "Cardio",
+          "type": "colloquial"
+        }
+      ],
+      "children": [
+        {
+          "name": "Chest pain and coronary disease",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Stable angina",
+              "level_type": "Topic",
+              "sort_order": 1
+            },
+            {
+              "name": "Unstable angina",
+              "level_type": "Topic",
+              "sort_order": 2
+            },
+            {
+              "name": "Non-ST-elevation myocardial infarction",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "NSTEMI",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 3
+            },
+            {
+              "name": "ST-elevation myocardial infarction",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "STEMI",
+                  "type": "acronym"
+                },
+                {
+                  "name": "Heart attack",
+                  "type": "colloquial"
+                }
+              ],
+              "sort_order": 4
+            },
+            {
+              "name": "Coronary vasospasm",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Prinzmetal angina",
+                  "type": "eponym"
+                }
+              ],
+              "sort_order": 5
+            },
+            {
+              "name": "Aortic dissection",
+              "level_type": "Topic",
+              "sort_order": 6
+            }
+          ],
+          "sort_order": 1
+        },
+        {
+          "name": "Rhythm and conduction",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Atrial fibrillation",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "AF",
+                  "type": "acronym"
+                },
+                {
+                  "name": "AFib",
+                  "type": "colloquial"
+                }
+              ],
+              "sort_order": 1
+            },
+            {
+              "name": "Atrial flutter",
+              "level_type": "Topic",
+              "sort_order": 2
+            },
+            {
+              "name": "Supraventricular tachycardia",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "SVT",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 3
+            },
+            {
+              "name": "Ventricular tachycardia",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "VT",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 4
+            },
+            {
+              "name": "First-degree AV block",
+              "level_type": "Topic",
+              "sort_order": 5
+            },
+            {
+              "name": "Second-degree AV block, type I",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Wenckebach",
+                  "type": "eponym"
+                },
+                {
+                  "name": "Mobitz I",
+                  "type": "alternate_name"
+                }
+              ],
+              "sort_order": 6
+            },
+            {
+              "name": "Second-degree AV block, type II",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Mobitz II",
+                  "type": "alternate_name"
+                }
+              ],
+              "sort_order": 7
+            },
+            {
+              "name": "Third-degree AV block",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Complete heart block",
+                  "type": "alternate_name"
+                }
+              ],
+              "sort_order": 8
+            },
+            {
+              "name": "Long QT syndrome",
+              "level_type": "Topic",
+              "sort_order": 9
+            },
+            {
+              "name": "Ventricular pre-excitation",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Wolff-Parkinson-White syndrome",
+                  "type": "eponym"
+                },
+                {
+                  "name": "WPW",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 10
+            }
+          ],
+          "sort_order": 2
+        },
+        {
+          "name": "Heart failure",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Heart failure with reduced ejection fraction",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "HFrEF",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 1
+            },
+            {
+              "name": "Heart failure with preserved ejection fraction",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "HFpEF",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 2
+            },
+            {
+              "name": "Cardiogenic shock",
+              "level_type": "Topic",
+              "sort_order": 3
+            },
+            {
+              "name": "Acute pulmonary edema",
+              "level_type": "Topic",
+              "sort_order": 4
+            }
+          ],
+          "sort_order": 3
+        },
+        {
+          "name": "Valves",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Aortic stenosis",
+              "level_type": "Topic",
+              "sort_order": 1
+            },
+            {
+              "name": "Aortic regurgitation",
+              "level_type": "Topic",
+              "sort_order": 2
+            },
+            {
+              "name": "Mitral stenosis",
+              "level_type": "Topic",
+              "sort_order": 3
+            },
+            {
+              "name": "Mitral regurgitation",
+              "level_type": "Topic",
+              "sort_order": 4
+            },
+            {
+              "name": "Mitral valve prolapse",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "MVP",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 5
+            },
+            {
+              "name": "Infective endocarditis",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "IE",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 6
+            }
+          ],
+          "sort_order": 4
+        },
+        {
+          "name": "Myocardium and pericardium",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Dilated cardiomyopathy",
+              "level_type": "Topic",
+              "sort_order": 1
+            },
+            {
+              "name": "Hypertrophic cardiomyopathy",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "HCM",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 2
+            },
+            {
+              "name": "Myocarditis",
+              "level_type": "Topic",
+              "sort_order": 3
+            },
+            {
+              "name": "Acute pericarditis",
+              "level_type": "Topic",
+              "sort_order": 4
+            },
+            {
+              "name": "Cardiac tamponade",
+              "level_type": "Topic",
+              "sort_order": 5
+            },
+            {
+              "name": "Constrictive pericarditis",
+              "level_type": "Topic",
+              "sort_order": 6
+            }
+          ],
+          "sort_order": 5
+        },
+        {
+          "name": "Vessels",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Essential hypertension",
+              "level_type": "Topic",
+              "sort_order": 1
+            },
+            {
+              "name": "Hypertensive emergency",
+              "level_type": "Topic",
+              "sort_order": 2
+            },
+            {
+              "name": "Deep vein thrombosis",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "DVT",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 3
+            },
+            {
+              "name": "Pulmonary embolism",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "PE",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 4
+            },
+            {
+              "name": "Peripheral artery disease",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "PAD",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 5
+            },
+            {
+              "name": "Abdominal aortic aneurysm",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "AAA",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 6
+            },
+            {
+              "name": "Giant cell arteritis",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "Temporal arteritis",
+                  "type": "alternate_name"
+                }
+              ],
+              "sort_order": 7
+            }
+          ],
+          "sort_order": 6
+        },
+        {
+          "name": "Congenital heart disease",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Ventricular septal defect",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "VSD",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 1
+            },
+            {
+              "name": "Atrial septal defect",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "ASD",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 2
+            },
+            {
+              "name": "Patent ductus arteriosus",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "PDA",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 3
+            },
+            {
+              "name": "Tetralogy of Fallot",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "TOF",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 4
+            },
+            {
+              "name": "Coarctation of the aorta",
+              "level_type": "Topic",
+              "sort_order": 5
+            }
+          ],
+          "sort_order": 7
+        },
+        {
+          "name": "Drugs",
+          "level_type": "Category",
+          "children": [
+            {
+              "name": "Beta blockers",
+              "level_type": "Topic",
+              "sort_order": 1
+            },
+            {
+              "name": "ACE inhibitors",
+              "level_type": "Topic",
+              "aliases": [
+                {
+                  "name": "ACEi",
+                  "type": "acronym"
+                }
+              ],
+              "sort_order": 2
+            },
+            {
+              "name": "Statins",
+              "level_type": "Topic",
+              "sort_order": 3
+            },
+            {
+              "name": "Anticoagulants",
+              "level_type": "Topic",
+              "children": [
+                {
+                  "name": "Warfarin",
+                  "level_type": "Subtopic"
+                },
+                {
+                  "name": "Heparin",
+                  "level_type": "Subtopic"
+                },
+                {
+                  "name": "Direct oral anticoagulants",
+                  "level_type": "Subtopic",
+                  "aliases": [
+                    {
+                      "name": "DOACs",
+                      "type": "acronym"
+                    }
+                  ]
+                }
+              ],
+              "sort_order": 4
+            },
+            {
+              "name": "Antiarrhythmics",
+              "level_type": "Topic",
+              "sort_order": 5
+            }
+          ],
+          "sort_order": 8
+        }
+      ]
+    }
+  ]
+}

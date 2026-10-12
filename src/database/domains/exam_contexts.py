@@ -143,6 +143,10 @@ class ExamContextMixin:
                         False
                     ))
 
+                # m026: every exam starts with the owner's list of relation
+                # types. RelationsMixin owns the seed; reached through self.
+                self.seed_relation_types_for_exam(exam_context_id)
+
                 if self.error_logger:
                     self.error_logger.info(
                         f"Created exam context: {exam_name} (ID: {exam_context_id})",

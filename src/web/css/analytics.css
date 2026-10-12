@@ -98,8 +98,6 @@
     font-weight: 600;
     color: var(--text-secondary);
     margin: 0 0 1rem 0;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     font-size: var(--font-size-xs);
 }
 
@@ -132,8 +130,6 @@
 .stat-label {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin-bottom: 0.5rem;
 }
 
@@ -155,23 +151,8 @@
     font-weight: 600;
 }
 
-.stat-value .change.positive {
-    color: var(--color-success-text);
-}
-
-.stat-value .change.positive::before {
-    content: '↑';
-    margin-right: 0.25rem;
-}
-
-.stat-value .change.negative {
-    color: var(--color-error-text);
-}
-
-.stat-value .change.negative::before {
-    content: '↓';
-    margin-right: 0.25rem;
-}
+/* No .positive / .negative: the week change is a neutral signed number
+   (#470). Nothing else on the page used these. */
 
 .stat-value .difficulty-label {
     font-size: var(--font-size-sm);
@@ -236,7 +217,6 @@
 .center-text {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
     max-width: 5rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -284,10 +264,8 @@
 }
 
 .sunburst-center-label .center-text {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     max-width: 8.75rem;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -314,7 +292,7 @@
     border-radius: var(--radius-full);
     background: var(--bg-tertiary);
     color: var(--text-muted);
-    font-size: 0.6875rem;
+    font-size: 0.6875rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
     font-weight: var(--font-weight-bold, 700);
     font-style: italic;
     line-height: 1;
@@ -336,7 +314,7 @@
    This rule must stay AFTER the one above: same specificity, so source
    order decides which outline wins. */
 .sunburst-info-icon:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -671,10 +649,8 @@
 }
 
 .streak-label {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     color: var(--text-muted);
     margin-bottom: 0.25rem;
 }
@@ -770,7 +746,7 @@
     height: 1rem;
     background: var(--color-warning);
     color: var(--text-inverse, white);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     border-radius: 50%;
 }
@@ -1026,8 +1002,6 @@
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin: 0 0 0.75rem 0;
 }
 
@@ -1372,8 +1346,6 @@
     color: var(--text-secondary);
     border-bottom: 2px solid var(--border-light);
     font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .source-table td {
@@ -1612,8 +1584,6 @@
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     margin-top: var(--space-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 .correlation-description {
@@ -2052,7 +2022,7 @@
     margin-top: 0.5rem;
     padding-top: 0.5rem;
     border-top: 1px solid var(--color-gray-600, #475569);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--color-gray-400, #94a3b8);
 }
 
@@ -2286,9 +2256,7 @@
 }
 
 .interaction-severity {
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
     background: var(--bg-primary);
     padding: 2px 0.5rem;
@@ -2314,9 +2282,8 @@
 .interaction-expected .label,
 .interaction-actual .label {
     display: block;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
     margin-bottom: 2px;
 }
 
@@ -2353,9 +2320,7 @@
     border-radius: var(--radius-md);
     font-weight: 600;
     color: var(--text-muted);
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: var(--font-size-xs);
     margin-bottom: 0.5rem;
 }
 
@@ -2479,7 +2444,7 @@
 }
 
 .dim-top-node {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     background: var(--color-gray-200);
     color: var(--text-secondary);
     padding: 2px 0.5rem;
@@ -2725,7 +2690,7 @@
 }
 
 .size-preset-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -2738,4 +2703,11 @@
     background: var(--bg-primary);
     color: var(--color-info-text);
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* #504: a chart the student's Dashboard & Analytics settings switch off.
+   !important because the per-exam visibility pass and several loaders write
+   style.display, and none of them may show a chart these settings hid. */
+.pref-hidden {
+    display: none !important;
 }

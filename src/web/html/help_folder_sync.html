@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keeping one profile on two computers - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/71_folder_sync.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 24</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Keeping one profile on two computers</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_profiles_and_profile_files.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Profiles, and carrying one to another computer</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_settings.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Settings, and what each one changes</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Keeping one profile on two computers
+
+## In short
+
+WIMI can keep one profile in step across your computers by writing sealed, numbered copies of it into a folder that your cloud client already syncs. It never signs in to a cloud service, never asks for a password and never talks to a provider; it writes files into a folder and reads files out of one. Because it cannot see what your cloud client is doing, every line it shows you is an observation with a time on it rather than a claim that you are up to date, and there is deliberately no synced light anywhere in it.
+
+## What this is, and what it is not
+
+Turn it on and WIMI links your profile to a folder you nominate. Each time you
+send, it writes a copy of your profile into that folder. The other computer,
+pointed at the same folder, finds those copies and can take the newest. That is
+the whole mechanism.
+
+What it is **not** is a cloud service.
+
+- **There is no account and no sign-in.** The setting's own description says it: WIMI never touches your cloud account, only the folder you choose. No sign-in, no permissions.
+- **WIMI does not know your cloud client is there.** It writes a file and the client picks it up, or does not, on its own schedule. WIMI cannot start an upload, cancel one, or tell you one has finished.
+- **It is not continuous.** Nothing happens in the background on a timer. You press a button to send and a button to look.
+- **It does not merge.** If two computers both change the profile without seeing each other's work, WIMI will tell you so and make you choose. It will never try to blend two copies together.
+
+That last one is the design, not a limitation it apologises for. Merging two
+divergent copies of a reflective journal would mean guessing, and a guess here
+would silently rewrite what you wrote.
+
+## Setting it up
+
+It lives in **Settings → Data & Backup**, under the heading **Sync Across
+Devices**, behind a tick box reading **Enable Cloud Sync**.
+
+<!-- tour
+page: settings
+anchor: settings-sync-enable
+text: Ticking this links the profile to a folder there and then, without Save,
+  and copies nothing into it yet. Nothing syncs by itself afterwards: your
+  profile reaches the folder only when you press Send this device's copy, and
+  the link belongs to this computer, not to the profile.
+-->
+
+Unlike almost everything else on the Settings page, this box does not wait for
+**Save**: ticking it starts a short sequence straight away, and **Cancel** does
+not undo it. Linking records the folder and writes no copy of your profile into
+it; the first copy arrives when you press **Send this device's copy**.
+
+- **A folder dialog**, titled *Choose a folder your cloud client keeps synced*. Pick a folder inside whatever client you already run — your Box folder, your Dropbox, your OneDrive, a Syncthing share, or a plain folder on a drive you back up yourself.
+- **A note, if the folder already has other people's profiles in it.** WIMI says how many it found and that yours will sit alongside them, not merge with them. Several students can share one folder safely.
+- **A check on the folder**, and sometimes a dialog about it. See below.
+- **Confirmation.** *Cloud sync folder set.*
+
+Above the folder there is a **Cloud client** dropdown: *Local folder*,
+*Box (Box Drive)*, *OneDrive*, *Google Drive*, *iCloud Drive*, *Dropbox* and
+*Syncthing*. Its hint is precise about what it is for — it is used only to know
+what that client does to a folder, what it calls "keep offline", and which
+conflict copies it leaves behind. **It does not connect to anything.** Choosing
+*Box* does not sign you in to Box; it tells WIMI which client's habits to expect.
+
+*Local folder* is the honest answer for anything else, including a network
+drive or a USB stick, and it is the default.
+
+### When WIMI says to check the folder first
+
+Some folders are usable but risky, and WIMI stops to say so before it links
+anything. The dialog is headed **Check this folder before you use it**, says
+WIMI can use this folder but syncing may not work as expected, lists what it
+found, and closes with the useful sentence: *the folder is not set up until you
+choose.* Your choices are **Cancel** or **Use this folder anyway**.
+
+Nothing is recorded on the first attempt. Cancel and the tick box goes back to
+where it was, with nothing linked and nothing written.
+
+The things it warns about are real and specific — a folder whose name your
+client treats as hidden and will never upload, a path too long for the client's
+own ceiling, a file sitting there that the client will silently ignore. A
+separate, shorter list stops it outright instead of warning: a folder that does
+not exist, one that is really a file, one WIMI cannot write to.
+
+### Keeping the files on this computer
+
+Most cloud clients keep files in the cloud by default and fetch them when
+something reads them. That works, and it is slow. If WIMI knows your client has
+a setting for keeping a folder local, it tells you what that setting is called
+in that client's own words — for Box, *Always keep on this device*; for Google
+Drive, *Available offline*; for Dropbox, *Make available offline*; on iCloud,
+turning off *Optimize Mac Storage*.
+
+Doing that is worth it. It is the difference between bringing a copy over in a
+moment and waiting while your cloud client fetches the whole thing first.
+
+## The files in the folder
+
+WIMI creates a folder named for itself inside the one you picked, and inside
+that a folder per profile. The copies it writes are numbered — generation 1,
+generation 2, and so on — and **a numbered copy is never rewritten**. Each send
+adds a file; nothing is ever overwritten in place.
+
+That is why this works on a cloud folder at all. The one thing every cloud
+client is bad at is two machines changing one file, and WIMI removes the
+precondition rather than hoping.
+
+**Each file's name carries the computer that wrote it, and a short identifier
+as well as the name.** The identifier is the part that matters, and it is there
+because of something that actually happened rather than something feared: a
+computer's *name* is not unique. Two laptops set up from one corporate image,
+two machines cloned from one template, or simply two computers left on the
+default name Windows gave them all produce the same name — and during testing,
+two machines did exactly that and one computer's send silently replaced
+another's. The identifier is what guarantees two computers never write the same
+file name.
+
+You can look in the folder. It is a plain folder of plain files and nothing is
+hidden from you.
+
+## Sending and looking
+
+Three buttons, and the difference between the last two is worth knowing.
+
+- **Send this device's copy** writes a new numbered copy of this computer's profile into the folder.
+- **Check the folder** looks. It reads the file names and asks your computer whether each file is stored locally. It does not open anything and does not pull anything down, which is why it is instant.
+- **Look for a newer copy** makes the same look as **Check the folder** — it downloads nothing and installs nothing — and then sums it up in one message: a newer copy is in the folder, two copies need choosing between, or this computer has the newest copy the folder shows.
+
+Neither button pulls a copy down, so neither costs anything on a slow or metered
+connection. Bringing a copy over happens only when you choose to take one, which
+is covered below.
+
+The message after a send is worth reading closely, because it is scrupulous
+about what it claims: *Generation N written to the folder. Your cloud client
+uploads it on its own schedule.* WIMI wrote a file. Whether the file has reached
+the cloud is between you and your cloud client.
+
+## There is no synced light, on purpose
+
+This is the single most important thing to understand about the panel, and it
+is the reason it can be trusted.
+
+**From inside a folder, "there is nothing new" and "the other computer has not
+finished uploading yet" look exactly the same.** WIMI cannot tell them apart, so
+it never claims to. There is no tick, no "up to date" badge and no green dot
+anywhere in this feature.
+
+What there is instead is a section headed **Last looked at this folder**, and
+every line in it is an observation with a time attached:
+
+- **Newest copy seen in the folder: generation N**, from which computer, and when WIMI looked.
+- **This computer last sent generation N**, at what time — followed by the admission that whether the cloud client has finished uploading it is not something WIMI can see.
+- **No copy seen in this folder yet.** And, rather than leaving you to guess why: if the other computer has just sent one, its cloud client may still be uploading.
+- **Ignored generation N**, with the reason, for any copy WIMI found and would not use. A copy that fails its checks is reported rather than quietly skipped — "we used generation 42 because 43 did not verify" is something you are entitled to know.
+- **Your cloud client left N conflict copies in this folder**, if it has. Those are the client's own duplicates, and they may hold work that never arrived under its proper name.
+
+Before you have looked at all, it says **Not looked yet**, which is also an
+observation rather than a claim.
+
+## Looking at the folder does not download it
+
+Checking the folder reads whether each file is sitting on this computer. It
+does not fetch one.
+
+That distinction is not pedantry, it is measured. Verifying a 26 KB copy's
+contents took **1,474 ms** when it was still in the cloud against **49.7 ms**
+when it was already local, because verifying means reading every byte and
+reading is what makes the cloud client fetch it. A panel that did that on every
+glance would be downloading your whole archive to print a generation number.
+
+The consequence you will see is one honest line, which says that the copy is
+still in the cloud, that its contents have not been checked yet because WIMI
+would have had to download it to do that, and that it is checked when you bring
+it over.
+
+**That is not a failure and is never reported as one.** A copy your other
+computer sent five minutes ago is normally still in the cloud, and the
+alternative — treating "not checked" as "not good" — would make WIMI walk past
+your newest work and name an older copy as the latest. Telling you your newest
+work is missing would be far worse than admitting a check has not run. The
+contents are verified at the moment you actually take the copy, which is when
+it matters.
+
+## Taking a newer copy when nothing has gone wrong
+
+This is the ordinary case: you worked on the desktop, you sent it, and now you
+are at the laptop. It happens at two different moments, and they are two
+different places in the app.
+
+### The first copy on a computer
+
+A computer that has never had this profile has no profile to catch up, so the
+action is not in Settings — it is on the **profile picker**, before anything is
+open, as **Get from a sync folder…** beside **Import profile…**.
+
+It asks for the cloud client and the folder, then lists what it found: which
+computer last sent a copy, when, how many entries it holds, and which
+generation it is. Press **Install** and WIMI brings it over, installs it, and
+**links this computer to that folder** so it sends and receives from here with
+nothing further to set up.
+
+Two things it will say instead:
+
+- **No WIMI profile in this folder yet.** With the useful addition that if your other computer has only just sent one, its cloud client may still be uploading — try again in a minute.
+- **Already on this computer as @name**, in which case the button reads **Open it** rather than **Install**. This is deliberate and not a missing feature: a second copy of the same profile must never be linked to the same folder, because the two would publish into one history and argue with each other forever. The way forward is the copy you already have, caught up from Settings.
+
+### Catching up afterwards
+
+Once the profile is on this computer, a newer copy in the folder appears in
+Settings under **A newer copy is in the folder**, naming the computer that sent
+it, when, and how many entries it holds.
+
+**Before it offers to replace anything, WIMI compares this computer with the
+copy it last sent or took.** That comparison is the point of the panel, and
+what it says depends on what it found:
+
+- **Changes found here.** It names them — entries, sessions and so on, this computer's figure against the figure when it last synced — and then offers you both **Use the newer copy anyway** and **Send mine first**. Sending first keeps both, and then you choose between them.
+- **No changes found.** It says so, and then says what was actually checked: WIMI compares counts and dates, so an edit to an existing entry would not show here. Only **Use the newer copy** is offered.
+- **It could not check.** It says that plainly rather than guessing, and offers both buttons again.
+
+That middle case carries the caveat that matters most in this whole chapter.
+**"No changes found" is not "nothing unsent".** The comparison is six recorded
+figures — how many entries, sessions, exams and subjects, the most recent
+question you sat, and when the profile was last added to — and **rewriting the
+reflection on an entry you already had moves none of them.** If you spent an
+evening improving explanations rather than logging new mistakes, that work is
+real, it is unsent, and this comparison cannot see it.
+
+So if you have been editing rather than adding, send yours first.
+
+Either way, WIMI takes a copy of this computer's profile before it replaces
+anything, and tells you where it put it.
+
+## When both computers changed it
+
+If both computers moved on without seeing each other's work, the folder ends up
+with two copies that neither descends from the other. WIMI calls that out
+rather than picking one.
+
+The panel is hidden until there is something to show — a permanent "no
+conflicts" box is noise that teaches you to ignore it — and when it appears it
+is headed with one of three sentences, because there are three ways to arrive
+here:
+
+- **Two copies have gone their own way.** The ordinary fork: both computers changed the profile independently.
+- **Two copies that have never synced.** The folder already held a copy of this profile that was never synced with this computer's, so neither is newer than the other in any sense WIMI can check. This is what you get when both computers had their own history before you linked them.
+- **Another computer kept a different copy.** Someone sitting at your other computer chose its copy over this one. Nothing has been removed here, and you can still choose.
+
+Under the heading it is explicit that **nothing is lost**: both copies are safe
+in the folder, WIMI saves a backup of this computer's copy before doing
+anything at all, and WIMI will not merge them.
+
+### What it shows you about each copy
+
+One block per copy, with whichever of these it has: the computer's name, and
+which one this computer is holding; how many entries; the range of dates you sat
+questions over; when it was last added to; when it was sent to the folder.
+
+Underneath each, a subject comparison — the subjects that exist in that copy and
+not the other, named, up to eight of them with a count for the rest.
+
+Three details about that comparison are worth knowing, because WIMI is careful
+about them in a way most software is not.
+
+- **"No subjects that the other copy lacks" and "could not compare" are different sentences**, and you get the one that is true. An empty list where the comparison did not run would read as agreement, which would be a lie.
+- **Nothing here compares entries one by one.** When every recorded figure matches, WIMI says exactly that and no more: every figure recorded here is the same on both copies, they may still hold different entries, but there is no evidence of a difference to show you.
+- **If WIMI cannot work out which of the two copies this computer is holding, it refuses to choose from here** rather than guessing. A computer that sent one copy and later took the other would be guessed wrong.
+
+### The three choices
+
+Three buttons, all the same weight, with no default. That is deliberate: there
+is no answer WIMI can recommend.
+
+- **Keep this computer's.** Nothing here changes. The other copy is not deleted — it is saved beside the backup and can still be installed later.
+- **Keep the other one.** The other copy replaces this computer's, and you are told where the previous contents are recoverable from.
+- **Keep both.** The other copy is installed as a **separate profile** beside this one.
+
+**Keep both is a real option and not a dodge**, but understand what you get:
+two independent profiles that happen to have come from one original. Nothing
+merges them afterwards.
+
+**Only one of them stays linked to the folder**, and WIMI tells you so when it
+does it. The original keeps the link; the new copy gets none. The reason is the
+same one the profile picker gives: the two copies share an identity, so they
+would write into the same place in the folder and fork against each other
+indefinitely.
+
+**Leave the second copy unlinked.** If you genuinely want it synced as well,
+give it a folder of its own — never the one the first copy is using.
+
+### Before any of that, an export
+
+**Every one of the three choices exports first, and the export is checked
+before anything else is allowed to happen.** Not "a file was written" — the file
+is read back, its contents are parsed, and its entry count has to match the
+profile it came from. If any of that fails, the whole operation stops and
+nothing is changed.
+
+That export includes your images, unlike the copies WIMI sends to the folder.
+It is a recovery copy rather than a sync payload, and an image you cannot get
+back is the same loss as an entry you cannot get back.
+
+## Your choice stays on this computer until you send it
+
+This is the part that surprises people, and it is the owner's deliberate
+decision rather than an oversight.
+
+**Resolving a fork writes nothing to the folder.** It applies to this computer
+immediately and then waits. The panel says so in a sentence that is never
+rewritten: your choice applies to this computer straight away, the other
+computer is not told until you press Send, so you can check everything here
+first.
+
+While a choice is waiting you get a standing note — not a toast that scrolls
+away — saying you chose which copy to keep but have not sent it yet, what has
+already happened on this computer, and that the other computer will keep seeing
+two copies until you send. **The Send button is relabelled to Send your choice**
+while that is true, so the button itself tells you what is outstanding.
+
+The next send *is* the send. There is no separate confirm step.
+
+### If the folder moved while you were deciding
+
+One refusal exists in that path and it is the right one. If another computer
+published a copy *after* you looked at the fork and before you sent, the send
+**refuses** and says so: the folder has changed since you chose, names what
+appeared, confirms nothing was sent, and asks you to look at the copies again.
+
+The alternative would have been to send anyway and either leave the new copy
+standing — so the fork comes straight back — or quietly retire work nobody has
+looked at. Neither is acceptable, so the send stops.
+
+In that state the pending note turns into a warning and the button goes back to
+**Send this device's copy**, because there is no longer a settled choice to send.
+
+## Your images are not in the folder
+
+**The copies WIMI writes to a sync folder contain your profile's data and none
+of its images.** Images are large, they are added to constantly, and a design
+that wrote them again with every generation would fill a cloud folder quickly.
+
+So:
+
+- **Folder sync is not a backup of your images.** If that is what you want, export a profile file with media included and keep it somewhere — [Profiles, and carrying one to another computer](help_profiles_and_profile_files.html) is how.
+- **Taking the other computer's copy never deletes the images you have here.** WIMI passes the explicit "keep what is here" instruction on that path, exactly because a copy carrying no images would otherwise replace yours with nothing.
+- **An image you attached on the desktop will not appear on the laptop.** The entry and everything you wrote about it will. The picture will be missing on the machine that never had the file.
+
+That last one is the one to weigh before relying on this. If images are central
+to how you study, sync carries the thinking and not the pictures.
+
+## Cloud clients are unpredictable, and that is the honest summary
+
+All of this was tested against a real cloud account on two physically separate
+computers, in both directions. One thing found there is worth passing on
+without a technical tour.
+
+**The same cloud client, the same version, on the same computer, behaved in two
+materially different ways twelve hours apart** — a different way of mounting the
+folder, a different way of marking a file as not-really-here — with no update in
+between, and no way to tell which mode you are in from the outside.
+
+Nothing in WIMI is going to fix that, and the honest conclusion is the
+conservative design you can see everywhere in this feature: never overwrite a
+file, never trust that a write means a sync, never claim a state WIMI cannot
+observe, and always report the observation with the time it was made.
+
+Two practical habits follow:
+
+- **Let a send finish before you quit WIMI.** It is writing into a folder a cloud client is watching, and the client may be slow.
+- **Give the other machine a minute.** "No copy seen yet" a few seconds after the other computer pressed Send is almost always the cloud client, not WIMI.
+
+## Turning it off
+
+Untick **Enable Cloud Sync**. The confirmation is the whole behaviour: *Cloud
+sync turned off. Nothing in the folder was changed.*
+
+WIMI forgets the link between this profile and that folder. It deletes nothing
+from the folder — the archives there are yours, and they stay.
+
+**It forgets the history as well as the folder, and that is worth knowing
+before you untick it casually.** What this computer had sent, and what it last
+took, go with the link. Point the same profile at the same folder again later
+and WIMI no longer knows how this copy relates to what is sitting there: it can
+see the copies, and it cannot tell you whether yours is ahead, behind or the
+same. So after re-linking, **look for a newer copy before you send one**, and
+read what the panel says about the two rather than assuming they match.
+
+**The link is per computer and never travels.** A profile file carrying a link
+would hand the other machine a folder path that means nothing there, so it
+stays behind — which is the same rule as everything else in
+[Profiles, and carrying one to another computer](help_profiles_and_profile_files.html).
+
+## The dashboard will tell you once
+
+If there is something to act on, the dashboard says so on the launch after it
+happens: a fork to settle, a choice you never sent, a copy another computer set
+aside, or a newer copy to take. It carries **Open sync settings** and
+**Dismiss**.
+
+It fires **once per profile per launch**, and only when there is something to
+do. There is no "all good" variant, for the same reason there is no synced
+light: WIMI would be claiming something it cannot see.
+
+## Where to go next
+
+- [Profiles, and carrying one to another computer](help_profiles_and_profile_files.html) — what a profile is, what travels inside one, and the profile file this feature is built on.
+- [Your question bank beside the form](help_question_bank_pane.html) — why the pane's logins do not follow your profile to the second computer.
+- [Archiving a subject, and getting it back](help_archive_and_restore.html) — the other place in WIMI where something is kept rather than erased.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

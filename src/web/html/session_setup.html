@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="../css/session.css">
     <link rel="stylesheet" href="../css/export_dialog.css">
     <link rel="stylesheet" href="../css/session_import.css">
+    <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -91,25 +93,31 @@
 
         <!-- Main Content -->
         <main class="session-content">
-            <!-- Previous Sessions Section -->
-            <section class="previous-sessions-section" id="previous-sessions-section">
-                <h2 class="section-title">
-                    <span class="section-icon">📋</span>
-                    Previous Sessions
-                </h2>
-                
-                <div class="sessions-scroll-container" id="previous-sessions-container">
-                    <!-- Session cards will be rendered here -->
-                    <div class="session-loading" id="sessions-loading">
-                        <div class="spinner"></div>
-                        <span>Loading sessions...</span>
-                    </div>
-                </div>
-                
-                <div class="sessions-empty hidden" id="sessions-empty">
-                    <p>No previous review sessions for this exam.</p>
-                </div>
-            </section>
+            <!--
+              #313: START NEW SESSION COMES FIRST, and this is a source-order
+              change on purpose rather than a CSS `order` or a flex-reverse.
+
+              It was below a horizontally scrolling strip of every previous
+              session — 39 cards on the profile this was measured against,
+              with no search and no sort — so the page's main action needed a
+              scroll to reach at 1130x689.
+
+              Source order is what moves the TAB ORDER with it. Reordering
+              visually while leaving the DOM alone would put the main action
+              on screen first and still make a keyboard user traverse every
+              card in the strip to reach it, which is the same defect wearing
+              a fix.
+
+              Nothing here depends on the old order: both sections are
+              siblings under `.session-content` whose only layout rule is
+              `margin-bottom`, and `session.css` has no sibling or
+              `nth-child` selector between them. Checked rather than assumed.
+
+              Not in scope: the four equal-weight buttons on each session card
+              (Review / Edit / Export IDs / Delete). Giving Delete the same
+              prominence as Review on unrecoverable work is #316, a separate
+              bug, and #313's decision does not cover it.
+            -->
 
             <!-- New Session Section -->
             <section class="new-session-section">
@@ -139,7 +147,7 @@
                                 <div class="source-select-container" id="source-select-container" data-testid="session-source-select">
                                     <!-- Custom select will be rendered here -->
                                 </div>
-                                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source" data-testid="session-add-source">
                                     + Add New
                                 </button>
                             </div>
@@ -149,7 +157,7 @@
                         <!-- Date Encountered -->
                         <div class="form-group">
                             <label for="session-date">Date Encountered <span class="required">*</span></label>
-                            <input type="date" id="session-date">
+                            <input type="date" id="session-date" data-testid="session-date-encountered">
                             <p class="form-help">When did you take this practice test?</p>
                         </div>
 
@@ -162,7 +170,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="session-total-incorrect">Questions Incorrect <span class="required">*</span></label>
-                                <input type="number" id="session-total-incorrect" min="0" max="1000" placeholder="e.g., 12">
+                                <input type="number" id="session-total-incorrect" min="0" max="1000" placeholder="e.g., 12" data-testid="session-questions-incorrect">
                                 <p class="form-help">How many did you get wrong?</p>
                             </div>
                         </div>
@@ -171,7 +179,7 @@
                         <div class="form-group">
                             <label for="session-duration-preset">Session Duration <span class="optional">(optional)</span></label>
                             <div class="duration-input-group">
-                                <select id="session-duration-preset">
+                                <select id="session-duration-preset" data-tour-anchor="session-duration">
                                     <option value="0">No Limit</option>
                                     <option value="15">15 minutes</option>
                                     <option value="25">25 minutes</option>
@@ -209,6 +217,26 @@
                             Start Session
                         </button>
                     </div>
+                </div>
+            </section>
+
+            <!-- Previous Sessions Section. Below the main action since #313. -->
+            <section class="previous-sessions-section" id="previous-sessions-section">
+                <h2 class="section-title">
+                    <span class="section-icon">📋</span>
+                    Previous Sessions
+                </h2>
+
+                <div class="sessions-scroll-container" id="previous-sessions-container">
+                    <!-- Session cards will be rendered here -->
+                    <div class="session-loading" id="sessions-loading">
+                        <div class="spinner"></div>
+                        <span>Loading sessions...</span>
+                    </div>
+                </div>
+
+                <div class="sessions-empty hidden" id="sessions-empty">
+                    <p>No previous review sessions for this exam.</p>
                 </div>
             </section>
             <div data-plugin-slot="session-after-cards"></div>
@@ -627,6 +655,10 @@
     </div>
 
     <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         session_setup.js starts it once the page gate has released. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/session_setup.js"></script>
     <script src="../js/session_import.js"></script>
 </body>

@@ -33,6 +33,7 @@ from app.profile_archive import (
     # Same-feature private helpers: the preview's collision report must
     # match exactly what install_profile_as_new will do on import.
     _next_free_username,
+    _read_profile_uuid,
     _sanitize_candidate_username,
 )
 
@@ -195,6 +196,8 @@ class ProfileTransferBridgeMixin:
               pending_versions}
             - media: {included, file_count, total_bytes, db_references_media}
             - collision: {username_exists, suggested_username}
+            - already_installed_as: [{user_id, username, display_name}] --
+              local profiles carrying this archive's profile id (#498)
             - replace_targets: active profiles [{user_id, username,
               display_name, is_current, media_file_count}]
             - required_bytes, free_bytes
@@ -218,6 +221,7 @@ class ProfileTransferBridgeMixin:
                 db_temp = tmp_dir / DB_MEMBER
                 preflight = preflight_schema(db_temp)
                 db_references_media = self._count_db_media_references(db_temp)
+                incoming_uuid = _read_profile_uuid(db_temp)
             finally:
                 shutil.rmtree(str(tmp_dir), ignore_errors=True)
 
@@ -225,6 +229,19 @@ class ProfileTransferBridgeMixin:
             base = _sanitize_candidate_username(manifest_user.get('username'))
             username_exists = self.master_db.get_user_by_username(base) is not None
             suggested_username = _next_free_username(self.master_db, base)
+
+            # Is this profile already on this computer (#498)? The same lookup
+            # install_profile_as_new makes -- but there it only reached the
+            # student as a toast after the second copy existed. Asked here so
+            # the preview can say it while Cancel is still available. A
+            # username collision is a different question: a renamed copy of
+            # one profile collides on neither, and two unrelated profiles can
+            # share a username.
+            already_installed_as = [
+                {'user_id': u.id, 'username': u.username,
+                 'display_name': u.display_name}
+                for u in self.master_db.find_users_by_profile_uuid(incoming_uuid)
+            ] if incoming_uuid else []
 
             current_user_id = self._current_user_id()
             replace_targets = [
@@ -254,6 +271,9 @@ class ProfileTransferBridgeMixin:
                     'archive_version': preflight['archive_max_version'],
                     'local_version': preflight['local_max_version'],
                     'verdict': preflight['verdict'],
+                    # Read this, not the verdict, to decide whether the
+                    # archive may be installed (#593).
+                    'blocked': preflight['blocked'],
                     'reason': preflight['reason'],
                     'pending_versions': preflight['pending_versions'],
                 },
@@ -269,6 +289,7 @@ class ProfileTransferBridgeMixin:
                     'username_exists': username_exists,
                     'suggested_username': suggested_username,
                 },
+                'already_installed_as': already_installed_as,
                 'replace_targets': replace_targets,
                 'required_bytes': required_bytes,
                 'free_bytes': free_bytes,

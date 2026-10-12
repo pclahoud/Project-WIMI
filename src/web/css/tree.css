@@ -324,7 +324,7 @@ mark.tree-search-highlight {
 }
 
 .tree-node-content:has(> .tree-node-name:focus-visible) {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: -2px;
     border-radius: var(--radius-md);
 }
@@ -590,11 +590,27 @@ mark.tree-search-highlight {
     word-wrap: break-word;
 }
 
+/* THE #308 WRAP IS GONE, AND DROPPING THE CAPS IS WHAT FIXED IT (#346, owner
+   2026-10-10). This rule used to read:
+
+       At the 12px floor (#308) "PRIMARY · CANONICAL BREADCRUMB" wraps to two
+       lines in the 225px parents column at 1130px. Accepted on the owner's
+       decision (2026-10-06): a wrap is a layout cost, 11px a readability one.
+       Shortening the copy or dropping the caps is #346's undecided pass.
+
+   #346 settled that pass and the carve-out it cites is therefore spent. The
+   text-transform went, and the same string measured 36px (two lines) before
+   and 18px (one line) after, in the same 225px column — so the floor and the
+   single line are no longer in tension and neither has to be traded away.
+
+   The copy above it changed in the same commit: "primary · canonical
+   breadcrumb" was vocabulary for us, not for a student. It now says what the
+   primary parent does, in chapter 11's own words. Keep any replacement under
+   roughly 33 characters or it wraps again, which is measured per candidate in
+   #346 rather than guessed. */
 .parent-row-meta {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin-top: 0.125rem;
 }
 
@@ -734,7 +750,7 @@ mark.tree-search-highlight {
 }
 
 .parents-picker-result-reason {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--color-warning-text);
     font-style: italic;
     margin-top: 0.125rem;
@@ -808,7 +824,7 @@ mark.tree-search-highlight {
    a ring, since `.tree-node-actions` reveals them on row hover and a
    keyboard user had nothing to go on (#304's family). */
 .tree-action-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -859,6 +875,21 @@ mark.tree-search-highlight {
     position: relative;
 }
 
+/* The panel's status line (#345): read by assistive tech, never painted.
+   Clipped rather than `display: none` / `visibility: hidden`, both of which
+   remove it from the accessibility tree -- the same rule as `.page-gate`. */
+.details-announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* Sticky header. Sits above the body-scroll context. The 3px primary-color
    left-edge accent matches the right-edge accent on the selected tree row
    for visual continuity between selection and inspector. */
@@ -872,13 +903,30 @@ mark.tree-search-highlight {
     box-shadow: inset 3px 0 0 0 var(--color-primary, #2563eb);
 }
 
-.details-panel-eyebrow {
-    font-size: 0.6875rem;
-    font-weight: var(--font-weight-semibold);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-primary-text, #2563eb);
+/* Eyebrow on the left, the way back to the overview (#343) on the right. */
+.details-panel-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
     margin-bottom: 0.375rem;
+}
+
+.details-panel-eyebrow {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-text, #2563eb);
+}
+
+/* Compact, because every pixel of this sticky header is taken from the body
+   underneath it (#342) -- but never under the 24 px target-size floor. */
+.details-overview-link {
+    flex-shrink: 0;
+    min-height: 1.5rem;
+    padding: 0.125rem var(--space-sm);
+    /* Pull the button's own padding into the header's gutter so its text,
+       not its box, lines up with the panel's right inset. */
+    margin-right: calc(-1 * var(--space-sm));
 }
 
 .details-title {
@@ -965,42 +1013,18 @@ mark.tree-search-highlight {
     font-size: var(--font-size-sm);
     color: var(--text-muted);
     margin: 0;
-    max-width: 16rem;
+    max-width: 12.5rem;
     line-height: 1.5;
 }
 
-.details-placeholder-text {
-    margin: 0;
-    max-width: 12.5rem;
-}
-
-/* Details Content */
-.details-content {
-    padding: var(--space-lg);
-}
-
-.details-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-lg);
-    padding-bottom: var(--space-md);
-    border-bottom: 1px solid var(--border-light);
-}
-
-.details-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
-    margin: 0;
-}
-
-.details-level {
-    font-size: var(--font-size-sm);
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-full);
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-}
+/* No rules for `.details-content` itself (#344). A pre-sticky-header block
+   used to follow here -- `.details-content { padding }`, a second
+   `.details-title { margin: 0 }`, and `.details-header` / `.details-level`,
+   which matched nothing. Coming later at equal specificity it won: the
+   padding inset the sticky header 25 px from the panel edge (so the accent
+   above no longer met the selected row's) and the margin flushed the title
+   onto its subtitle. The header and body carry their own insets; nothing
+   belongs on the wrapper. tests/test_tree_details_css.py guards it. */
 
 /* Sections */
 .details-section {
@@ -1011,8 +1035,6 @@ mark.tree-search-highlight {
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin: 0 0 var(--space-md) 0;
 }
 
@@ -1295,33 +1317,13 @@ mark.tree-search-highlight {
     margin-bottom: var(--space-lg);
 }
 
-.overview-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-md);
-    margin-bottom: var(--space-xl);
-}
-
-.overview-stat {
-    text-align: center;
-    padding: var(--space-md);
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-md);
-}
-
-.overview-stat-value {
-    display: block;
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
-    color: var(--color-primary-text);
-    line-height: 1.2;
-}
-
-.overview-stat-label {
-    display: block;
+/* The sentence that replaced the three-box stat row (#346). Three tiles each
+   held one scalar, and the quantity they were holding is a band: "Total
+   Weight" rendered "61-100%" wrapped over two lines inside a 103 px box. */
+.overview-summary {
     font-size: var(--font-size-sm);
-    color: var(--text-muted);
-    margin-top: var(--space-xs);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
 }
 
 .overview-section {
@@ -1365,66 +1367,164 @@ mark.tree-search-highlight {
     border-radius: var(--radius-full);
 }
 
-/* Pie Chart */
-.pie-chart-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: var(--space-lg);
+/* =========================================================================
+   Range-bar list — the weight-distribution donut's replacement (#346, #347)
+   =========================================================================
+
+   One row per root subject, its published band drawn against one shared
+   horizontal axis. The donut this replaced normalised the roots' LOW bounds
+   to 360 degrees, so it drew a 7-11% subject at 11.5% of the ring under a
+   7.0% label, and its 15 literal hexes were measured identical under
+   `default`, `midnight` and `high_contrast`. Everything below takes its
+   colour from a token for that reason; there is no series palette because
+   there is no series — one axis, one meaning, one fill.
+
+   The whole list is ONE grid template repeated per row, which is what makes
+   "shared axis" true rather than approximate: `.weight-range-track` is
+   column 1 in every row and in the ruler, so a tick at 10% is the same x in
+   all of them. Changing the column template in one place and not the other
+   silently decouples the bars from their own scale. */
+
+.weight-range-chart {
+    /* Each row and the ruler resolve their columns against this width. */
+    --weight-range-value-col: 4.75rem;
 }
 
-.pie-chart {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+.weight-range-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
-.pie-slice {
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    transform-origin: center;
-}
-
-.pie-slice:hover {
-    opacity: 0.85;
-    transform: scale(1.02);
-}
-
-.pie-legend {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-}
-
-.pie-legend-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+.weight-range-row {
+    display: grid;
+    grid-template-columns: 1fr var(--weight-range-value-col);
+    column-gap: var(--space-sm);
+    row-gap: 0.25rem;
+    width: 100%;
+    padding: var(--space-sm);
+    border: none;
+    background: transparent;
     border-radius: var(--radius-md);
+    font: inherit;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
     transition: background-color 0.15s ease;
 }
 
-.pie-legend-item:hover {
-    background: var(--bg-tertiary);
+/* `--bg-secondary`, not `--bg-tertiary`: the track is `--bg-tertiary`, and a
+   row hover painted the same colour swallows the thing being hovered. */
+.weight-range-row:hover {
+    background: var(--bg-secondary);
 }
 
-.pie-legend-color {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: var(--radius-sm);
-    flex-shrink: 0;
-}
-
-.pie-legend-name {
-    flex: 1;
+.weight-range-name {
+    grid-column: 1 / -1;
     font-size: var(--font-size-sm);
     color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.pie-legend-value {
+.weight-range-track {
+    grid-column: 1;
+    align-self: center;
+    position: relative;
+    height: 0.625rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-tertiary);
+    /* The shared scale, drawn inside every bar. `--axis-step` is written
+       inline by `renderWeightRangeChart` because it is a property of this
+       exam's numbers. Absent, the declaration is dropped and the track keeps
+       its background colour — the bars stay correct, they just lose their
+       gridlines. */
+    background-image: repeating-linear-gradient(to right,
+        var(--border-color) 0 1px, transparent 1px var(--axis-step));
+    /* An inset ring rather than a border: a border would move the mark's
+       percentage origin by a pixel, and these percentages are the claim. */
+    box-shadow: inset 0 0 0 1px var(--border-light);
+}
+
+.weight-range-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--band-left);
+    width: var(--band-width);
+    /* A band narrower than this still has to be visible; it must never be
+       nudged to the left, which is why the floor is on the width alone. */
+    min-width: 0.25rem;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+}
+
+/* A single value is not a one-pixel range. It renders as a tick standing
+   proud of the track, so "this subject is 5%" cannot be misread as "this
+   subject is 5% to about 5.2%". `clamp` keeps a tick at either end of the
+   axis inside the track rather than half-drawn outside it. */
+.weight-range-mark.is-point {
+    width: 0.1875rem;
+    min-width: 0;
+    left: clamp(0px, calc(var(--band-left) - 0.09375rem),
+                calc(100% - 0.1875rem));
+    top: -0.1875rem;
+    bottom: -0.1875rem;
+    border-radius: 1px;
+}
+
+.weight-range-value {
+    grid-column: 2;
+    align-self: center;
+    text-align: right;
     font-size: var(--font-size-sm);
     font-weight: 600;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* No weights anywhere is a real state on a tree a student has just started.
+   The rows keep their names, their figures and their keyboard route; only
+   the scale goes, because eleven marks stacked on the origin would say
+   nothing and imply a measurement. */
+.weight-range-list.is-unweighted .weight-range-name {
+    grid-column: 1;
+}
+
+.weight-range-axis {
+    display: grid;
+    grid-template-columns: 1fr var(--weight-range-value-col);
+    column-gap: var(--space-sm);
+    padding: 0 var(--space-sm);
+}
+
+.weight-range-scale {
+    grid-column: 1;
+    position: relative;
+    display: block;
+    height: 1.125rem;
+}
+
+.weight-range-tick {
+    position: absolute;
+    top: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+/* The end labels sit inside the axis instead of hanging off it. */
+.weight-range-tick.is-first {
+    transform: none;
+}
+
+.weight-range-tick.is-last {
+    transform: translateX(-100%);
+}
+
+.weight-range-total {
+    margin-top: var(--space-md);
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
 }
 
@@ -1439,14 +1539,33 @@ mark.tree-search-highlight {
    ========================================================================= */
 
 @media (max-width: 900px) {
-    .tree-content {
-        grid-template-columns: 1fr;
+    /* Stacked layout (#342). The page is a fixed 100vh frame, and above the
+       panes the header, dimension bar and wrapped toolbar take ~390 px of a
+       ~620 px window, so the two stacked panes used to split the remaining
+       230 px: the details panel got 91 px, under its own 106 px sticky
+       header, and showed no body at all. (`max-height: 50vh` was never the
+       binding constraint.) Here the page scrolls instead, and each pane gets
+       a height of its own. The details panel takes most of a viewport, so a
+       student scrolls the page down to it and then works inside it with the
+       sticky header still doing its job. */
+    .tree-page {
+        overflow-y: auto;
     }
-    
+
+    .tree-content {
+        flex: none;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+    }
+
+    .tree-panel {
+        height: clamp(15rem, 45vh, 30rem);
+    }
+
     .details-panel {
         border-left: none;
         border-top: 1px solid var(--border-light);
-        max-height: 50vh;
+        height: max(20rem, 85vh);
     }
     
     .tree-header {
@@ -1608,15 +1727,21 @@ mark.tree-search-highlight {
 }
 
 .dimension-tab-badge {
-    font-size: 0.7rem;
+    font-size: var(--font-size-xs);
     padding: 0.125rem 0.375rem;
     background: var(--bg-tertiary, rgba(0, 0, 0, 0.1));
     border-radius: var(--radius-sm);
-    text-transform: uppercase;
 }
 
+/* On the selected tab the chip sits on the primary tint, so it needs the
+   text token made for that tint. It used to inherit the tab's
+   `--text-inverse`, which is chosen for the solid primary fill: dark on a
+   dark tint in every dark theme, and unreadable. `--color-primary-text`
+   on `--color-primary-bg` is the pair test_theme_text_contrast.py holds to
+   4.5:1 in every theme. */
 .dimension-tab.active .dimension-tab-badge {
     background: var(--color-primary-bg, rgba(255, 255, 255, 0.25));
+    color: var(--color-primary-text);
 }
 
 /* =========================================================================
@@ -2004,4 +2129,139 @@ mark.tree-search-highlight {
     margin: 0;
     font-size: var(--font-size-xs);
     color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Subjects not in any axis (#605, owner 2026-10-10)
+
+   Mirrors `.archived-panel` above, because the owner chose that pattern and
+   two collapsed panels at the foot of the same tree that looked different
+   would suggest they worked differently. What distinguishes this one is its
+   heading, its hint, and the fact that its rows carry an action.
+   ========================================================================== */
+
+.unassigned-panel {
+    margin-top: var(--space-xl);
+    border-top: 1px solid var(--border-light);
+    padding-top: var(--space-md);
+}
+
+.unassigned-panel-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: var(--space-sm) var(--space-xs);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+}
+
+.unassigned-panel-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.unassigned-panel-arrow {
+    display: inline-block;
+    transition: transform var(--transition-fast);
+    color: var(--text-muted);
+}
+
+.unassigned-panel.open .unassigned-panel-arrow {
+    transform: rotate(90deg);
+}
+
+.unassigned-panel-title {
+    flex: 1;
+    text-align: left;
+}
+
+.unassigned-panel-count {
+    min-width: 1.5rem;
+    padding: 0 var(--space-xs);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    text-align: center;
+}
+
+.unassigned-panel-body {
+    padding: var(--space-sm) var(--space-xs) 0;
+}
+
+.unassigned-panel-hint {
+    margin: 0 0 var(--space-md);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-relaxed);
+    color: var(--text-muted);
+}
+
+.unassigned-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.unassigned-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.unassigned-row-name {
+    flex: 1;
+    min-width: 8rem;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    word-wrap: break-word;
+}
+
+.unassigned-row-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.unassigned-row-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.unassigned-row-select {
+    font-family: var(--font-family);
+    font-size: var(--font-size-xs);
+    padding: 0.25rem 0.375rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* No active axis to move into: a sentence, never a disabled control that
+   hides its reason in a title (#174, #678). */
+.unassigned-row-note {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.unassigned-empty {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    padding: var(--space-sm);
 }

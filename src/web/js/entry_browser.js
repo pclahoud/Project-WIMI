@@ -30,6 +30,11 @@ class EntryBrowser {
             isDraft: null
         };
 
+        // The Date preset last APPLIED (#521). The highlighted preset in the
+        // dropdown is only a pending choice; this is what is in force, and
+        // opening the dropdown puts the highlight back on it.
+        this.appliedDatePreset = 'all';
+
         // Search prefix definitions for autocomplete
         this.SEARCH_PREFIXES = [
             { name: 'user_answer:', description: "User's answer" },
@@ -138,7 +143,14 @@ class EntryBrowser {
                         this.perPage = prefs.entry_review_items_per_page;
                     }
                     if (prefs.entry_review_default_sort_field) {
-                        this.filters.sortBy = prefs.entry_review_default_sort_field;
+                        // The shipped default, 'answered_incorrectly_date',
+                        // is none of the sort control's four values; the
+                        // backend falls back to date_desc for it, so name
+                        // that here or the control shows its placeholder
+                        // while newest-first is in force (#476).
+                        const field = prefs.entry_review_default_sort_field;
+                        this.filters.sortBy =
+                            field === 'answered_incorrectly_date' ? 'date_desc' : field;
                     }
                 }
             } catch (e) {
@@ -160,6 +172,24 @@ class EntryBrowser {
             // api.ready(). See markPageReady() for why it is here rather than
             // after the last statement above.
             this.markPageReady();
+            this.startTour();
+        }
+    }
+
+    /**
+     * The first-run tour (#430). Called once the page gate has released, and
+     * again when a filter panel opens: the Subject panel's Apply button and
+     * its Include child subjects box exist on screen only while it is open,
+     * and tour.js rebuilds an open tour from what renders now. A no-op before
+     * the release, when .app-container is inert. Behind a typeof check and a
+     * try, so a broken tour cannot break the page.
+     */
+    startTour() {
+        if (!this.isPageReady) return;
+        try {
+            if (typeof WimiTour !== 'undefined') WimiTour.start('entry-browser');
+        } catch (e) {
+            console.error('Tour failed to start:', e);
         }
     }
     
@@ -309,6 +339,9 @@ class EntryBrowser {
                 this.resetAndLoad();
             }
         });
+        // The tour's sort step points at the control a student presses, not
+        // its container, whose text includes every option (#682).
+        this.sortSelect.trigger?.setAttribute('data-tour-anchor', 'browser-sort-trigger');
         
         // Draft toggle
         this.elements.showDraftsOnly.addEventListener('change', (e) => {
@@ -402,7 +435,11 @@ class EntryBrowser {
             const isOpen = filterGroup.classList.contains('open');
             this.closeAllDropdowns();
             if (!isOpen) {
+                if (name === 'date') {
+                    this.syncDateControlsToApplied();
+                }
                 filterGroup.classList.add('open');
+                this.startTour();
             }
         });
     }
@@ -611,7 +648,7 @@ class EntryBrowser {
             }
             this.totalEntries = result.total;
             
-            this.renderEntries(append);
+            this.renderEntries(append, result.entries);
             this.updatePagination();
             this.updateActiveFilters();
             
@@ -621,7 +658,16 @@ class EntryBrowser {
         }
     }
     
-    renderEntries(append = false) {
+    /**
+     * Draw the grid. On a Load More press (`append`), draw exactly the rows
+     * that page returned -- `newEntries` -- and nothing else (#467).
+     *
+     * This used to slice the accumulated array from `length - perPage`,
+     * which assumes the page just appended was FULL. The last page usually
+     * is not: 14 entries at 10 per page appended entries 5-14 onto a grid
+     * already holding 1-10, i.e. 20 cards under "Showing 1-14 of 14".
+     */
+    renderEntries(append = false, newEntries = null) {
         this.hideLoading();
         
         if (this.entries.length === 0) {
@@ -636,8 +682,7 @@ class EntryBrowser {
             this.elements.entryGrid.innerHTML = '';
         }
         
-        const startIdx = append ? this.entries.length - this.perPage : 0;
-        const entriesToRender = append ? this.entries.slice(startIdx) : this.entries;
+        const entriesToRender = append ? (newEntries || []) : this.entries;
         
         entriesToRender.forEach(entry => {
             const card = this.createEntryCard(entry);
@@ -700,6 +745,9 @@ class EntryBrowser {
         const dateEl = card.querySelector('.entry-date');
         if (entry.session_date) {
             dateEl.textContent = this.formatDate(entry.session_date);
+            // The tour's card step says this date is the session's Date
+            // Encountered, so only a date that is one carries its anchor.
+            dateEl.setAttribute('data-tour-anchor', 'browser-row-date');
         } else {
             dateEl.textContent = this.formatDate(entry.created_at);
         }
@@ -1260,52 +1308,61 @@ class EntryBrowser {
         return { plainText, fieldFilters };
     }
     
+    /**
+     * A preset click only moves the highlight and shows or hides the
+     * custom-range panel (#521). It used to write filters.dateFrom/dateTo
+     * here, so a preset clicked and abandoned without Apply was carried into
+     * the next unrelated filter change. applyDateFilter() is what puts a
+     * range in force.
+     */
     handleDatePreset(range) {
         document.querySelectorAll('.date-preset').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.range === range);
         });
-        
-        const customRange = document.getElementById('customDateRange');
-        
-        if (range === 'custom') {
-            customRange.style.display = 'block';
-            return;
-        }
-        
-        customRange.style.display = 'none';
-        
+        document.getElementById('customDateRange').style.display =
+            range === 'custom' ? 'block' : 'none';
+    }
+
+    /** The bounds a non-custom preset stands for, computed now. */
+    datePresetBounds(range) {
         const today = new Date();
-        let dateFrom = null;
-        let dateTo = null;
-        
+        const daysAgo = (n) => {
+            const d = new Date();
+            d.setDate(d.getDate() - n);
+            return this.formatDateISO(d);
+        };
         switch (range) {
             case 'today':
-                dateFrom = this.formatDateISO(today);
-                dateTo = this.formatDateISO(today);
-                break;
+                return { from: this.formatDateISO(today), to: this.formatDateISO(today) };
             case '7days':
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                dateFrom = this.formatDateISO(sevenDaysAgo);
-                dateTo = this.formatDateISO(new Date());
-                break;
+                return { from: daysAgo(7), to: this.formatDateISO(today) };
             case '30days':
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                dateFrom = this.formatDateISO(thirtyDaysAgo);
-                dateTo = this.formatDateISO(new Date());
-                break;
+                return { from: daysAgo(30), to: this.formatDateISO(today) };
             case 'month':
-                dateFrom = this.formatDateISO(new Date(today.getFullYear(), today.getMonth(), 1));
-                dateTo = this.formatDateISO(new Date());
-                break;
+                return {
+                    from: this.formatDateISO(new Date(today.getFullYear(), today.getMonth(), 1)),
+                    to: this.formatDateISO(today),
+                };
             case 'all':
             default:
-                break;
+                return { from: null, to: null };
         }
-        
-        this.filters.dateFrom = dateFrom;
-        this.filters.dateTo = dateTo;
+    }
+
+    /**
+     * Put the dropdown back on the state in force before it opens (#521):
+     * the applied preset highlighted, the custom panel shown only for an
+     * applied Custom range, and the inputs holding that range or nothing.
+     * Whatever was clicked or typed and then abandoned without Apply is
+     * discarded here, so the dropdown never shows a state that is not
+     * filtering the list.
+     */
+    syncDateControlsToApplied() {
+        const range = this.appliedDatePreset;
+        this.handleDatePreset(range);
+        const custom = range === 'custom';
+        document.getElementById('dateFrom').value = custom ? (this.filters.dateFrom || '') : '';
+        document.getElementById('dateTo').value = custom ? (this.filters.dateTo || '') : '';
     }
     
     applySubjectFilter() {
@@ -1342,21 +1399,66 @@ class EntryBrowser {
         });
     }
     
+    /**
+     * Apply whichever date preset is active in the dropdown (#475).
+     *
+     * The active preset decides, not the two date inputs: they used to be
+     * read on every Apply and could only ever ADD a bound, so once a range
+     * had been typed nothing -- All Time, the chip's cross, Clear all --
+     * could take it off again. They are now read only for Custom Range and
+     * cleared for every other preset. The button names the preset in
+     * force; "Custom" is reserved for a typed range.
+     */
     applyDateFilter() {
-        const customFrom = document.getElementById('dateFrom').value;
-        const customTo = document.getElementById('dateTo').value;
-        
-        if (customFrom) this.filters.dateFrom = customFrom;
-        if (customTo) this.filters.dateTo = customTo;
-        
-        if (this.filters.dateFrom || this.filters.dateTo) {
-            this.elements.dateFilterValue.textContent = 'Custom';
+        const active = document.querySelector('.date-preset.active');
+        const range = active ? active.dataset.range : 'all';
+
+        if (range === 'custom') {
+            const customFrom = document.getElementById('dateFrom').value;
+            const customTo = document.getElementById('dateTo').value;
+            if (customFrom || customTo) {
+                this.filters.dateFrom = customFrom || null;
+                this.filters.dateTo = customTo || null;
+                this.appliedDatePreset = 'custom';
+                this.elements.dateFilterValue.textContent = 'Custom';
+            } else {
+                // Custom Range with nothing typed is no range at all.
+                this.resetDateControls();
+            }
         } else {
-            this.elements.dateFilterValue.textContent = 'All Time';
+            // Computed at Apply -- the only place a preset's range is put in
+            // force (#521) -- then the stale typed range is cleared.
+            const bounds = this.datePresetBounds(range);
+            this.filters.dateFrom = bounds.from;
+            this.filters.dateTo = bounds.to;
+            this.appliedDatePreset = range;
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            this.elements.dateFilterValue.textContent =
+                range === 'all' ? 'All Time' : active.textContent.trim();
         }
-        
+
         this.closeAllDropdowns();
         this.resetAndLoad();
+    }
+
+    /**
+     * Put the date filter and its dropdown back to All Time: the filter,
+     * the button label, the active preset and both date inputs (#475).
+     * Shared by Clear all and the date chip's cross, so neither leaves a
+     * typed range behind for the next Apply to restore.
+     */
+    resetDateControls() {
+        this.filters.dateFrom = null;
+        this.filters.dateTo = null;
+        this.appliedDatePreset = 'all';
+        this.elements.dateFilterValue.textContent = 'All Time';
+        document.getElementById('dateFrom').value = '';
+        document.getElementById('dateTo').value = '';
+        document.getElementById('customDateRange').style.display = 'none';
+        document.querySelectorAll('.date-preset').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.range === 'all');
+        });
     }
     
     applySessionFilter() {
@@ -1410,29 +1512,11 @@ class EntryBrowser {
         this.clearTagSelection();
         this.clearSessionSelection();
         
-        document.querySelectorAll('.date-preset').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.range === 'all');
-        });
-        
+        this.resetDateControls();
+
         this.resetAndLoad();
     }
     
-    /**
-     * Escape for interpolation inside a DOUBLE-QUOTED HTML attribute.
-     *
-     * A filter chip's label can carry the student's own search text
-     * verbatim (`Search: "<query>"`), so an attribute built from it needs
-     * `"`, `&`, `<` and `>` escaped or the attribute ends early.
-     *
-     * Note the *visible* half of this markup interpolates `chip.label`
-     * unescaped, which predates this change and is filed separately rather
-     * than widened into here.
-     */
-    escapeAttr(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : text;
-        return div.innerHTML.replace(/"/g, '&quot;');
-    }
 
     updateActiveFilters() {
         const chips = [];
@@ -1473,9 +1557,9 @@ class EntryBrowser {
         // applied. Same change, same reason, named in the PR rather than
         // left for a second pass.
         this.elements.filterChips.innerHTML = chips.map(chip => `
-            <span class="filter-chip" data-testid="browser-filter-chip-${chip.type}">
-                ${chip.label}
-                <button type="button" class="remove-chip" data-type="${chip.type}" data-testid="browser-filter-chip-${chip.type}-remove" aria-label="Remove filter ${this.escapeAttr(chip.label)}">×</button>
+            <span class="filter-chip" data-testid="browser-filter-chip-${WimiEscape.attr(chip.type)}">
+                ${WimiEscape.attr(chip.label)}
+                <button type="button" class="remove-chip" data-type="${WimiEscape.attr(chip.type)}" data-testid="browser-filter-chip-${WimiEscape.attr(chip.type)}-remove" aria-label="Remove filter ${WimiEscape.attr(chip.label)}">×</button>
             </span>
         `).join('');
         
@@ -1513,9 +1597,7 @@ class EntryBrowser {
                 this.clearTagSelection();
                 break;
             case 'date':
-                this.filters.dateFrom = null;
-                this.filters.dateTo = null;
-                this.elements.dateFilterValue.textContent = 'All Time';
+                this.resetDateControls();
                 break;
             case 'session':
                 this.filters.sessionId = null;
@@ -1664,6 +1746,10 @@ class EntryBrowser {
         // Re-render cards to show checkboxes
         this.renderEntries(false);
         this.updateSelectionUI();
+
+        // The selection toolbar exists on screen only from here, so the tour
+        // rebuilds to reach its step (Export All Visible, #682).
+        this.startTour();
     }
 
     exitSelectionMode() {

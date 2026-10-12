@@ -232,6 +232,66 @@ class DimensionBridgeMixin:
 
     @pyqtSlot(int, result=str)
     @instrumented_slot
+    def getSubjectsOutsideAnyAxis(self, exam_context_id: int) -> str:
+        """Active subjects on a dimensioned exam that sit in no axis (#605).
+
+        What the tree editor's "Subjects not in any axis" panel lists. Roots
+        only, each with the size of the subtree that would travel with it.
+
+        An empty list is the healthy answer and the panel hides on it, so
+        this is called on every tree load and must stay cheap.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            subjects = self.user_db.get_subjects_outside_any_axis(
+                exam_context_id)
+            return serialize_response(True, data={'subjects': subjects})
+        except Exception as e:
+            self._log_error(f'Error listing subjects outside any axis: {e}', {
+                'exam_context_id': exam_context_id
+            })
+            return serialize_response(
+                False, error=f'Failed to list subjects outside any axis: {e}')
+
+    @pyqtSlot('QVariantList', int, result=str)
+    @instrumented_slot
+    def moveSubjectsIntoAxis(self, subject_ids, dimension_id: int) -> str:
+        """Move subjects and their subtrees into an axis (#605).
+
+        The owner's decision, 2026-10-10: the panel is a place the student
+        resolves these from, not a holding pen.
+
+        The domain method returns its refusals as sentences rather than
+        raising, and they reach the page as ``success=false`` carrying that
+        text -- #240's rule, because a call reporting ``0 moved`` alongside
+        ``success`` is indistinguishable from one that worked.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            ids = [int(subject_id) for subject_id in (subject_ids or [])]
+        except (TypeError, ValueError):
+            return serialize_response(
+                False, error='Those subject ids are not valid.')
+
+        try:
+            result = self.user_db.move_subjects_into_axis(ids, dimension_id)
+            if not result.get('success'):
+                return serialize_response(
+                    False, error=result.get('error', 'Could not move them.'))
+            return serialize_response(True, data=result)
+        except Exception as e:
+            self._log_error(f'Error moving subjects into an axis: {e}', {
+                'dimension_id': dimension_id, 'subject_ids': ids
+            })
+            return serialize_response(
+                False, error=f'Failed to move subjects into the axis: {e}')
+
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
     def deleteDimension(self, dimension_id: int) -> str:
         """Archive a dimension and the subject trees inside it (#210).
 

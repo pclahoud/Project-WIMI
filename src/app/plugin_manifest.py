@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 VALID_PERMISSIONS = {'read', 'write:entries', 'write:sessions', 'write:notes', 'write:goals', 'write:media', 'storage'}
@@ -16,6 +16,32 @@ VALID_SETTING_TYPES = {'text', 'number', 'toggle', 'select'}
 _ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 # Version: X.Y.Z
 _VERSION_PATTERN = re.compile(r'^\d+\.\d+\.\d+$')
+# A WIMI version: X.Y.Z with an optional SemVer pre-release, because WIMI's own
+# APP_VERSION carries one ("0.2.0-beta") and min_app_version has to be able to
+# name it (#508). The plugin's own `version` stays plain X.Y.Z.
+_APP_VERSION_PATTERN = re.compile(
+    r'^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$')
+
+
+def version_key(version: str) -> Tuple:
+    """Order WIMI versions by SemVer 2.0 precedence (#508).
+
+    ``1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-rc.1
+    < 1.0.0``: a pre-release sorts before its release, numeric identifiers
+    compare as numbers and before alphanumeric ones, and a shorter run of
+    identifiers sorts first when the rest are equal. Raises ``ValueError`` for
+    anything that is not ``X.Y.Z`` or ``X.Y.Z-pre``.
+    """
+    match = _APP_VERSION_PATTERN.match(version or '')
+    if not match:
+        raise ValueError(f'Not a WIMI version: "{version}" (must be X.Y.Z or X.Y.Z-pre)')
+    major, minor, patch, pre = match.groups()
+    core = (int(major), int(minor), int(patch))
+    if pre is None:
+        return core + (1, ())
+    ids = tuple((0, int(part), '') if part.isdigit() else (1, 0, part)
+                for part in pre.split('.'))
+    return core + (0, ids)
 
 
 @dataclass
@@ -102,10 +128,25 @@ class PluginManifest:
         # min_app_version format
         mav = data.get('min_app_version')
         if mav is not None:
-            if not isinstance(mav, str) or not _VERSION_PATTERN.match(mav):
-                errors.append(f'Invalid min_app_version format: "{mav}" (must be X.Y.Z)')
+            if not isinstance(mav, str) or not _APP_VERSION_PATTERN.match(mav):
+                errors.append(f'Invalid min_app_version format: "{mav}" (must be X.Y.Z or X.Y.Z-pre)')
 
         return errors
+
+    def incompatibility(self, app_version: str) -> Optional[str]:
+        """Why this plugin cannot run on ``app_version``, or ``None`` if it can.
+
+        ``min_app_version`` was validated for format and compared with nothing
+        (#508), so a plugin built for a later WIMI loaded anyway and failed in
+        whatever way its missing API made it fail. Callers skip or refuse on a
+        sentence from here, and nothing else decides compatibility.
+        """
+        if not self.min_app_version:
+            return None
+        if version_key(app_version) >= version_key(self.min_app_version):
+            return None
+        return (f'"{self.name}" needs WIMI {self.min_app_version} or later; '
+                f'this is WIMI {app_version}.')
 
     @classmethod
     def from_file(cls, manifest_path: Path) -> 'PluginManifest':

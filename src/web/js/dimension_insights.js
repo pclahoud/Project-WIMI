@@ -60,7 +60,7 @@ class DimensionInsights {
                 <div class="interaction-card ${severityClass}">
                     <div class="interaction-header">
                         <span class="interaction-direction ${effect.direction}">${directionIcon}</span>
-                        <span class="interaction-combination">${effect.dim_a_value} × ${effect.dim_b_value}</span>
+                        <span class="interaction-combination">${WimiEscape.html(effect.dim_a_value)} × ${WimiEscape.html(effect.dim_b_value)}</span>
                         <span class="interaction-severity">${effect.severity}</span>
                     </div>
                     <div class="interaction-body">
@@ -121,7 +121,7 @@ class DimensionInsights {
                     <div class="recommendation-rank">${index + 1}</div>
                     <div class="recommendation-content">
                         <div class="recommendation-header">
-                            <span class="recommendation-combination">${rec.combination}</span>
+                            <span class="recommendation-combination">${WimiEscape.html(rec.combination)}</span>
                             <span class="recommendation-priority">${priorityStars}</span>
                         </div>
                         <div class="recommendation-stats">
@@ -133,12 +133,13 @@ class DimensionInsights {
                                 <span class="stat-label">Difficulty:</span>
                                 <span class="stat-value difficulty-${difficultyLabel.toLowerCase()}">${difficultyLabel}</span>
                             </span>
+                            ${rec.weight === null || rec.weight === undefined ? '' : `
                             <span class="stat-item">
                                 <span class="stat-label">Weight:</span>
                                 <span class="stat-value">${rec.weight}%</span>
-                            </span>
+                            </span>`}
                         </div>
-                        <p class="recommendation-text">${rec.recommendation}</p>
+                        <p class="recommendation-text">${WimiEscape.html(rec.recommendation)}</p>
                     </div>
                 </div>
             `;
@@ -190,11 +191,11 @@ class DimensionInsights {
                 <div class="triple-row">
                     <div class="triple-rank">${index + 1}</div>
                     <div class="triple-combination">
-                        <span class="dim-a">${combo.dim_a_value}</span>
+                        <span class="dim-a">${WimiEscape.html(combo.dim_a_value)}</span>
                         <span class="separator">×</span>
-                        <span class="dim-b">${combo.dim_b_value}</span>
+                        <span class="dim-b">${WimiEscape.html(combo.dim_b_value)}</span>
                         <span class="separator">×</span>
-                        <span class="dim-c">${combo.dim_c_value}</span>
+                        <span class="dim-c">${WimiEscape.html(combo.dim_c_value)}</span>
                     </div>
                     <div class="triple-bar-container">
                         <div class="triple-bar" style="width: ${barWidth}%"></div>
@@ -279,7 +280,7 @@ class DimensionInsights {
                 <div class="summary-item info">
                     <span class="summary-icon">📚</span>
                     <span class="summary-text">
-                        Focus area: <strong>${topRecommendation.combination}</strong> (${topRecommendation.count} mistakes)
+                        Focus area: <strong>${WimiEscape.html(topRecommendation.combination)}</strong> (${topRecommendation.count} mistakes)
                     </span>
                 </div>
             `;
@@ -291,7 +292,7 @@ class DimensionInsights {
                 <div class="summary-item">
                     <span class="summary-icon">🎯</span>
                     <span class="summary-text">
-                        Most common pattern: <strong>${topTriple.combination}</strong>
+                        Most common pattern: <strong>${WimiEscape.html(topTriple.combination)}</strong>
                     </span>
                 </div>
             `;
@@ -363,8 +364,8 @@ class DimensionInsights {
         container.innerHTML = `
             <div class="trends-chart">
                 <div class="trends-header">
-                    <span class="trends-title">${trendsData.dimension_name} Trend</span>
-                    <span class="trends-indicator ${trendClass}">${trendIcon} ${trendsData.trend}</span>
+                    <span class="trends-title">${WimiEscape.html(trendsData.dimension_name)} Trend</span>
+                    <span class="trends-indicator ${trendClass}">${trendIcon} ${WimiEscape.html(trendsData.trend)}</span>
                 </div>
                 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
                     <path d="${pathD}" fill="none" stroke="var(--color-info, #0ea5e9)" stroke-width="2" />

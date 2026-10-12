@@ -228,7 +228,7 @@ def path_budget_error(path: str, provider: Provider) -> Optional[str]:
         return None
     return (
         f"path is {len(path)} characters, over {provider.display_name}'s "
-        f"{limit}-character limit -- choose a folder closer to the top of the drive"
+        f"{limit}-character limit. Choose a folder closer to the top of the drive."
     )
 
 

@@ -37,11 +37,9 @@
 }
 
 .efficiency-label {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .efficiency-value {
@@ -95,7 +93,7 @@
     border-radius: var(--radius-full);
     background: var(--bg-tertiary);
     color: var(--text-muted);
-    font-size: 0.6875rem;
+    font-size: 0.6875rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
     font-weight: var(--font-weight-bold, 700);
     font-style: italic;
     letter-spacing: normal;
@@ -118,7 +116,7 @@
    analytics tooltips. Must stay AFTER the rule above -- same specificity,
    source order decides. */
 .efficiency-info-icon:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -188,8 +186,6 @@
     font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin: 0 0 1rem 0;
 }
 
@@ -219,11 +215,9 @@
 }
 
 .quadrant-title {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .quadrant-subjects {

@@ -10,6 +10,8 @@ gathered in #123 comment #1503. Where a quote is load-bearing it is in the
 docstring, so a future reader can tell a researched constant from a guess.
 """
 import json
+import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -664,20 +666,136 @@ class TestPreflight:
         t = FolderTransport(target, SYNC_ID, "generic")
         assert any("not a folder" in p for p in t.preflight())
 
+    @staticmethod
+    def _deep_folder(tmp_path):
+        """A folder past 260 characters, or a skip saying why there is none.
+
+        The three components alone come to 273 characters, over the 248 that
+        Windows' CreateDirectory allows when long paths are off -- so on such
+        a machine no temp prefix can make this fixture exist (#187).
+
+        Decided by ATTEMPTING the mkdir, not by reading the registry: the key
+        needs a reboot to take effect, so it can read 1 while creation still
+        fails. And it is re-evaluated every run -- the day long paths work
+        here, these tests run with no edit. They are dormant, not retired.
+        """
+        deep = tmp_path / ("d" * 90) / ("e" * 90) / ("f" * 90)
+        try:
+            deep.mkdir(parents=True)
+        except OSError as exc:
+            if sys.platform != "win32":
+                raise
+            pytest.skip(
+                f"cannot create a {len(str(deep))}-character folder here "
+                f"({exc.__class__.__name__}: {exc.strerror}); likely cause: "
+                r"HKLM\SYSTEM\CurrentControlSet\Control\FileSystem"
+                r"\LongPathsEnabled = 0. Set it to 1 and reboot and this "
+                "test runs again with no edit (#187)."
+            )
+        return deep
+
     def test_box_path_budget_is_checked_when_the_folder_is_picked(self, tmp_path):
         """
         Checked at pick time, not at write time -- telling a student a month
         later that their folder was always too deep is useless.
         """
-        deep = tmp_path / ("d" * 90) / ("e" * 90) / ("f" * 90)
-        deep.mkdir(parents=True)
+        deep = self._deep_folder(tmp_path)
         problems = FolderTransport(deep, SYNC_ID, "box").preflight()
         assert any("255-character limit" in p for p in problems)
 
     def test_the_same_deep_folder_is_fine_on_a_plain_disk(self, tmp_path):
-        deep = tmp_path / ("d" * 90) / ("e" * 90) / ("f" * 90)
-        deep.mkdir(parents=True)
+        deep = self._deep_folder(tmp_path)
         assert FolderTransport(deep, SYNC_ID, "generic").preflight() == []
+
+    # ---- #366: a folder that exists past Windows' limit is not "missing" ----
+
+    @staticmethod
+    def _long_folder_that_exists(tmp_path):
+        r"""A real folder past 260 characters, made with the ``\\?\`` prefix.
+
+        Unlike ``_deep_folder`` this never skips on Windows: the extended
+        prefix is exempt from MAX_PATH, so the folder exists whatever
+        ``LongPathsEnabled`` says. That is the whole of #366's precondition --
+        the folder is THERE, and the question is what WIMI tells the student.
+        """
+        from app.foldersync.transport import _extended_length_path
+
+        deep = tmp_path
+        while len(str(deep)) < 280:
+            deep = deep / ("g" * 40)
+        os.makedirs(_extended_length_path(deep))
+        assert os.path.isdir(_extended_length_path(deep))
+        return deep
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="MAX_PATH is Windows' limit")
+    def test_an_existing_folder_past_the_limit_is_never_called_missing(self, tmp_path):
+        """The measured defect: the student was sent looking for a folder that was there.
+
+        Both outcomes are correct and which one happens depends on the
+        machine: with long paths ON the folder is simply usable; with them OFF
+        the problem names the real cause. What must never happen is the
+        third outcome #366 measured, "does not exist".
+        """
+        from app.foldersync.transport import PATH_TOO_LONG
+
+        deep = self._long_folder_that_exists(tmp_path)
+        for provider in ("generic", "box"):
+            problems = FolderTransport(deep, SYNC_ID, provider).preflight()
+            assert not any("does not exist" in p for p in problems), problems
+            if not deep.exists():  # this machine enforces MAX_PATH
+                assert any(PATH_TOO_LONG in p and str(len(str(deep))) in p
+                           for p in problems), problems
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="MAX_PATH is Windows' limit")
+    def test_box_budget_is_reachable_for_a_folder_past_the_limit(self, tmp_path):
+        """The check written for this family of problem used to be unreachable.
+
+        Preflight returned on "does not exist" before Box's path budget ran, so
+        on exactly the machines with an over-long path, the message about path
+        length could not appear.
+        """
+        deep = self._long_folder_that_exists(tmp_path)
+        problems = FolderTransport(deep, SYNC_ID, "box").preflight()
+        assert any("255-character limit" in p for p in problems), problems
+
+    def test_the_too_long_problem_is_recognised_without_windows(self, tmp_path, monkeypatch):
+        """The branch itself, on any platform: plain lookup fails, extended succeeds."""
+        from app.foldersync import transport as transport_module
+
+        monkeypatch.setattr(transport_module, "exists_only_beyond_max_path", lambda p: True)
+        missing_looking = tmp_path / "unreachable"
+        problems = FolderTransport(missing_looking, SYNC_ID, "generic").preflight()
+        assert any(transport_module.PATH_TOO_LONG in p for p in problems)
+        assert not any("does not exist" in p for p in problems)
+
+    def test_a_truly_missing_folder_is_still_called_missing(self, tmp_path, monkeypatch):
+        """The negative case keeps its old, correct sentence."""
+        from app.foldersync import transport as transport_module
+
+        monkeypatch.setattr(transport_module, "exists_only_beyond_max_path", lambda p: False)
+        problems = FolderTransport(tmp_path / "nope", SYNC_ID, "generic").preflight()
+        assert problems == [f"the folder does not exist: {tmp_path / 'nope'}"]
+
+    def test_linking_refuses_a_folder_windows_will_not_reach(self):
+        """Blocking like a missing folder: every push and fetch would fail on it.
+
+        ``finish_link`` raises before it touches ``self``, so it is called
+        unbound; the refusal must carry the sentence that names the cause.
+        """
+        from app.foldersync.service import ProfileFolderSync
+        from app.foldersync.transport import PATH_TOO_LONG
+
+        message = f"that folder's path is 300 characters, {PATH_TOO_LONG} (...)"
+        with pytest.raises(TransportError) as exc:
+            ProfileFolderSync.finish_link(object(), {}, [message])
+        assert PATH_TOO_LONG in str(exc.value)
+
+    @pytest.mark.skipif(sys.platform != "win32", reason=r"the \\?\ prefix is Windows'")
+    def test_the_extended_prefix_is_built_by_string(self, tmp_path):
+        from app.foldersync.transport import _extended_length_path
+
+        assert _extended_length_path(Path(r"C:\a\b")) == "\\\\?\\C:\\a\\b"
+        assert _extended_length_path(Path(r"\\server\share\x")) == "\\\\?\\UNC\\server\\share\\x"
 
 
 # ==================== residency ====================

@@ -31,7 +31,7 @@ class SourceTable {
                     <tr>
                         <th>Source</th>
                         <th>Entries</th>
-                        <th>Trend</th>
+                        <th data-tour-anchor="analytics-source-trend">Trend</th>
                         <th>Top Subject</th>
                     </tr>
                 </thead>
@@ -43,11 +43,11 @@ class SourceTable {
             html += `
                 <tr>
                     <td class="source-name">
-                        <span class="source-label">${source.source_name}</span>
+                        <span class="source-label">${WimiEscape.html(source.source_name)}</span>
                     </td>
                     <td class="source-entries">
-                        <span class="entry-count">${source.entry_count}</span>
-                        <span class="entry-pct">(${source.percentage}%)</span>
+                        <span class="entry-count">${WimiEscape.html(source.entry_count)}</span>
+                        <span class="entry-pct">(${WimiEscape.html(source.percentage)}%)</span>
                     </td>
                     <td class="source-trend">
                         <span class="trend-badge ${trend.class}">
@@ -55,7 +55,7 @@ class SourceTable {
                         </span>
                     </td>
                     <td class="source-subject">
-                        ${source.top_subject || '—'}
+                        ${source.top_subject ? WimiEscape.html(source.top_subject) : '—'}
                     </td>
                 </tr>
             `;

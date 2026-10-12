@@ -20,10 +20,13 @@ from database.master_db import MasterDatabase
 from database.user_db import UserDatabase
 from database.migrations.user import MIGRATIONS as USER_MIGRATIONS
 from app.bridge import DatabaseBridge
+from tests import _schema_mutations
 from app.profile_archive import (
     VERDICT_NEWER_APP_REQUIRED,
+    VERDICT_UNRECOGNISED_STRUCTURE,
     VERDICT_OK,
     build_profile_archive,
+    install_profile_as_new,
 )
 
 LOCAL_MAX = max(m.version for m in USER_MIGRATIONS)
@@ -447,6 +450,38 @@ class TestReadProfileArchive:
         assert targets[bob.id]['display_name'] == "Bob Target"
         assert targets[carol.id]['is_current'] is True
 
+    # --- #498: is this profile already on this computer? ---------------
+    # The preview must say so while Cancel is still available. Before #498
+    # the signal was computed only by install_profile_as_new, after the
+    # second copy existed, and no page read it.
+
+    def test_a_profile_already_here_is_named_in_the_preview(
+        self, bridge, master_db, alice_archive
+    ):
+        installed = install_profile_as_new(master_db, alice_archive)
+        data = assert_success(bridge.readProfileArchive(str(alice_archive)))
+        assert data['already_installed_as'] == [{
+            'user_id': installed['user_id'], 'username': installed['username'],
+            'display_name': 'Alice Example',
+        }]
+
+    def test_the_preview_and_the_install_agree_on_the_copies(
+        self, bridge, master_db, alice_archive
+    ):
+        install_profile_as_new(master_db, alice_archive)
+        preview = assert_success(bridge.readProfileArchive(str(alice_archive)))
+        second = install_profile_as_new(master_db, alice_archive)
+        assert preview['already_installed_as'] == second['already_installed_as']
+
+    def test_a_username_collision_is_not_the_same_profile(
+        self, bridge, master_db, alice_archive
+    ):
+        """An unrelated 'alice' collides on the name and shares no identity."""
+        master_db.create_user(username="alice", display_name="Other Alice")
+        data = assert_success(bridge.readProfileArchive(str(alice_archive)))
+        assert data['collision']['username_exists'] is True
+        assert data['already_installed_as'] == []
+
     def test_db_references_media_detected(
         self, bridge, source_master, tmp_path
     ):
@@ -473,7 +508,33 @@ class TestReadProfileArchive:
         data = assert_success(bridge.readProfileArchive(str(newer)))
 
         assert data['schema']['verdict'] == VERDICT_NEWER_APP_REQUIRED
+        assert data['schema']['blocked'] is True
         assert "newer version of WIMI" in data['schema']['reason']
+
+    def test_an_unrecognised_structure_is_blocked_in_the_preview(
+        self, bridge, alice_archive, tmp_path
+    ):
+        """#593: the preview says so while Cancel is still the only choice,
+        and ``blocked`` is what profile_select.js reads to disable Import."""
+        db = _extract_db(alice_archive, tmp_path / "structure_mod")
+        conn = sqlite3.connect(str(db))
+        try:
+            _schema_mutations.drop_alias_type_check(conn)
+        finally:
+            conn.close()
+        mutated = _rezip_with_db(alice_archive, db, tmp_path / "structure.wimi")
+
+        data = assert_success(bridge.readProfileArchive(str(mutated)))
+
+        assert data['schema']['verdict'] == VERDICT_UNRECOGNISED_STRUCTURE
+        assert data['schema']['blocked'] is True
+        assert "subject_aliases" in data['schema']['reason']
+
+    def test_an_unchanged_archive_is_not_blocked_in_the_preview(
+        self, bridge, alice_archive
+    ):
+        data = assert_success(bridge.readProfileArchive(str(alice_archive)))
+        assert data['schema']['blocked'] is False
 
     def test_corrupt_zip_fails(self, bridge, tmp_path):
         bad = tmp_path / "corrupt.wimi"

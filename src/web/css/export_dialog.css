@@ -240,7 +240,7 @@
 }
 
 .saved-delimiter-preview {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary, #6b7280);
     font-family: 'Consolas', 'Monaco', monospace;
     white-space: nowrap;
@@ -254,7 +254,7 @@
     background: var(--bg-secondary, #f3f4f6);
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 0.1875rem;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-family: 'Consolas', 'Monaco', monospace;
     color: var(--text-secondary, #6b7280);
     align-self: flex-start;

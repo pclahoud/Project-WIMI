@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error types: naming the mistake - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/31_error_types.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 12</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Error types: naming the mistake</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_logging_a_mistake.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Logging a mistake</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_notes.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Notes</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Error types: naming the mistake
+
+## In short
+
+An error type is a label you put on an entry saying what kind of mistake it was, and it is the unit every mistake-type screen in WIMI counts. WIMI ships sixteen in five groups, each with a written definition you can read as a tooltip and edit. They are optional, you can pick more than one, and the whole value of them is that you apply them the same way every week — so the fifteen minutes it takes to read the list once is the best-paid fifteen minutes in this manual.
+
+## Why this chapter is longer than it looks like it should be
+
+Everything the analytics can tell you about *what kind* of mistake you keep
+making comes from this one field. Not from your sentences — nothing reads those
+— from the labels. So the quality of every mistake-type number you will ever
+read is exactly the quality of your tagging, and there are only two ways to ruin
+it:
+
+- picking whatever is nearest the top of the list when you are tired, which makes the counts a record of your fatigue;
+- picking *Careless Mistake* in March for the thing you called *Misread Question* in January, which makes a trend out of a change in your own vocabulary.
+
+Neither of those produces an error. Both produce a confident bar chart that is
+wrong, and nothing in WIMI can detect either. That is the whole argument for
+reading the definitions once and then being boring about them.
+
+## The field
+
+**Tags**, on the entry form, between the subject rows and the writing. Click into
+it and the full palette opens underneath — every group, colour-coded, with its
+types as buttons you toggle on and off. Or type two or more characters to search.
+The placeholder is *"Search why you got this wrong..."*
+
+Every group and every type carries its definition as a hover tooltip, in the
+palette, in the search results, on the chip once you have picked it, and in the
+Manage Error Types modal. Those definitions follow the type everywhere it is
+shown later, including the analytics legends. If you are ever unsure what one
+means, hover it; the answer is the same one printed below.
+
+**Error types are optional.** An entry with none of them saves normally and
+counts normally. [Why WIMI asks for a reason](help_the_premise.html) explains
+why that is deliberate: a tag you clicked past records almost nothing, and an
+untagged entry with a clear written reason is worth more than a tagged one
+without. Tag when you know which kind of mistake it was. Do not guess to fill
+the field.
+
+**You can pick several, and there is no maximum.** Often two are honestly true
+at once, and recording both is better than choosing arbitrarily. See *How many
+to pick* below.
+
+## The sixteen WIMI ships
+
+These are the definitions as the app states them, word for word. The five groups
+exist to make the list scannable, and the group's colour is what you see on the
+chip.
+
+**Knowledge Issues** (red) — *Mistakes caused by gaps or errors in what you
+know.*
+
+- **Knowledge Gap** — You never learned or covered this material.
+- **Memory Failure** — You studied this before but couldn't recall it when it mattered.
+- **Misunderstanding** — You learned the material but understood it incorrectly.
+
+**Reading & Interpretation** (amber) — *Mistakes from misreading or
+misinterpreting what the question asked.*
+
+- **Misread Question** — You misread or overlooked key wording in the question.
+
+**Execution Errors** (green) — *Mistakes made while working the problem, even
+though you knew the material.*
+
+- **Calculation Error** — You set up the problem correctly but made an arithmetic slip.
+- **Careless Mistake** — You knew the answer but slipped through haste or inattention.
+- **Incomplete Solution** — You started down the right path but didn't carry the work to completion.
+- **Wrong Approach** — You chose a method or strategy that couldn't solve this problem.
+
+**Test Strategy** (blue) — *Mistakes in how you played the test itself — timing,
+guessing, and answer changes.*
+
+- **Time Pressure** — Running low on time forced you to rush or abandon the question.
+- **Second-Guessing** — You changed a correct answer to a wrong one.
+- **Elimination Error** — You ruled out the correct answer while narrowing the choices.
+- **Poor Prioritization** — You spent your time on the wrong questions or in the wrong order.
+- **Wrong Guess Strategy** — You had to guess, and your guessing approach didn't pay off.
+
+**Mental & Physical State** (purple) — *Mistakes influenced by how you felt —
+stress, focus, or energy.*
+
+- **Anxiety Related** — Nervousness or stress interfered with your thinking on this question.
+- **Focus Problem** — You lost concentration or got distracted while answering.
+- **Fatigue Related** — Tiredness or low energy dulled your performance on this question.
+
+## The one question that sorts most entries
+
+Before reaching for a specific type, answer this: **if you had been given
+unlimited time, perfect calm and a second attempt, would you have got it right?**
+
+- **No, I still would not have known it.** You are in *Knowledge Issues*.
+- **Yes, because I would have read it properly.** *Reading & Interpretation*.
+- **Yes, because I would not have fumbled the work.** *Execution Errors*.
+- **Yes, but I did not have the time, or I talked myself out of it.** *Test Strategy*.
+- **Yes, on a different day.** *Mental & Physical State*.
+
+That question gets you to the right group far more reliably than scanning
+sixteen names, and the group is most of the information. Picking the wrong member
+of the right group costs you a little resolution; picking the wrong group makes
+the whole breakdown misleading.
+
+## Telling the hard ones apart
+
+The pairs below are the ones that actually get confused. Each test is derived
+from the definitions above, not from somewhere else.
+
+**Knowledge Gap versus Memory Failure versus Misunderstanding.** All three are
+"I did not know it", and the difference is what was in your head:
+
+- *Knowledge Gap* — **nothing was there.** You had never covered this. The fix is to learn it for the first time.
+- *Memory Failure* — **it was there and you could not reach it.** You recognise it the instant you read the explanation and are annoyed with yourself. The fix is review scheduling, not study.
+- *Misunderstanding* — **something was there and it was wrong.** You had a confident belief and the belief was false. This is the most valuable of the three to record, because the other two are fixed by more exposure and this one is not: more exposure to a concept you have inverted just entrenches it.
+
+The test for the third one: did you feel *certain* while answering? Confident and
+wrong is *Misunderstanding*. Blank is *Knowledge Gap*. Vaguely familiar is
+*Memory Failure*.
+
+**Misread Question versus Careless Mistake.** Both are "I knew this". The
+difference is where the slip was:
+
+- *Misread Question* is about **the question's words.** You read "decreased" as "increased", missed a "not", missed the word "initial" or "most likely", answered the question you expected instead of the one printed.
+- *Careless Mistake* is about **your own execution** after reading correctly. You knew the answer, you meant to select C, and you selected B.
+
+If re-reading the stem is what would have saved you, it is *Misread Question*. If
+re-reading your own answer is what would have saved you, it is *Careless
+Mistake*.
+
+**Wrong Approach versus Incomplete Solution versus Calculation Error.** These are
+three stages of working a problem, and the stage is the label:
+
+- *Wrong Approach* — the method was never going to work. You went wrong at step zero.
+- *Incomplete Solution* — the method was right and you stopped partway. The work you did was correct as far as it went.
+- *Calculation Error* — the method was right and complete and the arithmetic was wrong.
+
+So: **wrong plan, right plan not finished, right plan finished badly.** If you
+cannot tell *Wrong Approach* from *Misunderstanding*, ask whether what was wrong
+was a fact or a procedure. A false belief about the content is
+*Misunderstanding*; a sound belief applied through the wrong procedure is *Wrong
+Approach*.
+
+**Second-Guessing versus Elimination Error.** Both involve rejecting the right
+answer, at different moments:
+
+- *Second-Guessing* requires that you **had chosen it.** You wrote C and then changed it. If you never selected the right answer, this is not the one.
+- *Elimination Error* is during the narrowing: you crossed the right answer off while working through the options, and never chose it.
+
+*Second-Guessing* is worth being strict about, because it is the only error type
+on the list whose fix is a rule rather than knowledge: if you record it five
+times, your rule for the exam is "do not change answers". That instruction is
+only trustworthy if the five are real.
+
+**Time Pressure versus Poor Prioritization.** Both are about the clock:
+
+- *Time Pressure* — **this question** ran you out of time. You rushed it or abandoned it.
+- *Poor Prioritization* — **the other questions** ran you out of time. You spent eight minutes on a question you were never going to get and arrived here with ninety seconds.
+
+The first is about the question in front of you; the second is about the ones
+before it. If you can name the question that ate your time, use *Poor
+Prioritization* on this one.
+
+**Anxiety Related versus Focus Problem versus Fatigue Related.** The definitions
+distinguish them cleanly — stress, distraction, tiredness — so the thing to be
+careful about is not confusing them with each other but reaching for them too
+readily. A mistake you made while tired is only *Fatigue Related* if being tired
+is what caused it; a knowledge gap you met at hour four of a block is still a
+knowledge gap. The question to ask is whether a rested, calm, undistracted
+version of you, with the same knowledge, would have got it right.
+
+## Where these types fall short
+
+Two honest gaps, so that you can decide how to handle them rather than
+discovering them at entry fifty.
+
+**Careless Mistake is the catch-all, and nothing says so.** Its definition — "You
+knew the answer but slipped through haste or inattention" — overlaps *Misread
+Question* and *Calculation Error* by design. Decide now which way you will lean
+and then stay consistent. The recommendation here: use the *specific* type
+whenever one fits, and keep *Careless Mistake* for slips that are neither a
+reading error nor an arithmetic one.
+
+**Wrong Guess Strategy is hard to use as written.** "You had to guess, and your
+guessing approach didn't pay off" is true of every wrong guess, so taken
+literally the type records luck rather than strategy. The reading that makes it
+useful: use it when your guessing *rule* was at fault — you always pick the
+longest option, you always pick C, you guessed among options you should have been
+able to eliminate — and not when you guessed sensibly from genuine ignorance.
+That second case is *Knowledge Gap*, with *Time Pressure* beside it if the clock
+forced the guess. If that distinction is not the one you want, this is a
+definition worth rewriting in your own words; see below.
+
+## How many to pick
+
+More than one is normal and often more accurate. Two shapes recur:
+
+- **A cause and a condition.** *Knowledge Gap* plus *Time Pressure*: you did not know it, and you had no time to reason it out. Both are true and both are actionable, differently.
+- **A content error and a process error.** *Misunderstanding* plus *Elimination Error*: the false belief is why you crossed the right answer off.
+
+What to avoid is tagging four types because all four are arguably present. Every
+type you add is counted, so a habit of tagging generously inflates everything
+evenly and tells you nothing. A useful discipline: **tag what you would want to
+read back.** If a type would not change what you do next week, leave it off.
+
+## Adding your own
+
+The sixteen are a starting set, not a fixed vocabulary, and the ones you invent
+for yourself are usually the ones you will actually act on.
+
+Type a name that does not exist into the Tags field, and a **Create "your
+name"** block appears under the search results with:
+
+- a radio button for each of the five groups, with the first one pre-selected — so you choose where it lives, and you cannot make one that belongs to no group;
+- a field for the definition, placeholder *"Definition (optional) — shown as a tooltip"*;
+- a **Create Tag** button.
+
+Press it and the new type is created and applied to the entry you are on
+immediately.
+
+**Write the definition.** It is optional and it is the whole point. A type called
+*Buzzword Trap* means something precise to you this week and nothing at all in
+four months, and the definition is how future-you tags consistently with
+present-you. One sentence saying what has to be true for this type to apply is
+enough. Writing it is also the cheapest test of whether the type is worth
+having: if you cannot state the condition in a sentence, the type will not be
+applied consistently.
+
+Good candidates for one of your own are the mistakes specific to your exam's
+question style — the kind of distractor you keep falling for, the one
+calculation you keep setting up backwards. Keep the list short. Thirty error
+types is a list nobody reads to the bottom of, and a type you use twice a year
+contributes nothing a written reason does not.
+
+## Editing a definition
+
+**⚙️ Manage error types**, at the bottom of the open palette, opens a modal
+headed **Manage Error Types** with the sub-line *"Edit definitions or delete
+types. Definitions appear as hover tooltips in the picker."*
+
+Every type gets a text box holding its current definition. Change it and a
+**Save** button appears beside that one box; it stays hidden while the text
+matches what is stored, so nothing can be saved by accident. Clearing the box
+and saving removes the definition, and the type then has no tooltip at all rather
+than an empty one.
+
+**The sixteen WIMI ships are ordinary types with nothing special about them.** You
+can rewrite every definition, and doing so is encouraged where WIMI's wording
+does not match how you think. If *Wrong Guess Strategy* is going to mean
+something specific in your hands, write that down in the box; the sentence you
+write is the one you will see when hovering it at entry two hundred.
+
+Each row also shows how many entries currently carry that type, so the modal
+doubles as an answer to "am I actually using this one".
+
+## Deleting one, and what it costs
+
+The trash button on a row opens a confirmation headed **Delete this error type?**
+which tells you exactly what you are about to do:
+
+- with entries using it: *"Used by N entries. Deleting removes this tag from those entries and from analytics. This cannot be undone."*
+- with none: *"Not used by any entries. This cannot be undone."*
+
+Read that first line literally. **Deleting a type does not delete your entries —
+it untags them.** The entries survive intact, including their written reasons;
+they simply no longer carry that label, so they vanish from every mistake-type
+count that used to include them. There is no undo and no archive: unlike
+subjects and dimensions, which are archived and can be restored, an error type is
+deleted outright.
+
+So the one case to be careful about is deleting a type you have used a lot
+because you have thought of a better name for it. See the next section.
+
+A **group** can only be deleted when it is empty, and its trash button is greyed
+until then.
+
+## Two things you cannot do
+
+Worth knowing so you do not go looking for them, and worth knowing *before* you
+create a type rather than after.
+
+- **You cannot rename an error type.** There is no rename anywhere. The only route is to delete it and create a new one — which untags every entry that used the old name, and those entries do not come back tagged. So: **pick the name you can live with the first time.** Definitions can be rewritten freely; names cannot.
+- **You cannot create a new group**, and you cannot move a type from one group to another. The five groups are fixed, so a type you create lives in whichever of them you pick at creation time, permanently. If none of the five fits well, pick the least wrong one — the type's own definition is doing the real work, and the group is organisation.
+
+## Each exam has its own list
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-review
+text: A new exam gets its own copy of the sixteen error types, seeded the
+  first time you open its entry form. The copies are independent, so a
+  definition you rewrite on one exam does not change it on another.
+-->
+
+The sixteen are seeded **per exam**, and they are seeded the first time you open
+the entry form for that exam rather than when you create it. So a second exam
+starts with its own fresh copy of the same list.
+
+The copies are independent. Rewriting *Memory Failure*'s definition on your Step
+1 exam does not change it on your Shelf exam; a type you create on one does not
+appear on the other; deleting one on one leaves the other alone. That is usually
+what you want — different exams genuinely reward different distinctions — but it
+does mean that if you have carefully tuned a list, you will tune it again on your
+next exam.
+
+## Using it well
+
+- **Read the definitions once, properly, before you have fifty entries.** They are the shared vocabulary between you now and you in three months, and nothing else in WIMI reconciles the two.
+- **Use the five-group question** — "with unlimited time, calm, and a second attempt, would I have got it right?" — rather than scanning sixteen names.
+- **Be consistent before being precise.** A slightly wrong label applied the same way every time still produces a true trend. A perfect label applied differently each month does not.
+- **Write a definition for every type you create**, even a one-liner, and rewrite WIMI's where its wording is not yours.
+- **Leave the field empty when you do not know.** An honest blank is better than a guess that will be counted.
+- **Reread your own definitions every few weeks.** The commonest failure here is drift you cannot see, and the modal is where you catch it.
+
+## Where to go next
+
+- [Logging a mistake](help_logging_a_mistake.html) — the rest of the entry form, and where this field sits on it.
+- [Why WIMI asks for a reason](help_the_premise.html) — why the written reason is required and this field is not.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

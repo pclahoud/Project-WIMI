@@ -96,7 +96,7 @@
    card is what shows the focus. `:has()` is already relied on elsewhere in
    this codebase (it is the sanctioned replacement for `:empty`). */
 .exam-type-card:has(input[type="radio"]:focus-visible) {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -248,8 +248,6 @@
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin-bottom: var(--space-sm);
 }
 

@@ -21,7 +21,7 @@ Over hundreds of entries those counts separate the topics you never learned from
 - **Content-outline weighting.** Subject hierarchies are directed acyclic graphs with a weight on every edge. A Hamilton largest-remainder allocator turns those weights into question counts, it checks whether your targets are feasible, and it handles variable-length adaptive exams.
 - **Analytics dashboard.** A D3.js sunburst, cross-dimension heatmaps, activity trends, streak tracking, and a quadrant chart plotting weakness against exam weight. It also flags recurring patterns and suggests what to study.
 - **Ten built-in exam templates.** USMLE Step 1 and Step 2 CK, NBME shelf exams, MCAT, SAT, ACT, GRE, LSAT and CPA. Edit any of them after you pick one.
-- **Assignable notes.** An entry can carry several notes, each one attached to a specific subject and collected on that subject's deep-dive page.
+- **Assignable notes.** An entry can carry several notes, each one attached to a specific subject, and a note can be picked up again from any other entry that shares that subject. Every note you tag with a subject is also collected on that subject's deep-dive page.
 - **Session timer.** Multi-round timing with breaks, and you can import a session you timed somewhere else.
 - **Question bank beside the form.** An embedded browser pane holds your question bank next to the entry form. Logins survive between sessions.
 - **Speech-to-text.** Dictate a reflection instead of typing it. Transcription runs on your own machine through [whisper.cpp](https://github.com/ggerganov/whisper.cpp), and the speech model downloads the first time you use it.
@@ -47,7 +47,9 @@ pip install -r requirements-prod.txt
 python run_wimi.py
 ```
 
-Use a virtual environment. The Qt and Chromium versions are pinned exactly, and a mismatch changes how pages render. Development mode gives you F5 reload and F12 dev tools. On first launch WIMI creates a local demo user and walks you through the exam setup wizard.
+Use a virtual environment. The Qt and Chromium versions are pinned exactly, and a mismatch changes how pages render. Development mode gives you F5 reload and F12 dev tools.
+
+The first launch opens the profile picker, because a fresh install has no profiles and WIMI creates none for you. Create one there and click it to open it; creating a profile does not switch to it. The dashboard then offers the exam wizard, which sets up the exam and the names of its hierarchy levels — not its content outline, so after it finishes you add subjects in the tree editor or import an outline, and picking one of the ten templates does not bring an outline with it. A session comes next, and entries belong to a session. The in-app manual walks through all of it: the **Manual** link is at the top left of the dashboard.
 
 Speech-to-text needs the whisper.cpp binary, which is not committed. When you run from source, fetch it once with `python scripts/fetch_whisper.py`. The build scripts below do this for you.
 

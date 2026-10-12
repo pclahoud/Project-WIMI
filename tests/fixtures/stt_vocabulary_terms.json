@@ -4,7 +4,7 @@
   "issue": 59,
   "description": "Read-aloud corpus and marked domain terms for the #59 speech-to-text accuracy measurement (task T3, plan section 6). The reference text of each utterance is what the reader says; the marked terms are the spans the recall metric is about. Scored by scripts/stt_measure.py.",
   "authoring_rules": [
-    "Every marked term and every priming term is drawn from tests/fixtures/usmle_step1_outline.txt (the 2025 USMLE Step 1 content outline) or from the drug/abbreviation supplement that plan section 6 asks for. tests/test_stt_measure.py enforces the outline half.",
+    "Every marked term and every priming term is drawn from an exam content outline a student would have imported, or from the drug/abbreviation supplement that plan section 6 asks for. tests/test_stt_measure.py enforces the outline half against tests/fixtures/exam_outline.json.",
     "Priming terms are chosen by TOPIC, never by which words were marked. Priming built from the marked-terms list would be an oracle prompt and would measure nothing. The overlap that remains is reported per run as primed_marked_terms so it can be seen rather than assumed.",
     "Marked terms never overlap inside one utterance. Where a short term sits inside a long one (ACE inside ACE inhibitor, thrombocytopenia inside heparin-induced thrombocytopenia) only the longer span is marked. The scorer refuses a corpus that breaks this.",
     "Variants were written before any audio was recorded. A variants list edited after seeing results is not a measurement."
@@ -231,7 +231,7 @@
     "frame": "A student is explaining a medical exam question out loud, in their own words. Terms:",
     "token_budget": 223,
     "ordering": "least relevant first, most relevant last, because whisper.cpp truncates the prompt from the FRONT and keeps the tail (plan section 3.6, verified by task T1). base_terms are the imported exam-context subject tree; entry_terms are the subjects the open entry is tagged with and therefore go last.",
-    "source_note": "Every string below appears verbatim in tests/fixtures/usmle_step1_outline.txt. That is the honesty guard: the priming prompt is built from the published blueprint a student would have imported, not from the answer key.",
+    "source_note": "Every string below appears verbatim in tests/fixtures/exam_outline.json. That is the honesty guard: the priming prompt is built from a subject tree a student would have imported, not from the answer key. The outline fixture is synthetic since #437; see tests/test_stt_measure.py for what the guard does and no longer does.",
     "base_terms": [
       "Human Development",
       "Immune System",

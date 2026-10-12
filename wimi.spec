@@ -73,6 +73,12 @@ RELATIONS_RUNTIME_PACKAGES = [
 ]
 
 runtime_hooks = []
+
+# Per-module collection overrides, passed to Analysis below. Empty for the
+# default artifact; the relations block adds transformers (#364). Declared here
+# rather than inside that block so the name always exists -- an `if` that is the
+# only place a variable is defined is a NameError waiting for the other branch.
+module_collection_mode = {}
 if TEST_BUILD:
     runtime_hooks.append(str(project_root / 'packaging' / 'rthook_test_build.py'))
 if RELATIONS_BUILD:
@@ -378,6 +384,78 @@ if RELATIONS_BUILD:
     binaries = binaries + _g_binaries
     hiddenimports = hiddenimports + _g_hidden
 
+    # transformers must be collected as SOURCE FILES, not into the PYZ (#364).
+    #
+    # transformers 5.18's `auto_docstring` decorator reads a decorated
+    # function's source path and assumes it is at least `.../models/<x>/f.py`:
+    #
+    #     transformers/utils/auto_docstring.py:2979, in get_model_name
+    #         if path.split(os.path.sep)[-3] != "models":
+    #     IndexError: list index out of range
+    #
+    # Inside the PYZ archive `co_filename` is a short relative path, so `[-3]`
+    # does not exist and the import dies. The chain is
+    # `gliner2 -> peft -> transformers.models.bloom -> processing_utils`, so it
+    # fires the moment GLiNER2 is imported -- i.e. the first time a student
+    # uses the feature, in the artifact they took the larger download for.
+    #
+    # Measured on a MacBook Pro M1 inside the frozen .app:
+    #
+    #     as master, + peft        -> IndexError
+    #     'pyz+py'                 -> SAME IndexError (code still runs from PYZ)
+    #     'py'                     -> works; model loads, extraction correct
+    #
+    # `'pyz+py'` looking like the safer, more inclusive option and NOT working
+    # is the part worth remembering.
+    #
+    # Scoped to RELATIONS_BUILD so the default artifact is untouched. The
+    # mechanism is not macOS-specific -- it is about PyInstaller's archive, not
+    # the platform -- but it has only been MEASURED on macOS. If a Windows
+    # relations build ever fails differently here, that is new information
+    # rather than a contradiction.
+    module_collection_mode['transformers'] = 'py'
+
+    # The C++ runtime FAMILY, staged at the bundle root, from System32 (#367).
+    #
+    # Qt ships msvcp140.dll 14.26 in PyQt6/Qt6/bin, torch 2.14 needs newer, and
+    # a process holds one msvcp140 -- so packaging/rthook_relations_build.py
+    # loads the newest copy before PyInstaller's pyi_rth_pyqt6 imports QtCore
+    # (src/app/msvc_runtime.py). Until this block the 14.50 copy it found sat
+    # here only because PyInstaller COLLECTED IT INCIDENTALLY (something links
+    # against it), with whisper's #158 copy as the other -- two accidents
+    # either of which could change without touching relations, and silently:
+    # the preload would find only Qt's 14.26 and torch would stop importing.
+    # This makes it one stated dependency.
+    #
+    # The family, not msvcp140 alone: msvcp140_1/_2 carry newer exports while
+    # msvcp140's stay stable, and Microsoft ships and tests the four as a set.
+    # The preload loads satellites only from the chosen msvcp140's own
+    # directory, so without these beside it they came from Qt's 14.26 folder --
+    # a 14.50/14.26 mix measured working but shipped by nobody. Loading the
+    # whole family from System32 was measured on Windows machine B: Qt, a
+    # QWebEngineView rendering, torch and GLiNER2 all fine.
+    #
+    # From System32 for #195 (b)'s reason -- WIMI already ships the MSVC
+    # runtime app-local from there -- and missing is fatal for #158's: a
+    # warning is read where it does not matter and ignored where it does.
+    # Scoped to RELATIONS_BUILD so the default artifact is byte-identical.
+    RELATIONS_MSVC_FAMILY = (
+        'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'concrt140.dll',
+    )
+    _missing_family = [n for n in RELATIONS_MSVC_FAMILY if not (_system32 / n).is_file()]
+    if _missing_family:
+        raise SystemExit(
+            'Cannot stage the C++ runtime family for the relations build (#367): '
+            + ', '.join(_missing_family) + ' not found in ' + str(_system32)
+            + '.\nInstall the Microsoft Visual C++ 2015-2022 Redistributable (x64) '
+            'on this build machine. Without them torch cannot import after Qt '
+            'in the shipped artifact.'
+        )
+    binaries += [(str(_system32 / name), '.') for name in RELATIONS_MSVC_FAMILY]
+    # Same reason as MSVC_RUNTIME_DLLS above: never UPX Microsoft's signed,
+    # CFG-enabled runtime. By name, because the source is System32.
+    whisper_upx_exclude += [n for n in RELATIONS_MSVC_FAMILY if n not in whisper_upx_exclude]
+
 a = Analysis(
     [str(src_dir / 'app' / 'main.py')],
     pathex=[str(src_dir)],
@@ -388,8 +466,29 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=runtime_hooks,
     excludes=[
-        # Exclude dev/test dependencies
+        # Exclude dev/test dependencies.
+        #
+        # `_pytest` IS NOT A SUBMODULE OF `pytest` (#409). The pytest
+        # distribution installs two sibling top-level packages, and PyInstaller
+        # matches excludes by module name -- so 'pytest' here covers `pytest`
+        # and `pytest.*` and has no effect whatever on `_pytest`. This list
+        # read as complete and was not: measured on Windows machine B, the
+        # relations release build's PYZ carried **49 `_pytest` modules**.
+        #
+        # They arrive through third-party *testing* submodules the hooks
+        # collect wholesale -- `torch.testing._internal.common_utils`,
+        # `sympy.testing.runtests_pytest`, `networkx.utils.backends`,
+        # `fsspec.conftest` -- so this bites hardest on the relations build,
+        # where torch is present. Nothing in WIMI imports any of them; with
+        # these excluded they become missing-module warnings and the modules
+        # are simply not collected.
+        #
+        # tests/test_spec_excludes_the_test_framework.py is self-counting over
+        # whatever pytest plugins are installed, so a plugin added to
+        # requirements-test.txt without a line here goes red.
         'pytest',
+        '_pytest',
+        'pytest_asyncio',
         'pytest_cov',
         'pytest_mock',
         'pytest_qt',
@@ -418,7 +517,37 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+    module_collection_mode=module_collection_mode,
 )
+
+# Drop torch's VENDORED LICENCE TREE from the bundle (#408, owner's decision
+# 2026-10-06). PyInstaller copies torch's .dist-info in whole, and its
+# licenses/ subtree nests third_party/flash-attention/third_party/aiter/
+# 3rdparty/composable_kernel/docs/LICENSE.rst -- 137 characters relative to the
+# Windows dist root, 149 inside a macOS .app. Under Windows' default MAX_PATH
+# that leaves a recipient ~123 characters for wherever they unzip, and an
+# extractor that runs out skips the file SILENTLY.
+#
+# Only licenses/ goes. The rest of the .dist-info (METADATA, RECORD, ...) stays,
+# because transformers reads torch's version through importlib.metadata.
+#
+# THIS IS A PATH FIX THAT COULD REMOVE A LICENCE TEXT, so it is paired with
+# #336: scripts/stage_license_files.py copies the same texts from the
+# installed distribution -- not from this bundle -- flattened into
+# licenses/third-party/torch-<version>/ with a FILES.txt map, and REFUSES the
+# build if that folder comes out empty. Both halves key off the same
+# WIMI_BUILD_RELATIONS=1, set by both build scripts. Never land one without
+# the other.
+if RELATIONS_BUILD:
+    def _is_torch_licence_tree(dest):
+        parts = dest.replace('\\', '/').split('/')
+        return (len(parts) > 2 and parts[0].startswith('torch-')
+                and parts[0].endswith('.dist-info') and parts[1] == 'licenses')
+
+    _dropped = [d for d in a.datas if _is_torch_licence_tree(d[0])]
+    a.datas = [d for d in a.datas if not _is_torch_licence_tree(d[0])]
+    print(f"[#408] dropped {len(_dropped)} files of torch's vendored licence "
+          f"tree; conveyed via licenses/third-party/ instead")
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

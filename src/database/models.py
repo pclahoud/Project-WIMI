@@ -177,7 +177,9 @@ class UserPreferences:
     default_session_duration_minutes: int = 60
     default_break_interval_minutes: int = 25
     default_long_break_minutes: int = 15
-    manual_break_control: bool = True
+    # Off: the end of a round offers a break, which is what WIMI always did
+    # while this was read by nothing (#504).
+    manual_break_control: bool = False
     long_break_interval_rounds: int = 4
     timer_display_size: str = 'normal'
     # Timer Keyboard Shortcuts
@@ -185,7 +187,10 @@ class UserPreferences:
     hotkey_timer_new_round: str = 'Alt+N'
     hotkey_timer_end_round: str = 'Alt+E'
     # Analytics & Reporting
-    analytics_detail_level: str = 'detailed'
+    # 'advanced' is the whole analytics page, which is what every student saw
+    # while this setting was read by nothing (#504). The column's own DEFAULT
+    # still says 'detailed'; create_default_preferences states this one.
+    analytics_detail_level: str = 'advanced'
     dashboard_auto_refresh_seconds: int = 300
     show_performance_trends: bool = True
     show_mistake_patterns: bool = True
@@ -236,6 +241,10 @@ class UserPreferences:
     # hardware and this machine's ``app_data/``.
     stt_priming_enabled: bool = True
     stt_show_first_use_notice: bool = True
+    # Relation proposals (#60, decided on #380): how confident the model must
+    # be before a relation is proposed. A judgement about proposal quality,
+    # not about a machine, so user-level and it travels (m028).
+    relation_confidence_threshold: float = 0.8
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -258,13 +267,13 @@ class UserPreferences:
             default_session_duration_minutes=row.get('default_session_duration_minutes', 60),
             default_break_interval_minutes=row.get('default_break_interval_minutes', 25),
             default_long_break_minutes=row.get('default_long_break_minutes', 15),
-            manual_break_control=bool(row.get('manual_break_control', True)),
+            manual_break_control=bool(row.get('manual_break_control', False)),
             long_break_interval_rounds=row.get('long_break_interval_rounds', 4),
             timer_display_size=row.get('timer_display_size', 'normal'),
             hotkey_timer_pause_resume=row.get('hotkey_timer_pause_resume', 'Alt+P'),
             hotkey_timer_new_round=row.get('hotkey_timer_new_round', 'Alt+N'),
             hotkey_timer_end_round=row.get('hotkey_timer_end_round', 'Alt+E'),
-            analytics_detail_level=row.get('analytics_detail_level', 'detailed'),
+            analytics_detail_level=row.get('analytics_detail_level', 'advanced'),
             dashboard_auto_refresh_seconds=row.get('dashboard_auto_refresh_seconds', 300),
             show_performance_trends=bool(row.get('show_performance_trends', True)),
             show_mistake_patterns=bool(row.get('show_mistake_patterns', True)),
@@ -290,6 +299,9 @@ class UserPreferences:
             stt_priming_enabled=bool(row.get('stt_priming_enabled', True)),
             stt_show_first_use_notice=bool(
                 row.get('stt_show_first_use_notice', True)
+            ),
+            relation_confidence_threshold=float(
+                row.get('relation_confidence_threshold', 0.8)
             ),
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None

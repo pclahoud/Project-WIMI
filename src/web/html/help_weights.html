@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weights: what a percentage means here - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/20_weights.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 8</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Weights: what a percentage means here</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_dimensions.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Dimensions, and questions with several axes</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_two_screens_one_subject.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Why two screens can disagree about one subject</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Weights: what a percentage means here
+
+## In short
+
+A weight in WIMI is a percentage of the whole exam, at every level of your subject tree, and never a share of the subject above it. Almost everything surprising about weights follows from that one sentence, including the fact that a child subject may correctly carry a larger number than its parent, and that WIMI will tell you your blueprint totals 84–153% and then leave it exactly as it is.
+
+## The question a weight answers
+
+Every weight in WIMI answers the same question, and it is this one:
+
+**Of all the questions on this exam, what share are about this subject?**
+
+Not "what share of my Cardiovascular questions", not "what share of this
+branch". The share of the exam. A weight on a subject five levels down means
+the same kind of thing as a weight on a top-level subject, and the two numbers
+are directly comparable — which is what makes "what is my heaviest untouched
+topic" a question with an answer across branches rather than only within one.
+
+Weights can also be a band rather than a single number, because published
+blueprints usually give one. In the tree editor, ticking **Use weight range**
+gives you a **Low** and a **High** field, and a band typed as 11–15% is shown
+back to you as 11–15% rather than collapsed to its midpoint — in the tree, in
+an import preview, and on the analytics dashboard.
+
+## The weight panel tells you which kind of number you are typing
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-type
+text: Absolute is a share of the whole exam. Relative is a share of this
+  subject's parent, and the panel works the exam share out underneath it as
+  Effective Weight. The same number typed into the field means a different
+  thing in each mode.
+-->
+
+One qualification before the rest of the chapter, because it is the only place
+the rule above has a visible exception, and the screen does say which.
+
+Add a subject by hand underneath a subject that already carries an official
+weight and the weight panel opens in **Relative** mode: the badge at the top of
+the panel reads **Relative**, the field is labelled **Relative Weight**, what
+you type is that subject's share *of its parent*, and the panel works the exam
+percentage out for you on the line below as **Effective Weight** — your share
+applied to the middle of the parent's band, so 50% under a 10–20% parent reads
+7.50%. Press the `Q` toggle in that mode and the question count is counted out
+of the parent's budget rather than the whole exam's.
+
+Everywhere else the badge reads **Absolute**, the field is **Current Weight** or
+**Weight Range**, and the number is the share of the exam this chapter is about.
+Anything that arrived by import is always absolute.
+
+So: read the label. The tree says which kind it is showing too. A figure marked
+**(rel)** on a row is that subject's share of its parent, and every other figure
+in the tree is a share of the exam. The rest of this chapter is about absolute
+weights, which is what the overview panel and the analytics dashboard show you.
+
+## So a child can be bigger than its parent
+
+<!-- tour
+page: tree-editor
+anchor: tree-row-weight
+text: A weight is a share of the whole exam at any depth, so a child can
+  correctly carry a larger percentage than its parent, and WIMI never compares
+  the two. The one exception is a figure marked (rel), which is that subject's
+  share of its parent.
+-->
+
+This is the part everyone gets wrong first, including people who have used
+WIMI for months, so it is worth a real example.
+
+The USMLE Step 2 CK blueprint publishes **Nutrition** at 15–20% and
+**Multisystem Processes & Disorders** at 4–8%. They sit beside each other as
+separate rows in the published table. Now suppose that in your own tree you
+file nutrition underneath multisystem, because that is how you think about it.
+You have just put a 15–20% child inside a 4–8% parent, using two numbers
+copied straight off the blueprint, and **both numbers are right**.
+
+What happened is that your hierarchy is yours and the weights are the exam's.
+The blueprint did not say nutrition is part of multisystem; you did, and that
+is a perfectly good way to organise revision. Neither claim contradicts the
+other, because a weight was never a statement about the tree.
+
+So:
+
+- **WIMI does not compare a subject's weight with its parent's.** There is no
+  such check anywhere in the app, and nothing warns you, because there is
+  nothing wrong.
+- **Children do not have to add up to their parent**, and if they happen to,
+  that is a coincidence of your outline rather than a rule being enforced.
+- **Nothing redistributes a weight on its own.** Typing one subject's weight
+  does not rewrite its siblings. The explicit **Rebalance siblings** button is
+  the only thing that will, and you have to press it.
+
+If you came in expecting "children sum to the parent", that model is the
+single most expensive wrong idea you can hold about this screen, because it
+makes every correct number look like a bug.
+
+## WIMI reports your total and then leaves it alone
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-range-total
+text: Published blueprints routinely total more than 100%, because they
+  classify the same questions in overlapping ways. WIMI reports your total
+  and changes nothing, so a top-level total of 84–153% is the document being
+  itself rather than an error.
+-->
+
+Add up the weights of your top-level subjects and you will very often not get
+100%. Two real USMLE content outlines total **78–113%** and **84–153%**.
+
+That is almost always the document rather than you. Blueprints classify the
+same questions in overlapping ways — one item can be a cardiology item and a
+diagnosis item and a pharmacology item at once — so a table that sums past
+100% is a table doing its job. USMLE's own Clinical Science table exceeds 100%
+by design.
+
+WIMI's response is to say so and change nothing:
+
+- **It imports exactly what the document says.** No rescaling, ever. If it
+  normalised your numbers to 100%, the figures stored in WIMI would no longer
+  match the source you copied them from, and you would have no way of noticing.
+- **It reports the total.** The toolbar above the tree reads **Root Total**,
+  the lows and the highs of your top-level subjects added up separately —
+  *Root Total: 61–100%* — and the tree editor's overview panel closes its
+  weight list with a sentence like *Published ranges for
+  Systems total 61–100% of the exam.* That figure is the standing answer to
+  "where does my blueprint add up to". On an exam with dimensions, Root Total
+  is the total of the dimension you are looking at.
+- **It warns only when the total cannot reach 100% at all** — when the low
+  total is above 100, or the high total is below it. A total of 84–153% spans
+  100% and raises nothing, because it is a legitimate published shape. A total
+  of 61–88% does warn, because something is more likely missing.
+
+A total over 100% is **not a bug and not a warning**. Unexplained, it reads
+exactly like one, which is why this section exists.
+
+The same rule governs the overview panel's bar chart. Its scale runs to a
+round number just past the largest band, never to the sum of the bands, so the
+bars are magnitudes you can line up against each other rather than slices of a
+whole. An earlier version drew them as a ring, which had to assert that they
+were parts of one pie — and so drew a 7.0% subject as 11.5% of the circle
+while labelling it 7.0%. Bands are not slices.
+
+## An empty weight is 0%, however you got there
+
+A weight you left blank and a weight your blueprint never gave both end up as
+0%. WIMI stores the same thing either way. What differs is what the 0% means,
+and that matters when you come back to the tree later.
+
+- **In an import file, a subject with no weight is 0%, and that is the answer.**
+  The blueprint did not weight that subject. An import file is a transcription
+  of a document, and a document listing a topic with no number beside it is a
+  document saying that topic carries no published weight. Import a real outline
+  and you may well get a shelf of subjects at 0%; that is the rule working, not
+  a failed import.
+- **In the tree editor, an empty field means you have not decided yet.** The
+  subject is created at 0% and waits for you. Nothing shares out a weight on
+  your behalf when you press Save — or at any other time, unless you ask. The
+  one thing that does divide a remainder is the **Rebalance siblings** button,
+  and it does so only when you press it.
+
+So a 0% in your tree is either a published zero or an unanswered question, and
+only you can tell which. If you are working through a blueprint in passes, it
+is worth leaving a note on the subjects you have not reached yet rather than
+relying on the 0% to remind you.
+
+## What Rebalance siblings actually does
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-rebalance
+text: This is the only control that writes a weight you did not type. It
+  divides what is left of the 100% under the parent among siblings that are
+  neither anchored nor locked, leaves exam percentages alone, and refuses on a
+  top-level subject.
+-->
+
+**Rebalance siblings** lives in the weight panel, and it is the only thing in
+the app that will write a weight you did not type. Two things to know about it
+before you press it.
+
+**It works on the per-parent share, not on the exam percentage.** It fills in
+the **Relative Weight** side described earlier — the one that adds up to 100%
+under a single parent — and leaves an absolute exam weight exactly as you or
+your import file wrote it. So it is the tool for dividing a branch up, not for
+adjusting a blueprint figure.
+
+Its result is visible in the tree: each sibling it adjusts shows its new share
+on its row, marked **(rel)**, unless that sibling carries a weight range,
+which the row keeps showing instead.
+
+Within that, it shares out whatever is left of the 100% under that parent:
+
+- Siblings that are **anchored** keep their share exactly, and what they hold
+  comes off the top first.
+- If the rest already carry shares, the remainder is split between them in
+  proportion to what they have.
+- If the rest are all at zero — the usual case just after you have built a
+  branch — the remainder is split evenly.
+
+### The Anchor box
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-anchor
+text: The box shows whether this value is anchored now, and Apply leaves it
+  the way the box says. Anchored, Rebalance siblings never moves it; unticked,
+  it joins the share a rebalance may divide. Applying a value never changes
+  any other sibling.
+-->
+
+Anchoring is how you say "leave this one alone". The panel carries the control
+that says so beside a Relative weight: **Anchor this value (don't auto-adjust on
+rebalance)**. It shows whether the value is anchored *now*, and **Apply
+Changes** leaves the value the way the box says — ticked, anchored; unticked,
+in the pool a rebalance may move. A share you typed and applied with the box
+ticked is anchored. A share that Rebalance siblings wrote is not, so on such a
+subject the box starts unticked, and applying a new number without ticking it
+leaves that number unanchored too.
+
+**And it says when it cannot help rather than doing nothing quietly.** It works
+on a subject's *siblings*, so it is not available on a top-level subject — there
+is no parent to rebalance under, and WIMI tells you so. If every sibling is
+anchored it reports that nothing was rebalanced, which is the correct outcome
+and not a failure.
+
+## Zero is a weight
+
+Zero is real data, not missing data. Step 2 CK genuinely publishes two of its
+tasks at 0%, and WIMI stores a zero the same way it stores any other number.
+So a subject sitting at 0% may mean "the blueprint weights this at nothing",
+which is a fact worth keeping, and not only "nobody has got round to this".
+
+Which does mean the tree cannot show you which of the two a particular 0% is.
+If that distinction matters on a subject you weighted by hand, the place to
+record it is the **Weight Source** field, which the next section is about.
+
+## Where a weight came from, and what that does not change
+
+Every weight carries a record of where it came from. In the Add Subject dialog
+that is the **Weight Source** dropdown, with three choices and a one-line hint
+under each:
+
+- **User Defined** — you set this weight value.
+- **User Estimate** — your best guess based on study.
+- **Official (Locked)** — from the official exam blueprint.
+
+Pick the one that is true of where the number came from. Whether that weight is
+protected from a later rebalance is a separate property — the **Anchor this
+value** control in the weight panel, described above — so check there rather
+than inferring it from the name of a source.
+
+### The coloured badge in the weight panel
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-confidence
+text: This colour says where the weight came from, not how you are doing.
+  Green is official, yellow derived from official, and orange everything
+  else, including every imported weight. No count, chart or analysis in WIMI
+  treats the three differently.
+-->
+
+The weight editor shows the same fact back to you as a label — *Official Exam
+Weight*, *Derived from Official*, *User Estimate*, *User Defined* — beside a
+small coloured confidence badge: green for an official weight, yellow for one
+derived from an official one, orange for everything else. That includes every
+weight that arrived by import: an import records the numbers your file gives
+and not where the file says they came from, so a blueprint you imported shows
+*User Defined* and orange until you say otherwise. The analytics
+dashboard counts them up in a **Weight Sources** card below the weight
+analysis.
+
+**All of that is provenance, and none of it is a judgement.** It describes the
+measuring stick, not you:
+
+- It never changes any number WIMI calculates about your studying. An orange
+  "low confidence" weight and a green "official" one are treated identically
+  by every count, every chart and every piece of analysis in the app.
+- "Low confidence" is not WIMI doubting your work. It means nobody has told
+  WIMI that this figure came off a published document, which is simply true of
+  a number you typed, however well you chose it.
+- It is there so that when a chart surprises you, you can ask the right next
+  question: *is the weight behind this one I guessed?*
+
+WIMI did once fold confidence into a score, and it got it backwards — a weight
+WIMI knew least about made the score go *up*. That arithmetic is gone, and it
+is not coming back in either direction, because a figure describing the quality
+of your source data has no business moving a figure describing you.
+
+What does change behaviour is the anchor, which is a different property on a
+different control: **Rebalance siblings** leaves an anchored weight exactly
+where you put it and shares the remainder among the rest.
+
+## Percentages and question counts
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-exam-length
+text: Filling this in is what lets a weight read as a number of questions as
+  well as a percentage. Leaving it at "Don't know yet" is fine, and what is
+  stored either way is a percentage of the exam.
+-->
+
+If your exam knows how long it is, WIMI can show a weight as a number of
+questions as well as a percentage. That is what the **Exam Length** step of the
+exam wizard is for; see *Your first hour*.
+
+### The `%` / `Q` toggle
+
+<!-- tour
+page: tree-editor
+anchor: tree-weight-unit-q
+text: Q appears only on a Relative weight, on an exam whose length is set. A
+  count typed here is a number of the parent's questions, not the exam's, and
+  what WIMI saves is still a percentage of the parent.
+-->
+
+With a typical question count on record, the weight panel grows a small `%` /
+`Q` toggle on a **Relative** weight — a share of a parent — and there you can
+type in either: `28q` in the box is understood as 28 of the parent's questions
+and converted for you. An **Absolute** weight does not get the toggle, and
+neither does a band, because a question count for a range would be a range too.
+
+The conversion is a convenience, not a second kind of weight. What is stored is
+still a percentage — of the parent, since the toggle only appears on a Relative
+weight.
+
+### Variable length counts are estimates
+
+<!-- tour
+page: exam-wizard
+anchor: wizard-length-kind-range
+text: On a variable-length exam every question count WIMI shows is worked out
+  from Typical items alone, not Min or Max, and is shown to one decimal
+  marked "planning estimate" rather than rounded to whole questions.
+-->
+
+An exam of **Fixed length** gives each subject a whole number of questions out
+of the total. **Variable length (CAT)** asks for a minimum, a typical and a
+maximum, and the wizard will not go on unless the minimum is no larger than
+the typical and the typical no larger than the maximum. Only the typical is
+used after that: every question count in the tree is a share of **Typical
+items**, and because the real exam's length is not fixed, the count is left
+unrounded and labelled — `~26.4 q's (planning estimate)` rather than `~26 q's`.
+
+## What the Subject vs Exam Weight Analysis card shows
+
+On the analytics dashboard, this card compares where your mistakes actually
+fall against what the exam weights. Today it shows two panels:
+
+- **Quadrant Analysis**, sorting your subjects into Priority, Well-maintained,
+  Reduce focus and Low priority, each row giving your share of mistakes against
+  the exam's weight — 18% of your mistakes against a published 8–12%, say.
+- **Top Recommendations**, up to five lines naming a subject and what to do
+  about it.
+
+The card used to open with a single overall efficiency score out of 100. It is
+not shown at the moment: on a realistic blueprint it could not report a bad
+result — nearly every distribution a student could plausibly produce scored in
+the high eighties or nineties and rated Excellent — so what the number should
+actually mean is being reconsidered rather than quietly left on screen. Nothing
+replaces it, and the quadrant analysis beside it was never the part in doubt.
+
+## If you have no published weights at all
+
+Plenty of exams publish nothing usable. That is a supported way to run WIMI:
+
+- Import or build your outline with no weights and every subject sits at 0%.
+- Add the weights you are confident about and leave the rest alone. A partly
+  weighted tree is not a broken one.
+- Or skip weights entirely. Every count of your mistakes works without them.
+  What you lose is the comparison between where your mistakes fall and where
+  the exam's questions are, which is the one thing that genuinely needs a
+  blueprint.
+
+## If you remember one thing
+
+A weight is a share of the exam, at any depth. Read any number WIMI shows you
+that way and the surprises stop: the big child inside the small parent, the
+blueprint totalling 153%, the shelf of topics at 0% after an import. All three
+are the same rule, kept honestly.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

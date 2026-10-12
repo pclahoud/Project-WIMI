@@ -313,7 +313,7 @@ class DimensionHeatmap {
         tooltip.id = 'heatmap-tooltip';
         tooltip.className = 'heatmap-tooltip';
         tooltip.innerHTML = `
-            <div class="tooltip-header">${dimA.name} × ${dimB.name}</div>
+            <div class="tooltip-header">${WimiEscape.html(dimA.name)} × ${WimiEscape.html(dimB.name)}</div>
             <div class="tooltip-body">
                 <div class="tooltip-stat">
                     <span class="tooltip-label">Entries:</span>
@@ -419,7 +419,7 @@ class DimensionHeatmap {
         const maxCount = d3.max(this.data.matrix, d => d.count) || 1;
 
         container.innerHTML = `
-            <div class="heatmap-legend">
+            <div class="heatmap-legend" data-tour-anchor="analytics-cross-dim-legend">
                 <span class="legend-label">Fewer mistakes</span>
                 <div class="legend-gradient" style="background: linear-gradient(to right, ${this.options.minColor}, ${this.options.midColor}, ${this.options.maxColor})"></div>
                 <span class="legend-label">More mistakes</span>

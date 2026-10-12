@@ -51,6 +51,14 @@ EXPECTED = {
         "GNU LGPL v3 (Qt 6 and QtWebEngine)",
         "GNU LESSER GENERAL PUBLIC LICENSE",
     ),
+    # apache.org's LICENSE-2.0.txt, byte for byte (checked against the site
+    # when added, #336). Conveyed for a relations-runtime component whose wheel
+    # declares Apache but ships no text -- see scripts/relations_third_party.py.
+    Path("licenses/Apache-2.0.txt"): (
+        "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "Apache License 2.0 (relations-runtime components that ship no text)",
+        "Apache License",
+    ),
 }
 
 # The wheels carrying the Qt binaries that actually get bundled. Both ship the

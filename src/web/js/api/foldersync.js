@@ -151,10 +151,19 @@
         return api.runFolderSyncJob({kind: 'fetch'}, onProgress);
     };
 
-    /** Point this profile at a folder. */
-    api.linkFolderSync = async function(folder, providerId, onProgress) {
+    /**
+     * Point this profile at a folder.
+     *
+     * Resolves with `{linked: true, ...}`, or -- when the folder has warnings
+     * and `options.acknowledged` is not set -- with `{linked: false,
+     * needs_confirmation: true, warnings: [...]}` and NOTHING recorded (#412).
+     * Re-submit with `{acknowledged: true}` to link anyway; the folder is
+     * checked again then.
+     */
+    api.linkFolderSync = async function(folder, providerId, onProgress, options) {
         return api.runFolderSyncJob(
-            {kind: 'link', folder: folder, provider_id: providerId || 'generic'},
+            {kind: 'link', folder: folder, provider_id: providerId || 'generic',
+             acknowledged: !!(options && options.acknowledged)},
             onProgress);
     };
 

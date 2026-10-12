@@ -55,6 +55,44 @@ from .naming import ConflictCopy, ParsedName
 from .providers import Provider, get_provider
 
 
+#: The phrase every "this folder's path is beyond Windows' limit" problem
+#: carries. ``service.finish_link`` matches on it to make the problem blocking,
+#: so it is one constant rather than a string spelled twice.
+PATH_TOO_LONG = "longer than Windows allows on this computer"
+
+
+def _extended_length_path(path: Path) -> str:
+    r"""``path`` in Windows' ``\\?\`` form, which is exempt from ``MAX_PATH``.
+
+    Built by string, never by asking Windows to resolve it: the ordinary
+    resolution APIs are the ones that fail past the limit. A relative path is
+    joined to the working directory first, and a UNC share becomes
+    ``\\?\UNC\server\share``, which is the form that prefix requires.
+    """
+    text = os.path.normpath(os.path.join(os.getcwd(), str(path)))
+    if text.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + text[2:]
+    return "\\\\?\\" + text
+
+
+def exists_only_beyond_max_path(path: Path) -> bool:
+    r"""True when ``path`` is a folder that ordinary Windows calls cannot see.
+
+    On Windows with ``LongPathsEnabled = 0`` (the default), any call on a path
+    of 260 characters or more fails as if the folder were absent:
+    ``Path.exists()`` returns False and ``os.stat`` raises ``FileNotFoundError``
+    (WinError 3), for a folder that is sitting there (#366). The ``\\?\`` form
+    is exempt from that limit, so it can tell "absent" from "too long to
+    reach". Always False off Windows, where the limit does not exist.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        return os.path.isdir(_extended_length_path(path))
+    except (OSError, ValueError):
+        return False
+
+
 class TransportError(Exception):
     """The folder could not be used as a transport."""
 
@@ -335,12 +373,35 @@ class FolderTransport:
         problems: List[str] = []
 
         if not self.folder.exists():
-            problems.append(f"the folder does not exist: {self.folder}")
-            return problems
-        if not self.folder.is_dir():
+            if not exists_only_beyond_max_path(self.folder):
+                problems.append(f"the folder does not exist: {self.folder}")
+                return problems
+            # It exists; Windows will not let WIMI reach it by this path
+            # (#366). Saying "does not exist" sent students looking for a
+            # folder that was there, and could have them re-point the link --
+            # two devices on two folders is how #148's fork state is reached.
+            # No button and no promise: enabling long paths is a registry
+            # change needing an administrator, which WIMI cannot do (#174).
+            # No `--` in a sentence the student reads: this repo's double
+            # hyphen is the ASCII convention for COMMENTS, and these strings
+            # render verbatim in Settings. Rephrased to a full stop rather
+            # than swapped for an em dash, because src/ Python is where the
+            # ASCII convention bites hardest -- check_ascii_prints.py forbids
+            # a non-ASCII literal in any print() in this tree, and a problem
+            # string is one refactor away from being printed. Same defect as
+            # #396 fixed in relation_proposals.js.
+            problems.append(
+                f"that folder's path is {len(str(self.folder))} characters, "
+                f"{PATH_TOO_LONG} (long file paths are switched off in Windows "
+                f"here), so WIMI cannot use it. Choose a folder nearer the "
+                f"top of the drive: {self.folder}")
+            # Fall through to the path-budget checks below rather than
+            # returning: they describe this same folder, and returning here
+            # is what left Box's 255-character message unreachable.
+        elif not self.folder.is_dir():
             problems.append(f"that is a file, not a folder: {self.folder}")
             return problems
-        if not os.access(str(self.folder), os.W_OK):
+        elif not os.access(str(self.folder), os.W_OK):
             problems.append(f"WIMI cannot write to that folder: {self.folder}")
 
         # Budget the LONGEST name we will ever write, not the directory itself.

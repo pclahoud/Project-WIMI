@@ -252,13 +252,13 @@ class DimensionAnalytics {
             let cardsHtml = performanceData.map(({ dimension, performance }) => {
                 const topNodes = performance.nodes.slice(0, 3);
                 const topNodesHtml = topNodes.map(n =>
-                    `<span class="dim-top-node">${n.name} (${n.total_entries})</span>`
+                    `<span class="dim-top-node">${WimiEscape.html(n.name)} (${n.total_entries})</span>`
                 ).join('');
 
                 return `
                     <div class="dimension-summary-item">
                         <div class="dim-summary-header">
-                            <span class="dim-name">${dimension.name}</span>
+                            <span class="dim-name">${WimiEscape.html(dimension.name)}</span>
                             <span class="dim-total">${performance.total} entries</span>
                         </div>
                         <div class="dim-top-nodes">${topNodesHtml}</div>

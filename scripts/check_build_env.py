@@ -98,6 +98,24 @@ GPU_DIST_PREFIXES = ("nvidia", "triton", "pytorch-triton")
 # Minimum supported Python, from docs/BUILD_WINDOWS.md ("Python 3.11+"), and
 # the highest version actually exercised. Above the tested ceiling is a warning
 # rather than an error: a newer interpreter is untested, not known-broken.
+#
+# DELIBERATELY STILL 3.13, AND NOT RAISED BY #365 (2026-10-06). That issue
+# measured a DEFAULT Windows artifact built on 3.14.4 -- 300 frozen scenarios,
+# 0 failed, plus #144's refusal on a real release build. Strong evidence, and
+# it covers one variant on one platform on one machine.
+#
+# This is a single global constant, so raising it to (3, 14) would silence the
+# note for the RELATIONS artifact too -- which has never been built on 3.14
+# anywhere. torch 2.14.1 does publish a cp314 Windows wheel, but the PINNED
+# combination (with transformers 5.18.0) has never been installed: the one 3.14
+# venv that ran GLiNER2 carried transformers 4.57.6. macOS on 3.14 is unmeasured
+# as well.
+#
+# So the ceiling describes the weakest-evidenced variant on purpose. Raising it
+# on default-artifact evidence would be #135's and #183's class exactly -- the
+# thing that ships not being the thing that was exercised -- in the gate written
+# to prevent that. Raise it when a relations artifact has been built and driven
+# on 3.14, not before.
 MIN_PYTHON = (3, 11)
 MAX_TESTED_PYTHON = (3, 13)
 
@@ -293,10 +311,18 @@ def check_python(problems: list[str], notes: list[str]) -> None:
             f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]} (docs/BUILD_WINDOWS.md)."
         )
     elif current > MAX_TESTED_PYTHON:
+        # "nothing has been run against it" was true until #365 and is not any
+        # more, so the note says what IS and IS NOT known rather than a blanket
+        # claim a reader can disprove in one run and then stop trusting.
+        #
+        # The ceiling deliberately stays at 3.13 -- see MAX_TESTED_PYTHON.
         notes.append(
             f"Python {pretty} is newer than the highest tested version "
-            f"{MAX_TESTED_PYTHON[0]}.{MAX_TESTED_PYTHON[1]}. Not known-broken, "
-            f"but nothing has been run against it."
+            f"{MAX_TESTED_PYTHON[0]}.{MAX_TESTED_PYTHON[1]}. The DEFAULT "
+            f"artifact has been built and driven on 3.14.4 on Windows (#365: "
+            f"300 scenarios frozen, 0 failed). The RELATIONS artifact has not "
+            f"been built on 3.14 anywhere, and neither has macOS, so above the "
+            f"ceiling is still untested for those."
         )
     print(f"  python  {pretty:<12} (supported {MIN_PYTHON[0]}.{MIN_PYTHON[1]}"
           f"-{MAX_TESTED_PYTHON[0]}.{MAX_TESTED_PYTHON[1]})")
@@ -417,6 +443,16 @@ def check_runtime_qt(problems: list[str]) -> None:
         )
 
 
+def preload_msvc_runtime() -> None:
+    """Load the newest msvcp140.dll before Qt, as app.main does (#367)."""
+    src = str(PROJECT_ROOT / "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    from app.msvc_runtime import preload_newest  # noqa: PLC0415
+
+    print(f"  MSVC runtime             {preload_newest(force=True).describe()}")
+
+
 CPU_INDEX_HINT = (
     "pip install -r requirements-relations.txt "
     "--index-url https://download.pytorch.org/whl/cpu "
@@ -499,6 +535,35 @@ def check_relations_runtime(problems: list[str], notes: list[str]) -> None:
             f"Reinstall with:\n      {CPU_INDEX_HINT}"
         )
 
+    # The claim that actually matters, and the one this gate used to miss
+    # entirely (#364). Everything above establishes that torch is present and
+    # is the CPU build; none of it establishes that the thing the feature
+    # exists to construct can be constructed.
+    #
+    # It could not. `gliner2==2.0.0` declares `peft` only under its `local`
+    # extra while `requirements-relations.txt` pinned bare `gliner2`, and
+    # `gliner2/training/trainer.py` does an unconditional `from peft import
+    # PeftModel` on the INFERENCE path. So `from gliner2 import GLiNER2` raised
+    # ModuleNotFoundError in a venv built exactly as instructed -- on macOS and,
+    # reproduced, on Linux -- and this gate exited 0 on both, because a pin
+    # check compares names and versions and an import check imports.
+    #
+    # Importing the class is what a build is for. It costs ~10 s on this path
+    # only, which the default build never takes.
+    try:
+        from gliner2 import GLiNER2  # noqa: F401, PLC0415
+    except Exception as exc:
+        problems.append(
+            f"torch is fine, but the extraction model's own package will not "
+            f"import: {type(exc).__name__}: {exc}\n"
+            f"      A relations artifact built from here would ship a feature "
+            f"that cannot construct a model -- the failure reaching the student "
+            f"on first use, in the build they took the larger download for "
+            f"(#364). Reinstall with:\n      {CPU_INDEX_HINT}"
+        )
+    else:
+        print("  gliner2                  GLiNER2 imports")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -536,6 +601,13 @@ def main() -> int:
     print()
     check_pins(problems)
     print()
+    if args.relations:
+        # Before check_runtime_qt imports Qt, exactly as app.main does (#367).
+        # The gate must test the configuration the app runs, and the app
+        # preloads; leaving it out here would fail every relations check on
+        # Windows. Do NOT instead move the torch import above the Qt one --
+        # that would pass while hiding the defect this preload exists for.
+        preload_msvc_runtime()
     check_runtime_qt(problems)
     print()
 

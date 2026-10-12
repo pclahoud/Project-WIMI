@@ -12,8 +12,8 @@ Three groups:
   term precision (the invented-term detector), and the normalisation rules the
   corpus file declares;
 * **the corpus** -- that the shipped fixture describes itself consistently, and
-  that every priming term really does come from the published USMLE outline
-  rather than from the answer key;
+  that every priming term really does come from the exam outline fixture rather
+  than from the answer key;
 * **the read-aloud script** -- that the generated copy is in sync, the same
   shape of gate as ``scripts/check_import_guide_sync.py``.
 """
@@ -32,7 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = PROJECT_ROOT / "scripts" / "stt_measure.py"
 CORPUS_PATH = PROJECT_ROOT / "tests" / "fixtures" / "stt_vocabulary_terms.json"
 SCRIPT_MD_PATH = PROJECT_ROOT / "tests" / "fixtures" / "stt_vocabulary_script.md"
-OUTLINE_PATH = PROJECT_ROOT / "tests" / "fixtures" / "usmle_step1_outline.txt"
+OUTLINE_PATH = PROJECT_ROOT / "tests" / "fixtures" / "exam_outline.json"
 
 
 def _load_harness():
@@ -430,23 +430,35 @@ class TestShippedCorpus:
         controls = [u for u in corpus.utterances if not u.terms]
         assert len(controls) >= 3
 
-    def test_every_priming_term_comes_from_the_published_outline(self, corpus):
+    def test_every_priming_term_comes_from_the_exam_outline(self, corpus):
         """The honesty guard.
 
         Priming built from the marked-terms list would be an oracle prompt: the
         prompt would contain exactly the words being scored, and the measurement
         would say nothing about the feature, which primes from the student's
         imported subject tree.  Requiring every priming term to appear verbatim
-        in the real USMLE outline is what stops that happening by degrees.
+        in an outline is what stops that happening by degrees.
+
+        **What changed, and what it costs (#437).**  The outline used to be a
+        verbatim copy of a third party's published content outline, which was
+        an independent document: a priming term had to already be in it.  That
+        file is gone, and ``exam_outline.json`` is authored here, so the guard
+        no longer proves the vocabulary came from somewhere outside this
+        repository.  What it still does -- and this is the live half -- is stop
+        a *new* priming term being taken from the words being scored: adding
+        one now means putting it in the outline fixture, which is a visible,
+        reviewable edit to a subject hierarchy rather than a quiet addition to
+        a prompt.  ``build_exam_outline.py`` runs the same check so a missing
+        term fails the fixture build too.
         """
-        outline = OUTLINE_PATH.read_text(encoding="latin-1").lower()
+        outline = OUTLINE_PATH.read_text(encoding="utf-8").lower()
         outline = " ".join(outline.split())
         terms = list(corpus.priming_base_terms)
         for utterance in corpus.utterances:
             terms.extend(utterance.priming_entry_terms)
         missing = [t for t in dict.fromkeys(terms)
                    if " ".join(t.lower().split()) not in outline]
-        assert missing == [], "not in usmle_step1_outline.txt: " + repr(missing)
+        assert missing == [], "not in exam_outline.json: " + repr(missing)
 
     def test_every_prompt_fits_the_223_token_budget(self, corpus):
         for utterance in corpus.utterances:

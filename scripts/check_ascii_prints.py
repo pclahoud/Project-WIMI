@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import ast
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Iterator, NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -65,6 +65,15 @@ class Offence(NamedTuple):
     line: int
     chars: str
     snippet: str
+
+
+def location(path: PurePath, root: PurePath, line: int) -> str:
+    """Return the reported location of ``line`` in ``path``, e.g. ``src/app/main.py:12``.
+
+    A repo-relative identifier, so it reads the same on every host (#621);
+    see the same helper in ``check_css_tokens.py``.
+    """
+    return f"{path.relative_to(root).as_posix()}:{line}"
 
 
 def _iter_python_files(root: Path) -> Iterator[Path]:
@@ -148,9 +157,8 @@ def main() -> int:
         file=sys.stderr,
     )
     for offence in offences:
-        rel = offence.path.relative_to(REPO_ROOT)
         escaped = " ".join(f"{c!r} (U+{ord(c):04X})" for c in offence.chars)
-        print(f"  {rel}:{offence.line}: {escaped}", file=sys.stderr)
+        print(f"  {location(offence.path, REPO_ROOT, offence.line)}: {escaped}", file=sys.stderr)
         if offence.snippet:
             print(f"      {offence.snippet}", file=sys.stderr)
     print(

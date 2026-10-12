@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letting WIMI find the links - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/51_finding_links_automatically.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 18</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Letting WIMI find the links</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_related_topics.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Linking one topic to another</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_question_bank_pane.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Your question bank beside the form</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Letting WIMI find the links
+
+## In short
+
+WIMI can read the explanation you just wrote and propose relations between subjects your own sentences already name. It starts from a button and never from a save, because the first press of a session loads a large model onto this computer: ten to sixteen seconds, and a couple of gigabytes of memory while it works. Every proposal is invisible to the rest of the app until you confirm it, and confirming means reading the sentence WIMI prefilled and the relation type it picked, and changing either if it got them wrong.
+
+## Where the button is
+
+Under the second written field on the entry form — **Why is the correct answer
+correct?** — because that is the field it reads. It says **Find related
+topics**. While a pass is running it reads **Reading your explanation…** and a
+**Stop** button appears beside it.
+
+Two things have to be true before it can be pressed, and only one of them is
+obvious:
+
+- **The explanation must have some text in it.** That is what gets read, and the field is checked as you type rather than on save, so the button comes alive the moment you have written something.
+- **The entry must have been saved at least once.** A proposal is attached to an entry, so until the entry exists there is nothing to attach one to. In practice the thirty-second autosave handles this for you.
+
+**The greyed-out button says which of the two is stopping it.** Written nothing
+yet and it reads *"Write the explanation first — that is what WIMI reads."*
+Written one on an entry that has not been saved and it reads *"Save this entry
+first"*, and names the autosave and **Save as Draft** as the two ways that
+happens. Until recently it gave the first sentence in both cases, so a student
+looking at an explanation they had just written was told to write one.
+
+## Why it is a button and not something that just happens
+
+This is the one design decision in the feature worth understanding, because
+every part of the feature follows from it.
+
+Reading one explanation is quick — a short one takes under half a second, and a
+very long one about eight. But the **first** press in a session also has to load
+the model into memory, and that is **ten to sixteen seconds** depending on the
+machine. On the Windows machine these figures were taken on, WIMI then holds
+around **2.4 GB** of memory for as long as the model is loaded.
+
+If extraction ran automatically on save, the first entry of every single session
+would pay that bill without anybody asking for it — including on the many
+computers where two and a half gigabytes is most of what is spare. So it is a
+press. A student who never presses it never pays any of this, and that is the
+intended outcome rather than a shortcoming.
+
+The cost of that choice, stated plainly: if you never press the button you never
+get any of the suggestions, and in testing four out of five proposals were pairs
+a reader judged genuinely related. It is worth pressing on an entry where your
+explanation names two things you know are connected.
+
+## It is not in every version of WIMI
+
+Relation suggestions need a machine-learning runtime that is about a gigabyte on
+its own, and bundling it with every copy of WIMI would make the app enormous for
+everybody who does not use this. So there are two versions, and the ordinary one
+does not carry it.
+
+**Settings → Related Topics** always tells you which situation you are in, in
+one line:
+
+- **Ready.** The model is installed on this computer and runs here, so nothing you write is uploaded.
+- **This version of WIMI does not include relation suggestions.** The full version does, and is identical in every other way.
+- **WIMI needs to download the model once.** It is not bundled with WIMI, so the app stays small for people who do not use this. A **Download the model** button sits underneath.
+- **This version of WIMI should include relation suggestions, but part of it is missing.** That is a fault in the version you have rather than something you can fix, and WIMI says so instead of pretending to be the ordinary version.
+
+**In four of those five states the entry form shows nothing at all** — no
+button, no greyed-out control, no notice telling you about a feature you cannot
+use. That silence is deliberate: a copy of WIMI that cannot do this should look
+exactly like a copy that never heard of it. Settings is the one place that
+explains why.
+
+### The model download
+
+The model is about **845 MB** and is fetched once, from Settings → Related
+Topics. It is not part of WIMI's own download, and the panel keeps those two
+things verbally separate for exactly that reason — "the download" in that panel
+always means the model.
+
+**Cancel** keeps whatever has already arrived, so pressing Download again
+carries on from where it stopped. **Start the download again** is the separate,
+explicit way to throw away a part-finished transfer and begin from nothing,
+which is what you want if a connection went bad halfway through.
+
+Once it is here it stays here, and everything afterwards runs on this computer.
+Nothing you have written is sent anywhere at any point.
+
+## What it reads, and what it matches
+
+It reads **the explanation** — the second written field, the one about why the
+correct answer is correct. Not your reflection, not your answers, not your
+notes.
+
+In that text it looks for relations between things, and then checks whether both
+ends of each relation are subjects you actually have. A candidate end matches a
+subject if it matches that subject's name **exactly**, or matches an alias you
+recorded for it yourself. Capital letters, extra spaces and punctuation at
+either end are ignored, and nothing else is. Any active subject in the same exam
+counts, in any dimension — not just the subjects you tagged on this entry, and
+not an archived one.
+
+**There is no fuzzy matching and no "did you mean".** That is a decision rather
+than a gap. Approximate matching was tried and it paired *hyperkalemia* with
+*hypercalcemia* — two different electrolyte problems, one letter apart, and a
+suggestion that confidently relates the wrong pair is worse than no suggestion.
+An alias match is still exact matching; it is exact matching against a name you
+chose to record.
+
+The consequence to expect: if your explanation names a condition you have never
+added as a subject, nothing can be proposed about it. WIMI says so rather than
+leaving you to guess, with a line like *"WIMI also found two connections to
+things that are not subjects in this exam, so it did not suggest those."* It
+also tells you when a name it found matches two different subjects, because then
+it cannot know which you meant. Neither line is actionable — there is no "create
+it" button here — but "found nothing" and "found three things you have not filed
+yet" are very different facts about your tree.
+
+If it found nothing at all it says *"WIMI did not find a relation between your
+subjects in what you wrote."*
+
+## The proposal cards
+
+Each suggestion is a card under the button, carrying, top to bottom:
+
+- **The pair, as a sentence** — the two subjects with the relation wording between them.
+- **The passage it came from**, quoted from your own explanation.
+- **Relation**, a dropdown of your exam's relation types, with the one WIMI picked already selected.
+- **In your words**, a text box prefilled with that passage and fully editable.
+- **Three buttons**: Add this relation, Not in this entry, Never related.
+
+## Confirming is not one press of one button
+
+The prefilled sentence and the type dropdown are both in front of you *at the
+moment you confirm*, and that is the whole shape of the card rather than a
+nicety.
+
+A single button labelled Confirm, with the reason hidden behind it, would be a
+rubber stamp: you would be endorsing a sentence you had not read in a type you
+had not checked, forty times, and the relations panel would fill up with
+WIMI's words rather than yours. Relations exist because writing the sentence is
+the thinking. So the sentence is editable and the type is changeable, and
+**Add this relation** saves what is on the card when you press it.
+
+Two practical notes. Editing the type is often the right fix for a suggestion
+that feels nearly right — in testing, about a third of rejections were the right
+pair with the wrong type, and changing the dropdown is cheaper than rejecting a
+true pair. And the reason is still required: delete the prefilled text entirely
+and the save is refused, the same as if you had written the relation by hand.
+
+When it saves you get a confirmation reading *"It is on the subject's Related
+Topics list now"*, which is literally where it has gone.
+
+## The two rejections, and why there are two
+
+There is no single Reject button, and there is no default.
+
+- **Not in this entry** means the two topics may well be related — this sentence just does not say so. WIMI will not suggest it from this entry again, and nowhere else is affected.
+- **Never related** means these two topics are not related at all. WIMI will not suggest this pair again anywhere, in any entry, from now on.
+
+Those are very different statements with very different reach, which is why the
+reach is written on the buttons rather than tucked into a tooltip. And it matters
+which you press: when the owner of the project went through forty-five of their
+own rejections, **twenty-five of them meant the first one** — the pair was fine,
+the sentence had been misread. A single Reject button would have globally
+suppressed a true pair most of the times it was pressed.
+
+The two buttons are deliberately the same size, colour and weight. Making one
+quieter than the other would push you toward whichever one looked safer, and
+neither of them is.
+
+Either way WIMI confirms what it recorded — *"WIMI will not suggest that from
+this entry again"* or *"WIMI will not suggest that pair again"* — so you can
+tell which button you hit.
+
+## Leaving a proposal alone is a third choice, and it is stickier than it looks
+
+You can simply not answer a card. Save the entry, move on, and nothing is
+written to your relations.
+
+But two things follow, and the second one surprises people:
+
+- **The list belongs to the press that produced it.** Reopen the entry tomorrow and the cards are not there. They were suggestions made from a particular press on a particular explanation, not a review queue that accumulates. Press the button again and you get a fresh pass.
+- **An unanswered proposal still reserves that pair.** WIMI has written it down as an unconfirmed suggestion, and it will not suggest the same pair again on a *different* entry while that one is still waiting.
+
+That second point would be invisible if WIMI said nothing, so it says
+something. When a pass finds a pair that is already waiting unanswered
+somewhere else, the list carries a line naming where — the session and the
+question number — and telling you it is waiting for you there. That line
+deliberately has **no** Confirm and no Reject buttons on it: there is nothing on
+*this* entry to answer, and the place to answer it is the entry it names.
+
+Running extraction again on the **same** entry clears that entry's unanswered
+proposals and replaces them with the new pass. Rejections are never cleared this
+way — a pair you said Never related to stays rejected, and a re-run cannot
+resurrect it.
+
+## Writing a relation by hand can confirm a suggestion you never saw
+
+If you go to a subject's page and write, by hand, exactly the relation WIMI had
+already proposed and you never answered, WIMI does not refuse you as a
+duplicate and does not create a second one. It takes the suggestion it was
+holding and confirms it with *your* sentence and *your* confidence.
+
+The panel then tells you so: *"WIMI had already suggested this relation from an
+explanation you wrote, and was waiting for you to confirm it. Your words have
+replaced its guess."* You pressed Save and what happened was an edit to a row
+you had never seen, so that sentence exists rather than letting it look like an
+ordinary save.
+
+## The one setting
+
+**Settings → Related Topics** carries a slider labelled **How sure WIMI must be
+before suggesting a relation**, running from 10% to 95% in five-point steps,
+marked **More suggestions** at one end and **Fewer, surer suggestions** at the
+other. The default is **80%**.
+
+Its own help line is the honest summary: lower shows more suggestions, including
+more that are wrong; higher shows fewer that are more often right; and every
+suggestion waits for you to confirm it, so a lower setting costs your time,
+never your data.
+
+Two things about the numbers:
+
+- **80% is not the model's own default.** It comes from someone reading a hundred and two real suggestions without knowing their scores and judging each one, which put the hit rate at four in five at that cutoff. It is a measured number rather than a guess.
+- **The floor really is 10%, deliberately low.** Because nothing is written until you confirm it, a permissive setting cannot damage anything — it can only waste your attention. If you would rather skim ten suggestions than miss one, turn it down; the floor exists only so the dial cannot reach a setting where essentially every pair of words gets proposed.
+
+The slider stays visible and usable even on a version of WIMI that cannot run
+extraction at all. That is on purpose: it is a stated preference that travels
+with your profile, so you can set it here and have it apply on the machine that
+does have the full version.
+
+## When a pass goes wrong
+
+Each failure says what happened and whether trying again is worth it. A **Try
+again** button appears only when it actually might work:
+
+- **Out of memory** — this computer ran out of memory reading your explanation; closing some other programs and trying again usually fixes it.
+- **Took too long** — reading your explanation was stopped. Worth another go.
+- **Model files missing or damaged** — Settings → Related Topics can download the model again.
+- **The model would not load**, or WIMI **lost track of that search** — the second of those is worth a retry.
+- **Something in the model stopped responding** — restart WIMI and it will work again. Nothing you wrote is affected, and there is no Try again button here, because every further attempt would fail in exactly the same way until WIMI is restarted.
+
+Nothing you have typed is ever touched by a failed pass. The explanation is
+read, never rewritten.
+
+One more case worth recognising. A pass takes a few seconds, and in that time
+you may have saved, moved to the next entry or reset the form. If the result
+comes back for an entry you have left, WIMI throws it away and says *"Those
+suggestions were for a different entry, so WIMI did not show them."* It will not
+show you one entry's suggestions against another entry's explanation.
+
+## What it will never do
+
+- **It will never write a relation you did not press a button for.** Every suggestion is stored as an unconfirmed row that no other screen in WIMI reads. It is not on the subject's panel, it is not in any count, and it does not exist as far as the rest of the app is concerned until you confirm it.
+- **It will never send anything anywhere.** The model runs on this computer.
+- **It will never start on its own.** There is no save hook and no setting that turns it automatic.
+
+## Where to go next
+
+- [Linking one topic to another](help_related_topics.html) — what a relation is, the six types, and the panel these proposals end up on.
+- [Logging a mistake](help_logging_a_mistake.html) — the explanation field this reads, and the autosave that gives the entry something to attach a proposal to.
+- [Why WIMI asks for a reason](help_the_premise.html) — why the sentence is the part that cannot be automated.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

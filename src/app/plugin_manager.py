@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from . import APP_VERSION
 from .plugin_manifest import PluginManifest
 from .plugin_api import PluginAPI
 
@@ -25,14 +26,26 @@ class PluginManager:
 
     Args:
         plugins_dir: Path to the plugins directory (e.g., app_data/plugins/)
-        user_db: UserDatabase instance
+        user_db: UserDatabase instance, or None while no profile is open
         error_logger: Optional ErrorLogger instance
+        app_version: The WIMI version manifests' ``min_app_version`` is
+            compared with; ``APP_VERSION`` unless a test says otherwise.
+
+    Whether a plugin is enabled, its settings and its data all live in the
+    open profile, so the profile decides what is loaded (#505). With none
+    open -- the profile picker, and test mode before a user is attached --
+    plugins are discovered and nothing loads; ``set_user_database`` loads
+    them for the profile that opens, and on a switch reloads them for the
+    incoming one, because each PluginAPI holds the database it was made
+    with and the outgoing one is closed straight after.
     """
 
-    def __init__(self, plugins_dir: Path, user_db, error_logger=None):
+    def __init__(self, plugins_dir: Path, user_db, error_logger=None,
+                 app_version: Optional[str] = None):
         self._plugins_dir = plugins_dir
         self._user_db = user_db
         self._error_logger = error_logger
+        self._app_version = app_version or APP_VERSION
         self._manifests: Dict[str, PluginManifest] = {}
         self._backend_instances: Dict[str, object] = {}
         self._apis: Dict[str, PluginAPI] = {}
@@ -66,10 +79,20 @@ class PluginManager:
 
             try:
                 manifest = PluginManifest.from_file(manifest_path)
-                manifests.append(manifest)
-                self._manifests[manifest.id] = manifest
             except Exception as e:
                 self._log(f'Skipping plugin in {entry.name}: {e}', 'warning')
+                continue
+
+            # The same shape as an invalid manifest: skipped, with the reason
+            # in the log (#508).
+            reason = manifest.incompatibility(self._app_version)
+            if reason:
+                self._manifests.pop(manifest.id, None)
+                self._log(f'Skipping plugin in {entry.name}: {reason}', 'warning')
+                continue
+
+            manifests.append(manifest)
+            self._manifests[manifest.id] = manifest
 
         return manifests
 
@@ -87,6 +110,10 @@ class PluginManager:
         manifest = self._manifests.get(plugin_id)
         if not manifest:
             self._log(f'Plugin not found: {plugin_id}', 'warning')
+            return False
+
+        if self._user_db is None:
+            self._log(f'No profile open, not loading yet: {plugin_id}')
             return False
 
         # Check enabled state
@@ -171,19 +198,55 @@ class PluginManager:
         Returns:
             Dict of {plugin_id: success_bool}
         """
-        manifests = self.discover_plugins()
+        self.discover_plugins()
+        return self._load_discovered()
+
+    def _load_discovered(self) -> dict:
+        # Called unguarded on the startup path, so one plugin must not be
+        # able to stop WIMI starting (#505).
         results = {}
-
-        for manifest in manifests:
-            results[manifest.id] = self.load_plugin(manifest.id)
-
+        for plugin_id in list(self._manifests):
+            try:
+                results[plugin_id] = self.load_plugin(plugin_id)
+            except Exception as e:
+                self._log(f'Failed to load plugin {plugin_id}: {e}', 'error')
+                results[plugin_id] = False
         return results
+
+    def set_user_database(self, user_db) -> dict:
+        """
+        Point plugins at a newly opened profile and reload them for it.
+
+        Every loaded plugin is unloaded first, because its PluginAPI holds
+        the outgoing database, then each is loaded if the incoming profile
+        has it enabled. Called by MainWindow before it closes the outgoing
+        database.
+
+        It reloads the plugins discovered at startup and does NOT re-scan
+        the plugins folder: a re-scan here would import a newly dropped
+        backend's Python on a profile switch, a new moment for untrusted
+        code that #507 leaves as an open question.
+
+        Returns:
+            Dict of {plugin_id: success_bool}, as load_all
+        """
+        if user_db is self._user_db:
+            return {pid: True for pid in self._backend_instances}
+        for plugin_id in list(self._backend_instances):
+            self.unload_plugin(plugin_id)
+        self._user_db = user_db
+        return self._load_discovered()
+
+    def _require_profile(self):
+        if self._user_db is None:
+            raise ValueError('No profile is open.')
+        return self._user_db
 
     def set_plugin_enabled(self, plugin_id: str, enabled: bool) -> None:
         """
         Enable or disable a plugin, loading/unloading as needed.
         """
-        self._user_db.set_plugin_enabled(plugin_id, enabled)
+        self._require_profile().set_plugin_enabled(plugin_id, enabled)
 
         if enabled:
             if plugin_id not in self._backend_instances:
@@ -254,6 +317,12 @@ class PluginManager:
             # Validate manifest
             manifest = PluginManifest.from_file(manifest_path)
 
+            # Refuse before anything is copied or replaced: an incompatible
+            # zip must not unseat a working older copy of the same plugin.
+            reason = manifest.incompatibility(self._app_version)
+            if reason:
+                raise ValueError(reason)
+
             # Determine target directory
             target_dir = self._plugins_dir / manifest.id
             replaced = False
@@ -307,6 +376,7 @@ class PluginManager:
         manifest = self._manifests.get(plugin_id)
         if not manifest:
             raise ValueError(f'Plugin not found: {plugin_id}')
+        user_db = self._require_profile()
 
         plugin_dir = manifest.plugin_dir
 
@@ -319,7 +389,7 @@ class PluginManager:
             shutil.rmtree(str(plugin_dir))
 
         # Clear DB data
-        self._user_db.clear_plugin_data(plugin_id)
+        user_db.clear_plugin_data(plugin_id)
 
         # Remove from manifests
         self._manifests.pop(plugin_id, None)
@@ -337,7 +407,9 @@ class PluginManager:
         result = []
         for plugin_id, manifest in self._manifests.items():
             info = manifest.to_frontend_dict()
-            info['enabled'] = self._user_db.get_plugin_enabled(plugin_id)
+            # Enabled is a per-profile fact; with no profile open, none is.
+            info['enabled'] = (self._user_db is not None
+                               and self._user_db.get_plugin_enabled(plugin_id))
             info['has_backend'] = plugin_id in self._backend_instances and self._backend_instances[plugin_id] is not None
             result.append(info)
         return result
@@ -359,7 +431,7 @@ class PluginManager:
             defaults[setting.key] = setting.default
 
         # Merge with saved settings
-        saved = self._user_db.get_plugin_settings(plugin_id)
+        saved = self._require_profile().get_plugin_settings(plugin_id)
         merged = {**defaults, **saved}
         return merged
 
@@ -374,7 +446,7 @@ class PluginManager:
         Returns:
             Merged settings (defaults + saved)
         """
-        self._user_db.set_plugin_settings(plugin_id, settings)
+        self._require_profile().set_plugin_settings(plugin_id, settings)
         return self.get_plugin_settings(plugin_id)
 
     def set_media_manager(self, media_manager) -> None:

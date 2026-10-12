@@ -129,7 +129,7 @@
 }
 
 .session-timer-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
     opacity: 1;
 }
@@ -190,7 +190,7 @@
 
 /* Round indicator badge */
 .round-indicator {
-    font-size: 0.65rem;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     background: var(--color-primary, #2196F3);
     color: var(--text-inverse, white);
@@ -392,7 +392,7 @@
 }
 
 .entry-dot-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -479,7 +479,7 @@
 }
 
 .attach-action:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -741,7 +741,14 @@
        against this block and must be free to escape it. */
 }
 
-.fact-row + .fact-row {
+.fact-row + .fact-row,
+/* The subject rows sit in a .fact-row-group (the tour points at the pair,
+   #620 #26). The wrapper breaks the adjacency above, so the divider is
+   restated at both its edges; between its own two rows the rule above
+   still applies. Not `display: contents`, which would keep the adjacency
+   and leave the tour nothing with a box to point at. */
+.fact-row + .fact-row-group,
+.fact-row-group + .fact-row {
     border-top: 1px solid var(--border-light);
 }
 
@@ -1202,7 +1209,7 @@
 }
 
 .chip-remove:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -1259,7 +1266,7 @@
 }
 
 .tag-context-pill-caret {
-    font-size: 0.625rem;
+    font-size: 0.625rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
     opacity: 0.7;
 }
 
@@ -1954,7 +1961,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 0.75rem;
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     color: var(--text-muted, #9CA3AF);
     background: var(--bg-secondary, #F9FAFB);
     border-top: 1px solid var(--border-color, #E5E7EB);
@@ -2278,7 +2285,7 @@
 
 .note-card-actions .btn-text {
     padding: 0.125rem 0.375rem;
-    font-size: 0.7rem;
+    font-size: var(--font-size-xs);
     border: none;
     background: none;
     cursor: pointer;
@@ -2596,7 +2603,7 @@
 }
 
 .dictation-btn:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
@@ -2606,7 +2613,7 @@
 }
 
 .dictation-icon {
-    font-size: 0.625rem;
+    font-size: 0.625rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
     line-height: 1;
     color: var(--text-muted);
 }
@@ -2678,7 +2685,7 @@
 }
 
 .dictation-action:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 

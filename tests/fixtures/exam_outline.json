@@ -1,0 +1,3503 @@
+{
+  "fixture_id": "exam-outline-synthetic-v1",
+  "synthetic": true,
+  "generated_by": "tests/fixtures/build_exam_outline.py",
+  "exam_name": "Synthetic Exam Outline (Test Fixture)",
+  "description": "A synthetic multi-level exam content outline for tests that need a realistic subject hierarchy. The terminology is real medical vocabulary; the structure, category names, ordering and selection are this project's own and are not taken from any published outline. It replaces a verbatim copy of a third party's content outline (#437).",
+  "counts": {
+    "roots": 21,
+    "containers": 226,
+    "topic_listings": 2355,
+    "distinct_topics": 2245,
+    "multi_parent_topics": 70,
+    "seeded_nodes_expected": 2471,
+    "priming_terms_checked": 118
+  },
+  "roots": [
+    {
+      "name": "Cardiovascular System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the heart",
+            "histology of the heart",
+            "normal physiology of the heart",
+            "embryologic development of the heart",
+            "anatomy of the cardiac conduction system",
+            "histology of the cardiac conduction system",
+            "normal physiology of the cardiac conduction system",
+            "embryologic development of the cardiac conduction system",
+            "anatomy of the coronary arteries",
+            "histology of the coronary arteries",
+            "normal physiology of the coronary arteries",
+            "embryologic development of the coronary arteries",
+            "anatomy of the cardiac valves",
+            "histology of the cardiac valves",
+            "normal physiology of the cardiac valves",
+            "embryologic development of the cardiac valves",
+            "anatomy of the pericardium",
+            "histology of the pericardium",
+            "normal physiology of the pericardium",
+            "embryologic development of the pericardium",
+            "anatomy of the aorta",
+            "histology of the aorta",
+            "normal physiology of the aorta",
+            "embryologic development of the aorta",
+            "anatomy of the systemic veins",
+            "histology of the systemic veins",
+            "normal physiology of the systemic veins",
+            "embryologic development of the systemic veins",
+            "anatomy of the capillary bed",
+            "histology of the capillary bed",
+            "normal physiology of the capillary bed",
+            "embryologic development of the capillary bed"
+          ]
+        },
+        {
+          "name": "Ischemic heart disease",
+          "children": [
+            "acute coronary syndrome",
+            "acute myocardial infarction",
+            "angina pectoris",
+            "coronary artery disease",
+            "stable angina",
+            "unstable angina",
+            "coronary vasospasm",
+            "silent myocardial ischemia",
+            "post-infarction ventricular aneurysm"
+          ]
+        },
+        {
+          "name": "Disorders of rhythm and conduction",
+          "children": [
+            "atrial flutter",
+            "atrial fibrillation",
+            "multifocal atrial tachycardia",
+            "ventricular tachycardia",
+            "ventricular fibrillation",
+            "torsades de pointes",
+            "sick sinus syndrome",
+            "Wolff-Parkinson-White syndrome",
+            "atrioventricular block",
+            "bundle branch block",
+            "premature ventricular contractions",
+            "congenital long QT syndrome",
+            "hyperkalemia",
+            "ischemic stroke",
+            "drug-induced QT prolongation"
+          ]
+        },
+        {
+          "name": "Disorders of myocardial function",
+          "children": [
+            "congestive heart failure",
+            "cor pulmonale",
+            "diastolic dysfunction",
+            "systolic dysfunction",
+            "cardiomyopathy",
+            "dilated cardiomyopathy",
+            "hypertrophic cardiomyopathy",
+            "restrictive cardiomyopathy",
+            "left ventricular hypertrophy",
+            "cardiogenic shock"
+          ]
+        },
+        {
+          "name": "Pericardial and valvular disorders",
+          "children": [
+            "acute pericarditis",
+            "pericardial effusion",
+            "cardiac tamponade",
+            "constrictive pericarditis",
+            "rheumatic heart disease",
+            "aortic stenosis",
+            "aortic regurgitation",
+            "mitral stenosis",
+            "mitral regurgitation",
+            "mitral valve prolapse",
+            "tricuspid regurgitation",
+            "bicuspid aortic valve"
+          ]
+        },
+        {
+          "name": "Vascular disorders",
+          "children": [
+            "atherosclerosis",
+            "orthostatic hypotension",
+            "essential hypertension",
+            "hypertensive emergency",
+            "secondary hypertension",
+            "hypercholesterolemia",
+            "hyperlipidemia",
+            "hypertriglyceridemia",
+            "claudication",
+            "peripheral arterial disease",
+            "thromboangiitis obliterans",
+            "deep venous thrombosis",
+            "venous thromboembolism",
+            "thrombophlebitis",
+            "venous insufficiency",
+            "aortic dissection",
+            "abdominal aortic aneurysm",
+            "varicose veins",
+            "Raynaud phenomenon",
+            "giant cell arteritis",
+            "hypertension",
+            "pulmonary embolism",
+            "preeclampsia",
+            "metabolic syndrome",
+            "sleep apnea"
+          ]
+        },
+        {
+          "name": "Infectious and inflammatory disorders",
+          "children": [
+            "bacterial endocarditis",
+            "myocarditis",
+            "rheumatic fever",
+            "Kawasaki disease",
+            "Takayasu arteritis",
+            "polyarteritis nodosa"
+          ]
+        },
+        {
+          "name": "Structural and congenital disorders",
+          "children": [
+            "atrial septal defect",
+            "ventricular septal defect",
+            "patent ductus arteriosus",
+            "coarctation of the aorta",
+            "tetralogy of Fallot",
+            "transposition of the great arteries",
+            "Ebstein anomaly",
+            "persistent truncus arteriosus",
+            "Marfan syndrome",
+            "Down syndrome",
+            "Turner syndrome"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "infective endocarditis",
+              "children": [
+                "Staphylococcus aureus infective endocarditis",
+                "Streptococcus sanguinis infective endocarditis",
+                "Enterococcus faecalis infective endocarditis",
+                "Candida albicans infective endocarditis",
+                "Coxiella burnetii infective endocarditis"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of warfarin",
+            "adverse effects of warfarin",
+            "pharmacokinetics of warfarin",
+            "mechanism of action of furosemide",
+            "adverse effects of furosemide",
+            "pharmacokinetics of furosemide",
+            "mechanism of action of spironolactone",
+            "adverse effects of spironolactone",
+            "pharmacokinetics of spironolactone",
+            "mechanism of action of amiodarone",
+            "adverse effects of amiodarone",
+            "pharmacokinetics of amiodarone",
+            "mechanism of action of ACE inhibitors",
+            "adverse effects of ACE inhibitors",
+            "pharmacokinetics of ACE inhibitors",
+            "mechanism of action of digoxin",
+            "adverse effects of digoxin",
+            "pharmacokinetics of digoxin",
+            "mechanism of action of metoprolol",
+            "adverse effects of metoprolol",
+            "pharmacokinetics of metoprolol",
+            "mechanism of action of statins",
+            "adverse effects of statins",
+            "pharmacokinetics of statins"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the electrocardiogram",
+            "interpretation of the echocardiogram",
+            "interpretation of cardiac troponin levels",
+            "interpretation of coronary angiography",
+            "interpretation of the lipid panel",
+            "interpretation of the ankle-brachial index"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Respiratory System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the upper airway",
+            "histology of the upper airway",
+            "normal physiology of the upper airway",
+            "embryologic development of the upper airway",
+            "anatomy of the trachea and bronchi",
+            "histology of the trachea and bronchi",
+            "normal physiology of the trachea and bronchi",
+            "embryologic development of the trachea and bronchi",
+            "anatomy of the alveolus",
+            "histology of the alveolus",
+            "normal physiology of the alveolus",
+            "embryologic development of the alveolus",
+            "anatomy of the lung",
+            "histology of the lung",
+            "normal physiology of the lung",
+            "embryologic development of the lung",
+            "anatomy of the pleura",
+            "histology of the pleura",
+            "normal physiology of the pleura",
+            "embryologic development of the pleura",
+            "anatomy of the diaphragm",
+            "histology of the diaphragm",
+            "normal physiology of the diaphragm",
+            "embryologic development of the diaphragm",
+            "anatomy of the pulmonary vasculature",
+            "histology of the pulmonary vasculature",
+            "normal physiology of the pulmonary vasculature",
+            "embryologic development of the pulmonary vasculature",
+            "anatomy of the respiratory control centre",
+            "histology of the respiratory control centre",
+            "normal physiology of the respiratory control centre",
+            "embryologic development of the respiratory control centre"
+          ]
+        },
+        {
+          "name": "Obstructive disorders",
+          "children": [
+            "asthma",
+            "bronchiectasis",
+            "chronic obstructive pulmonary disease",
+            "chronic bronchitis",
+            "emphysema",
+            "bronchiolitis obliterans",
+            "alpha-1 antitrypsin deficiency",
+            "exercise-induced bronchoconstriction",
+            "cystic fibrosis"
+          ]
+        },
+        {
+          "name": "Restrictive and interstitial disorders",
+          "children": [
+            "pneumoconiosis",
+            "asbestosis",
+            "silicosis",
+            "hypersensitivity pneumonitis",
+            "idiopathic pulmonary fibrosis",
+            "sarcoidosis of the lung",
+            "berylliosis",
+            "coal workers pneumoconiosis",
+            "radiation pneumonitis",
+            "sarcoidosis",
+            "pulmonary tuberculosis"
+          ]
+        },
+        {
+          "name": "Disorders of gas exchange and ventilation",
+          "children": [
+            "acute respiratory distress syndrome",
+            "hypoventilation",
+            "hypoxia",
+            "hypercapnia",
+            "respiratory acidosis",
+            "respiratory alkalosis",
+            "obstructive sleep apnea",
+            "central sleep apnea",
+            "high-altitude pulmonary edema",
+            "opioid overdose",
+            "obesity",
+            "myasthenia gravis",
+            "sleep apnea"
+          ]
+        },
+        {
+          "name": "Vascular disorders",
+          "children": [
+            "pulmonary hypertension",
+            "pulmonary edema",
+            "pulmonary embolism",
+            "pulmonary arteriovenous malformation",
+            "pulmonary infarction"
+          ]
+        },
+        {
+          "name": "Pleural and mediastinal disorders",
+          "children": [
+            "pleural effusion",
+            "pneumothorax",
+            "tension pneumothorax",
+            "empyema",
+            "chylothorax",
+            "mediastinitis",
+            "pleural plaque formation",
+            "Hodgkin lymphoma"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "small cell carcinoma of the lung",
+            "squamous cell carcinoma of the lung",
+            "adenocarcinoma of the lung",
+            "large cell carcinoma of the lung",
+            "bronchial carcinoid",
+            "pulmonary hamartoma",
+            "malignant pleural mesothelioma"
+          ]
+        },
+        {
+          "name": "Structural and congenital disorders",
+          "children": [
+            "tracheoesophageal fistula",
+            "congenital diaphragmatic hernia",
+            "pulmonary hypoplasia",
+            "bronchogenic cyst",
+            "primary ciliary dyskinesia"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "pneumonia",
+              "children": [
+                "Streptococcus pneumoniae pneumonia",
+                "Klebsiella pneumoniae pneumonia",
+                "Legionella pneumophila pneumonia",
+                "Mycoplasma pneumoniae pneumonia",
+                "Pneumocystis jirovecii pneumonia",
+                "Influenza A virus pneumonia"
+              ]
+            },
+            {
+              "name": "bronchiolitis",
+              "children": [
+                "respiratory syncytial virus bronchiolitis",
+                "human metapneumovirus bronchiolitis"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of albuterol",
+            "adverse effects of albuterol",
+            "pharmacokinetics of albuterol",
+            "mechanism of action of ipratropium",
+            "adverse effects of ipratropium",
+            "pharmacokinetics of ipratropium",
+            "mechanism of action of montelukast",
+            "adverse effects of montelukast",
+            "pharmacokinetics of montelukast",
+            "mechanism of action of inhaled corticosteroids",
+            "adverse effects of inhaled corticosteroids",
+            "pharmacokinetics of inhaled corticosteroids",
+            "mechanism of action of theophylline",
+            "adverse effects of theophylline",
+            "pharmacokinetics of theophylline",
+            "mechanism of action of roflumilast",
+            "adverse effects of roflumilast",
+            "pharmacokinetics of roflumilast",
+            "mechanism of action of supplemental oxygen",
+            "adverse effects of supplemental oxygen",
+            "pharmacokinetics of supplemental oxygen",
+            "mechanism of action of acetylcysteine",
+            "adverse effects of acetylcysteine",
+            "pharmacokinetics of acetylcysteine"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of spirometry",
+            "interpretation of the flow-volume loop",
+            "interpretation of arterial blood gases",
+            "interpretation of the chest radiograph",
+            "interpretation of the ventilation-perfusion scan",
+            "interpretation of the methacholine challenge test"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gastrointestinal System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the esophagus",
+            "histology of the esophagus",
+            "normal physiology of the esophagus",
+            "embryologic development of the esophagus",
+            "anatomy of the stomach",
+            "histology of the stomach",
+            "normal physiology of the stomach",
+            "embryologic development of the stomach",
+            "anatomy of the small intestine",
+            "histology of the small intestine",
+            "normal physiology of the small intestine",
+            "embryologic development of the small intestine",
+            "anatomy of the colon",
+            "histology of the colon",
+            "normal physiology of the colon",
+            "embryologic development of the colon",
+            "anatomy of the rectum",
+            "histology of the rectum",
+            "normal physiology of the rectum",
+            "embryologic development of the rectum",
+            "anatomy of the liver",
+            "histology of the liver",
+            "normal physiology of the liver",
+            "embryologic development of the liver",
+            "anatomy of the biliary tree",
+            "histology of the biliary tree",
+            "normal physiology of the biliary tree",
+            "embryologic development of the biliary tree",
+            "anatomy of the exocrine pancreas",
+            "histology of the exocrine pancreas",
+            "normal physiology of the exocrine pancreas",
+            "embryologic development of the exocrine pancreas",
+            "anatomy of the peritoneum",
+            "histology of the peritoneum",
+            "normal physiology of the peritoneum",
+            "embryologic development of the peritoneum"
+          ]
+        },
+        {
+          "name": "Disorders of the esophagus and stomach",
+          "children": [
+            "peptic ulcer",
+            "gastritis",
+            "gastroparesis",
+            "gastroesophageal reflux disease",
+            "achalasia",
+            "esophageal varices",
+            "Barrett esophagus",
+            "eosinophilic esophagitis",
+            "Mallory-Weiss tear",
+            "pyloric stenosis",
+            "Zollinger-Ellison syndrome"
+          ]
+        },
+        {
+          "name": "Disorders of the intestine",
+          "children": [
+            "Crohn disease",
+            "ulcerative colitis",
+            "celiac disease",
+            "irritable bowel syndrome",
+            "diverticulitis",
+            "ischemic colitis",
+            "small intestinal bacterial overgrowth",
+            "lactase deficiency",
+            "intussusception",
+            "volvulus",
+            "adhesive small bowel obstruction",
+            "acute appendicitis",
+            "Hirschsprung disease",
+            "necrotizing enterocolitis",
+            "iron deficiency anemia",
+            "Clostridioides difficile colitis"
+          ]
+        },
+        {
+          "name": "Hepatic and biliary disorders",
+          "children": [
+            "cirrhosis",
+            "primary sclerosing cholangitis",
+            "primary biliary cholangitis",
+            "autoimmune hepatitis",
+            "nonalcoholic steatohepatitis",
+            "alcoholic hepatitis",
+            "hepatic encephalopathy",
+            "portal hypertension",
+            "cholelithiasis",
+            "acute cholecystitis",
+            "choledocholithiasis",
+            "ascending cholangitis",
+            "hereditary hemochromatosis",
+            "Wilson disease",
+            "Gilbert syndrome",
+            "alcohol use disorder",
+            "neonatal hyperbilirubinemia",
+            "drug-induced liver injury",
+            "acetaminophen overdose"
+          ]
+        },
+        {
+          "name": "Pancreatic disorders",
+          "children": [
+            "acute pancreatitis",
+            "chronic pancreatitis",
+            "pancreatic pseudocyst",
+            "pancreatic insufficiency",
+            "cystic fibrosis"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "adenocarcinoma of the colon",
+            "adenocarcinoma of the stomach",
+            "adenocarcinoma of the pancreas",
+            "squamous cell carcinoma of the esophagus",
+            "hepatocellular carcinoma",
+            "gastrointestinal stromal tumor",
+            "familial adenomatous polyposis",
+            "colonic adenoma"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "infectious diarrhea",
+              "children": [
+                "Salmonella enterica infectious diarrhea",
+                "Shigella flexneri infectious diarrhea",
+                "Campylobacter jejuni infectious diarrhea",
+                "Clostridioides difficile infectious diarrhea",
+                "Entamoeba histolytica infectious diarrhea",
+                "norovirus infectious diarrhea",
+                "rotavirus infectious diarrhea"
+              ]
+            },
+            {
+              "name": "hepatitis",
+              "children": [
+                "hepatitis A virus hepatitis",
+                "hepatitis B virus hepatitis",
+                "hepatitis C virus hepatitis",
+                "hepatitis E virus hepatitis"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of omeprazole",
+            "adverse effects of omeprazole",
+            "pharmacokinetics of omeprazole",
+            "mechanism of action of ondansetron",
+            "adverse effects of ondansetron",
+            "pharmacokinetics of ondansetron",
+            "mechanism of action of mesalamine",
+            "adverse effects of mesalamine",
+            "pharmacokinetics of mesalamine",
+            "mechanism of action of lactulose",
+            "adverse effects of lactulose",
+            "pharmacokinetics of lactulose",
+            "mechanism of action of ursodeoxycholic acid",
+            "adverse effects of ursodeoxycholic acid",
+            "pharmacokinetics of ursodeoxycholic acid",
+            "mechanism of action of loperamide",
+            "adverse effects of loperamide",
+            "pharmacokinetics of loperamide",
+            "mechanism of action of polyethylene glycol",
+            "adverse effects of polyethylene glycol",
+            "pharmacokinetics of polyethylene glycol",
+            "mechanism of action of octreotide",
+            "adverse effects of octreotide",
+            "pharmacokinetics of octreotide"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of liver function tests",
+            "interpretation of the serum lipase level",
+            "interpretation of upper endoscopy findings",
+            "interpretation of the abdominal radiograph",
+            "interpretation of the hepatitis serology panel",
+            "interpretation of the fecal occult blood test"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Renal & Urinary System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the kidney",
+            "histology of the kidney",
+            "normal physiology of the kidney",
+            "embryologic development of the kidney",
+            "anatomy of the glomerulus",
+            "histology of the glomerulus",
+            "normal physiology of the glomerulus",
+            "embryologic development of the glomerulus",
+            "anatomy of the proximal tubule",
+            "histology of the proximal tubule",
+            "normal physiology of the proximal tubule",
+            "embryologic development of the proximal tubule",
+            "anatomy of the loop of Henle",
+            "histology of the loop of Henle",
+            "normal physiology of the loop of Henle",
+            "embryologic development of the loop of Henle",
+            "anatomy of the distal nephron",
+            "histology of the distal nephron",
+            "normal physiology of the distal nephron",
+            "embryologic development of the distal nephron",
+            "anatomy of the collecting duct",
+            "histology of the collecting duct",
+            "normal physiology of the collecting duct",
+            "embryologic development of the collecting duct",
+            "anatomy of the ureter",
+            "histology of the ureter",
+            "normal physiology of the ureter",
+            "embryologic development of the ureter",
+            "anatomy of the bladder",
+            "histology of the bladder",
+            "normal physiology of the bladder",
+            "embryologic development of the bladder",
+            "anatomy of the urethra",
+            "histology of the urethra",
+            "normal physiology of the urethra",
+            "embryologic development of the urethra"
+          ]
+        },
+        {
+          "name": "Glomerular disorders",
+          "children": [
+            "glomerulonephritis",
+            "IgA nephropathy",
+            "lupus nephritis",
+            "minimal change disease",
+            "nephrotic syndrome",
+            "membranous nephropathy",
+            "focal segmental glomerulosclerosis",
+            "post-streptococcal glomerulonephritis",
+            "rapidly progressive glomerulonephritis",
+            "diabetic nephropathy",
+            "Alport syndrome",
+            "thin basement membrane disease",
+            "diabetes mellitus",
+            "systemic lupus erythematosus"
+          ]
+        },
+        {
+          "name": "Tubulointerstitial disorders",
+          "children": [
+            "acute tubular necrosis",
+            "acute interstitial nephritis",
+            "chronic interstitial nephritis",
+            "renal papillary necrosis",
+            "Fanconi syndrome",
+            "renal tubular acidosis",
+            "nephrogenic diabetes insipidus",
+            "analgesic nephropathy",
+            "anemia of chronic disease",
+            "rhabdomyolysis",
+            "tumor lysis syndrome",
+            "multiple myeloma",
+            "prescribing in renal impairment"
+          ]
+        },
+        {
+          "name": "Infectious and inflammatory disorders",
+          "children": [
+            "pyelonephritis",
+            "cystitis",
+            "urethritis",
+            "prostatitis",
+            "perinephric abscess",
+            "emphysematous pyelonephritis"
+          ]
+        },
+        {
+          "name": "Obstructive and structural disorders",
+          "children": [
+            "nephrolithiasis",
+            "hydronephrosis",
+            "polycystic kidney disease",
+            "horseshoe kidney",
+            "vesicoureteral reflux",
+            "posterior urethral valves",
+            "neurogenic bladder",
+            "urinary retention",
+            "gout",
+            "multiple sclerosis"
+          ]
+        },
+        {
+          "name": "Vascular and hypertensive disorders",
+          "children": [
+            "renal artery stenosis",
+            "hypertensive nephrosclerosis",
+            "renal vein thrombosis",
+            "renal infarction",
+            "scleroderma renal crisis",
+            "hypertension",
+            "preeclampsia"
+          ]
+        },
+        {
+          "name": "Disorders of fluid and electrolytes",
+          "children": [
+            "hyponatremia",
+            "hypernatremia",
+            "hyperkalemia",
+            "hypokalemia",
+            "metabolic acidosis",
+            "metabolic alkalosis",
+            "hypercalcemia of malignancy",
+            "volume depletion"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "renal cell carcinoma",
+            "urothelial carcinoma of the bladder",
+            "nephroblastoma",
+            "angiomyolipoma of the kidney"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "urinary tract infection",
+              "children": [
+                "Escherichia coli urinary tract infection",
+                "Proteus mirabilis urinary tract infection",
+                "Klebsiella pneumoniae urinary tract infection",
+                "Enterococcus faecalis urinary tract infection",
+                "Staphylococcus saprophyticus urinary tract infection"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of hydrochlorothiazide",
+            "adverse effects of hydrochlorothiazide",
+            "pharmacokinetics of hydrochlorothiazide",
+            "mechanism of action of acetazolamide",
+            "adverse effects of acetazolamide",
+            "pharmacokinetics of acetazolamide",
+            "mechanism of action of tolvaptan",
+            "adverse effects of tolvaptan",
+            "pharmacokinetics of tolvaptan",
+            "mechanism of action of sodium bicarbonate",
+            "adverse effects of sodium bicarbonate",
+            "pharmacokinetics of sodium bicarbonate",
+            "mechanism of action of sevelamer",
+            "adverse effects of sevelamer",
+            "pharmacokinetics of sevelamer",
+            "mechanism of action of erythropoietin",
+            "adverse effects of erythropoietin",
+            "pharmacokinetics of erythropoietin",
+            "mechanism of action of nitrofurantoin",
+            "adverse effects of nitrofurantoin",
+            "pharmacokinetics of nitrofurantoin",
+            "mechanism of action of allopurinol",
+            "adverse effects of allopurinol",
+            "pharmacokinetics of allopurinol"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the serum creatinine level",
+            "interpretation of urinalysis",
+            "interpretation of the urine sediment",
+            "interpretation of the fractional excretion of sodium",
+            "interpretation of renal ultrasonography",
+            "interpretation of the renal biopsy specimen"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Endocrine System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the pituitary gland",
+            "histology of the pituitary gland",
+            "normal physiology of the pituitary gland",
+            "embryologic development of the pituitary gland",
+            "anatomy of the thyroid gland",
+            "histology of the thyroid gland",
+            "normal physiology of the thyroid gland",
+            "embryologic development of the thyroid gland",
+            "anatomy of the parathyroid gland",
+            "histology of the parathyroid gland",
+            "normal physiology of the parathyroid gland",
+            "embryologic development of the parathyroid gland",
+            "anatomy of the adrenal cortex",
+            "histology of the adrenal cortex",
+            "normal physiology of the adrenal cortex",
+            "embryologic development of the adrenal cortex",
+            "anatomy of the adrenal medulla",
+            "histology of the adrenal medulla",
+            "normal physiology of the adrenal medulla",
+            "embryologic development of the adrenal medulla",
+            "anatomy of the endocrine pancreas",
+            "histology of the endocrine pancreas",
+            "normal physiology of the endocrine pancreas",
+            "embryologic development of the endocrine pancreas",
+            "anatomy of the hypothalamic-pituitary axis",
+            "histology of the hypothalamic-pituitary axis",
+            "normal physiology of the hypothalamic-pituitary axis",
+            "embryologic development of the hypothalamic-pituitary axis",
+            "anatomy of the bone mineral axis",
+            "histology of the bone mineral axis",
+            "normal physiology of the bone mineral axis",
+            "embryologic development of the bone mineral axis"
+          ]
+        },
+        {
+          "name": "Disorders of glucose regulation",
+          "children": [
+            "diabetes mellitus",
+            "hypoglycemia",
+            "diabetic ketoacidosis",
+            "hyperosmolar hyperglycemic state",
+            "insulin resistance",
+            "gestational glucose intolerance",
+            "insulinoma",
+            "reactive hypoglycemia",
+            "gestational diabetes mellitus",
+            "obesity"
+          ]
+        },
+        {
+          "name": "Disorders of the thyroid gland",
+          "children": [
+            "Graves disease",
+            "Hashimoto thyroiditis",
+            "subacute thyroiditis",
+            "toxic multinodular goiter",
+            "iodine deficiency goiter",
+            "thyroid storm",
+            "myxedema coma",
+            "papillary thyroid carcinoma",
+            "medullary thyroid carcinoma",
+            "congenital hypothyroidism",
+            "hypothyroidism"
+          ]
+        },
+        {
+          "name": "Disorders of the adrenal gland",
+          "children": [
+            "pheochromocytoma",
+            "primary adrenal insufficiency",
+            "secondary adrenal insufficiency",
+            "Cushing syndrome",
+            "primary hyperaldosteronism",
+            "congenital adrenal hyperplasia",
+            "adrenal incidentaloma",
+            "adrenocortical carcinoma",
+            "hypertension",
+            "hyperkalemia"
+          ]
+        },
+        {
+          "name": "Disorders of the pituitary gland",
+          "children": [
+            "prolactinoma",
+            "acromegaly",
+            "growth hormone deficiency",
+            "central diabetes insipidus",
+            "syndrome of inappropriate antidiuretic hormone secretion",
+            "hypopituitarism",
+            "pituitary apoplexy",
+            "empty sella syndrome"
+          ]
+        },
+        {
+          "name": "Disorders of calcium and bone metabolism",
+          "children": [
+            "primary hyperparathyroidism",
+            "hypoparathyroidism",
+            "vitamin D deficiency rickets",
+            "osteomalacia",
+            "Paget disease of bone",
+            "pseudohypoparathyroidism",
+            "familial hypocalciuric hypercalcemia",
+            "hypercalcemia of malignancy",
+            "osteoporosis",
+            "vitamin D deficiency"
+          ]
+        },
+        {
+          "name": "Multiple endocrine disorders",
+          "children": [
+            "multiple endocrine neoplasia type 1",
+            "multiple endocrine neoplasia type 2A",
+            "autoimmune polyglandular syndrome",
+            "carcinoid syndrome",
+            "polycystic ovary syndrome",
+            "small cell carcinoma of the lung"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of insulin",
+            "adverse effects of insulin",
+            "pharmacokinetics of insulin",
+            "mechanism of action of metformin",
+            "adverse effects of metformin",
+            "pharmacokinetics of metformin",
+            "mechanism of action of levothyroxine",
+            "adverse effects of levothyroxine",
+            "pharmacokinetics of levothyroxine",
+            "mechanism of action of methimazole",
+            "adverse effects of methimazole",
+            "pharmacokinetics of methimazole",
+            "mechanism of action of prednisone",
+            "adverse effects of prednisone",
+            "pharmacokinetics of prednisone",
+            "mechanism of action of bisphosphonates",
+            "adverse effects of bisphosphonates",
+            "pharmacokinetics of bisphosphonates",
+            "mechanism of action of cabergoline",
+            "adverse effects of cabergoline",
+            "pharmacokinetics of cabergoline",
+            "mechanism of action of desmopressin",
+            "adverse effects of desmopressin",
+            "pharmacokinetics of desmopressin"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the thyroid-stimulating hormone level",
+            "interpretation of the hemoglobin A1c level",
+            "interpretation of the dexamethasone suppression test",
+            "interpretation of the cosyntropin stimulation test",
+            "interpretation of the oral glucose tolerance test",
+            "interpretation of bone densitometry"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Nervous System & Special Senses",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the cerebral cortex",
+            "histology of the cerebral cortex",
+            "normal physiology of the cerebral cortex",
+            "embryologic development of the cerebral cortex",
+            "anatomy of the basal ganglia",
+            "histology of the basal ganglia",
+            "normal physiology of the basal ganglia",
+            "embryologic development of the basal ganglia",
+            "anatomy of the cerebellum",
+            "histology of the cerebellum",
+            "normal physiology of the cerebellum",
+            "embryologic development of the cerebellum",
+            "anatomy of the brainstem",
+            "histology of the brainstem",
+            "normal physiology of the brainstem",
+            "embryologic development of the brainstem",
+            "anatomy of the spinal cord",
+            "histology of the spinal cord",
+            "normal physiology of the spinal cord",
+            "embryologic development of the spinal cord",
+            "anatomy of the peripheral nerve",
+            "histology of the peripheral nerve",
+            "normal physiology of the peripheral nerve",
+            "embryologic development of the peripheral nerve",
+            "anatomy of the neuromuscular junction",
+            "histology of the neuromuscular junction",
+            "normal physiology of the neuromuscular junction",
+            "embryologic development of the neuromuscular junction",
+            "anatomy of the meninges",
+            "histology of the meninges",
+            "normal physiology of the meninges",
+            "embryologic development of the meninges",
+            "anatomy of the retina",
+            "histology of the retina",
+            "normal physiology of the retina",
+            "embryologic development of the retina",
+            "anatomy of the cochlea",
+            "histology of the cochlea",
+            "normal physiology of the cochlea",
+            "embryologic development of the cochlea"
+          ]
+        },
+        {
+          "name": "Cerebrovascular disorders",
+          "children": [
+            "ischemic stroke",
+            "transient ischemic attack",
+            "intracerebral hemorrhage",
+            "subarachnoid hemorrhage",
+            "cerebral venous sinus thrombosis",
+            "lacunar infarction",
+            "carotid artery stenosis",
+            "cerebral aneurysm",
+            "arteriovenous malformation of the brain"
+          ]
+        },
+        {
+          "name": "Seizure and paroxysmal disorders",
+          "children": [
+            "focal seizure",
+            "generalized tonic-clonic seizure",
+            "absence seizure",
+            "status epilepticus",
+            "febrile seizure",
+            "juvenile myoclonic epilepsy",
+            "syncope of neural origin",
+            "serotonin syndrome"
+          ]
+        },
+        {
+          "name": "Degenerative and demyelinating disorders",
+          "children": [
+            "Alzheimer disease",
+            "Parkinson disease",
+            "Huntington disease",
+            "amyotrophic lateral sclerosis",
+            "multiple sclerosis",
+            "frontotemporal dementia",
+            "Lewy body dementia",
+            "progressive supranuclear palsy",
+            "normal pressure hydrocephalus",
+            "subacute combined degeneration",
+            "sarcoidosis",
+            "syphilis"
+          ]
+        },
+        {
+          "name": "Disorders of the peripheral nerve and muscle",
+          "children": [
+            "Guillain-Barre syndrome",
+            "myasthenia gravis",
+            "diabetic polyneuropathy",
+            "carpal tunnel syndrome",
+            "Bell palsy",
+            "trigeminal neuralgia",
+            "Charcot-Marie-Tooth disease",
+            "Lambert-Eaton myasthenic syndrome",
+            "small cell carcinoma of the lung"
+          ]
+        },
+        {
+          "name": "Headache and pain disorders",
+          "children": [
+            "migraine without aura",
+            "migraine with aura",
+            "cluster headache",
+            "tension-type headache",
+            "idiopathic intracranial hypertension",
+            "medication overuse headache",
+            "complex regional pain syndrome"
+          ]
+        },
+        {
+          "name": "Disorders of the special senses",
+          "children": [
+            "open-angle glaucoma",
+            "angle-closure glaucoma",
+            "age-related macular degeneration",
+            "diabetic retinopathy",
+            "retinal detachment",
+            "cataract",
+            "optic neuritis",
+            "conductive hearing loss",
+            "sensorineural hearing loss",
+            "benign paroxysmal positional vertigo",
+            "Meniere disease",
+            "acute otitis media",
+            "vestibular neuritis",
+            "Marfan syndrome",
+            "giant cell arteritis"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "glioblastoma",
+            "meningioma",
+            "medulloblastoma",
+            "vestibular schwannoma",
+            "pituitary macroadenoma",
+            "metastatic brain lesion",
+            "melanoma"
+          ]
+        },
+        {
+          "name": "Traumatic and mechanical disorders",
+          "children": [
+            "concussion",
+            "epidural hematoma",
+            "subdural hematoma",
+            "diffuse axonal injury",
+            "spinal cord compression",
+            "cauda equina syndrome",
+            "lumbar disc herniation",
+            "cerebral palsy"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "meningitis",
+              "children": [
+                "Neisseria meningitidis meningitis",
+                "Streptococcus pneumoniae meningitis",
+                "Haemophilus influenzae meningitis",
+                "Listeria monocytogenes meningitis",
+                "Cryptococcus neoformans meningitis",
+                "enterovirus meningitis"
+              ]
+            },
+            {
+              "name": "encephalitis",
+              "children": [
+                "herpes simplex virus type 1 encephalitis",
+                "West Nile virus encephalitis",
+                "rabies virus encephalitis"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of levetiracetam",
+            "adverse effects of levetiracetam",
+            "pharmacokinetics of levetiracetam",
+            "mechanism of action of phenytoin",
+            "adverse effects of phenytoin",
+            "pharmacokinetics of phenytoin",
+            "mechanism of action of carbidopa-levodopa",
+            "adverse effects of carbidopa-levodopa",
+            "pharmacokinetics of carbidopa-levodopa",
+            "mechanism of action of sumatriptan",
+            "adverse effects of sumatriptan",
+            "pharmacokinetics of sumatriptan",
+            "mechanism of action of donepezil",
+            "adverse effects of donepezil",
+            "pharmacokinetics of donepezil",
+            "mechanism of action of mannitol",
+            "adverse effects of mannitol",
+            "pharmacokinetics of mannitol",
+            "mechanism of action of alteplase",
+            "adverse effects of alteplase",
+            "pharmacokinetics of alteplase",
+            "mechanism of action of gabapentin",
+            "adverse effects of gabapentin",
+            "pharmacokinetics of gabapentin"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the non-contrast head computed tomogram",
+            "interpretation of magnetic resonance imaging of the brain",
+            "interpretation of the cerebrospinal fluid profile",
+            "interpretation of electroencephalography",
+            "interpretation of nerve conduction studies",
+            "interpretation of the audiogram"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Musculoskeletal System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the long bone",
+            "histology of the long bone",
+            "normal physiology of the long bone",
+            "embryologic development of the long bone",
+            "anatomy of the synovial joint",
+            "histology of the synovial joint",
+            "normal physiology of the synovial joint",
+            "embryologic development of the synovial joint",
+            "anatomy of the skeletal muscle",
+            "histology of the skeletal muscle",
+            "normal physiology of the skeletal muscle",
+            "embryologic development of the skeletal muscle",
+            "anatomy of the tendon",
+            "histology of the tendon",
+            "normal physiology of the tendon",
+            "embryologic development of the tendon",
+            "anatomy of the ligament",
+            "histology of the ligament",
+            "normal physiology of the ligament",
+            "embryologic development of the ligament",
+            "anatomy of the intervertebral disc",
+            "histology of the intervertebral disc",
+            "normal physiology of the intervertebral disc",
+            "embryologic development of the intervertebral disc",
+            "anatomy of the growth plate",
+            "histology of the growth plate",
+            "normal physiology of the growth plate",
+            "embryologic development of the growth plate",
+            "anatomy of the articular cartilage",
+            "histology of the articular cartilage",
+            "normal physiology of the articular cartilage",
+            "embryologic development of the articular cartilage"
+          ]
+        },
+        {
+          "name": "Inflammatory and autoimmune arthropathies",
+          "children": [
+            "rheumatoid arthritis",
+            "ankylosing spondylitis",
+            "psoriatic arthropathy",
+            "reactive arthritis",
+            "juvenile idiopathic arthritis",
+            "gout",
+            "calcium pyrophosphate deposition disease",
+            "polymyalgia rheumatica",
+            "enteropathic arthritis"
+          ]
+        },
+        {
+          "name": "Degenerative and metabolic bone disease",
+          "children": [
+            "osteoarthritis",
+            "osteoporosis",
+            "osteopenia",
+            "avascular necrosis of the femoral head",
+            "osteogenesis imperfecta",
+            "osteopetrosis",
+            "fibrous dysplasia of bone",
+            "sickle cell disease",
+            "vitamin D deficiency"
+          ]
+        },
+        {
+          "name": "Infectious disorders",
+          "children": [
+            "osteomyelitis",
+            "septic arthritis",
+            "discitis",
+            "prosthetic joint infection",
+            "pyomyositis"
+          ]
+        },
+        {
+          "name": "Disorders of muscle",
+          "children": [
+            "rhabdomyolysis",
+            "malignant hyperthermia",
+            "polymyositis",
+            "dermatomyositis",
+            "inclusion body myositis",
+            "Duchenne muscular dystrophy",
+            "myotonic dystrophy",
+            "statin-associated myopathy"
+          ]
+        },
+        {
+          "name": "Traumatic and mechanical disorders",
+          "children": [
+            "spondylolisthesis",
+            "lumbar spinal stenosis",
+            "rotator cuff tear",
+            "anterior cruciate ligament tear",
+            "meniscal tear",
+            "Colles fracture",
+            "scaphoid fracture",
+            "femoral neck fracture",
+            "compartment syndrome",
+            "stress fracture of the tibia",
+            "lateral epicondylitis",
+            "plantar fasciitis",
+            "adhesive capsulitis"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "osteosarcoma",
+            "Ewing sarcoma",
+            "chondrosarcoma",
+            "giant cell tumor of bone",
+            "osteochondroma",
+            "metastatic bone lesion",
+            "multiple myeloma",
+            "adenocarcinoma of the prostate"
+          ]
+        },
+        {
+          "name": "Structural and congenital disorders",
+          "children": [
+            "developmental dysplasia of the hip",
+            "clubfoot",
+            "adolescent idiopathic scoliosis",
+            "achondroplasia",
+            "Legg-Calve-Perthes disease"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "osteoarticular infection",
+              "children": [
+                "Staphylococcus aureus osteoarticular infection",
+                "Neisseria gonorrhoeae osteoarticular infection",
+                "Salmonella enterica osteoarticular infection",
+                "Mycobacterium tuberculosis osteoarticular infection",
+                "Kingella kingae osteoarticular infection"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of colchicine",
+            "adverse effects of colchicine",
+            "pharmacokinetics of colchicine",
+            "mechanism of action of methotrexate",
+            "adverse effects of methotrexate",
+            "pharmacokinetics of methotrexate",
+            "mechanism of action of naproxen",
+            "adverse effects of naproxen",
+            "pharmacokinetics of naproxen",
+            "mechanism of action of denosumab",
+            "adverse effects of denosumab",
+            "pharmacokinetics of denosumab",
+            "mechanism of action of allopurinol for gout",
+            "adverse effects of allopurinol for gout",
+            "pharmacokinetics of allopurinol for gout",
+            "mechanism of action of cyclobenzaprine",
+            "adverse effects of cyclobenzaprine",
+            "pharmacokinetics of cyclobenzaprine",
+            "mechanism of action of triamcinolone",
+            "adverse effects of triamcinolone",
+            "pharmacokinetics of triamcinolone",
+            "mechanism of action of etanercept",
+            "adverse effects of etanercept",
+            "pharmacokinetics of etanercept"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the plain radiograph of a fracture",
+            "interpretation of the synovial fluid analysis",
+            "interpretation of the serum creatine kinase level",
+            "interpretation of the rheumatoid factor assay",
+            "interpretation of the anti-citrullinated peptide antibody assay",
+            "interpretation of the serum uric acid level"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Skin & Subcutaneous Tissue",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the epidermis",
+            "histology of the epidermis",
+            "normal physiology of the epidermis",
+            "embryologic development of the epidermis",
+            "anatomy of the dermis",
+            "histology of the dermis",
+            "normal physiology of the dermis",
+            "embryologic development of the dermis",
+            "anatomy of the subcutaneous fat",
+            "histology of the subcutaneous fat",
+            "normal physiology of the subcutaneous fat",
+            "embryologic development of the subcutaneous fat",
+            "anatomy of the hair follicle",
+            "histology of the hair follicle",
+            "normal physiology of the hair follicle",
+            "embryologic development of the hair follicle",
+            "anatomy of the sebaceous gland",
+            "histology of the sebaceous gland",
+            "normal physiology of the sebaceous gland",
+            "embryologic development of the sebaceous gland",
+            "anatomy of the eccrine sweat gland",
+            "histology of the eccrine sweat gland",
+            "normal physiology of the eccrine sweat gland",
+            "embryologic development of the eccrine sweat gland",
+            "anatomy of the nail unit",
+            "histology of the nail unit",
+            "normal physiology of the nail unit",
+            "embryologic development of the nail unit",
+            "anatomy of the cutaneous vasculature",
+            "histology of the cutaneous vasculature",
+            "normal physiology of the cutaneous vasculature",
+            "embryologic development of the cutaneous vasculature"
+          ]
+        },
+        {
+          "name": "Infectious disorders",
+          "children": [
+            "necrotizing fasciitis",
+            "cellulitis",
+            "erysipelas",
+            "impetigo",
+            "folliculitis",
+            "cutaneous abscess",
+            "tinea corporis",
+            "onychomycosis",
+            "herpes zoster",
+            "scabies infestation",
+            "verruca vulgaris",
+            "osteomyelitis"
+          ]
+        },
+        {
+          "name": "Papulosquamous and eczematous disorders",
+          "children": [
+            "plaque psoriasis",
+            "atopic dermatitis",
+            "allergic contact dermatitis",
+            "irritant contact dermatitis",
+            "seborrheic dermatitis",
+            "lichen planus",
+            "pityriasis rosea",
+            "nummular eczema"
+          ]
+        },
+        {
+          "name": "Bullous and immune-mediated disorders",
+          "children": [
+            "pemphigus vulgaris",
+            "bullous pemphigoid",
+            "dermatitis herpetiformis",
+            "erythema multiforme",
+            "Stevens-Johnson syndrome",
+            "toxic epidermal necrolysis",
+            "cutaneous lupus erythematosus",
+            "vitiligo",
+            "systemic lupus erythematosus"
+          ]
+        },
+        {
+          "name": "Disorders of the appendages",
+          "children": [
+            "acne vulgaris",
+            "rosacea",
+            "hidradenitis suppurativa",
+            "androgenetic alopecia",
+            "alopecia areata",
+            "telogen effluvium",
+            "hirsutism"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "basal cell carcinoma",
+            "cutaneous squamous cell carcinoma",
+            "melanoma",
+            "actinic keratosis",
+            "seborrheic keratosis",
+            "dysplastic nevus",
+            "dermatofibroma",
+            "keratoacanthoma",
+            "mycosis fungoides"
+          ]
+        },
+        {
+          "name": "Traumatic and mechanical disorders",
+          "children": [
+            "pressure injury",
+            "thermal burn",
+            "chemical burn",
+            "frostbite",
+            "hypertrophic scar",
+            "keloid formation"
+          ]
+        },
+        {
+          "name": "Microbial causes",
+          "children": [
+            {
+              "name": "skin and soft tissue infection",
+              "children": [
+                "Staphylococcus aureus skin and soft tissue infection",
+                "Streptococcus pyogenes skin and soft tissue infection",
+                "Pseudomonas aeruginosa skin and soft tissue infection",
+                "Clostridium perfringens skin and soft tissue infection",
+                "Trichophyton rubrum skin and soft tissue infection"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of topical clobetasol",
+            "adverse effects of topical clobetasol",
+            "pharmacokinetics of topical clobetasol",
+            "mechanism of action of topical tacrolimus",
+            "adverse effects of topical tacrolimus",
+            "pharmacokinetics of topical tacrolimus",
+            "mechanism of action of isotretinoin",
+            "adverse effects of isotretinoin",
+            "pharmacokinetics of isotretinoin",
+            "mechanism of action of terbinafine",
+            "adverse effects of terbinafine",
+            "pharmacokinetics of terbinafine",
+            "mechanism of action of mupirocin",
+            "adverse effects of mupirocin",
+            "pharmacokinetics of mupirocin",
+            "mechanism of action of permethrin",
+            "adverse effects of permethrin",
+            "pharmacokinetics of permethrin",
+            "mechanism of action of dupilumab",
+            "adverse effects of dupilumab",
+            "pharmacokinetics of dupilumab",
+            "mechanism of action of acyclovir",
+            "adverse effects of acyclovir",
+            "pharmacokinetics of acyclovir"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the punch biopsy specimen",
+            "interpretation of the potassium hydroxide preparation",
+            "interpretation of dermoscopy findings",
+            "interpretation of patch testing",
+            "interpretation of the Tzanck smear",
+            "interpretation of wound culture results"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Blood & Lymphoreticular System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the bone marrow",
+            "histology of the bone marrow",
+            "normal physiology of the bone marrow",
+            "embryologic development of the bone marrow",
+            "anatomy of the erythrocyte",
+            "histology of the erythrocyte",
+            "normal physiology of the erythrocyte",
+            "embryologic development of the erythrocyte",
+            "anatomy of the platelet",
+            "histology of the platelet",
+            "normal physiology of the platelet",
+            "embryologic development of the platelet",
+            "anatomy of the neutrophil",
+            "histology of the neutrophil",
+            "normal physiology of the neutrophil",
+            "embryologic development of the neutrophil",
+            "anatomy of the lymph node",
+            "histology of the lymph node",
+            "normal physiology of the lymph node",
+            "embryologic development of the lymph node",
+            "anatomy of the spleen",
+            "histology of the spleen",
+            "normal physiology of the spleen",
+            "embryologic development of the spleen",
+            "anatomy of the coagulation cascade",
+            "histology of the coagulation cascade",
+            "normal physiology of the coagulation cascade",
+            "embryologic development of the coagulation cascade",
+            "anatomy of the hemoglobin molecule",
+            "histology of the hemoglobin molecule",
+            "normal physiology of the hemoglobin molecule",
+            "embryologic development of the hemoglobin molecule"
+          ]
+        },
+        {
+          "name": "Disorders of the erythrocyte",
+          "children": [
+            "iron deficiency anemia",
+            "anemia of chronic disease",
+            "megaloblastic anemia",
+            "sickle cell disease",
+            "beta thalassemia",
+            "alpha thalassemia",
+            "hereditary spherocytosis",
+            "glucose-6-phosphate dehydrogenase deficiency",
+            "autoimmune hemolytic anemia",
+            "aplastic anemia",
+            "methemoglobinemia",
+            "polycythemia vera",
+            "paroxysmal nocturnal hemoglobinuria",
+            "neonatal hyperbilirubinemia",
+            "lead poisoning"
+          ]
+        },
+        {
+          "name": "Disorders of platelets and coagulation",
+          "children": [
+            "thrombocytopenia",
+            "immune thrombocytopenic purpura",
+            "heparin-induced thrombocytopenia",
+            "thrombotic thrombocytopenic purpura",
+            "disseminated intravascular coagulation",
+            "hemophilia A",
+            "hemophilia B",
+            "von Willebrand disease",
+            "factor V Leiden thrombophilia",
+            "antithrombin III deficiency",
+            "vitamin K deficiency bleeding",
+            "essential thrombocythemia",
+            "sepsis"
+          ]
+        },
+        {
+          "name": "Disorders of leukocytes",
+          "children": [
+            "acute lymphoblastic leukemia",
+            "acute myeloid leukemia",
+            "chronic lymphocytic leukemia",
+            "chronic myeloid leukemia",
+            "myelodysplastic syndrome",
+            "hairy cell leukemia",
+            "leukocyte adhesion deficiency",
+            "chronic neutropenia",
+            "tumor lysis syndrome"
+          ]
+        },
+        {
+          "name": "Disorders of the lymphoreticular system",
+          "children": [
+            "hypersplenism",
+            "Hodgkin lymphoma",
+            "diffuse large B-cell lymphoma",
+            "follicular lymphoma",
+            "Burkitt lymphoma",
+            "multiple myeloma",
+            "monoclonal gammopathy of undetermined significance",
+            "reactive lymphadenopathy",
+            "splenic infarction",
+            "asplenia"
+          ]
+        },
+        {
+          "name": "Transfusion and marrow failure",
+          "children": [
+            "acute hemolytic transfusion reaction",
+            "febrile non-hemolytic transfusion reaction",
+            "transfusion-related acute lung injury",
+            "graft-versus-host disease",
+            "marrow engraftment failure",
+            "iron overload from transfusion"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of ferrous sulfate",
+            "adverse effects of ferrous sulfate",
+            "pharmacokinetics of ferrous sulfate",
+            "mechanism of action of cyanocobalamin",
+            "adverse effects of cyanocobalamin",
+            "pharmacokinetics of cyanocobalamin",
+            "mechanism of action of folic acid",
+            "adverse effects of folic acid",
+            "pharmacokinetics of folic acid",
+            "mechanism of action of hydroxyurea",
+            "adverse effects of hydroxyurea",
+            "pharmacokinetics of hydroxyurea",
+            "mechanism of action of rituximab",
+            "adverse effects of rituximab",
+            "pharmacokinetics of rituximab",
+            "mechanism of action of azathioprine",
+            "adverse effects of azathioprine",
+            "pharmacokinetics of azathioprine",
+            "mechanism of action of filgrastim",
+            "adverse effects of filgrastim",
+            "pharmacokinetics of filgrastim",
+            "mechanism of action of eltrombopag",
+            "adverse effects of eltrombopag",
+            "pharmacokinetics of eltrombopag"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the complete blood count",
+            "interpretation of the peripheral blood smear",
+            "interpretation of the reticulocyte count",
+            "interpretation of the bone marrow aspirate",
+            "interpretation of the direct antiglobulin test",
+            "interpretation of the prothrombin and partial thromboplastin times"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Immune System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the thymus",
+            "histology of the thymus",
+            "normal physiology of the thymus",
+            "embryologic development of the thymus",
+            "anatomy of the B lymphocyte",
+            "histology of the B lymphocyte",
+            "normal physiology of the B lymphocyte",
+            "embryologic development of the B lymphocyte",
+            "anatomy of the T lymphocyte",
+            "histology of the T lymphocyte",
+            "normal physiology of the T lymphocyte",
+            "embryologic development of the T lymphocyte",
+            "anatomy of the macrophage",
+            "histology of the macrophage",
+            "normal physiology of the macrophage",
+            "embryologic development of the macrophage",
+            "anatomy of the complement system",
+            "histology of the complement system",
+            "normal physiology of the complement system",
+            "embryologic development of the complement system",
+            "anatomy of the major histocompatibility complex",
+            "histology of the major histocompatibility complex",
+            "normal physiology of the major histocompatibility complex",
+            "embryologic development of the major histocompatibility complex",
+            "anatomy of the immunoglobulin molecule",
+            "histology of the immunoglobulin molecule",
+            "normal physiology of the immunoglobulin molecule",
+            "embryologic development of the immunoglobulin molecule",
+            "anatomy of the innate barrier defenses",
+            "histology of the innate barrier defenses",
+            "normal physiology of the innate barrier defenses",
+            "embryologic development of the innate barrier defenses"
+          ]
+        },
+        {
+          "name": "Immunodeficiency",
+          "children": [
+            "severe combined immunodeficiency",
+            "common variable immunodeficiency",
+            "selective immunoglobulin A deficiency",
+            "X-linked agammaglobulinemia",
+            "chronic granulomatous disease",
+            "DiGeorge syndrome",
+            "hereditary complement deficiency",
+            "acquired immunodeficiency syndrome",
+            "hyper-immunoglobulin E syndrome",
+            "human immunodeficiency virus infection"
+          ]
+        },
+        {
+          "name": "Immunologic and allergic disorders",
+          "children": [
+            "asthma",
+            "allergic rhinitis",
+            "anaphylaxis",
+            "urticaria and angioedema",
+            "food allergy",
+            "drug hypersensitivity reaction",
+            "serum sickness",
+            "hereditary angioedema",
+            "mast cell activation syndrome"
+          ]
+        },
+        {
+          "name": "Autoimmune disorders",
+          "children": [
+            "systemic lupus erythematosus",
+            "Sjogren syndrome",
+            "systemic sclerosis",
+            "mixed connective tissue disease",
+            "antiphospholipid antibody syndrome",
+            "granulomatosis with polyangiitis",
+            "eosinophilic granulomatosis with polyangiitis",
+            "microscopic polyangiitis",
+            "IgG4-related disease",
+            "myasthenia gravis",
+            "multiple sclerosis",
+            "giant cell arteritis"
+          ]
+        },
+        {
+          "name": "Transplantation and tolerance",
+          "children": [
+            "hyperacute graft rejection",
+            "acute cellular rejection",
+            "chronic allograft nephropathy",
+            "donor-recipient matching",
+            "central tolerance",
+            "peripheral tolerance"
+          ]
+        },
+        {
+          "name": "Inflammation",
+          "children": [
+            "the acute phase response",
+            "granuloma formation",
+            "chronic inflammatory infiltrate",
+            "fever of inflammatory origin",
+            "cytokine release syndrome",
+            "sepsis",
+            "sarcoidosis"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of epinephrine for anaphylaxis",
+            "adverse effects of epinephrine for anaphylaxis",
+            "pharmacokinetics of epinephrine for anaphylaxis",
+            "mechanism of action of cetirizine",
+            "adverse effects of cetirizine",
+            "pharmacokinetics of cetirizine",
+            "mechanism of action of omalizumab",
+            "adverse effects of omalizumab",
+            "pharmacokinetics of omalizumab",
+            "mechanism of action of tacrolimus",
+            "adverse effects of tacrolimus",
+            "pharmacokinetics of tacrolimus",
+            "mechanism of action of mycophenolate mofetil",
+            "adverse effects of mycophenolate mofetil",
+            "pharmacokinetics of mycophenolate mofetil",
+            "mechanism of action of cyclosporine",
+            "adverse effects of cyclosporine",
+            "pharmacokinetics of cyclosporine",
+            "mechanism of action of intravenous immunoglobulin",
+            "adverse effects of intravenous immunoglobulin",
+            "pharmacokinetics of intravenous immunoglobulin",
+            "mechanism of action of infliximab",
+            "adverse effects of infliximab",
+            "pharmacokinetics of infliximab"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the antinuclear antibody panel",
+            "interpretation of serum immunoglobulin quantitation",
+            "interpretation of the complement levels",
+            "interpretation of flow cytometry of lymphocyte subsets",
+            "interpretation of skin prick testing",
+            "interpretation of the erythrocyte sedimentation rate"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Microbiology & Infectious Disease",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the bacterial cell wall",
+            "histology of the bacterial cell wall",
+            "normal physiology of the bacterial cell wall",
+            "embryologic development of the bacterial cell wall",
+            "anatomy of the bacterial ribosome",
+            "histology of the bacterial ribosome",
+            "normal physiology of the bacterial ribosome",
+            "embryologic development of the bacterial ribosome",
+            "anatomy of the viral capsid",
+            "histology of the viral capsid",
+            "normal physiology of the viral capsid",
+            "embryologic development of the viral capsid",
+            "anatomy of the fungal cell membrane",
+            "histology of the fungal cell membrane",
+            "normal physiology of the fungal cell membrane",
+            "embryologic development of the fungal cell membrane",
+            "anatomy of the protozoan life cycle",
+            "histology of the protozoan life cycle",
+            "normal physiology of the protozoan life cycle",
+            "embryologic development of the protozoan life cycle",
+            "anatomy of the helminth life cycle",
+            "histology of the helminth life cycle",
+            "normal physiology of the helminth life cycle",
+            "embryologic development of the helminth life cycle"
+          ]
+        },
+        {
+          "name": "Bacterial infections",
+          "children": [
+            {
+              "name": "Gram-positive organisms",
+              "children": [
+                "MRSA colonization",
+                "methicillin-resistant Staphylococcus aureus bacteremia",
+                "streptococcal pharyngitis",
+                "scarlet fever",
+                "toxic shock syndrome",
+                "diphtheria",
+                "listeriosis",
+                "anthrax",
+                "tetanus",
+                "botulism",
+                "nocardiosis",
+                "actinomycosis",
+                "cellulitis"
+              ]
+            },
+            {
+              "name": "Gram-negative organisms",
+              "children": [
+                "typhoid fever",
+                "cholera",
+                "plague",
+                "tularemia",
+                "brucellosis",
+                "pertussis",
+                "legionellosis",
+                "melioidosis",
+                "chancroid",
+                "bartonellosis",
+                "pelvic inflammatory disease"
+              ]
+            },
+            {
+              "name": "Mycobacterial and spirochetal organisms",
+              "children": [
+                "pulmonary tuberculosis",
+                "miliary tuberculosis",
+                "leprosy",
+                "Mycobacterium avium complex infection",
+                "primary syphilis",
+                "secondary syphilis",
+                "tertiary syphilis",
+                "Lyme disease",
+                "leptospirosis",
+                "relapsing fever",
+                "syphilis"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Viral infections",
+          "children": [
+            "infectious mononucleosis",
+            "cytomegalovirus syndrome",
+            "measles",
+            "mumps",
+            "rubella",
+            "varicella",
+            "herpes labialis",
+            "genital herpes",
+            "mpox",
+            "dengue fever",
+            "chikungunya fever",
+            "Zika virus infection",
+            "yellow fever",
+            "poliomyelitis",
+            "viral gastroenteritis",
+            "human immunodeficiency virus infection",
+            "hepatocellular carcinoma"
+          ]
+        },
+        {
+          "name": "Fungal infections",
+          "children": [
+            "candidemia",
+            "invasive aspergillosis",
+            "mucormycosis",
+            "histoplasmosis",
+            "coccidioidomycosis",
+            "blastomycosis",
+            "cryptococcosis",
+            "sporotrichosis"
+          ]
+        },
+        {
+          "name": "Parasitic infections",
+          "children": [
+            "malaria",
+            "toxoplasmosis",
+            "giardiasis",
+            "cryptosporidiosis",
+            "Chagas disease",
+            "visceral leishmaniasis",
+            "schistosomiasis",
+            "strongyloidiasis",
+            "echinococcosis",
+            "neurocysticercosis",
+            "ascariasis",
+            "trichinellosis"
+          ]
+        },
+        {
+          "name": "Antimicrobial resistance",
+          "children": [
+            "extended-spectrum beta-lactamase production",
+            "carbapenemase production",
+            "vancomycin-resistant Enterococcus infection",
+            "efflux-pump mediated resistance",
+            "target-site mutation resistance",
+            "antimicrobial stewardship principles"
+          ]
+        },
+        {
+          "name": "Health care associated infection",
+          "children": [
+            "catheter-associated urinary tract infection",
+            "central line-associated bloodstream infection",
+            "ventilator-associated pneumonia",
+            "surgical site infection",
+            "Clostridioides difficile colitis",
+            "hand hygiene and transmission interruption"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of penicillin",
+            "adverse effects of penicillin",
+            "pharmacokinetics of penicillin",
+            "mechanism of action of ceftriaxone",
+            "adverse effects of ceftriaxone",
+            "pharmacokinetics of ceftriaxone",
+            "mechanism of action of vancomycin",
+            "adverse effects of vancomycin",
+            "pharmacokinetics of vancomycin",
+            "mechanism of action of azithromycin",
+            "adverse effects of azithromycin",
+            "pharmacokinetics of azithromycin",
+            "mechanism of action of ciprofloxacin",
+            "adverse effects of ciprofloxacin",
+            "pharmacokinetics of ciprofloxacin",
+            "mechanism of action of doxycycline",
+            "adverse effects of doxycycline",
+            "pharmacokinetics of doxycycline",
+            "mechanism of action of metronidazole",
+            "adverse effects of metronidazole",
+            "pharmacokinetics of metronidazole",
+            "mechanism of action of fluconazole",
+            "adverse effects of fluconazole",
+            "pharmacokinetics of fluconazole",
+            "mechanism of action of isoniazid",
+            "adverse effects of isoniazid",
+            "pharmacokinetics of isoniazid",
+            "mechanism of action of rifampin",
+            "adverse effects of rifampin",
+            "pharmacokinetics of rifampin",
+            "mechanism of action of oseltamivir",
+            "adverse effects of oseltamivir",
+            "pharmacokinetics of oseltamivir",
+            "mechanism of action of trimethoprim-sulfamethoxazole",
+            "adverse effects of trimethoprim-sulfamethoxazole",
+            "pharmacokinetics of trimethoprim-sulfamethoxazole"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the Gram stain",
+            "interpretation of blood culture results",
+            "interpretation of antimicrobial susceptibility testing",
+            "interpretation of the acid-fast stain",
+            "interpretation of nucleic acid amplification testing",
+            "interpretation of the interferon-gamma release assay"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Multisystem Processes & Disorders",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the extracellular fluid compartment",
+            "histology of the extracellular fluid compartment",
+            "normal physiology of the extracellular fluid compartment",
+            "embryologic development of the extracellular fluid compartment",
+            "anatomy of the thermoregulatory system",
+            "histology of the thermoregulatory system",
+            "normal physiology of the thermoregulatory system",
+            "embryologic development of the thermoregulatory system",
+            "anatomy of the systemic inflammatory response",
+            "histology of the systemic inflammatory response",
+            "normal physiology of the systemic inflammatory response",
+            "embryologic development of the systemic inflammatory response",
+            "anatomy of the oxygen delivery pathway",
+            "histology of the oxygen delivery pathway",
+            "normal physiology of the oxygen delivery pathway",
+            "embryologic development of the oxygen delivery pathway",
+            "anatomy of the acid-base buffering system",
+            "histology of the acid-base buffering system",
+            "normal physiology of the acid-base buffering system",
+            "embryologic development of the acid-base buffering system",
+            "anatomy of the nutritional reserve",
+            "histology of the nutritional reserve",
+            "normal physiology of the nutritional reserve",
+            "embryologic development of the nutritional reserve"
+          ]
+        },
+        {
+          "name": "Shock and critical illness",
+          "children": [
+            "sepsis",
+            "bacteremia",
+            "septic shock",
+            "hypovolemic shock",
+            "neurogenic shock",
+            "anaphylactic shock",
+            "obstructive shock",
+            "multiple organ dysfunction syndrome",
+            "systemic inflammatory response syndrome",
+            "anaphylaxis",
+            "disseminated intravascular coagulation"
+          ]
+        },
+        {
+          "name": "Nutritional and metabolic disorders",
+          "children": [
+            "protein-energy malnutrition",
+            "obesity",
+            "metabolic syndrome",
+            "vitamin A deficiency",
+            "thiamine deficiency",
+            "niacin deficiency",
+            "vitamin C deficiency",
+            "zinc deficiency",
+            "refeeding syndrome",
+            "iodine excess",
+            "diabetes mellitus",
+            "polycystic ovary syndrome",
+            "vitamin D deficiency",
+            "food insecurity and health"
+          ]
+        },
+        {
+          "name": "Oncologic emergencies and paraneoplastic processes",
+          "children": [
+            "tumor lysis syndrome",
+            "superior vena cava syndrome",
+            "malignant spinal cord compression",
+            "paraneoplastic cerebellar degeneration",
+            "ectopic adrenocorticotropic hormone syndrome",
+            "cancer-associated hypercoagulability",
+            "febrile neutropenia",
+            "deep venous thrombosis",
+            "hypercalcemia of malignancy",
+            "renal cell carcinoma"
+          ]
+        },
+        {
+          "name": "Environmental and occupational injury",
+          "children": [
+            "heat stroke",
+            "hypothermia",
+            "carbon monoxide poisoning",
+            "lead poisoning",
+            "organophosphate poisoning",
+            "acetaminophen overdose",
+            "salicylate overdose",
+            "opioid overdose",
+            "decompression sickness",
+            "high-altitude cerebral edema",
+            "electrical injury",
+            "near-drowning",
+            "rhabdomyolysis"
+          ]
+        },
+        {
+          "name": "Aging and frailty",
+          "children": [
+            "frailty syndrome",
+            "polypharmacy",
+            "falls in the older adult",
+            "pressure injury risk",
+            "delirium in the hospitalized patient",
+            "functional decline after hospitalization",
+            "delirium"
+          ]
+        },
+        {
+          "name": "Fever and systemic presentations",
+          "children": [
+            "fever of unknown origin",
+            "unintentional weight loss",
+            "generalized fatigue",
+            "night sweats",
+            "generalized lymphadenopathy",
+            "failure to thrive"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of norepinephrine",
+            "adverse effects of norepinephrine",
+            "pharmacokinetics of norepinephrine",
+            "mechanism of action of intravenous crystalloid resuscitation",
+            "adverse effects of intravenous crystalloid resuscitation",
+            "pharmacokinetics of intravenous crystalloid resuscitation",
+            "mechanism of action of activated charcoal",
+            "adverse effects of activated charcoal",
+            "pharmacokinetics of activated charcoal",
+            "mechanism of action of naloxone",
+            "adverse effects of naloxone",
+            "pharmacokinetics of naloxone",
+            "mechanism of action of acetylcysteine for overdose",
+            "adverse effects of acetylcysteine for overdose",
+            "pharmacokinetics of acetylcysteine for overdose",
+            "mechanism of action of deferoxamine",
+            "adverse effects of deferoxamine",
+            "pharmacokinetics of deferoxamine",
+            "mechanism of action of sodium thiosulfate",
+            "adverse effects of sodium thiosulfate",
+            "pharmacokinetics of sodium thiosulfate",
+            "mechanism of action of thiamine repletion",
+            "adverse effects of thiamine repletion",
+            "pharmacokinetics of thiamine repletion"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the serum lactate level",
+            "interpretation of the anion gap",
+            "interpretation of the serum osmolal gap",
+            "interpretation of the toxicology screen",
+            "interpretation of the sepsis bundle timing",
+            "interpretation of the nutritional assessment"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pregnancy and the Puerperium",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the placenta",
+            "histology of the placenta",
+            "normal physiology of the placenta",
+            "embryologic development of the placenta",
+            "anatomy of the umbilical cord",
+            "histology of the umbilical cord",
+            "normal physiology of the umbilical cord",
+            "embryologic development of the umbilical cord",
+            "anatomy of the amniotic cavity",
+            "histology of the amniotic cavity",
+            "normal physiology of the amniotic cavity",
+            "embryologic development of the amniotic cavity",
+            "anatomy of the gravid uterus",
+            "histology of the gravid uterus",
+            "normal physiology of the gravid uterus",
+            "embryologic development of the gravid uterus",
+            "anatomy of the fetal circulation",
+            "histology of the fetal circulation",
+            "normal physiology of the fetal circulation",
+            "embryologic development of the fetal circulation",
+            "anatomy of the maternal plasma volume",
+            "histology of the maternal plasma volume",
+            "normal physiology of the maternal plasma volume",
+            "embryologic development of the maternal plasma volume"
+          ]
+        },
+        {
+          "name": "Antepartum complications",
+          "children": [
+            "preeclampsia",
+            "eclampsia",
+            "HELLP syndrome",
+            "gestational diabetes mellitus",
+            "placenta previa",
+            "placental abruption",
+            "placenta accreta spectrum",
+            "intrauterine growth restriction",
+            "polyhydramnios",
+            "oligohydramnios",
+            "cervical insufficiency",
+            "preterm premature rupture of membranes",
+            "hyperemesis gravidarum",
+            "Rh alloimmunization",
+            "syphilis"
+          ]
+        },
+        {
+          "name": "Medical disorders complicating pregnancy",
+          "children": [
+            "chronic hypertension in pregnancy",
+            "pregestational diabetes mellitus",
+            "thyroid disease in pregnancy",
+            "epilepsy in pregnancy",
+            "venous thromboembolism in pregnancy",
+            "intrahepatic cholestasis of pregnancy",
+            "peripartum cardiomyopathy",
+            "anemia of pregnancy",
+            "hypertension",
+            "deep venous thrombosis",
+            "pulmonary embolism",
+            "hypothyroidism"
+          ]
+        },
+        {
+          "name": "Labour and delivery",
+          "children": [
+            "preterm labour",
+            "prolonged latent phase",
+            "arrest of descent",
+            "shoulder dystocia",
+            "umbilical cord prolapse",
+            "chorioamnionitis",
+            "uterine rupture",
+            "operative vaginal delivery",
+            "caesarean delivery indications",
+            "non-reassuring fetal heart tracing"
+          ]
+        },
+        {
+          "name": "Postpartum disorders",
+          "children": [
+            "postpartum hemorrhage",
+            "uterine atony",
+            "retained placental tissue",
+            "endometritis",
+            "postpartum depression",
+            "mastitis",
+            "lactation failure",
+            "postpartum thyroiditis",
+            "disseminated intravascular coagulation"
+          ]
+        },
+        {
+          "name": "Early pregnancy loss and ectopic gestation",
+          "children": [
+            "spontaneous abortion",
+            "recurrent pregnancy loss",
+            "ectopic pregnancy",
+            "gestational trophoblastic disease",
+            "hydatidiform mole",
+            "septic abortion"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of magnesium sulfate",
+            "adverse effects of magnesium sulfate",
+            "pharmacokinetics of magnesium sulfate",
+            "mechanism of action of oxytocin",
+            "adverse effects of oxytocin",
+            "pharmacokinetics of oxytocin",
+            "mechanism of action of betamethasone for fetal lungs",
+            "adverse effects of betamethasone for fetal lungs",
+            "pharmacokinetics of betamethasone for fetal lungs",
+            "mechanism of action of labetalol in pregnancy",
+            "adverse effects of labetalol in pregnancy",
+            "pharmacokinetics of labetalol in pregnancy",
+            "mechanism of action of folic acid supplementation",
+            "adverse effects of folic acid supplementation",
+            "pharmacokinetics of folic acid supplementation",
+            "mechanism of action of anti-D immune globulin",
+            "adverse effects of anti-D immune globulin",
+            "pharmacokinetics of anti-D immune globulin",
+            "mechanism of action of nifedipine tocolysis",
+            "adverse effects of nifedipine tocolysis",
+            "pharmacokinetics of nifedipine tocolysis",
+            "mechanism of action of misoprostol",
+            "adverse effects of misoprostol",
+            "pharmacokinetics of misoprostol"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the obstetric ultrasound",
+            "interpretation of the nonstress test",
+            "interpretation of the biophysical profile",
+            "interpretation of the quadruple screen",
+            "interpretation of cell-free fetal DNA testing",
+            "interpretation of the glucose challenge test"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Female Reproductive System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the ovary",
+            "histology of the ovary",
+            "normal physiology of the ovary",
+            "embryologic development of the ovary",
+            "anatomy of the uterus",
+            "histology of the uterus",
+            "normal physiology of the uterus",
+            "embryologic development of the uterus",
+            "anatomy of the fallopian tube",
+            "histology of the fallopian tube",
+            "normal physiology of the fallopian tube",
+            "embryologic development of the fallopian tube",
+            "anatomy of the cervix",
+            "histology of the cervix",
+            "normal physiology of the cervix",
+            "embryologic development of the cervix",
+            "anatomy of the vagina",
+            "histology of the vagina",
+            "normal physiology of the vagina",
+            "embryologic development of the vagina",
+            "anatomy of the breast",
+            "histology of the breast",
+            "normal physiology of the breast",
+            "embryologic development of the breast",
+            "anatomy of the pelvic floor",
+            "histology of the pelvic floor",
+            "normal physiology of the pelvic floor",
+            "embryologic development of the pelvic floor"
+          ]
+        },
+        {
+          "name": "Disorders of the menstrual cycle",
+          "children": [
+            "polycystic ovary syndrome",
+            "primary amenorrhea",
+            "secondary amenorrhea",
+            "abnormal uterine bleeding",
+            "premenstrual dysphoric disorder",
+            "primary dysmenorrhea",
+            "anovulatory infertility",
+            "luteal phase deficiency",
+            "iron deficiency anemia"
+          ]
+        },
+        {
+          "name": "Infectious and inflammatory disorders",
+          "children": [
+            "pelvic inflammatory disease",
+            "bacterial vaginosis",
+            "vulvovaginal candidiasis",
+            "trichomoniasis",
+            "tubo-ovarian abscess",
+            "cervicitis",
+            "genital human papillomavirus infection"
+          ]
+        },
+        {
+          "name": "Structural and benign neoplastic disorders",
+          "children": [
+            "uterine leiomyoma",
+            "endometriosis",
+            "adenomyosis",
+            "ovarian cyst",
+            "ovarian torsion",
+            "pelvic organ prolapse",
+            "Bartholin gland cyst",
+            "fibroadenoma of the breast"
+          ]
+        },
+        {
+          "name": "Malignant neoplasms",
+          "children": [
+            "endometrial carcinoma",
+            "cervical carcinoma",
+            "epithelial ovarian carcinoma",
+            "vulvar carcinoma",
+            "invasive ductal carcinoma of the breast",
+            "ductal carcinoma in situ",
+            "inflammatory breast carcinoma"
+          ]
+        },
+        {
+          "name": "Menopause and the climacteric",
+          "children": [
+            "vasomotor symptoms of menopause",
+            "genitourinary syndrome of menopause",
+            "premature ovarian insufficiency",
+            "postmenopausal bleeding",
+            "postmenopausal bone loss",
+            "osteoporosis",
+            "Turner syndrome"
+          ]
+        },
+        {
+          "name": "Contraception and fertility",
+          "children": [
+            "combined hormonal contraception",
+            "progestin-only contraception",
+            "intrauterine device placement",
+            "emergency contraception",
+            "tubal factor infertility",
+            "ovulation induction"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of ethinyl estradiol",
+            "adverse effects of ethinyl estradiol",
+            "pharmacokinetics of ethinyl estradiol",
+            "mechanism of action of levonorgestrel",
+            "adverse effects of levonorgestrel",
+            "pharmacokinetics of levonorgestrel",
+            "mechanism of action of clomiphene citrate",
+            "adverse effects of clomiphene citrate",
+            "pharmacokinetics of clomiphene citrate",
+            "mechanism of action of leuprolide",
+            "adverse effects of leuprolide",
+            "pharmacokinetics of leuprolide",
+            "mechanism of action of tranexamic acid",
+            "adverse effects of tranexamic acid",
+            "pharmacokinetics of tranexamic acid",
+            "mechanism of action of tamoxifen",
+            "adverse effects of tamoxifen",
+            "pharmacokinetics of tamoxifen",
+            "mechanism of action of topical estrogen",
+            "adverse effects of topical estrogen",
+            "pharmacokinetics of topical estrogen",
+            "mechanism of action of letrozole for ovulation",
+            "adverse effects of letrozole for ovulation",
+            "pharmacokinetics of letrozole for ovulation"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the pelvic ultrasound",
+            "interpretation of the cervical cytology smear",
+            "interpretation of the endometrial biopsy specimen",
+            "interpretation of screening mammography",
+            "interpretation of the day-3 follicle stimulating hormone level",
+            "interpretation of the hysterosalpingogram"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Male Reproductive System",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the testis",
+            "histology of the testis",
+            "normal physiology of the testis",
+            "embryologic development of the testis",
+            "anatomy of the epididymis",
+            "histology of the epididymis",
+            "normal physiology of the epididymis",
+            "embryologic development of the epididymis",
+            "anatomy of the prostate gland",
+            "histology of the prostate gland",
+            "normal physiology of the prostate gland",
+            "embryologic development of the prostate gland",
+            "anatomy of the seminal vesicle",
+            "histology of the seminal vesicle",
+            "normal physiology of the seminal vesicle",
+            "embryologic development of the seminal vesicle",
+            "anatomy of the penis",
+            "histology of the penis",
+            "normal physiology of the penis",
+            "embryologic development of the penis",
+            "anatomy of the spermatic cord",
+            "histology of the spermatic cord",
+            "normal physiology of the spermatic cord",
+            "embryologic development of the spermatic cord"
+          ]
+        },
+        {
+          "name": "Infectious and inflammatory disorders",
+          "children": [
+            "acute bacterial prostatitis",
+            "chronic prostatitis",
+            "epididymitis",
+            "orchitis",
+            "balanitis",
+            "urethritis in men"
+          ]
+        },
+        {
+          "name": "Structural and vascular disorders",
+          "children": [
+            "testicular torsion",
+            "varicocele",
+            "hydrocele",
+            "spermatocele",
+            "inguinal hernia",
+            "phimosis",
+            "Peyronie disease",
+            "priapism"
+          ]
+        },
+        {
+          "name": "Neoplastic disorders",
+          "children": [
+            "benign prostatic hyperplasia",
+            "adenocarcinoma of the prostate",
+            "seminoma",
+            "non-seminomatous germ cell tumor",
+            "penile squamous cell carcinoma",
+            "Leydig cell tumor"
+          ]
+        },
+        {
+          "name": "Disorders of function and fertility",
+          "children": [
+            "erectile dysfunction",
+            "premature ejaculation",
+            "male hypogonadism",
+            "azoospermia",
+            "oligospermia",
+            "retrograde ejaculation",
+            "anabolic steroid use"
+          ]
+        },
+        {
+          "name": "Developmental disorders",
+          "children": [
+            "cryptorchidism",
+            "hypospadias",
+            "congenital absence of the vas deferens",
+            "Klinefelter syndrome",
+            "androgen insensitivity syndrome"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of tamsulosin",
+            "adverse effects of tamsulosin",
+            "pharmacokinetics of tamsulosin",
+            "mechanism of action of finasteride",
+            "adverse effects of finasteride",
+            "pharmacokinetics of finasteride",
+            "mechanism of action of sildenafil",
+            "adverse effects of sildenafil",
+            "pharmacokinetics of sildenafil",
+            "mechanism of action of testosterone replacement",
+            "adverse effects of testosterone replacement",
+            "pharmacokinetics of testosterone replacement",
+            "mechanism of action of bicalutamide",
+            "adverse effects of bicalutamide",
+            "pharmacokinetics of bicalutamide",
+            "mechanism of action of leuprolide for prostate cancer",
+            "adverse effects of leuprolide for prostate cancer",
+            "pharmacokinetics of leuprolide for prostate cancer",
+            "mechanism of action of cabergoline for hyperprolactinemia",
+            "adverse effects of cabergoline for hyperprolactinemia",
+            "pharmacokinetics of cabergoline for hyperprolactinemia",
+            "mechanism of action of human chorionic gonadotropin",
+            "adverse effects of human chorionic gonadotropin",
+            "pharmacokinetics of human chorionic gonadotropin"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the prostate-specific antigen level",
+            "interpretation of the semen analysis",
+            "interpretation of scrotal ultrasonography",
+            "interpretation of the serum testosterone level",
+            "interpretation of the prostate biopsy specimen",
+            "interpretation of the post-void residual volume"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Human Development",
+      "children": [
+        {
+          "name": "Prenatal and neonatal development",
+          "children": [
+            "gametogenesis",
+            "fertilization and implantation",
+            "gastrulation",
+            "neural tube closure",
+            "organogenesis of the first trimester",
+            "fetal lung maturation",
+            "the Apgar assessment",
+            "neonatal thermoregulation",
+            "transition of the fetal circulation",
+            "neonatal hyperbilirubinemia",
+            "neonatal respiratory distress syndrome",
+            "neonatal hypoglycemia"
+          ]
+        },
+        {
+          "name": "Infancy and early childhood",
+          "children": [
+            "infant gross motor milestones",
+            "infant fine motor milestones",
+            "infant language milestones",
+            "attachment and separation behaviour",
+            "introduction of complementary feeding",
+            "primary tooth eruption",
+            "toilet training readiness",
+            "stranger anxiety"
+          ]
+        },
+        {
+          "name": "School age and adolescence",
+          "children": [
+            "concrete operational reasoning",
+            "peer group formation",
+            "pubertal staging",
+            "adolescent growth spurt",
+            "adolescent risk behaviour",
+            "identity formation",
+            "secondary sexual characteristic development",
+            "menarche and spermarche"
+          ]
+        },
+        {
+          "name": "Adulthood and aging",
+          "children": [
+            "young adult role consolidation",
+            "midlife reappraisal",
+            "age-related sarcopenia",
+            "age-related sensory decline",
+            "normal age-related memory change",
+            "retirement transition",
+            "bereavement and grief",
+            "end-of-life decision making"
+          ]
+        },
+        {
+          "name": "Disorders of development",
+          "children": [
+            "global developmental delay",
+            "autism spectrum disorder",
+            "attention-deficit hyperactivity disorder",
+            "specific learning disorder",
+            "developmental language disorder",
+            "cerebral palsy",
+            "intellectual disability",
+            "fetal alcohol spectrum disorder",
+            "constitutional growth delay",
+            "precocious puberty",
+            "delayed puberty",
+            "failure to thrive in infancy",
+            "Down syndrome",
+            "lead poisoning"
+          ]
+        },
+        {
+          "name": "Screening and preventive care across the lifespan",
+          "children": [
+            "newborn metabolic screening",
+            "childhood immunization schedule",
+            "adolescent confidentiality in care",
+            "adult cancer screening intervals",
+            "fall risk screening in older adults",
+            "cognitive screening in older adults"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the growth chart",
+            "interpretation of the developmental screening questionnaire",
+            "interpretation of the bone age radiograph",
+            "interpretation of the newborn hearing screen",
+            "interpretation of the Denver developmental assessment",
+            "interpretation of the pubertal staging examination"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Behavioral Health",
+      "children": [
+        {
+          "name": "Mood disorders",
+          "children": [
+            "major depressive disorder",
+            "persistent depressive disorder",
+            "bipolar I disorder",
+            "bipolar II disorder",
+            "cyclothymic disorder",
+            "seasonal pattern depression",
+            "postpartum mood episode",
+            "substance-induced mood disorder",
+            "hypothyroidism",
+            "postpartum depression",
+            "serotonin syndrome"
+          ]
+        },
+        {
+          "name": "Anxiety and related disorders",
+          "children": [
+            "generalized anxiety disorder",
+            "panic disorder",
+            "agoraphobia",
+            "social anxiety disorder",
+            "specific phobia",
+            "obsessive-compulsive disorder",
+            "body dysmorphic disorder",
+            "hoarding disorder"
+          ]
+        },
+        {
+          "name": "Trauma and stressor-related disorders",
+          "children": [
+            "post-traumatic stress disorder",
+            "acute stress disorder",
+            "adjustment disorder",
+            "complicated grief",
+            "reactive attachment disorder"
+          ]
+        },
+        {
+          "name": "Psychotic disorders",
+          "children": [
+            "schizophrenia",
+            "schizoaffective disorder",
+            "brief psychotic disorder",
+            "delusional disorder",
+            "schizophreniform disorder",
+            "substance-induced psychotic disorder"
+          ]
+        },
+        {
+          "name": "Substance use disorders",
+          "children": [
+            "alcohol use disorder",
+            "alcohol withdrawal syndrome",
+            "opioid use disorder",
+            "stimulant use disorder",
+            "cannabis use disorder",
+            "nicotine dependence",
+            "benzodiazepine withdrawal",
+            "inhalant use disorder",
+            "opioid overdose"
+          ]
+        },
+        {
+          "name": "Neurocognitive and somatic disorders",
+          "children": [
+            "delirium",
+            "major neurocognitive disorder",
+            "mild neurocognitive disorder",
+            "somatic symptom disorder",
+            "conversion disorder",
+            "illness anxiety disorder",
+            "factitious disorder",
+            "malingering",
+            "Huntington disease",
+            "autism spectrum disorder"
+          ]
+        },
+        {
+          "name": "Feeding, sleep and impulse control",
+          "children": [
+            "anorexia nervosa",
+            "bulimia nervosa",
+            "binge eating disorder",
+            "insomnia disorder",
+            "narcolepsy",
+            "restless legs syndrome",
+            "intermittent explosive disorder",
+            "oppositional defiant disorder",
+            "sleep apnea"
+          ]
+        },
+        {
+          "name": "Personality disorders",
+          "children": [
+            "borderline personality disorder",
+            "antisocial personality disorder",
+            "narcissistic personality disorder",
+            "avoidant personality disorder",
+            "obsessive-compulsive personality disorder",
+            "schizotypal personality disorder"
+          ]
+        },
+        {
+          "name": "Risk assessment and crisis care",
+          "children": [
+            "suicide risk assessment",
+            "violence risk assessment",
+            "involuntary psychiatric hold",
+            "safety planning",
+            "crisis de-escalation",
+            "capacity assessment in psychosis"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of sertraline",
+            "adverse effects of sertraline",
+            "pharmacokinetics of sertraline",
+            "mechanism of action of fluoxetine",
+            "adverse effects of fluoxetine",
+            "pharmacokinetics of fluoxetine",
+            "mechanism of action of lithium carbonate",
+            "adverse effects of lithium carbonate",
+            "pharmacokinetics of lithium carbonate",
+            "mechanism of action of risperidone",
+            "adverse effects of risperidone",
+            "pharmacokinetics of risperidone",
+            "mechanism of action of haloperidol",
+            "adverse effects of haloperidol",
+            "pharmacokinetics of haloperidol",
+            "mechanism of action of clozapine",
+            "adverse effects of clozapine",
+            "pharmacokinetics of clozapine",
+            "mechanism of action of lorazepam",
+            "adverse effects of lorazepam",
+            "pharmacokinetics of lorazepam",
+            "mechanism of action of bupropion",
+            "adverse effects of bupropion",
+            "pharmacokinetics of bupropion",
+            "mechanism of action of buprenorphine-naloxone",
+            "adverse effects of buprenorphine-naloxone",
+            "pharmacokinetics of buprenorphine-naloxone",
+            "mechanism of action of naltrexone",
+            "adverse effects of naltrexone",
+            "pharmacokinetics of naltrexone"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the mental status examination",
+            "interpretation of the depression screening questionnaire",
+            "interpretation of the alcohol use screening instrument",
+            "interpretation of the cognitive screening instrument",
+            "interpretation of the serum lithium level",
+            "interpretation of urine drug screening"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Social Sciences",
+      "children": [
+        {
+          "name": "Communication and the clinical encounter",
+          "children": [
+            "open-ended interviewing",
+            "motivational interviewing",
+            "breaking bad news",
+            "shared decision making",
+            "working with an interpreter",
+            "health literacy assessment",
+            "disclosure of medical error",
+            "managing the difficult conversation"
+          ]
+        },
+        {
+          "name": "Medical ethics",
+          "children": [
+            "informed consent",
+            "decision-making capacity",
+            "advance directives",
+            "surrogate decision making",
+            "confidentiality and its limits",
+            "withdrawal of life-sustaining treatment",
+            "conflict of interest",
+            "professional boundaries",
+            "futility and non-beneficial treatment",
+            "research ethics and the consent process"
+          ]
+        },
+        {
+          "name": "Law and regulation in clinical practice",
+          "children": [
+            "mandatory reporting of abuse",
+            "reportable communicable disease",
+            "duty to warn",
+            "medical malpractice elements",
+            "privacy of health information",
+            "emergency treatment obligations",
+            "licensure and scope of practice"
+          ]
+        },
+        {
+          "name": "Systems-based practice and patient safety",
+          "children": [
+            "root cause analysis",
+            "the adverse event report",
+            "the medication reconciliation process",
+            "handoff communication",
+            "checklists and forcing functions",
+            "the just culture model",
+            "human factors in device design",
+            "the Swiss cheese model of system failure",
+            "polypharmacy"
+          ]
+        },
+        {
+          "name": "Health care delivery and policy",
+          "children": [
+            "fee-for-service payment",
+            "capitated payment",
+            "value-based purchasing",
+            "insurance coverage and cost sharing",
+            "access barriers to care",
+            "the medical home model",
+            "the role of primary care in a health system",
+            "pharmaceutical formulary management",
+            "the number needed to treat"
+          ]
+        },
+        {
+          "name": "Social determinants and population health",
+          "children": [
+            "the social gradient in health",
+            "food insecurity and health",
+            "housing instability and health",
+            "structural racism and health outcomes",
+            "occupational exposure and risk",
+            "immigrant and refugee health needs",
+            "rural access to specialty care",
+            "community health worker programs",
+            "alcohol use disorder"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the patient experience survey",
+            "interpretation of the quality indicator dashboard",
+            "interpretation of the incident report trend",
+            "interpretation of the care gap report",
+            "interpretation of the cost-effectiveness ratio",
+            "interpretation of the health equity audit"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Biostatistics & Study Design",
+      "children": [
+        {
+          "name": "Study designs",
+          "children": [
+            "the randomized controlled trial",
+            "the crossover trial",
+            "the cluster randomized trial",
+            "the cohort study",
+            "the case-control study",
+            "the cross-sectional study",
+            "the case series",
+            "the systematic review",
+            "the meta-analysis",
+            "the non-inferiority trial",
+            "the pragmatic trial",
+            "the stepped-wedge design"
+          ]
+        },
+        {
+          "name": "Measures of occurrence and association",
+          "children": [
+            "incidence",
+            "prevalence",
+            "relative risk",
+            "the odds ratio",
+            "the hazard ratio",
+            "absolute risk reduction",
+            "the number needed to treat",
+            "the number needed to harm",
+            "attributable risk",
+            "the standardized mortality ratio"
+          ]
+        },
+        {
+          "name": "Diagnostic test characteristics",
+          "children": [
+            "sensitivity",
+            "specificity",
+            "the positive predictive value",
+            "the negative predictive value",
+            "the likelihood ratio",
+            "the receiver operating characteristic curve",
+            "the pre-test probability",
+            "the effect of prevalence on predictive value"
+          ]
+        },
+        {
+          "name": "Bias, confounding and validity",
+          "children": [
+            "selection bias",
+            "recall bias",
+            "observer bias",
+            "lead-time bias",
+            "length-time bias",
+            "confounding",
+            "effect modification",
+            "the healthy worker effect",
+            "loss to follow-up",
+            "intention-to-treat analysis",
+            "regression to the mean",
+            "immortal time bias"
+          ]
+        },
+        {
+          "name": "Statistical inference",
+          "children": [
+            "the null hypothesis",
+            "the p value",
+            "the confidence interval",
+            "type I error",
+            "type II error",
+            "statistical power",
+            "the sample size calculation",
+            "multiple comparisons",
+            "the t test",
+            "the chi-square test",
+            "analysis of variance",
+            "linear regression",
+            "logistic regression",
+            "survival analysis",
+            "the Kaplan-Meier curve"
+          ]
+        },
+        {
+          "name": "Evidence appraisal",
+          "children": [
+            "the hierarchy of evidence",
+            "the risk of bias assessment",
+            "publication bias",
+            "the forest plot",
+            "heterogeneity between studies",
+            "the clinical practice guideline grading",
+            "informed consent"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the trial flow diagram",
+            "interpretation of the baseline characteristics table",
+            "interpretation of the Kaplan-Meier survival plot",
+            "interpretation of the funnel plot",
+            "interpretation of the subgroup analysis",
+            "interpretation of the Bland-Altman plot"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Genetics & Molecular Medicine",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the nuclear chromosome",
+            "histology of the nuclear chromosome",
+            "normal physiology of the nuclear chromosome",
+            "embryologic development of the nuclear chromosome",
+            "anatomy of the messenger RNA transcript",
+            "histology of the messenger RNA transcript",
+            "normal physiology of the messenger RNA transcript",
+            "embryologic development of the messenger RNA transcript",
+            "anatomy of the ribosome",
+            "histology of the ribosome",
+            "normal physiology of the ribosome",
+            "embryologic development of the ribosome",
+            "anatomy of the mitochondrial genome",
+            "histology of the mitochondrial genome",
+            "normal physiology of the mitochondrial genome",
+            "embryologic development of the mitochondrial genome",
+            "anatomy of the DNA repair machinery",
+            "histology of the DNA repair machinery",
+            "normal physiology of the DNA repair machinery",
+            "embryologic development of the DNA repair machinery"
+          ]
+        },
+        {
+          "name": "Patterns of inheritance",
+          "children": [
+            "autosomal dominant inheritance",
+            "autosomal recessive inheritance",
+            "X-linked recessive inheritance",
+            "X-linked dominant inheritance",
+            "mitochondrial inheritance",
+            "genomic imprinting",
+            "uniparental disomy",
+            "incomplete penetrance",
+            "variable expressivity",
+            "anticipation",
+            "mosaicism",
+            "consanguinity and recessive risk",
+            "Huntington disease"
+          ]
+        },
+        {
+          "name": "Chromosomal disorders",
+          "children": [
+            "trisomy 21",
+            "trisomy 18",
+            "trisomy 13",
+            "Turner syndrome",
+            "monosomy X mosaicism",
+            "cri-du-chat syndrome",
+            "DiGeorge microdeletion",
+            "Prader-Willi syndrome",
+            "Angelman syndrome",
+            "balanced translocation carrier",
+            "Down syndrome",
+            "Klinefelter syndrome"
+          ]
+        },
+        {
+          "name": "Single-gene disorders",
+          "children": [
+            "cystic fibrosis",
+            "Marfan syndrome",
+            "Ehlers-Danlos syndrome",
+            "neurofibromatosis type 1",
+            "neurofibromatosis type 2",
+            "tuberous sclerosis complex",
+            "familial hypercholesterolemia",
+            "hereditary hemorrhagic telangiectasia",
+            "fragile X syndrome",
+            "spinal muscular atrophy",
+            "Friedreich ataxia",
+            "alkaptonuria",
+            "sickle cell disease"
+          ]
+        },
+        {
+          "name": "Inborn errors of metabolism",
+          "children": [
+            "phenylketonuria",
+            "homocystinuria",
+            "maple syrup urine disease",
+            "galactosemia",
+            "glycogen storage disease type I",
+            "Tay-Sachs disease",
+            "Gaucher disease",
+            "Niemann-Pick disease",
+            "Fabry disease",
+            "ornithine transcarbamylase deficiency",
+            "medium-chain acyl-CoA dehydrogenase deficiency",
+            "mitochondrial encephalomyopathy"
+          ]
+        },
+        {
+          "name": "Cancer genetics",
+          "children": [
+            "the two-hit hypothesis",
+            "hereditary breast and ovarian cancer syndrome",
+            "Lynch syndrome",
+            "Li-Fraumeni syndrome",
+            "retinoblastoma predisposition",
+            "multiple endocrine neoplasia screening",
+            "oncogene activation",
+            "tumor suppressor loss",
+            "microsatellite instability",
+            "invasive ductal carcinoma of the breast",
+            "adenocarcinoma of the colon"
+          ]
+        },
+        {
+          "name": "Molecular techniques and counselling",
+          "children": [
+            "polymerase chain reaction",
+            "Sanger sequencing",
+            "next-generation sequencing",
+            "chromosomal microarray",
+            "fluorescence in situ hybridization",
+            "Southern blotting",
+            "the pedigree analysis",
+            "pre-test genetic counselling",
+            "variant of uncertain significance reporting",
+            "carrier screening programs"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the karyotype",
+            "interpretation of the pedigree diagram",
+            "interpretation of the gene panel report",
+            "interpretation of the newborn screening result",
+            "interpretation of the carrier screening result",
+            "interpretation of the pharmacogenomic report"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "General Pharmacology",
+      "children": [
+        {
+          "name": "Normal structure and function",
+          "children": [
+            "anatomy of the cell surface receptor",
+            "histology of the cell surface receptor",
+            "normal physiology of the cell surface receptor",
+            "embryologic development of the cell surface receptor",
+            "anatomy of the ion channel",
+            "histology of the ion channel",
+            "normal physiology of the ion channel",
+            "embryologic development of the ion channel",
+            "anatomy of the enzyme active site",
+            "histology of the enzyme active site",
+            "normal physiology of the enzyme active site",
+            "embryologic development of the enzyme active site",
+            "anatomy of the hepatic cytochrome P450 system",
+            "histology of the hepatic cytochrome P450 system",
+            "normal physiology of the hepatic cytochrome P450 system",
+            "embryologic development of the hepatic cytochrome P450 system",
+            "anatomy of the renal clearance pathway",
+            "histology of the renal clearance pathway",
+            "normal physiology of the renal clearance pathway",
+            "embryologic development of the renal clearance pathway"
+          ]
+        },
+        {
+          "name": "Pharmacokinetic principles",
+          "children": [
+            "first-order elimination",
+            "zero-order elimination",
+            "volume of distribution",
+            "clearance",
+            "elimination half-life",
+            "bioavailability",
+            "first-pass metabolism",
+            "steady-state concentration",
+            "loading dose calculation",
+            "maintenance dose calculation",
+            "enterohepatic recirculation",
+            "protein binding and free drug fraction"
+          ]
+        },
+        {
+          "name": "Pharmacodynamic principles",
+          "children": [
+            "the dose-response curve",
+            "potency and efficacy",
+            "full agonism",
+            "partial agonism",
+            "competitive antagonism",
+            "non-competitive antagonism",
+            "inverse agonism",
+            "receptor desensitization",
+            "the therapeutic index",
+            "tachyphylaxis"
+          ]
+        },
+        {
+          "name": "Drug interactions and metabolism",
+          "children": [
+            "cytochrome P450 induction",
+            "cytochrome P450 inhibition",
+            "pharmacodynamic drug interaction",
+            "the grapefruit juice interaction",
+            "transporter-mediated interaction",
+            "prodrug activation",
+            "genetic polymorphism of drug metabolism"
+          ]
+        },
+        {
+          "name": "Adverse drug reactions",
+          "children": [
+            "type A dose-dependent reaction",
+            "type B idiosyncratic reaction",
+            "drug-induced liver injury",
+            "drug-induced nephrotoxicity",
+            "drug-induced QT prolongation",
+            "drug-induced agranulocytosis",
+            "serotonin syndrome",
+            "neuroleptic malignant syndrome",
+            "drug-induced lupus",
+            "medication error at prescribing",
+            "acetaminophen overdose"
+          ]
+        },
+        {
+          "name": "Special populations and prescribing",
+          "children": [
+            "prescribing in renal impairment",
+            "prescribing in hepatic impairment",
+            "prescribing in pregnancy",
+            "prescribing in the older adult",
+            "weight-based paediatric dosing",
+            "therapeutic drug monitoring",
+            "deprescribing review",
+            "polypharmacy"
+          ]
+        },
+        {
+          "name": "Autonomic pharmacology",
+          "children": [
+            "cholinergic agonism",
+            "antimuscarinic effect",
+            "alpha-1 adrenergic blockade",
+            "beta-1 adrenergic blockade",
+            "beta-2 adrenergic agonism",
+            "indirect sympathomimetic action",
+            "ganglionic blockade"
+          ]
+        },
+        {
+          "name": "Pharmacology and therapeutics",
+          "children": [
+            "mechanism of action of atropine",
+            "adverse effects of atropine",
+            "pharmacokinetics of atropine",
+            "mechanism of action of neostigmine",
+            "adverse effects of neostigmine",
+            "pharmacokinetics of neostigmine",
+            "mechanism of action of phenylephrine",
+            "adverse effects of phenylephrine",
+            "pharmacokinetics of phenylephrine",
+            "mechanism of action of propranolol",
+            "adverse effects of propranolol",
+            "pharmacokinetics of propranolol",
+            "mechanism of action of dobutamine",
+            "adverse effects of dobutamine",
+            "pharmacokinetics of dobutamine",
+            "mechanism of action of clonidine",
+            "adverse effects of clonidine",
+            "pharmacokinetics of clonidine",
+            "mechanism of action of prazosin",
+            "adverse effects of prazosin",
+            "pharmacokinetics of prazosin",
+            "mechanism of action of succinylcholine",
+            "adverse effects of succinylcholine",
+            "pharmacokinetics of succinylcholine",
+            "mechanism of action of morphine",
+            "adverse effects of morphine",
+            "pharmacokinetics of morphine",
+            "mechanism of action of ibuprofen",
+            "adverse effects of ibuprofen",
+            "pharmacokinetics of ibuprofen",
+            "mechanism of action of acetaminophen",
+            "adverse effects of acetaminophen",
+            "pharmacokinetics of acetaminophen",
+            "mechanism of action of ketamine",
+            "adverse effects of ketamine",
+            "pharmacokinetics of ketamine"
+          ]
+        },
+        {
+          "name": "Diagnostic studies and interpretation",
+          "children": [
+            "interpretation of the plasma concentration-time curve",
+            "interpretation of the trough drug level",
+            "interpretation of the creatinine clearance estimate",
+            "interpretation of the drug interaction check",
+            "interpretation of the adverse event causality assessment",
+            "interpretation of the dose-response experiment"
+          ]
+        }
+      ]
+    }
+  ]
+}

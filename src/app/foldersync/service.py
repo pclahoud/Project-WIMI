@@ -9,7 +9,10 @@ This is the only module here that knows what a database is. It deliberately
     snapshot**, so they describe exactly the bytes shipped. 54 ms -> 0.28 MB on a
     2,575-subject profile.
 *   ``preflight_schema()`` already answers cross-device schema skew with
-    ``ok`` / ``will_upgrade`` / ``newer_app_required`` and a user-facing reason.
+    ``ok`` / ``will_upgrade`` / ``newer_app_required`` and a user-facing reason,
+    and (#593) refuses a database whose tables are not the ones WIMI creates
+    (``unrecognised_structure``). ``blocked`` is ``BLOCKING_VERDICTS``, so a
+    refusing verdict added there is honoured here without a second list.
     **That problem is solved; this module surfaces the verdict and does not
     redesign it.**
 *   ``install_profile_as_new()`` forks on a name collision rather than
@@ -52,6 +55,7 @@ attribute access -- verified to fail when violated, not merely to pass.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -61,7 +65,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.profile_archive import (
-    VERDICT_NEWER_APP_REQUIRED,
+    BLOCKING_VERDICTS,
     _app_version,
     _profile_stats,
     _read_profile_uuid,
@@ -81,6 +85,7 @@ from .transport import (
     FolderTransport,
     Fork,
     Lineage,
+    PATH_TOO_LONG,
     PushResult,
     TransportError,
     VerificationFailure,
@@ -122,6 +127,53 @@ class FetchResult:
     blocked: bool
     summary: Dict[str, Any]
     skipped: List[VerificationFailure] = field(default_factory=list)
+
+
+def _same_folder_key(folder: str) -> str:
+    """A folder as ``state`` stores it, made comparable on this platform.
+
+    Lexical only: ``normcase`` folds Windows' case and separators, ``normpath``
+    drops a trailing separator and ``.`` segments. Deliberately no
+    ``resolve()`` -- the folder may sit in a cloud client's placeholder tree,
+    and the answer must not depend on touching it.
+    """
+    return os.path.normcase(os.path.normpath(str(folder)))
+
+
+def split_problems(problems: List[str]) -> Tuple[List[str], List[str]]:
+    """``preflight()``'s problems as ``(blocking, warnings)``. One definition.
+
+    Blocking problems refuse a link: the folder is missing, unwritable, a file,
+    or beyond Windows' path limit (#366), so every push and fetch would fail.
+    **Everything else is a warning**, and that is defined by exclusion on
+    purpose (#412): Box's 255-character path budget and ``ignored_reason``'s
+    component warnings are today's, and the next one added to ``preflight()``
+    is a warning the moment it exists, with no list here to forget to extend.
+    That is how Box's budget became invisible: it was written, and nothing
+    carried it to the student.
+    """
+    blocking = [
+        p for p in problems
+        if "does not exist" in p or "cannot write" in p or "is a file" in p
+        or PATH_TOO_LONG in p
+    ]
+    return blocking, [p for p in problems if p not in blocking]
+
+
+@dataclass(frozen=True)
+class LinkNeedsConfirmation:
+    """A link that was NOT recorded, because the folder has warnings (#412).
+
+    Owner's decision on #412: non-blocking problems are shown in the link
+    dialog **before** the link is recorded. So a first attempt with warnings
+    records nothing and returns them; the student either chooses another
+    folder or links anyway, which re-runs the folder check and records. The
+    re-run is deliberate: the folder may have changed while the dialog was
+    open, and a blocking problem found then still refuses.
+    """
+    folder: str
+    provider_id: str
+    warnings: List[str]
 
 
 @dataclass
@@ -463,11 +515,14 @@ class ProfileFolderSync:
         meant a folder holding two profiles could not be linked
         unambiguously, and a mis-link was undetectable. Both are gone.
 
-        Single-threaded wrapper; see *Threading* above.
+        Single-threaded wrapper; see *Threading* above. It records the link
+        whatever the warnings (``acknowledged=True``): it is for callers that
+        are not a student at a dialog. The dialog goes through the job, which
+        asks first (#412).
         """
         plan = self.prepare_link(user_id, folder, provider_id)
         problems = self.check_folder(plan)
-        return self.finish_link(plan, problems)
+        return self.finish_link(plan, problems, acknowledged=True)
 
     def prepare_link(
         self, user_id: int, folder: str | Path, provider_id: str = "generic"
@@ -492,14 +547,26 @@ class ProfileFolderSync:
             plan["folder"], plan["sync_id"], plan["provider_id"], self.timeout_s
         ).preflight()
 
-    def finish_link(self, plan: Dict[str, Any], problems: List[str]) -> SyncLink:
-        """Phase 3, **caller's thread**: record the link, or refuse with the reason."""
-        blocking = [
-            p for p in problems
-            if "does not exist" in p or "cannot write" in p or "is a file" in p
-        ]
+    def finish_link(self, plan: Dict[str, Any], problems: List[str],
+                    acknowledged: bool = False):
+        """Phase 3, **caller's thread**: record the link, refuse, or ask first.
+
+        Returns the recorded :class:`SyncLink`, or a
+        :class:`LinkNeedsConfirmation` when the folder has warnings the
+        student has not yet seen (#412) -- in which case **nothing is
+        recorded**. A blocking problem raises, acknowledged or not: a folder
+        Windows will not let WIMI reach (#366) blocks like a missing one.
+        """
+        blocking, warnings = split_problems(problems)
         if blocking:
             raise TransportError("; ".join(blocking))
+        # Before asking about warnings: a refusal after "Use this folder
+        # anyway" would be a question asked for nothing.
+        self._refuse_if_sibling_linked_here(plan)
+        if warnings and not acknowledged:
+            return LinkNeedsConfirmation(
+                folder=plan["folder"], provider_id=plan["provider_id"],
+                warnings=list(warnings))
         return self.state.link_or_create(
             plan["user_id"], plan["sync_id"], plan["folder"], plan["provider_id"]
         )
@@ -696,7 +763,7 @@ class ProfileFolderSync:
             manifest=pull.manifest,
             schema_verdict=verdict,
             schema_reason=reason,
-            blocked=(verdict == VERDICT_NEWER_APP_REQUIRED),
+            blocked=(verdict in BLOCKING_VERDICTS),
             summary=summary,
             # The rejections come from OUR resolve_head above, not from pull():
             # pull() was handed an already-resolved head, so it did no rejecting
@@ -800,20 +867,49 @@ class ProfileFolderSync:
                 "the copy in this folder carries a different profile id than "
                 "the folder it sits in, so it was installed but not linked")
         else:
+            # The student chose this folder in the picker to take a copy from
+            # it, and the install has happened, so the link is recorded rather
+            # than asked about -- but its warnings still travel back in the
+            # result, so they reach the student (#412).
             try:
                 self.finish_link(
                     {"user_id": user_id, "folder": plan["folder"],
                      "provider_id": plan["provider_id"], "sync_id": plan["sync_id"]},
-                    performed.get("problems") or [])
+                    performed.get("problems") or [], acknowledged=True)
             except TransportError as exc:
                 link_error = str(exc)
+        _, link_warnings = split_problems(performed.get("problems") or [])
         return {
             "installed": installed,
             "fetched": fetched,
             "linked": link_error is None,
             "link_error": link_error,
+            "link_warnings": link_warnings if link_error is None else [],
             "folder": plan["folder"],
         }
+
+    def _refuse_if_sibling_linked_here(self, plan: Dict[str, Any]) -> None:
+        """Refuse a second copy of one profile into the folder its sibling uses (#503).
+
+        The segment is the profile uuid, so two local profiles sharing one
+        (an archive imported twice, or a fork resolved with Keep both) would
+        both publish into ``WIMI/<uuid>/`` and fork against each other on
+        this very machine -- the state ``resolution.py`` says only one of
+        them may be in, and that ``keep_both`` and ``install_from_folder``
+        already prevent. Narrowly: only the SAME folder is refused, since a
+        different folder is a different root and does not collide.
+        """
+        here = _same_folder_key(plan["folder"])
+        for sibling in self.master_db.find_users_by_profile_uuid(
+                plan["sync_id"], exclude_user_id=plan["user_id"]):
+            link = self.state.get_link(sibling.id)
+            if link is not None and _same_folder_key(link.folder) == here:
+                raise TransportError(
+                    f"Another copy of this profile on this computer, "
+                    f"{sibling.username!r}, is already linked to this folder. "
+                    f"Two copies of one profile in one folder would keep "
+                    f"forking against each other: open that one, or choose a "
+                    f"different folder.")
 
     def _refuse_if_installed(self, sync_id: str) -> None:
         existing = self.master_db.find_users_by_profile_uuid(sync_id)

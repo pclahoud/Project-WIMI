@@ -164,7 +164,8 @@ class GoalWidget {
 
         pastWeeks.forEach(week => {
             const pct = Math.min(100, week.completion_pct);
-            const weekDate = new Date(week.week_start);
+            // Local midnight on the week's own first day (#471).
+            const weekDate = LocalDate.parse(week.week_start);
             const label = weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             
             historyHtml += `

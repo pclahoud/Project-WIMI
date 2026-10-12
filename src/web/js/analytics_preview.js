@@ -338,6 +338,16 @@ class AnalyticsPreview {
     }
     
     /**
+     * The tour's two Quick Analytics steps are about choosing between exams
+     * and opening one exam's report, so they point at a control only once
+     * the profile has an exam. On a true first run the dashboard's one step
+     * is the one that says to create it (#682).
+     */
+    tourAnchor(name) {
+        return this.exams && this.exams.length ? ` data-tour-anchor="${name}"` : '';
+    }
+
+    /**
      * Render empty state when no data exists
      */
     renderEmpty() {
@@ -354,7 +364,7 @@ class AnalyticsPreview {
                     </h2>
                     <div class="analytics-preview-actions">
                         ${this.renderExamDropdown()}
-                        <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link">
+                        <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link"${this.tourAnchor('dashboard-preview-report-link')}>
                             View Full Report →
                         </button>
                     </div>
@@ -362,7 +372,7 @@ class AnalyticsPreview {
                 <div class="analytics-preview-content">
                     <div class="analytics-preview-empty-state">
                         <span class="analytics-preview-empty-icon">📝</span>
-                        <p>No entries logged yet${selectedExamName ? ` for ${selectedExamName}` : ''}</p>
+                        <p>No entries logged yet${selectedExamName ? ` for ${WimiEscape.html(selectedExamName)}` : ''}</p>
                         <p class="analytics-preview-empty-hint">
                             Create a review session to start tracking your mistakes
                         </p>
@@ -406,15 +416,15 @@ class AnalyticsPreview {
                      data-value="${exam.id}" 
                      tabindex="0"
                      role="option">
-                    ${this.escapeHtml(exam.exam_name)}
+                    ${WimiEscape.html(exam.exam_name)}
                 </div>
             `;
         });
         
         return `
             <div class="custom-select analytics-exam-select ${this.isDropdownOpen ? 'open' : ''}" data-select="exam-filter" data-testid="dashboard-analytics-exam-filter">
-                <div class="custom-select-trigger" tabindex="0" role="combobox" aria-expanded="${this.isDropdownOpen}" data-testid="dashboard-analytics-exam-filter-trigger">
-                    <span class="custom-select-value">${this.escapeHtml(displayText)}</span>
+                <div class="custom-select-trigger" tabindex="0" role="combobox" aria-expanded="${this.isDropdownOpen}" data-testid="dashboard-analytics-exam-filter-trigger"${this.tourAnchor('dashboard-preview-exam-filter')}>
+                    <span class="custom-select-value">${WimiEscape.html(displayText)}</span>
                     <span class="custom-select-arrow">▼</span>
                 </div>
                 <div class="custom-select-options" role="listbox">
@@ -495,7 +505,7 @@ class AnalyticsPreview {
                     </h2>
                     <div class="analytics-preview-actions">
                         ${this.renderExamDropdown()}
-                        <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link">
+                        <button class="btn btn-primary btn-sm analytics-preview-report-btn" onclick="window.analyticsPreview?.viewFullReport()" data-testid="dashboard-analytics-report-link"${this.tourAnchor('dashboard-preview-report-link')}>
                             View Full Report →
                         </button>
                     </div>
@@ -531,15 +541,18 @@ class AnalyticsPreview {
         const change = thisWeek - lastWeek;
         
         let trendHtml = '';
+        // Neutral, as on the analytics dashboard (#470, owner's decision
+        // 2026-10-07): entries logged is what the goal and the streak reward
+        // and what Insights calls a concern, so the change carries no colour
+        // that would side with either. U+2212 for the minus.
         if (change !== 0) {
-            const trendClass = change > 0 ? 'positive' : 'negative';
-            const trendSign = change > 0 ? '+' : '';
-            trendHtml = `<span class="preview-stat-trend ${trendClass}">${trendSign}${change} vs last</span>`;
+            const sign = change > 0 ? '+' : '\u2212';
+            trendHtml = `<span class="preview-stat-trend">${sign}${Math.abs(change)} vs last</span>`;
         }
         
         return `
-            <div class="preview-stat">
-                <span class="preview-stat-label">THIS WEEK</span>
+            <div class="preview-stat" data-tour-anchor="dashboard-preview-this-week">
+                <span class="preview-stat-label">This Week</span>
                 <span class="preview-stat-value">${thisWeek}</span>
                 <span class="preview-stat-subtitle">entries</span>
                 ${trendHtml}
@@ -554,7 +567,7 @@ class AnalyticsPreview {
         if (!topSubject) {
             return `
                 <div class="preview-stat">
-                    <span class="preview-stat-label">TOP SUBJECT</span>
+                    <span class="preview-stat-label">Top Subject</span>
                     <span class="preview-stat-value preview-stat-value--text preview-stat-value--empty">—</span>
                     <span class="preview-stat-subtitle">no data</span>
                 </div>
@@ -574,9 +587,9 @@ class AnalyticsPreview {
         
         return `
             <div class="preview-stat">
-                <span class="preview-stat-label">TOP SUBJECT</span>
-                <span class="preview-stat-value preview-stat-value--text" title="${this.escapeHtml(rawName)}">
-                    ${this.escapeHtml(rawName)}
+                <span class="preview-stat-label">Top Subject</span>
+                <span class="preview-stat-value preview-stat-value--text" title="${WimiEscape.html(rawName)}">
+                    ${WimiEscape.html(rawName)}
                 </span>
                 <span class="preview-stat-subtitle">(${count} entries)</span>
             </div>
@@ -589,8 +602,8 @@ class AnalyticsPreview {
     renderTopTagStat(topTag) {
         if (!topTag) {
             return `
-                <div class="preview-stat">
-                    <span class="preview-stat-label">TOP MISTAKE</span>
+                <div class="preview-stat" data-testid="dashboard-preview-top-mistake">
+                    <span class="preview-stat-label">Top Mistake</span>
                     <span class="preview-stat-value preview-stat-value--text preview-stat-value--empty">—</span>
                     <span class="preview-stat-subtitle">no data</span>
                 </div>
@@ -602,10 +615,10 @@ class AnalyticsPreview {
         const count = topTag.count || topTag.entry_count || 0;
         
         return `
-            <div class="preview-stat">
-                <span class="preview-stat-label">TOP MISTAKE</span>
-                <span class="preview-stat-value preview-stat-value--text" title="${this.escapeHtml(rawName)}">
-                    ${this.escapeHtml(rawName)}
+            <div class="preview-stat" data-testid="dashboard-preview-top-mistake">
+                <span class="preview-stat-label">Top Mistake</span>
+                <span class="preview-stat-value preview-stat-value--text" title="${WimiEscape.html(rawName)}">
+                    ${WimiEscape.html(rawName)}
                 </span>
                 <span class="preview-stat-subtitle">(${count} entries)</span>
             </div>
@@ -620,8 +633,8 @@ class AnalyticsPreview {
         const atRisk = streak?.streak_at_risk || false;
         
         return `
-            <div class="preview-stat ${atRisk ? 'preview-stat--warning' : ''}">
-                <span class="preview-stat-label">STREAK</span>
+            <div class="preview-stat ${atRisk ? 'preview-stat--warning' : ''}" data-tour-anchor="dashboard-preview-streak">
+                <span class="preview-stat-label">Streak</span>
                 <span class="preview-stat-value">
                     <span class="preview-stat-streak-icon">🔥</span>
                     ${currentStreak}
@@ -693,20 +706,11 @@ class AnalyticsPreview {
         return `
             <div class="analytics-preview-insight insight-card--${typeClass}">
                 <span class="insight-icon">${icon}</span>
-                <span class="insight-message">${this.escapeHtml(message)}</span>
+                <span class="insight-message">${WimiEscape.html(message)}</span>
             </div>
         `;
     }
     
-    /**
-     * Escape HTML to prevent XSS
-     */
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 }
 
 // Export for use in landing page

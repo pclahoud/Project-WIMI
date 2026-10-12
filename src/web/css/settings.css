@@ -596,7 +596,7 @@
     color: var(--text-secondary);
     padding: 0.125rem 0.5rem;
     border-radius: var(--radius-xl);
-    font-size: 0.6875rem;
+    font-size: var(--font-size-xs);
     font-family: monospace;
 }
 
@@ -867,8 +867,6 @@
 .mcp-config-label {
     font-size: 0.75rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
     color: var(--text-secondary);
 }
 
@@ -1084,20 +1082,51 @@
 /* Three rows, never one. The engine, the model and the microphone
    fail independently and have three different fixes, so they get
    three dots and three sentences (plan section 3.8, section 7). */
-.stt-status {
+/* ============================================================
+   The `.feature-*` twins above (#60)
+   ============================================================
+   Relation extraction needs the same furniture speech to text
+   needed: a dot, a title, a sentence, a progress bar. The rules
+   are generic; only the comments above are about speech, and the
+   `action` dot's meaning carries over exactly -- "not a failure,
+   one press from resolved" is `model_not_downloaded` as much as
+   it was "no speech model yet".
+
+   So each selector is paired rather than copied, and the
+   relations panel uses the neutral name. Two reasons for the
+   pairing rather than a rename:
+
+   * reusing `.stt-*` in another feature's panel means an edit to
+     speech-to-text's styling silently restyles relations, which
+     is the kind of coupling nobody discovers until it happens;
+   * renaming them outright would mean editing #59's markup in
+     twenty places from a change about #60, and a drive-by
+     refactor of a working panel is how two features end up
+     broken instead of one.
+
+   If anybody is in this file for speech-to-text reasons anyway,
+   migrating that panel's markup to `.feature-*` and dropping the
+   `.stt-*` halves is the tidy ending. It is deliberately not
+   done here.
+   ============================================================ */
+
+.stt-status,
+.feature-status {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
     padding: var(--space-sm) 0;
 }
 
-.stt-status-row {
+.stt-status-row,
+.feature-status-row {
     display: flex;
     align-items: flex-start;
     gap: var(--space-sm);
 }
 
-.stt-status-dot {
+.stt-status-dot,
+.feature-status-dot {
     width: 0.625rem;
     height: 0.625rem;
     border-radius: 50%;
@@ -1111,53 +1140,62 @@
 /* Nobody has asked yet. A hollow ring rather than a fourth fill, for
    the reason #90 gives about the MCP dot: the absence of a state must
    not read as one more state. */
-.stt-status-dot.unknown {
+.stt-status-dot.unknown,
+.feature-status-dot.unknown {
     background-color: transparent;
     border: 1px solid var(--text-muted);
 }
 
-.stt-status-dot.ready {
+.stt-status-dot.ready,
+.feature-status-dot.ready {
     background-color: var(--color-success);
 }
 
 /* Something is wrong and the student must do something outside WIMI:
    plug a microphone in, grant permission, reinstall. */
-.stt-status-dot.problem {
+.stt-status-dot.problem,
+.feature-status-dot.problem {
     background-color: var(--color-error);
 }
 
 /* "No model yet" is NOT a failure -- it is the first-run resting
    state, one click from resolved (plan section 7). It gets its own
    colour so the download prompt never looks like a breakage. */
-.stt-status-dot.action {
+.stt-status-dot.action,
+.feature-status-dot.action {
     background-color: var(--color-info);
 }
 
-.stt-status-body {
+.stt-status-body,
+.feature-status-body {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
 }
 
-.stt-status-title {
+.stt-status-title,
+.feature-status-title {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-primary);
 }
 
-.stt-status-text {
+.stt-status-text,
+.feature-status-text {
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
 
-.stt-actions {
+.stt-actions,
+.feature-actions {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-sm);
     margin-top: var(--space-sm);
 }
 
-.stt-problem {
+.stt-problem,
+.feature-problem {
     color: var(--color-error-text);
 }
 
@@ -1165,25 +1203,29 @@
    Content-Length, rather than drawn indeterminate: a bar that cannot
    say how far along it is must not draw a position. The byte count
    still ticks. */
-.stt-progress {
+.stt-progress,
+.feature-progress {
     margin-top: var(--space-sm);
 }
 
-.stt-progress-track {
+.stt-progress-track,
+.feature-progress-track {
     height: 0.5rem;
     background: var(--bg-tertiary);
     border-radius: var(--radius-full);
     overflow: hidden;
 }
 
-.stt-progress-bar {
+.stt-progress-bar,
+.feature-progress-bar {
     height: 100%;
     width: 0;
     background: var(--color-primary);
     border-radius: var(--radius-full);
 }
 
-.stt-progress-text {
+.stt-progress-text,
+.feature-progress-text {
     margin-top: var(--space-xs);
     font-size: 0.875rem;
     color: var(--text-secondary);
@@ -1266,4 +1308,100 @@
 .about-subhead.about-section {
     margin-top: var(--space-xl);
     font-size: 1rem;
+}
+
+/* ===================================================================
+   Folder sync: the warnings dialog (#412)
+   Shown before a link is recorded when the folder check finds problems
+   that do not stop a link. Built at runtime by
+   settings.js confirmFolderSyncWarnings(); the shared modal pattern
+   (#318/#319), styled after subject_relations.css's relation modal.
+   =================================================================== */
+
+.folder-sync-warning-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+}
+
+.folder-sync-warning-modal .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.folder-sync-warning-modal .modal-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 32rem;
+    max-height: 90vh;
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+}
+
+.folder-sync-warning-modal .modal-header {
+    padding: var(--space-lg) var(--space-xl);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.folder-sync-warning-modal .modal-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.folder-sync-warning-modal .modal-body {
+    padding: var(--space-xl);
+    overflow-y: auto;
+    color: var(--text-primary);
+}
+
+.folder-sync-warning-modal .modal-body p {
+    margin: 0 0 var(--space-md) 0;
+}
+
+.folder-sync-warning-list {
+    margin: 0 0 var(--space-md) 0;
+    padding-left: var(--space-xl);
+    overflow-wrap: anywhere;
+}
+
+.folder-sync-warning-list li + li {
+    margin-top: var(--space-sm);
+}
+
+.folder-sync-warning-modal .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-xl);
+    border-top: 1px solid var(--border-light);
+}
+
+.folder-sync-warning-modal .btn-secondary,
+.folder-sync-warning-modal .btn-primary {
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.folder-sync-warning-modal .btn-secondary {
+    background: var(--bg-tertiary);
+    border-color: var(--border-medium);
+    color: var(--text-primary);
+}
+
+.folder-sync-warning-modal .btn-primary {
+    background: var(--color-primary);
+    color: var(--text-inverse);
 }

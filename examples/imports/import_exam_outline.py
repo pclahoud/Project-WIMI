@@ -1,12 +1,12 @@
 """
-USMLE Content Outline Import Utility
+Exam Outline Import Utility (out of date: see #626)
 Imports hierarchical subject structures from JSON files into Project WIMI
 
 Usage:
     python import_exam_outline.py <json_file> [--user-id <id>] [--db-path <path>]
     
 Example:
-    python import_exam_outline.py usmle_cardiovascular.json --user-id 1
+    python import_exam_outline.py cardiology_example.json --user-id 1
 """
 import json
 import argparse
@@ -263,7 +263,7 @@ def demo_import():
     print("="*60)
     
     # Find the JSON file
-    json_path = Path(__file__).parent / 'usmle_cardiovascular.json'
+    json_path = Path(__file__).parent / 'cardiology_example.json'
     
     if not json_path.exists():
         print(f"ERROR: Could not find {json_path}")
@@ -290,7 +290,7 @@ def demo_import():
         print("Verifying Import - Subject Hierarchy:")
         print("="*60)
         
-        hierarchy = db.get_subject_hierarchy("USMLE Step 1")
+        hierarchy = db.get_subject_hierarchy("Cardiology example")
         
         def print_tree(nodes: List[SubjectNode], indent: int = 0):
             for node in nodes:
@@ -319,10 +319,10 @@ Examples:
   python import_exam_outline.py --demo
   
   # Import to specific database
-  python import_exam_outline.py usmle_cardiovascular.json --db-path ./user1.db --user-id 1
+  python import_exam_outline.py cardiology_example.json --db-path ./user1.db --user-id 1
   
   # Validate JSON without importing
-  python import_exam_outline.py usmle_cardiovascular.json --validate-only
+  python import_exam_outline.py cardiology_example.json --validate-only
         """
     )
     

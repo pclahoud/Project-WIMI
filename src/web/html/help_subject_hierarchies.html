@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your subject tree and its levels - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/10_subject_hierarchies.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 4</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Your subject tree and its levels</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_outline_to_tree.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Building your subject tree from a published outline</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_shared_subjects.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Subjects that live in more than one place</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Your subject tree and its levels
+
+## In short
+
+Your subjects are a tree you build yourself, and its level names come from the exam you set it up for: the five WIMI ships with, or the vocabulary the template you picked uses, or whatever an imported outline calls each subject. A subject's level is a fact stored on that subject rather than something WIMI works out from how deep the subject sits, which is why the same subject never wears two different level names in one tree.
+
+## What the tree is for
+
+A subject is what an entry is about. Everything the analytics can tell you
+about where your mistakes cluster is derived from which subjects your entries
+sit on, so the tree is the structure the rest of the app reports through.
+
+A new exam has an empty tree. Picking a template in the wizard does not change
+that — a template carries the exam's level names and its axes, not its
+subjects, which is the step most people miss on a first run. The chapter
+[Your first hour](help_the_first_hour.html) covers getting the first one in.
+
+You do not need the whole outline before you log anything. One subject is
+enough to save an entry, and the entry form can create a subject without
+leaving the page.
+
+## Where the level names come from
+
+Your exam has a list of level names, and it is set when the exam is created.
+Two things decide it:
+
+- **The five defaults**, which are System, Subsystem, Topic, Subtopic and Child.
+- **The template you pick**, if you pick one, because each template brings the vocabulary its own exam uses. The SAT template reads Section, Domain, Skill, Topic, Subtopic. The Step 1 template reads System, Discipline, Topic, Concept, Detail. The CPA template reads Section, Content Area, Topic, Subtopic, Detail.
+
+The wizard's **Subject Hierarchy** step shows you the list you are about to get.
+It is a display rather than an editor: there is nothing to type into, and once
+the exam exists there is no screen in WIMI that renames a level or adds one. So
+if the vocabulary matters to you, the template step is where it is decided.
+
+That sounds more final than it is, because the list does less than its
+prominence suggests. It is the set of names offered in the **Level Type**
+dropdown when you add a subject, and it is the order WIMI reads when it
+suggests a level for a new child. It is not a constraint on shape:
+
+- Nothing requires a Topic to sit under a Subsystem, or a Child to be at the bottom.
+- Nothing requires your tree to be the same depth everywhere. Three levels down one branch and six down another is an ordinary outline, because published blueprints are shaped that way.
+- Nothing requires every level in the list to be used at all.
+
+That latitude is deliberate. The levels exist so that you can say what a row
+*is* when you look at it, and so the analytics can group by that. A blueprint
+that does not fit a five-name ladder is the normal case, not an error.
+
+## A subject's level is stored on the subject
+
+<!-- tour
+page: tree-editor
+anchor: tree-row-level
+text: A subject's level is stored on the subject rather than worked out from
+  how deep it sits, so the same subject reads the same level everywhere it
+  appears. Depth and level may disagree, and nothing is wrong when they do.
+-->
+
+This is the rule worth being precise about, because the intuitive version is
+wrong.
+
+WIMI reads a subject's level from the subject itself. It does **not** work the
+level out from how far down the tree the subject appears. The reason is the
+subject of the next chapter: in WIMI a subject may have more than one parent,
+and a subject with two parents at different levels sits at two depths at the
+same time. If the level were derived from depth, then:
+
+- the same subject would be labelled one thing under one parent and something else under another, in the same tree, on the same screen;
+- which of the two you happened to see would depend on the order the tree was drawn in, which is not a thing you can reason about or rely on.
+
+Reading the stored value has neither problem. Wherever a subject appears, its
+level chip reads the same.
+
+The consequence to expect: **depth and level can disagree, and that is
+allowed.** A subject stored as a Topic can sit two levels down or four. When
+they disagree, the stored level is the answer, and nothing is wrong.
+
+## A level name your list does not have is normal
+
+You will see level names that are not in the exam's list, and this is an
+ordinary state rather than corruption.
+
+The way in is importing an outline. A subject in an import file carries its own
+level name, and nothing requires that name to be one of the exam's. It usually
+is, because a file written for an exam and a template written for the same exam
+tend to agree, but a file you wrote yourself or got from somewhere else need
+not. WIMI stores what the file says, on the grounds that the words the blueprint
+uses are more useful to you than a substitute WIMI picked.
+
+So it shows you the name as it is stored, unchanged. And when you add a child of
+such a subject, that name is added to the **Level Type** dropdown so you can
+carry on using it.
+
+One detail about that addition: it is offered for that one dialog only. It is
+not written into the exam's level list, and it disappears from the dropdown
+again once no subject on screen needs it. WIMI will show you a name you have
+used; it will not quietly adopt it as one of the exam's own levels on your
+behalf.
+
+## The level WIMI suggests for a new child
+
+<!-- tour
+page: tree-editor
+anchor: tree-add-child-level
+text: Pre-filled with the level one below the parent's stored level, or the
+  parent's own level when there is no next one. Most people accept it, and
+  what you accept here is what is stored on the subject, so change it now if
+  it is wrong.
+-->
+
+When you add a child, the **Level Type** field is pre-filled with the level one
+step below the parent's stored level. Two situations repeat the parent's level
+instead of inventing something:
+
+- the parent is already at the bottom of the list, so there is no next level to move to;
+- the parent's level is not in the list at all, so there is no next level to move to either. There is no derivable "one below Domain", and guessing would mean substituting WIMI's vocabulary for yours.
+
+This is worth knowing because most people accept a pre-filled value. The level
+the suggestion offers is, in practice, the level that gets stored — so if the
+suggestion repeats the parent's level and you wanted something else, change it
+there rather than fixing it afterwards.
+
+## What a level does, and what it does not
+
+A level decides:
+
+- the label on the row in the tree editor;
+- how the analytics group subjects when they break results down by level;
+- what the suggestion above is derived from.
+
+A level does not decide a subject's weight, and it does not decide what an
+entry rolls up through. Weight is a separate setting, held for a subject under
+one particular parent, and it has its own chapter. Rollup is decided by which
+subject sits under which — and that is where the next two chapters go, because a
+subject here can sit under more than one parent at once.
+
+## Renaming a subject
+
+<!-- tour
+page: tree-editor
+anchor: tree-row-name
+text: Double-click a subject's name, or press F2 on it, to rename it in
+  place. Enter saves the new name, and so does clicking anywhere else.
+  Renaming one appearance renames the subject everywhere it appears.
+-->
+
+There is no Rename button on a row. To rename a subject, double-click its name
+in the tree, or move to the name with the keyboard and press **F2**; the name
+becomes a text box.
+
+- **Enter saves it, and so does clicking anywhere else.** Leaving the box is not a way to back out.
+- **Clearing the box keeps the old name**: an empty name is never saved.
+- **Escape does not cancel at the moment.** It is meant to, but it saves what you typed, the same as Enter. To change your mind, put the old name back before you leave the box, or rename it again afterwards.
+
+A single click does something else: it selects the subject and opens or closes
+its branch, and **Enter** on a name does the same.
+
+### The Name field in the details panel
+
+The details panel has a second way in: select a subject and its **Name**
+field sits under **Basic Information**. It has no Save button. The name is
+saved as soon as you leave the box or press Enter, and a small *Name saved*
+message confirms it, so leaving the box is not a way to back out there either.
+
+<!-- tour
+page: tree-editor
+anchor: tree-edit-name
+text: This field has no Save button: the name is saved as soon as you leave
+  the box or press Enter, so leaving it is not a way to back out. It renames
+  the subject everywhere it appears.
+-->
+
+A subject with several parents is one subject, so renaming any of its
+appearances renames all of them. The next chapter is about that.
+
+## Filtering the tree
+
+<!-- tour
+page: tree-editor
+anchor: tree-search-input
+text: The filter matches a subject's aliases as well as its name, so a row
+  can match with nothing in its name highlighted. Rows above a match stay on
+  screen to show where it sits, and the count beside the box counts matches,
+  not rows.
+-->
+
+The **Filter subjects** box above the tree narrows it to the subjects whose
+name contains what you type, ignoring case. Three things about it are easy to
+misread:
+
+- **It matches aliases too.** A subject whose alias contains your text is a match, and its row is shown with nothing in its name highlighted, because the part that matched is not on screen.
+- **The rows above a match stay visible**, opened up so you can see where the match sits. They are shown because of what is beneath them, not because they matched. For a subject with several parents, only one of the routes down to it is opened this way.
+- **The count beside the box counts matches**, so it is usually smaller than the number of rows you can see.
+
+On an exam with dimensions it filters the dimension you are looking at.
+**Escape** or the **×** clears it, and puts back the branches you had open
+before.
+
+## Where to go next
+
+- [Subjects that live in more than one place](help_shared_subjects.html) — why a subject can have several parents, and what that changes.
+- [Choosing which parent an entry counts under](help_parent_context.html) — the small pill on the entry form that follows from it.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

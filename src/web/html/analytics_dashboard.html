@@ -12,6 +12,7 @@
          defaults (plain ul/li). -->
     <link rel="stylesheet" href="../css/weight.css">
     <link rel="stylesheet" href="../css/toast.css">
+    <link rel="stylesheet" href="../css/tour.css">
 </head>
 <body>
     <div class="page-container">
@@ -76,14 +77,14 @@
             </div>
         </section>
 
-        <!-- Mistake Type Breakdown -->
+        <!-- Mistake Breakdown: by subject and by mistake type (#474) -->
         <section class="breakdown-section">
-            <h2 class="section-title">Mistake Type Breakdown</h2>
+            <h2 class="section-title">Mistake Breakdown</h2>
             <div class="breakdown-grid">
                 <!-- Subject Breakdown -->
                 <div class="breakdown-card" id="subjectBreakdownCard" data-testid="analytics-subject-breakdown-card">
                     <div class="card-header">
-                        <h3 class="card-title">By Subject</h3>
+                        <h3 class="card-title" data-tour-anchor="analytics-by-subject">By Subject</h3>
                         <!-- The centre counts entries; the segments count
                              entries per parent, and a shared subject counts
                              under each of its parents. The two totals differ
@@ -101,8 +102,8 @@
                     </div>
                     <div class="sunburst-container" id="subjectSunburstContainer" data-testid="analytics-sunburst-container">
                         <div id="subjectSunburst" data-testid="analytics-sunburst"></div>
-                        <div class="sunburst-center-label">
-                            <div class="center-number" id="totalEntriesCenter" aria-live="polite">-</div>
+                        <div class="sunburst-center-label" data-tour-anchor="analytics-sunburst-centre">
+                            <div class="center-number" id="totalEntriesCenter" aria-live="polite" data-testid="analytics-sunburst-center-total">-</div>
                             <div class="center-text" id="centerSubjectName">Total</div>
                         </div>
                     </div>
@@ -114,7 +115,7 @@
                 <!-- Tag Breakdown -->
                 <div class="breakdown-card" id="tagBreakdownCard" data-testid="analytics-tag-breakdown-card">
                     <div class="card-header">
-                        <h3 class="card-title">By Mistake Type</h3>
+                        <h3 class="card-title" data-tour-anchor="analytics-by-mistake-type">By Mistake Type</h3>
                         <div class="size-preset-group" data-chart="tag_chart">
                             <button class="size-preset-btn" data-size="S" data-testid="analytics-tag-chart-size-S">S</button>
                             <button class="size-preset-btn active" data-size="M" data-testid="analytics-tag-chart-size-M">M</button>
@@ -129,7 +130,6 @@
                         </div>
                     </div>
                     <div class="chart-legend" id="tagLegend" data-testid="analytics-tag-legend"></div>
-                    <a href="#" class="deep-dive-link" data-testid="analytics-mistaketype-deepdive-link">Mistake Types Deep Dive →</a>
                 </div>
             </div>
         </section>
@@ -249,7 +249,7 @@
 
         <!-- Weekly Goal -->
         <section class="goal-section" data-testid="analytics-goal-section">
-            <h2 class="section-title">Weekly Goal</h2>
+            <h2 class="section-title" data-tour-anchor="analytics-weekly-goal">Weekly Goal</h2>
             <div id="goalWidget" data-testid="analytics-goal-widget">
                 <!-- Goal widget will be generated here -->
             </div>
@@ -284,6 +284,27 @@
         </section>
 
         <!-- Subject vs Exam Weight Analysis Section -->
+        <!--
+            Question-bank comparison (#604). `source_chart.js` and
+            `source_table.js` were written for this and loaded by no page for
+            their whole existence; the owner's decision was to put them on
+            this page. Both are pure renderers -- `new X(containerId)` then
+            `.render(data)` -- so `analytics_dashboard.js::loadSourceComparison`
+            fetches `api.getSourceComparison` once and hands the same payload
+            to each.
+        -->
+        <section class="source-section" data-testid="analytics-source-comparison-section">
+            <h2 class="section-title">Question Banks Compared</h2>
+            <div class="source-comparison-card">
+                <div class="source-comparison-layout">
+                    <div class="source-chart-container" id="sourceComparisonChart"
+                         data-testid="analytics-source-chart"></div>
+                    <div id="sourceComparisonTable"
+                         data-testid="analytics-source-table"></div>
+                </div>
+            </div>
+        </section>
+
         <section class="weight-analysis-section" data-testid="analytics-weight-analysis-section">
             <h2 class="section-title">Subject vs Exam Weight Analysis</h2>
             <div class="weight-analysis-card">
@@ -311,12 +332,14 @@
     <!-- Scripts -->
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../js/lib/d3.v7.min.js"></script>
+    <script src="../js/escape.js"></script>
     <script src="../js/toast.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
     <script src="../js/event_bus.js"></script>
     <script src="../js/plugin_loader.js"></script>
+    <script src="../js/local_date.js"></script>
     <script src="../js/sunburst_chart.js"></script>
     <script src="../js/heatmap_chart.js"></script>
     <script src="../js/streak_display.js"></script>
@@ -325,6 +348,12 @@
     <script src="../js/dimension_analytics.js"></script>
     <script src="../js/dimension_heatmap.js"></script>
     <script src="../js/dimension_insights.js"></script>
+    <script src="../js/source_chart.js"></script>
+    <script src="../js/source_table.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         analytics_dashboard.js starts it once the cards are drawn. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/analytics_dashboard.js"></script>
     <script src="../js/weight_analysis.js"></script>
 </body>

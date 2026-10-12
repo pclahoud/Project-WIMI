@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/32_notes.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 13</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Notes</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_error_types.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Error types: naming the mistake</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_the_session_timer.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">The session timer, rounds and breaks</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Notes
+
+## In short
+
+A note is a piece of writing that belongs to an entry but is not an answer to either of the entry's two questions. One entry can carry as many as you like, each one its own editor, and each can be tagged with the subjects it is about. The subject tag is what makes a note findable again: on a later entry about the same subject, WIMI offers you the notes you already wrote about it, and one note can sit on several entries at once rather than being copied.
+
+## What a note is for
+
+The entry form's two written fields have specific jobs. **Why did you get this
+wrong?** is about this attempt, and **Why is the correct answer correct?** is
+about this question's content. A note is for the thing that is about neither —
+the piece of general understanding you reached while sorting this question out,
+and which will be just as true on the next five questions in the same area.
+
+Some things that belong in a note rather than in either field:
+
+- The small table or mnemonic you built to keep two look-alike concepts apart.
+- The step-by-step procedure for a calculation you keep setting up wrongly, written out properly once.
+- A rule of thumb you want to apply next time — "when the stem gives me a timeline, read it before the options".
+- The thing your lecturer said that finally made the topic click, pasted in with its source.
+- A standing disagreement with the question bank's explanation, so that you do not re-litigate it every time it comes up.
+
+The practical test: **if the writing would still be useful on a question you have
+not seen yet, it is a note.** If it is only true of this one question, it belongs
+in the explanation field.
+
+## Adding one
+
+The **Notes** block sits below the two written fields, beside **Media
+Attachments**. It is empty and invisible until you have a note.
+
+Press **+ Add Note** and a card appears straight away, with its own rich text
+editor and the placeholder *"Write your note here..."* It has the same toolbar as
+the fields above it — headings, lists, tables, links, and the maths button — so a
+note is a perfectly good place for a two-column comparison or a worked formula.
+[Logging a mistake](help_logging_a_mistake.html) covers that toolbar in detail.
+
+Notes are saved by the entry's own autosave; there is no separate save button on
+the card. **Pressing + Add Note and then leaving the card blank costs nothing** —
+an untouched card with no text and no subjects is not written to the database, so
+you can open one speculatively and change your mind.
+
+Each card's header carries three buttons: **Subjects**, **Clear** and **Delete**.
+
+## Attaching it to a subject
+
+A new note shows a small badge reading **General**, which means it is not tagged
+with any subject. That is a legitimate end state and nothing forces you off it.
+
+Press **Subjects** and a dialog opens headed **Note 1 — Assign Subjects**, with
+the hint *"Select which subjects this note relates to:"*. It has two halves:
+
+- **Tick boxes for the subjects already on this entry** — its primary and secondary subjects, whichever you have tagged. This is the common case and the fast one.
+- **A search box underneath**, labelled *"Search for additional subjects:"*, over every subject in the exam. A note may be tagged with a subject the entry itself is not tagged with, and WIMI keeps such a tag rather than tidying it away. That is deliberate: the general point you reached while working a cardiology question may actually be about pharmacology.
+
+Press **Save** and the chips appear in the card's header. If the entry has no
+subjects yet the dialog says so and offers the search box alone.
+
+## Several notes, several subjects
+
+Both directions are open and neither has a limit.
+
+- **One entry, many notes.** A question that provoked three separate realisations gets three notes, each tagged with what it is about. That is better than one long note holding all three, because each one is then findable on its own.
+- **One note, many subjects.** A note about telling two conditions apart is genuinely about both of them, and tagging it with both is correct.
+
+The guidance is to **split by subject rather than by thought.** If two
+realisations are about the same subject, one note is fine. If they are about
+different subjects, two notes will each find their way back to you and one will
+only find its way back half the time.
+
+## Where a note turns up again
+
+<!-- tour
+page: entry-form
+anchor: entry-form-notes-block
+text: A note is for the thing that will still be true on a question you have
+  not seen yet. Tag it with a subject and a later entry with that subject as
+  a primary subject offers it back through + Add existing, which is the only
+  subject-level view of your notes.
+-->
+
+This is the part worth being precise about, because it is the reason to bother
+tagging subjects at all — and because it is narrower than you might assume.
+
+**On the entry itself.** Reopen the entry and the notes are there to edit. On the
+entry's read-only detail view they appear under **QUESTION NOTES** with a count,
+and if the entry's notes carry different subjects they are split into tabs — one
+tab per subject, plus a **General** tab for any note with no subject. So an entry
+with six notes reads as a short set of labelled sections rather than a wall.
+
+**On your next entry about the same subject.** This is the payoff. Tag a primary
+subject on a new entry and the Notes block's **+ Add existing** button counts up
+the notes you have already written about that subject on other entries. Press it
+and you get a checklist — each row showing the first line of the note and which
+entry it came from — with a confirm button reading **Attach selected**. The
+button stays greyed with *"No primary subjects yet — tag one to see matches"*
+until you have tagged something, which is a good hint about the order to work in:
+tag the subjects first, then look at what you already know.
+
+**In search.** The entry browser's search accepts `notes:` as a field, so
+`notes:mnemonic` finds entries whose notes mention it.
+
+**On the subject's own page.** Open a subject's deep dive and there is a
+**Notes Tagged with This Subject** section. It lists every note whose subject
+tags include that subject, newest first, and pressing one opens the entry the
+note lives on.
+
+That list is strict, and the strictness is the point: it shows notes you
+**tagged** with this subject, not every note that happens to sit on an entry
+about it. So the list is the set you built deliberately, and tagging is what
+puts things in it. A note you never tagged with a subject will not appear
+there — it is findable from the entry it lives on, from the "+ Add existing"
+picker, and by search.
+
+**Do not confuse it with the panel above it.** The same page has **Recent
+Entries and Their Reflections**, which shows the *reflection or explanation*
+of recent entries on the subject. Those are not notes. The two lists look
+alike and their headings are what tell them apart: one is what you wrote while
+reflecting on a question, the other is what you filed under this subject on
+purpose.
+
+## One note on several entries
+
+A note is not copied onto a second entry — the same note is attached to both. So
+editing it on either entry changes the one note, and both entries show the
+change. That is usually what you want for a mnemonic or a procedure: one
+canonical copy that improves as you refine it, rather than six divergent
+versions.
+
+The picker excludes notes already on the entry you are editing, so you cannot
+attach the same note twice.
+
+## Clearing, editing and deleting
+
+Three different things, and the card's buttons keep them apart.
+
+**Editing** is just typing. Reopen the entry, change the text, and the entry's
+autosave writes it. There is no separate save.
+
+**Clear** asks *"Clear this note's content?"* and then empties the note while
+keeping the card and its subject tags. Use it when the note is in the right place
+and the wrong words.
+
+<!-- tour
+page: entry-form
+anchor: entry-form-note-delete
+text: On a note only this entry uses, Delete removes it for good after one
+  question. On a note other entries share, you choose: Detach from this entry
+  keeps it on them, Delete everywhere removes it from all. Deleting the entry a
+  note was first written on deletes the note everywhere too.
+-->
+
+**Delete** depends on whether the note is attached to anything else.
+
+- **On a note attached only to this entry**, it asks *"Delete this note?"* and deletes it. There is no undo and no archive.
+- **On a note attached to several entries**, it opens a dialog headed **Delete this note?** which tells you how many entries hold it and offers two different things: **Detach from this entry**, described as keeping the note so that it still appears on the other entries, and **Delete everywhere**, which removes it from all of them. Pick deliberately. Detaching leaves the note intact, so you can get it back through **+ Add existing** provided it is still tagged with a subject this entry carries; deleting everywhere cannot be undone at all.
+
+One thing that follows from how notes are stored, and is worth knowing before you
+tidy anything: **a note belongs to the entry you first created it on.** Delete
+*that* entry and the note is deleted with it, off every other entry it was
+attached to. Detaching it from the others beforehand does not save it, because it
+is the original attachment that owns the note. In practice this only matters if
+you are in the habit of deleting entries; if a note has become genuinely useful
+across several questions, the entry it was born on is worth keeping.
+
+## What a note is not
+
+Three things it looks like it might be and is not.
+
+- **It is not a substitute for the reflection.** The two required written fields stay required, and a note does not satisfy either. Notes are what is left over.
+- **It is not read by any analytics screen.** Nothing counts your notes, scores them or groups them. They are for you to read; the structure the analytics use is subjects and error types.
+- **It cannot carry a file attachment.** Images belong to the entry, not to a note — see [Logging a mistake](help_logging_a_mistake.html) for that. You can paste an image into a note's text, and it will be embedded in the note's body, but it is part of the writing rather than a managed attachment with its own subjects.
+
+## Using them well
+
+- **Write notes for the next question, not for this one.** Anything that is only about this question belongs in the explanation field.
+- **Tag the subject, always.** It costs two clicks and it is the entire difference between a note you will meet again and one you have written into a drawer.
+- **One note per subject per idea.** Splitting by subject is what makes the "+ Add existing" picker useful instead of noisy.
+- **Attach rather than retype.** When the picker offers you a note you wrote three weeks ago, attaching it is better than writing a second version: you end up with one note that gets better, and you can see at a glance how many questions it has been relevant to.
+- **Improve the note when you reattach it.** The moment you are reminded of an old note by a new question is the best moment to sharpen it.
+
+## Where to go next
+
+- [Logging a mistake](help_logging_a_mistake.html) — the rest of the entry form, including images and autosave.
+- [Error types: naming the mistake](help_error_types.html) — the other optional field that pays for itself.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

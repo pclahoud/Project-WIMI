@@ -66,12 +66,24 @@ def _seed(db, exam_name: str, subject_name: str, per_day: dict[date, int]) -> tu
     return node.id, ec_id
 
 
+# Every text the trend banner can settle on. This is a SETTLE predicate, so
+# a string missing from it does not fail loudly -- the poll times out and the
+# assertion afterwards reports whatever the last read was, which looks like
+# the feature being broken rather than the helper not recognising it.
+#
+# #314 added the third one: a 0-vs-0 week used to fall into the "No change"
+# branch, which read as a steady trend on a subject whose last mistake was
+# 122 days ago. Neither test in this file is a 0-vs-0 case, so nothing here
+# broke -- but the next person to write one would have lost an hour.
+_SETTLED_PREFIXES = ("Change:", "No change", "No activity")
+
+
 def _open_deep_dive(wimi_page: WimiPage, subject_id: int, exam_id: int) -> str:
     wimi_page.goto("subject-deep-dive", query={"subject": subject_id, "exam": exam_id})
     banner = None
     for _ in range(40):  # bounded poll; the page's init() is async
         banner = wimi_page.eval_js(_BANNER_JS)
-        if banner and (banner.startswith("Change:") or banner.startswith("No change")):
+        if banner and banner.startswith(_SETTLED_PREFIXES):
             return banner
         wimi_page.wait_for_timeout(250)
     pytest.fail(f"Trend banner never rendered; last text {banner!r}")

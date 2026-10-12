@@ -33,6 +33,7 @@ from app.foldersync import ProfileFolderSync
 from app.foldersync.transport import FolderTransport, TransportError
 from app.profile_archive import (
     VERDICT_NEWER_APP_REQUIRED,
+    VERDICT_UNRECOGNISED_STRUCTURE,
     build_profile_archive,
     VERDICT_OK,
     install_profile_as_new,
@@ -40,6 +41,7 @@ from app.profile_archive import (
 from database.master_db import MasterDatabase
 from database.migrations.user import MIGRATIONS as USER_MIGRATIONS
 from database.user_db import UserDatabase
+from tests import _schema_mutations
 
 LOCAL_MAX = max(m.version for m in USER_MIGRATIONS)
 
@@ -417,8 +419,39 @@ class TestDurability:
         assert fetched.schema_reason           # a real, user-facing sentence
         assert str(LOCAL_MAX + 5) in fetched.schema_reason or "newer" in fetched.schema_reason.lower()
 
+    def test_a_database_not_built_by_wimi_is_refused_with_its_reason(
+        self, sync_a, sync_b, alice, cloud_folder
+    ):
+        """#593: folder sync installs through the same preflight as an import,
+        so a database whose tables are not WIMI's is refused before any
+        button offers to install it. This is the route where an archive
+        arrives without the student choosing a file."""
+        sync_a.link(alice.id, cloud_folder, "generic")
+        pushed = sync_a.push(alice.id)
+        sync_id = sync_a.state.get_link(alice.id).sync_id
+
+        self._forge(Path(pushed.blob_path), Path(pushed.manifest_path),
+                    _schema_mutations.alias_id_as_text)
+
+        fetched = sync_b.fetch_from(cloud_folder, sync_id, "generic")
+        assert fetched.schema_verdict == VERDICT_UNRECOGNISED_STRUCTURE
+        assert fetched.blocked is True
+        assert "subject_aliases" in fetched.schema_reason
+
+    @classmethod
+    def _forge_newer_schema(cls, blob: Path, manifest_path: Path) -> None:
+        def claim_a_future_migration(conn):
+            conn.execute(
+                "INSERT INTO schema_migrations (version, name, checksum) VALUES (?, ?, ?)",
+                (LOCAL_MAX + 5, "m999_from_the_future", "x" * 64),
+            )
+            conn.commit()
+        cls._forge(blob, manifest_path, claim_a_future_migration)
+
     @staticmethod
-    def _forge_newer_schema(blob: Path, manifest_path: Path) -> None:
+    def _forge(blob: Path, manifest_path: Path, mutation) -> None:
+        """Rewrite the blob's user.db with ``mutation`` and re-stamp the
+        manifest, so the schema check is what stops it, not the checksum."""
         work = blob.parent / "_forge"
         work.mkdir(exist_ok=True)
         try:
@@ -427,11 +460,7 @@ class TestDurability:
             db = work / "user.db"
             conn = sqlite3.connect(str(db))
             try:
-                conn.execute(
-                    "INSERT INTO schema_migrations (version, name, checksum) VALUES (?, ?, ?)",
-                    (LOCAL_MAX + 5, "m999_from_the_future", "x" * 64),
-                )
-                conn.commit()
+                mutation(conn)
             finally:
                 conn.close()
 
@@ -689,20 +718,23 @@ class TestStatusHonesty:
 @pytest.mark.slow
 class TestRealisticProfile:
     """
-    The same round trip against a 2,575-subject profile from the USMLE Step 1
-    outline fixture — the profile #22 comment #1455 measured at 54 ms -> 0.28 MB.
+    The same round trip against a ~2,470-subject profile from the exam outline
+    fixture. #22 comment #1455 measured 54 ms -> 0.28 MB on the 2,575-subject
+    profile the previous fixture produced; #437 replaced that fixture with a
+    synthetic one of the same shape, so the figure is historical and the bound
+    below is what this test actually asserts.
     """
 
     def test_full_outline_profile_round_trips_byte_identically(
         self, sync_a, sync_b, device_a, cloud_folder
     ):
-        from wimi_test.db.seeders import seed_usmle_step1_outline
+        from wimi_test.db.seeders import seed_exam_outline
 
         user = device_a.create_user(username="emma", display_name="Emma")
         db_path = device_a.ensure_user_database(user.id)
         db = UserDatabase(db_path=db_path, user_id=user.id, username=user.username)
         try:
-            seed_usmle_step1_outline(db)
+            seed_exam_outline(db)
             subjects = db.execute("SELECT COUNT(*) FROM subject_nodes").fetchone()[0]
         finally:
             db.close()

@@ -142,7 +142,9 @@ class ActivityHeatmap {
         let monthPositions = [];
 
         days.forEach((day, i) => {
-            const date = new Date(day.date);
+            // LocalDate.parse, not new Date(): a bare 'YYYY-MM-DD' parses as
+            // UTC midnight, which is the previous day west of Greenwich (#471).
+            const date = LocalDate.parse(day.date);
             const month = date.getMonth();
             const weekIndex = Math.floor(i / 7);
 
@@ -197,7 +199,8 @@ class ActivityHeatmap {
         // Add tooltips
         cells.append('title')
             .text(d => {
-                const date = new Date(d.date);
+                // The square's own day, in every zone (#471) -- see above.
+                const date = LocalDate.parse(d.date);
                 const dateStr = date.toLocaleDateString('en-US', { 
                     weekday: 'short', 
                     month: 'short', 

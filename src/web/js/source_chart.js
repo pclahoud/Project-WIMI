@@ -106,7 +106,16 @@ class SourceComparisonChart {
                 .attr('stroke-width', 2.5)
                 .attr('d', line);
 
-            this.svg.selectAll(`.point-${source.name.replace(/\W/g, '')}`)
+            // `selectAll(null)` rather than a selector built from the source
+            // name (#604). The old form was
+            // `selectAll('.point-' + source.name.replace(/\W/g, ''))`, and
+            // nothing ever applied that class, so the join was always empty
+            // and the selector did no work. It could still THROW: a name
+            // starting with a digit ("2024 Qbank" -> `.point-2024Qbank`) or
+            // reducing to nothing ("???" -> `.point-`) is an invalid CSS
+            // selector, and `selectAll` raises a SyntaxError that takes the
+            // whole chart with it. Latent while no page loaded this file.
+            this.svg.selectAll(null)
                 .data(source.values)
                 .enter()
                 .append('circle')

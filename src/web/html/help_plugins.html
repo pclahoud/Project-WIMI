@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plugins - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/82_plugins.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 27</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Plugins</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_where_your_work_lives.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Where your work lives, and how to keep it</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Plugins
+
+## In short
+
+A plugin is a small add-on you install into WIMI yourself, and it runs with the same access to your data that WIMI has. Nothing ships with WIMI, there is no store and nothing is vetted; you install a folder or a zip you obtained from somewhere, and WIMI runs it. It does show you which permissions a plugin asked for, but on the card after it is installed rather than as a question before, and a plugin's own interface code is loaded into almost every page where it can call anything the page can. So the decision is the usual one for add-ons anywhere: install it if you would trust its author with everything you have written, and not otherwise.
+
+## What a plugin is
+
+One folder inside **plugins**, in WIMI's own data folder, containing a small
+description file and up to three other things:
+
+- **A description file**, which every plugin must have. It names the plugin, gives it a version, and declares what the rest of the folder contains and which permissions it wants.
+- **Python code**, optional. This is the part that can read and write your data directly.
+- **JavaScript**, optional. This runs inside WIMI's pages, and can add to them, read them and change them.
+- **A stylesheet**, optional. This restyles WIMI.
+
+A plugin may also declare blocks of its own markup to be dropped into named
+places in WIMI's pages — under the entry form, beside the dashboard's exam
+cards, in the analytics dashboard, in the entry browser's toolbar, in the entry
+detail page, in session setup, and as its own panel in Settings. Nine such places
+exist. The tree editor and this manual have none, so a plugin that wants to reach
+them has to do it from its JavaScript.
+
+## What a plugin can do
+
+This section is the whole point of the chapter, so it is stated flatly.
+
+### The Python half asks for permissions
+
+A plugin's description file can request these, and no others: **read**,
+**write:entries**, **write:sessions**, **write:notes**, **write:goals**,
+**write:media** and **storage**. A plugin that asks for a name not on that list
+will not load at all.
+
+The permissions do real work, with one wrinkle worth knowing:
+
+- **The write permissions are enforced**, at the moment the plugin tries. A plugin that did not ask for **write:entries** and then tries to create an entry through WIMI's plugin interface is refused.
+- **storage** is what lets a plugin keep files of its own, inside its own folder and nowhere else.
+- **read gates nothing.** Reading your entries, subjects, sessions, analytics, tags and goals is available to every plugin whether or not it asked. The permission is a declaration of intent, not a lock.
+
+And the larger wrinkle: those permissions govern WIMI's own tidy interface for
+plugins. **A plugin's Python is ordinary Python, running inside WIMI.** Nothing
+stops it opening files, reaching the network, or going round the interface
+straight to your database. The permission list describes what a well-behaved
+plugin asks for; it is not a wall around a badly behaved one.
+
+### The JavaScript half has no permissions at all
+
+A plugin's JavaScript is loaded into WIMI's pages — every page except the profile
+picker, which is 33 of the 34 — as part of the page itself. Not in a frame, not
+in a sandbox, not restricted in any way.
+
+That means it can call **anything a WIMI page can call**. Create and edit
+entries, delete subjects, change your settings, import a profile over the top of
+your current one. The write permissions above do not apply here, because this
+code is not going through the interface those permissions guard; it is the page.
+
+Its stylesheet can likewise restyle or hide any part of WIMI, and the blocks of
+markup it declares are inserted as written, without being checked.
+
+None of that is a bug to be fixed later — it is what makes a plugin able to add a
+feature to WIMI at all. It is simply the thing to know before installing one.
+
+## Installing one
+
+<!-- tour
+page: settings
+anchor: settings-addons-install
+text: A plugin installed from a zip runs straight away. Nothing asks you to
+  approve what it can do first, and a plugin already installed under the same
+  name is replaced without asking. It works with the same access to your data
+  that WIMI has, so export your profile before you install one.
+-->
+
+Two routes, and they are not equivalent.
+
+**Settings, then Addons, then Install from .zip.** A file dialog, then WIMI
+unpacks the zip into its plugins folder, checks the description file, and loads
+the plugin **immediately**. If a plugin with the same name is already installed,
+it is replaced without being asked. If the zip is not a valid plugin you get an
+error message saying why, which is the one plugin failure WIMI reports properly.
+
+**Or put the plugin's folder into the plugins folder yourself**, which the panel
+also suggests — and now says to restart WIMI afterwards, which is the part that
+matters: **WIMI only looks in that folder at startup.** A folder dropped in while
+WIMI is open will not appear in the Addons list however many times you reopen it.
+The `.zip` route is the one that takes effect immediately.
+
+There is **no plugin store, no plugin directory, no install-from-a-link and no
+update check**. WIMI never goes looking for plugins and will never tell you one
+has a new version. Nothing is bundled: a fresh WIMI has no plugins, and there is
+no example to try.
+
+**There is no consent step.** Nothing asks you to approve a plugin's permissions
+before it runs. By the time its permission badges are on screen, its Python has
+already been imported and executed once.
+
+## Managing them
+
+The Addons panel lists each installed plugin with its name, its version, its
+author if it gave one, its description, and one small badge per permission it
+asked for. Each card has:
+
+- **An Enabled tick box.** Unticking it stops the Python half straight away and stops the plugin loading on future pages. What it does **not** do is undo what has already been injected into the page you are looking at — that JavaScript, that stylesheet and those blocks of markup stay until you navigate somewhere else. So "I disabled it and it is still there" is expected, and is fixed by going to another page.
+- **Uninstall**, behind a confirmation that says it removes the plugin and all its data. That is accurate: the folder goes, including anything the plugin stored, and so does everything it had saved inside WIMI.
+
+If a plugin declared settings of its own, it also gets its own entry in the
+Settings sidebar and its own panel, with its own Save button.
+
+There is no **Reload** and no way to update a plugin except to install a newer
+zip over it.
+
+## When a plugin goes wrong, WIMI mostly says nothing
+
+Worth knowing, because the symptom is almost always "a plugin did nothing" and
+almost never a message.
+
+- **A plugin whose description file is invalid is skipped silently.** It does not appear in the Addons list at all, which is indistinguishable from never having installed it. It also cannot be uninstalled from the panel, because the panel never knew about it — delete the folder.
+- **A plugin whose Python fails to load is skipped, and its card still says Enabled.** The description file parsed, so the plugin is listed and ticked; the half that was supposed to do something is not running. Nothing on the card says so.
+- **A plugin whose JavaScript fails to load or throws is ignored**, and the page carries on working normally. That last part is the good news: a broken plugin does not take a WIMI page down with it.
+
+In all of those cases the detail is in WIMI's logs and in the developer console,
+not on screen. If a plugin you installed appears to do nothing at all, the first
+thing to try is removing it, because you will not get told.
+
+## Plugins belong to the profile that is open
+
+A plugin's settings and its stored data live in the profile you are in, not in
+WIMI itself, and the machinery follows you when you move.
+
+- **Opening on the profile picker is fine.** Before you pick a profile, WIMI knows what plugins are installed and runs none of them, because there is nowhere for one to read or write yet. Pick a profile and they start.
+- **Switching profiles rebinds them.** The Addons panel lists what is installed either way, and a plugin's settings follow the profile rather than the application — so the same plugin can be configured differently in two profiles, and what it stores in one is invisible to the other.
+- **Settings and Uninstall need a profile open**, and say so plainly rather than half-acting if none is.
+
+Until recently none of this was true: the machinery was handed one profile at
+launch and kept it, so **WIMI would not start at all** if a plugin was installed
+and it opened on the picker, and after a switch the Addons panel reported *No
+addons installed* over a plugin sitting on disk. If you met either and worked
+around it by keeping a single auto-opening profile, you no longer need to.
+
+## Before you install anything
+
+- **Export your profile first.** Plugins get full write access through one route or another, and a mistake in one is the student's data, not the plugin's. [Where your work lives, and how to keep it](help_where_your_work_lives.html) is a two-minute read and the export takes seconds.
+- **Read the description file.** It is plain text, it is short, and it tells you the plugin's name, its version, what code it carries and which permissions it asked for. That is strictly more than the Addons panel will tell you, and you can read it before anything runs.
+- **Treat the permission badges as information, not protection.** They say what a plugin declared. They do not constrain its JavaScript at all, and they constrain its Python only on the paths that go through WIMI's plugin interface.
+- **Install one at a time**, and use WIMI for a while before adding the next. There is no error reporting worth the name, so the only reliable way to tell which plugin broke something is to have added one thing since it worked.
+- **If you write one yourself**, the developer guide that ships with WIMI's source is the reference. One thing worth knowing about it: a plugin's declared minimum WIMI version **is** enforced now, in both places it can be — a folder carrying one too new is skipped at startup with the reason logged, and a `.zip` carrying one is refused before anything is copied, so it cannot unseat a working older copy. It did nothing at all until recently, so if you wrote a plugin against an older WIMI and relied on that silence, check the version you declared.
+
+## Where to go next
+
+- [Settings, and what each one changes](help_settings.html) — the Addons panel, in its place among the rest.
+- [Where your work lives, and how to keep it](help_where_your_work_lives.html) — what a plugin has access to, and how to have a copy of it.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

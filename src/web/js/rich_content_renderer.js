@@ -18,20 +18,22 @@ class RichContentRenderer {
     static render(container, html, options = {}) {
         const { emptyMessage = 'No content provided', emptyClass = 'no-content' } = options;
 
-        // Check for empty content
-        if (!html || html.trim() === '' || html === '<p><br></p>') {
+        if (RichContentRenderer.isEmpty(html)) {
             container.classList.remove('rich-content');
-            container.innerHTML = `<span class="${emptyClass}">${emptyMessage}</span>`;
+            const empty = document.createElement('span');
+            empty.className = emptyClass;
+            empty.textContent = emptyMessage;
+            container.replaceChildren(empty);
             return;
         }
 
-        // Add rich-content class for styling
         container.classList.add('rich-content');
+        // Never `innerHTML = html` (#589). The stored string arrives from the
+        // editor, but also from profile, .wimi and session imports, and an
+        // <img onerror> in it ran here. WimiRichHtml keeps the formatting the
+        // editor makes and builds it fresh; see rich_html.js.
+        container.replaceChildren(WimiRichHtml.sanitize(html));
 
-        // Set the HTML content
-        container.innerHTML = html;
-
-        // Render any math formulas
         RichContentRenderer.renderMathFormulas(container);
     }
 
@@ -55,6 +57,10 @@ class RichContentRenderer {
             if (!formula) return;
 
             try {
+                // `trust` is left unset, so KaTeX's default (false) keeps
+                // \href, \url and \includegraphics inert. data-formula is
+                // stored text that WimiRichHtml passes through as-is, so
+                // that default is what makes it safe: do not set trust:true.
                 katex.render(formula, el, {
                     throwOnError: false,
                     displayMode: false
@@ -67,62 +73,15 @@ class RichContentRenderer {
     }
 
     /**
-     * Check if content is considered empty
+     * Check if content is considered empty.
      * @param {string} html - The HTML content to check
      * @returns {boolean} True if content is empty or effectively empty
      */
     static isEmpty(html) {
-        if (!html || html.trim() === '') return true;
-        if (html === '<p><br></p>') return true;
-        if (html === '<p></p>') return true;
-
-        // Strip tags and check if any text content remains
-        const temp = document.createElement('div');
-        temp.innerHTML = html;
-        const textContent = temp.textContent || temp.innerText || '';
-
-        // Also check for meaningful elements (images, tables, math)
-        const hasImages = html.includes('<img');
-        const hasTables = html.includes('<table');
-        const hasMath = html.includes('math-tex');
-
-        return textContent.trim() === '' && !hasImages && !hasTables && !hasMath;
-    }
-
-    /**
-     * Sanitize HTML content for safe rendering
-     * This is a basic sanitizer - for production, consider using DOMPurify
-     * @param {string} html - The HTML content to sanitize
-     * @returns {string} Sanitized HTML
-     */
-    static sanitize(html) {
-        if (!html) return '';
-
-        // Remove script tags and event handlers
-        const temp = document.createElement('div');
-        temp.innerHTML = html;
-
-        // Remove script elements
-        const scripts = temp.querySelectorAll('script');
-        scripts.forEach(script => script.remove());
-
-        // Remove event handler attributes
-        const allElements = temp.querySelectorAll('*');
-        allElements.forEach(el => {
-            const attrs = el.attributes;
-            const toRemove = [];
-
-            for (let i = 0; i < attrs.length; i++) {
-                const name = attrs[i].name.toLowerCase();
-                if (name.startsWith('on') || name === 'javascript') {
-                    toRemove.push(attrs[i].name);
-                }
-            }
-
-            toRemove.forEach(attr => el.removeAttribute(attr));
-        });
-
-        return temp.innerHTML;
+        // An inert parse (#589). This used to put the string into a detached
+        // <div>, which still loads an <img> -- so a stored note's handler ran
+        // here before render() was even called.
+        return WimiRichHtml.isEmpty(html);
     }
 }
 

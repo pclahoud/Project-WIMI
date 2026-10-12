@@ -201,10 +201,13 @@ def test_status_ok_when_children_sum_within_range(user_db):
 # ---------------------------------------------------------------- status='under'
 
 
-def test_status_under_when_children_sum_below_parent_low(user_db):
-    """Children sum to 50% under a parent with range 90-100% → 'under'.
+def test_children_summing_below_the_parent_is_not_a_fault(user_db):
+    """Children's highs sum below the parent's low: reported as 'ok'.
 
-    children_high_sum_q < parent_low_q.
+    This was ``status == 'under'`` until #664. It is the same
+    children-versus-parent comparison pointing the other way, and it drew
+    the same warning dot, so it went with the other two (#664 comment
+    #9705). The issue itself named only 'over' and 'infeasible'.
     """
     exam_id = _make_exam_context(
         user_db, name="Under Exam", length_kind="fixed", length_typical=100
@@ -224,7 +227,8 @@ def test_status_under_when_children_sum_below_parent_low(user_db):
 
     report = user_db.validate_hierarchy_feasibility(sys_id, 100)
 
-    assert report['status'] == 'under', f"Expected 'under', got {report!r}"
+    assert report['status'] == 'ok', report
+    assert report['violators'] == []
     # Parent low = ⌊90·100/100⌋ = 90. Children high sum = 50% → ceil(50)=50.
     assert report['parent_low_q'] == 90
     assert report['children_high_sum_q'] == 50
@@ -236,8 +240,14 @@ def test_status_under_when_children_sum_below_parent_low(user_db):
 # ---------------------------------------------------------------- status='over'
 
 
-def test_status_over_when_children_sum_above_parent_high(user_db):
-    """Children sum to 110% under a parent with range 80-90% → 'over'."""
+def test_children_summing_above_the_parent_is_not_a_fault(user_db):
+    """Children sum to 110% under a parent at 80-90%: reported as 'ok'.
+
+    This was ``status == 'over'`` until #664. The comparison presumed a
+    parent's weight contains its children's, which #64 denies -- a weight
+    is a share of the whole exam at any depth. The fixture is kept because
+    it is the arrangement that must NOT warn.
+    """
     exam_id = _make_exam_context(
         user_db, name="Over Exam", length_kind="fixed", length_typical=100
     )
@@ -260,14 +270,18 @@ def test_status_over_when_children_sum_above_parent_high(user_db):
 
     report = user_db.validate_hierarchy_feasibility(sys_id, 100)
 
-    assert report['status'] == 'over', f"Expected 'over', got {report!r}"
+    # #664: this arrangement is NOT a fault. The figures are still real.
+    assert report['status'] == 'ok', (
+        f"a child's weight exceeding its parent's is legitimate under #64; "
+        f"got {report['status']!r}")
+    assert report['violators'] == []
     assert report['children_low_sum_pct'] == pytest.approx(110.0)
 
 
 # ---------------------------------------------------------------- status='infeasible'
 
 
-def test_status_infeasible_rounding_class(user_db):
+def test_the_rounding_class_is_not_a_fault_either(user_db):
     """5 children each with low=18% under a parent at 90-99%, N=10.
 
     Design: percentages COULD fit (Σ child low = 90% ≤ parent high
@@ -300,10 +314,13 @@ def test_status_infeasible_rounding_class(user_db):
 
     report = user_db.validate_hierarchy_feasibility(sys_id, 10)
 
-    assert report['status'] == 'infeasible', (
-        f"Expected 'infeasible', got {report!r}"
+    assert report['status'] == 'ok', (
+        f"the rounding class presumes the parent's question budget is "
+        f"divided among its children, which #64 denies; got {report!r}"
     )
-    # parent_high_q = ⌊99·10/100⌋ = 9
+    assert report['violators'] == []
+    # The arithmetic is unchanged and still reported; only the verdict is
+    # gone. parent_high_q = ⌊99·10/100⌋ = 9
     assert report['parent_high_q'] == 9
     # Σ ⌈18·10/100⌉ = Σ⌈1.8⌉ = Σ 2 = 10
     assert report['children_low_sum_q'] == 10
@@ -316,8 +333,16 @@ def test_status_infeasible_rounding_class(user_db):
 # ---------------------------------------------------------------- violators
 
 
-def test_violators_populated_for_over(user_db):
-    """The 'over' case lists per-child violators with edge_id + child_id."""
+def test_violators_is_always_empty(user_db):
+    """No arrangement produces a violator (#664).
+
+    This listed all three contributing edges with ``edge_id``,
+    ``child_id``, ``child_name`` and a ``reason`` sentence, for the case
+    where the children's lows summed past the parent's high. There are no
+    violators now, because there is no violation to name: #64 makes a
+    child heavier than its parent legitimate. The fixture stays as the
+    arrangement that must produce none.
+    """
     exam_id = _make_exam_context(
         user_db, name="Over-Vios Exam", length_kind="fixed", length_typical=100
     )
@@ -340,18 +365,14 @@ def test_violators_populated_for_over(user_db):
 
     report = user_db.validate_hierarchy_feasibility(sys_id, 100)
 
-    assert report['status'] == 'over'
-    assert len(report['violators']) == 3, (
-        f"Expected all 3 contributing edges in violators; got {report['violators']!r}"
-    )
-    edge_ids_in_violators = {v['edge_id'] for v in report['violators']}
-    assert edge_ids_in_violators == {e1, e2, e3}
-    child_ids_in_violators = {v['child_id'] for v in report['violators']}
-    assert child_ids_in_violators == {c1, c2, c3}
-    for v in report['violators']:
-        assert 'child_name' in v
-        assert 'reason' in v
-        assert isinstance(v['reason'], str) and len(v['reason']) > 0
+    assert report['status'] == 'ok', report
+    assert report['violators'] == [], (
+        f"nothing may be named a violator; got {report['violators']!r}")
+    # The edges and children exist and are summed -- the figures are real,
+    # only the verdict is gone. Named so this is not mistaken for a test
+    # whose fixture stopped building anything.
+    assert {c1, c2, c3} and {e1, e2, e3}
+    assert report['children_low_sum_pct'] == pytest.approx(110.0)
 
 
 # ---------------------------------------------------------------- recursive
@@ -403,13 +424,18 @@ def test_feasibility_recursive_walks_whole_tree(user_db):
 
     reports = user_db.validate_hierarchy_feasibility_recursive(exam_id)
 
-    # All three parents should appear as keys.
+    # All three parents should appear as keys. The walk is what this test
+    # is about, and it still walks: one entry per parent.
     assert sys_a in reports
     assert sys_b in reports
     assert sys_c in reports
+    # Every one is 'ok' since #664 -- SysB's children sum above its high
+    # and SysC's sum below its low, and neither is a fault. Asserted
+    # per parent rather than as a set so a walk that dropped a parent
+    # still fails here.
     assert reports[sys_a]['status'] == 'ok'
-    assert reports[sys_b]['status'] == 'over'
-    assert reports[sys_c]['status'] == 'under'
+    assert reports[sys_b]['status'] == 'ok', "children above the parent is not a fault (#664)"
+    assert reports[sys_c]['status'] == 'ok', "children below the parent is not a fault (#664)"
 
 
 # ---------------------------------------------------------------- length_unknown
@@ -478,3 +504,51 @@ def test_validate_feasibility_no_siblings_returns_ok(user_db):
     assert report['status'] == 'ok'
     assert report['violators'] == []
     assert report['children_low_sum_q'] == 0
+
+
+# ---------------------------------------------------------------- #664
+
+
+def test_64s_own_published_example_reports_ok(user_db):
+    """Nutrition 15-20% filed under Multisystem 4-8% is not a fault (#664).
+
+    This is the arrangement the issue was filed on, and the numbers are
+    not invented: USMLE Step 2 CK publishes **Nutrition at 15-20%** and
+    **Multisystem Processes & Disorders at 4-8%** as SIBLING rows of its
+    own table. A student who files nutrition under multisystem -- a
+    perfectly good way to organise revision -- lands a 15-20% child inside
+    a 4-8% parent using two numbers copied straight off the blueprint, and
+    both are right, because a weight is a share of the whole exam rather
+    than of the subject above it.
+
+    Measured on master before the fix: ``status 'over'``,
+    ``children_low_sum_pct 15 > parent_high 8``, with Nutrition listed as
+    a violator and a warning dot on the parent row.
+
+    This test exists so the specific case #64 documents, and #664 settled,
+    cannot regress -- the three inverted tests above use synthetic numbers
+    and this one uses the published ones.
+    """
+    _make_exam_context(
+        user_db, name="Step 2 CK", length_kind="fixed", length_typical=100
+    )
+    multisystem = _make_root_system(
+        user_db, "Step 2 CK", "Multisystem Processes & Disorders",
+        weight_low=4, weight_high=8,
+    )
+    _make_child_with_range(
+        user_db, "Step 2 CK", "Nutrition", multisystem,
+        weight_low=15, weight_high=20, relative_weight=15,
+    )
+
+    report = user_db.validate_hierarchy_feasibility(multisystem, 100)
+
+    assert report['status'] == 'ok', (
+        "#64 publishes this exact pair as siblings; filing one under the "
+        f"other must not warn. Got {report!r}"
+    )
+    assert report['violators'] == [], (
+        f"Nutrition is not a violator: {report['violators']!r}")
+    # The figures are still reported, and still say what they say.
+    assert report['children_low_sum_pct'] == pytest.approx(15.0)
+    assert report['children_high_sum_pct'] == pytest.approx(20.0)

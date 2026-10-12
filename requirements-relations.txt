@@ -41,6 +41,14 @@
 # with no local version label ignores the candidate's label, so `==2.14.1`
 # matches both.
 #
+# BOTH HALVES ARE NOW OBSERVED rather than reasoned from PEP 440. #337's item
+# 8 asked which label macOS actually serves, because a pin written to work
+# either way is not the same as knowing which way it went. Measured:
+# Linux and Windows from the CPU index give `2.14.1+cpu`; macOS arm64 gives a
+# bare `2.14.1` (MacBook Pro M1, macOS 26.5.1). So the label-free pin is not
+# merely defensive -- it is the only spelling that could have matched all
+# three.
+#
 # This pin therefore states the VERSION and says nothing about the BUILD.
 # Asserting CPU-ness is check_build_env.py's separate job (torch.version.cuda
 # must be None, and no nvidia-* distribution may be installed) -- two
@@ -58,3 +66,34 @@ transformers==5.18.0
 # both streams -- so #60's note about it printing an emoji is about MODEL LOAD,
 # which happens in-process where configure_stdio() has already run (#137).
 gliner2==2.0.0
+
+# peft, and it is NOT optional however the name reads (#364).
+#
+# `gliner2==2.0.0` declares peft only under its `local` extra, and this file
+# pins bare `gliner2`. Nothing else pulls it in -- so as these pins stood,
+# `from gliner2 import GLiNER2` raised ModuleNotFoundError in a plain venv:
+#
+#     gliner2/inference/engine.py:31   from ...runtime import ExtractorRuntimeMixin
+#     gliner2/inference/runtime.py:35  from gliner2.training.trainer import ...
+#     gliner2/training/trainer.py:79   from peft import PeftModel
+#
+# The import is unconditional in gliner2's inference path, so this is not a
+# training-only dependency despite living in an extra named `local`. Found on
+# a MacBook Pro M1 and reproduced here on Linux: both machines' venvs were
+# built exactly as this file instructs and neither could construct a model.
+#
+# `peft==0.21.2` brings `accelerate` with it (1.15.0 here).
+#
+# KNOWN METADATA CONFLICT, measured and accepted: gliner2's `local` extra also
+# declares `transformers<5,>=4.38`, which our `transformers==5.18.0` violates.
+# pip never reports it because the extra is not requested. Installing peft
+# directly, as here, sidesteps the resolver rather than satisfying it -- so the
+# bound is deliberately not honoured. With 5.18.0 and peft present, a model
+# loads and extracts correctly on both macOS (frozen, 2.1 GB peak RSS) and
+# Linux. If extraction ever misbehaves in a way that smells like an API
+# mismatch, this bound is the first thing to re-test rather than the last.
+#
+# Requesting `gliner2[local]` instead would make the resolver honour
+# `transformers<5` and silently downgrade it, which is why the dependency is
+# named directly here.
+peft==0.21.2

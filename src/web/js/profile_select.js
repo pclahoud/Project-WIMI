@@ -20,6 +20,9 @@ const ProfileState = {
     profiles: [],
     deleted: [],
     currentUserId: null,
+    // DELETION_GRACE_PERIOD_DAYS, from listProfiles (#501). Never a literal
+    // here: the page used to state the period twice with nothing tying it to the constant.
+    graceDays: null,
     renameTarget: null,
     deleteTarget: null,
     exportTarget: null,
@@ -45,12 +48,6 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 // Helpers
 // =========================================================================
 
-function escapeHtml(text) {
-    if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-}
 
 /** Two-letter initials from a display name (fallback: username). */
 function profileInitials(displayName, username) {
@@ -148,8 +145,8 @@ const Toast = {
         toast.setAttribute('data-testid', 'profile-toast');
         toast.innerHTML = `
             <div>
-                <p class="pf-toast-title">${escapeHtml(title)}</p>
-                ${message ? `<p class="pf-toast-message">${escapeHtml(message)}</p>` : ''}
+                <p class="pf-toast-title">${WimiEscape.html(title)}</p>
+                ${message ? `<p class="pf-toast-message">${WimiEscape.html(message)}</p>` : ''}
             </div>
         `;
         this.container.appendChild(toast);
@@ -176,23 +173,29 @@ function renderProfileCard(profile) {
     const exportItem = transferApiAvailable()
         ? `<button type="button" class="profile-menu-item" data-action="export" data-testid="profile-export">Export&hellip;</button>`
         : '';
+    // deleteProfile refuses the open profile, so offering Delete on its card
+    // led through a confirmation that promised a grace period to an error
+    // (#502). The card's "Currently open" badge already says why it is absent.
+    const deleteItem = isCurrent
+        ? ''
+        : `<button type="button" class="profile-menu-item profile-menu-item--danger" data-action="delete" data-testid="profile-delete">Delete</button>`;
 
     return `
         <div class="profile-card" data-user-id="${profile.id}" data-testid="profile-card">
             <button type="button" class="profile-kebab-btn" data-action="menu"
                     data-testid="profile-menu-btn" title="Profile options"
-                    aria-label="Options for ${escapeHtml(profile.display_name)}">&#8942;</button>
+                    aria-label="Options for ${WimiEscape.html(profile.display_name)}">&#8942;</button>
             <div class="profile-menu hidden" data-testid="profile-menu">
                 <button type="button" class="profile-menu-item" data-action="rename" data-testid="profile-rename">Rename</button>
                 ${exportItem}
-                <button type="button" class="profile-menu-item profile-menu-item--danger" data-action="delete" data-testid="profile-delete">Delete</button>
+                ${deleteItem}
             </div>
             <button type="button" class="profile-card-main" data-action="select" data-testid="profile-select"
-                    aria-label="Open profile ${escapeHtml(profile.display_name)}">
-                <div class="profile-avatar">${escapeHtml(initials)}</div>
-                <div class="profile-card-name">${escapeHtml(profile.display_name)}</div>
-                <div class="profile-card-username">@${escapeHtml(profile.username)}</div>
-                <div class="profile-card-lastactive">${escapeHtml(formatLastActive(profile.last_active_at))}</div>
+                    aria-label="Open profile ${WimiEscape.html(profile.display_name)}">
+                <div class="profile-avatar">${WimiEscape.html(initials)}</div>
+                <div class="profile-card-name">${WimiEscape.html(profile.display_name)}</div>
+                <div class="profile-card-username">@${WimiEscape.html(profile.username)}</div>
+                <div class="profile-card-lastactive">${WimiEscape.html(formatLastActive(profile.last_active_at))}</div>
                 ${isCurrent ? '<span class="profile-card-current-badge">Currently open</span>' : ''}
             </button>
         </div>
@@ -229,10 +232,10 @@ function renderDeletedRow(profile) {
     const daysLabel = days === 1 ? '1 day remaining' : `${days} days remaining`;
     return `
         <div class="profile-deleted-row" data-user-id="${profile.id}" data-testid="profile-deleted-row">
-            <div class="profile-avatar profile-avatar--sm">${escapeHtml(initials)}</div>
+            <div class="profile-avatar profile-avatar--sm">${WimiEscape.html(initials)}</div>
             <div class="profile-deleted-info">
-                <div class="profile-deleted-name">${escapeHtml(profile.display_name)} <span class="text-muted">@${escapeHtml(profile.username)}</span></div>
-                <div class="profile-deleted-days">${escapeHtml(daysLabel)}</div>
+                <div class="profile-deleted-name">${WimiEscape.html(profile.display_name)} <span class="text-muted">@${WimiEscape.html(profile.username)}</span></div>
+                <div class="profile-deleted-days">${WimiEscape.html(daysLabel)}</div>
             </div>
             <button type="button" class="btn btn-secondary btn-sm" data-action="restore" data-testid="profile-restore">Restore</button>
         </div>
@@ -277,6 +280,7 @@ async function loadProfiles() {
         ProfileState.profiles = data.profiles || [];
         ProfileState.deleted = data.deleted || [];
         ProfileState.currentUserId = data.current_user_id ?? null;
+        ProfileState.graceDays = data.grace_period_days ?? null;
         renderGrid();
         renderDeletedSection();
     } catch (error) {
@@ -285,7 +289,7 @@ async function loadProfiles() {
         if (grid) {
             grid.innerHTML = `
                 <div class="alert alert-error">
-                    <strong>Failed to load profiles:</strong> ${escapeHtml(error.message || 'Unknown error')}
+                    <strong>Failed to load profiles:</strong> ${WimiEscape.html(error.message || 'Unknown error')}
                 </div>
             `;
         }
@@ -571,10 +575,16 @@ function wireRenameModal() {
 // Delete Flow
 // =========================================================================
 
+function graceDaysLabel(days) {
+    return days === 1 ? '1 day' : `${days} days`;
+}
+
 function openDeleteModal(profile) {
     ProfileState.deleteTarget = profile;
     const nameEl = document.getElementById('deleteModalName');
     if (nameEl) nameEl.textContent = `${profile.display_name} (@${profile.username})`;
+    const graceEl = document.getElementById('deleteModalGrace');
+    if (graceEl) graceEl.textContent = graceDaysLabel(ProfileState.graceDays);
     showModalError('deleteError', null);
     openModal('deleteModal');
 }
@@ -587,9 +597,10 @@ function wireDeleteModal() {
         const confirmBtn = document.getElementById('deleteConfirmBtn');
         if (confirmBtn) confirmBtn.disabled = true;
         try {
-            await api.deleteProfile(target.id);
+            const result = await api.deleteProfile(target.id);
             closeModal('deleteModal');
-            Toast.success('Profile deleted', `${target.display_name} can be restored for 10 days.`);
+            Toast.success('Profile deleted',
+                `${target.display_name} can be restored for ${graceDaysLabel(result.days_remaining)}.`);
             await loadProfiles();
         } catch (error) {
             console.error('Failed to delete profile:', error);
@@ -771,8 +782,8 @@ function openImportPreviewModal(preview) {
         ];
         statsEl.innerHTML = items.map((item) => `
             <div class="profile-import-stat">
-                <div class="profile-import-stat-value">${escapeHtml(item.value ?? 0)}</div>
-                <div class="profile-import-stat-label">${escapeHtml(item.label)}</div>
+                <div class="profile-import-stat-value">${WimiEscape.html(item.value ?? 0)}</div>
+                <div class="profile-import-stat-label">${WimiEscape.html(item.label)}</div>
             </div>
         `).join('');
     }
@@ -781,7 +792,7 @@ function openImportPreviewModal(preview) {
     const mediaEl = document.getElementById('importMediaInfo');
     if (mediaEl) {
         mediaEl.classList.remove('profile-import-media--warning');
-        if (media.included) {
+        if (archiveCarriesImages(media)) {
             const count = media.file_count || 0;
             const size = formatBytes(media.total_bytes || 0);
             mediaEl.textContent = count === 1
@@ -796,13 +807,16 @@ function openImportPreviewModal(preview) {
     }
 
     // ---- Schema verdict ----
-    const schemaBlocked = schema.verdict === 'newer_app_required';
+    // `blocked` is the backend's one answer to "may this be installed?"
+    // (#593): a newer schema and an unrecognised structure both refuse, and
+    // only the first is fixed by updating WIMI, so the reason says which.
+    const schemaBlocked = schema.blocked === true;
     const noteEl = document.getElementById('importSchemaNote');
     if (noteEl) {
         noteEl.classList.remove('profile-import-note--error');
         if (schemaBlocked) {
             noteEl.textContent = schema.reason ||
-                'This profile was exported from a newer version of WIMI. Update WIMI to import it.';
+                'WIMI can\'t install this profile.';
             noteEl.classList.add('profile-import-note--error');
             noteEl.classList.remove('hidden');
         } else if (schema.verdict === 'will_upgrade') {
@@ -813,6 +827,25 @@ function openImportPreviewModal(preview) {
             // 'ok' — stay silent.
             noteEl.textContent = '';
             noteEl.classList.add('hidden');
+        }
+    }
+
+    // ---- Same profile already here (#498) ----
+    // Said before Import is pressed: two installs of one archive are a
+    // supported outcome, but the two copies are independent from then on and
+    // only one of them may ever be linked to a sync folder, so the student has
+    // to be the one choosing it. The sentence is install_profile_as_new's own.
+    const alreadyEl = document.getElementById('importAlreadyInstalled');
+    if (alreadyEl) {
+        const copies = preview.already_installed_as || [];
+        if (copies.length) {
+            const names = copies.map((u) => u.username).join(', ');
+            alreadyEl.textContent = `This profile is already installed on this device as ${names}. `
+                + 'Installing it again creates a second, independent copy.';
+            alreadyEl.classList.remove('hidden');
+        } else {
+            alreadyEl.textContent = '';
+            alreadyEl.classList.add('hidden');
         }
     }
 
@@ -843,7 +876,7 @@ function openImportPreviewModal(preview) {
             const label = `${t.display_name || t.username} (@${t.username})` +
                 (t.is_current ? ' — currently open' : '');
             options.push(
-                `<option value="${t.user_id}" ${t.is_current ? 'disabled' : ''}>${escapeHtml(label)}</option>`
+                `<option value="${t.user_id}" ${t.is_current ? 'disabled' : ''}>${WimiEscape.html(label)}</option>`
             );
         });
         targetSelect.innerHTML = options.join('');
@@ -855,18 +888,10 @@ function openImportPreviewModal(preview) {
     // cannot lose anything, and the student has to choose deletion (#150).
     const keepMedia = document.getElementById('importReplaceKeepMedia');
     if (keepMedia) keepMedia.checked = true;
-    const hintEl = document.getElementById('importReplaceHint');
-    if (hintEl) {
-        const hasCurrent = (preview.replace_targets || []).some((t) => t.is_current);
-        if (hasCurrent) {
-            hintEl.textContent =
-                'The currently open profile cannot be replaced — switch to another profile first.';
-            hintEl.classList.remove('hidden');
-        } else {
-            hintEl.textContent = '';
-            hintEl.classList.add('hidden');
-        }
-    }
+    // There is no standing "cannot be replaced" hint (#502): it fired whenever any
+    // profile was open, stayed up after a legal target was chosen, and gated
+    // nothing -- the open profile's option is already disabled and labelled
+    // "— currently open", which says why where the student is looking.
     document.getElementById('importReplaceOptions')?.classList.add('hidden');
 
     showModalError('importError', null);
@@ -882,7 +907,7 @@ function updateImportControls() {
     if (!confirmBtn) return;
 
     const schemaBlocked = !!(preview && preview.schema &&
-        preview.schema.verdict === 'newer_app_required');
+        preview.schema.blocked === true);
     modeChoice?.classList.toggle('profile-import-modes--disabled', schemaBlocked);
     // Disable the radios/select/checkbox wholesale when the archive is
     // blocked (per-<option> disabled state is baked into the markup).
@@ -912,20 +937,33 @@ function updateImportControls() {
 }
 
 /**
+ * Whether an archive actually holds image files (#497).
+ *
+ * Not `media.included`: that is the export-time CHOICE, ticked by default,
+ * so a profile with no images exports as `included: true, file_count: 0`.
+ * Keying on it printed "Includes 0 media files" and, worse, the weaker
+ * replace warning for an archive that puts nothing back.
+ */
+function archiveCarriesImages(media) {
+    return ((media || {}).file_count || 0) > 0;
+}
+
+/**
  * Say what "keep the images already in this profile" does to THIS pair of
  * profile and archive (#150).
  *
  * The checkbox is abstract on its own: what matters is how many images the
  * chosen profile holds and whether the archive carries any. An archive
- * exported without media is the case the bug was filed for — unticking
- * there deletes every image and puts nothing back.
+ * with no image files is the case the bug was filed for — unticking there
+ * deletes every image and puts nothing back — and that includes the default
+ * export of a profile that has none, not only an export without media.
  */
 function updateKeepMediaHint(target) {
     const hintEl = document.getElementById('importReplaceKeepMediaHint');
     if (!hintEl) return;
 
     const keep = !!document.getElementById('importReplaceKeepMedia')?.checked;
-    const archiveHasMedia = !!(ImportState.preview?.media || {}).included;
+    const archiveHasMedia = archiveCarriesImages(ImportState.preview?.media);
     const count = target ? (target.media_file_count || 0) : 0;
     const name = target ? (target.display_name || target.username) : '';
     const images = count === 1 ? '1 image' : `${count} images`;
@@ -1079,7 +1117,7 @@ async function openSyncInstallModal() {
         try {
             const providers = await api.getFolderSyncProviders();
             select.innerHTML = providers
-                .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+                .map(p => `<option value="${WimiEscape.html(p.id)}">${WimiEscape.html(p.name)}</option>`)
                 .join('');
         } catch (e) {
             select.innerHTML = '<option value="generic">Local folder</option>';
@@ -1133,23 +1171,23 @@ function renderSyncInstallRow(entry) {
     let hint;
     if (head) {
         const when = head.created_at ? new Date(head.created_at).toLocaleString() : '';
-        title = `Last sent from ${escapeHtml(head.device_name || 'another computer')}`
-            + (when ? ` on ${escapeHtml(when)}` : '');
+        title = `Last sent from ${WimiEscape.html(head.device_name || 'another computer')}`
+            + (when ? ` on ${WimiEscape.html(when)}` : '');
         hint = `${head.entries ?? '?'} entries &middot; generation ${head.generation}`;
     } else {
         title = 'A profile whose newest copy cannot be read yet';
-        hint = (entry.rejected || []).map(r => escapeHtml(`generation ${r.generation}: ${r.reason}`))
+        hint = (entry.rejected || []).map(r => WimiEscape.html(`generation ${r.generation}: ${r.reason}`))
             .join('; ') || 'It may still be uploading.';
     }
     let action = '';
     if (here.length) {
         // A second copy sharing this profile's id must never be linked, so
         // the way forward is the copy already here -- Settings catches it up.
-        hint += ` &middot; already on this computer as @${escapeHtml(here[0].username)}`;
+        hint += ` &middot; already on this computer as @${WimiEscape.html(here[0].username)}`;
         action = `<button type="button" class="btn btn-secondary" data-sync-open="${Number(here[0].user_id)}"`
             + ` data-testid="profile-sync-install-open-existing">Open it</button>`;
     } else if (head) {
-        action = `<button type="button" class="btn btn-primary" data-sync-install="${escapeHtml(entry.sync_id)}"`
+        action = `<button type="button" class="btn btn-primary" data-sync-install="${WimiEscape.html(entry.sync_id)}"`
             + ` data-testid="profile-sync-install-go">Install</button>`;
     }
     return '<div class="profile-sync-install-row" data-testid="profile-sync-install-row">'
@@ -1169,13 +1207,19 @@ async function installFromSyncFolder(syncId, button) {
             SyncInstallState.folder, syncId, SyncInstallState.providerId);
         hideBusyOverlay();
         await loadProfiles();
+        // The folder's warnings travel back with the install (#412): the
+        // student picked this folder here, so this is where they hear them.
+        const warnings = (result.link_warnings || []).map(w => WimiEscape.html(String(w)));
         const linked = result.linked
             ? 'Linked to this folder, so it sends and receives from here.'
-            : 'Installed but not linked: ' + escapeHtml(result.link_error || 'unknown reason')
+              + (warnings.length
+                  ? ' Worth knowing about this folder: ' + warnings.join('; ') + '.'
+                  : '')
+            : 'Installed but not linked: ' + WimiEscape.html(result.link_error || 'unknown reason')
               + ' You can link it from Settings.';
         document.getElementById('syncInstallFound').innerHTML =
             '<div class="profile-sync-install-row" data-testid="profile-sync-install-done">'
-            + `<div><div class="profile-sync-install-row-text">Installed as @${escapeHtml(result.username)}</div>`
+            + `<div><div class="profile-sync-install-row-text">Installed as @${WimiEscape.html(result.username)}</div>`
             + `<div class="profile-sync-install-row-hint">${linked}</div></div>`
             + `<button type="button" class="btn btn-primary" data-sync-open="${Number(result.user_id)}"`
             + ' data-testid="profile-sync-install-open">Open it</button></div>';

@@ -161,6 +161,13 @@ function convertWeightUnit(value, from, to, parentQTypical) {
 async function initWeightEditor(node, examConfig) {
     if (!node) return;
 
+    // The tour's weight steps (#682) point into this container, and it keeps
+    // the PREVIOUS subject's markup on screen until renderWeightEditor runs
+    // for this one. Dropping their anchors now means a tour rebuilt in the
+    // meantime cannot tip a control that belongs to the subject before.
+    document.querySelectorAll('#weight-editor-container [data-tour-anchor]')
+        .forEach(el => el.removeAttribute('data-tour-anchor'));
+
     WeightEditorState.nodeId = node.id;
     WeightEditorState.node = node;
     WeightEditorState.examConfig = examConfig;
@@ -320,23 +327,20 @@ async function initWeightEditor(node, examConfig) {
 }
 
 /**
- * Stage 7 — populate ``#weight-feasibility-badge`` with status copy.
+ * Stage 7 — keep ``#weight-feasibility-badge`` empty and hidden.
  *
- * The badge slot is created by ``renderWeightEditor`` (Stage 6) as a
- * hidden ``<div>``. This helper:
+ * **It no longer reports anything (#664, owner 2026-10-10)**, and the
+ * reason is in the body. This resets the slot so a previous node's state
+ * cannot persist, and does nothing else.
  *
- *   1. Resolves the parent_id from the node's _parent context.
- *   2. Calls ``api.getFeasibilityReport(parent_id)``.
- *   3. Hides the badge on ``status='ok'`` or any error (defensive).
- *   4. Renders status-specific copy + a CSS class for color when the
- *      status is ``'under'``/``'over'``/``'infeasible'``.
+ * It used to resolve the parent from ``node._parent``, call
+ * ``api.getFeasibilityReport`` and render copy for ``'under'``,
+ * ``'over'`` or ``'infeasible'`` — three verdicts that each compared the
+ * children's summed weights with their parent's, which #64 denies any
+ * meaning to.
  *
- * Per design §3.5 (Save-then-warn): the badge is purely informational
- * and never blocks save. Per Stage 7 spec: status is rendered with the
- * ``status-under`` / ``status-over`` / ``status-infeasible`` CSS class
- * (all yellow per the plan — red is reserved for save failures).
- *
- * @param {Object} node - The node currently in the weight editor.
+ * @param {Object} node - The node currently in the weight editor. Unused
+ *     now; kept so the caller and signature do not change with it.
  */
 async function _renderFeasibilityBadge(node) {
     const badge = document.getElementById('weight-feasibility-badge');
@@ -350,64 +354,40 @@ async function _renderFeasibilityBadge(node) {
     badge.textContent = '';
     badge.removeAttribute('title');
 
-    if (!node || !node._parent || node._parent.id === undefined) {
-        // Root nodes have no parent context to validate. Leave hidden.
-        return;
-    }
-
-    let report;
-    try {
-        report = await api.getFeasibilityReport(node._parent.id);
-    } catch (error) {
-        // Pre-Stage-7 bridges land here (slot not wired). Leave
-        // hidden so the UI degrades gracefully.
-        console.debug(
-            'WeightEditor: getFeasibilityReport unavailable:',
-            error?.message || error
-        );
-        return;
-    }
-
-    if (!report || !report.status || report.status === 'ok') {
-        return;
-    }
-
-    // Compose status-specific copy per Stage 7 spec.
-    const status = report.status;
-    let copy = '';
-    const childPct = (report.children_low_sum_pct ?? 0).toFixed(1);
-    const childHighPct = (report.children_high_sum_pct ?? 0).toFixed(1);
-
-    if (status === 'under') {
-        // Children sum (high) is < parent low. Use children_high_sum_pct
-        // for the "sum" display because that's the optimistic side; the
-        // remaining gap is the distance to parent's floor.
-        const remaining = Math.max(
-            0,
-            (report.parent_low_q ?? 0) - (report.children_high_sum_q ?? 0)
-        );
-        copy = `Children sum to ${childHighPct}% — ${remaining} q's remaining.`;
-    } else if (status === 'over') {
-        // Children sum (low) exceeds parent high.
-        const over = Math.max(
-            0,
-            (report.children_low_sum_q ?? 0) - (report.parent_high_q ?? 0)
-        );
-        copy = `Children sum to ${childPct}% — ${over} q's over.`;
-    } else if (status === 'infeasible') {
-        const childLowQ = report.children_low_sum_q ?? 0;
-        const parentHighQ = report.parent_high_q ?? 0;
-        copy = `Can't fit child minimums (≥${childLowQ} q's) into parent maximum (${parentHighQ} q's).`;
-    } else {
-        // Unknown future status — render the raw status name so we
-        // notice the gap rather than silently hiding.
-        copy = `Feasibility: ${status}`;
-    }
-
-    badge.textContent = copy;
-    badge.setAttribute('title', copy);
-    badge.classList.add(`status-${status}`);
-    badge.removeAttribute('hidden');
+    // THE BADGE NEVER FILLS, AND THE BRIDGE IS NOT CALLED (#664, owner
+    // 2026-10-10). Everything above this line stays: it is the reset that
+    // guarantees the slot is empty and hidden whatever a previous node
+    // left behind.
+    //
+    // This used to call `api.getFeasibilityReport(node._parent.id)` on
+    // every render and compose copy for three statuses:
+    //
+    //   'under'      "Children sum to 42.0% — 8 q's remaining."
+    //   'over'       "Children sum to 61.0% — 12 q's over."
+    //   'infeasible' "Can't fit child minimums (>=15 q's) into parent
+    //                 maximum (8 q's)."
+    //
+    // All three compared the children's summed weights with their
+    // parent's. #64 says a weight is a share of the WHOLE EXAM at any
+    // depth, never of the subject above it, so there is nothing for those
+    // sentences to be true of: Step 2 CK publishes Nutrition at 15-20% and
+    // Multisystem at 4-8% as siblings, and a student who files the first
+    // under the second would have read "12 q's over" about two numbers
+    // copied straight off the blueprint.
+    //
+    // `validate_hierarchy_feasibility` now always reports 'ok', so the old
+    // code's own `status === 'ok'` guard made every line after it
+    // unreachable. Dead code that reads as live is worse than no code, so
+    // the composition is gone rather than sitting behind a guard that can
+    // never open -- and with it the bridge round trip per render, which
+    // could only ever return 'ok'.
+    //
+    // What is deliberately NOT removed: this function, its caller, the
+    // `#weight-feasibility-badge` slot and its `status-*` CSS classes. The
+    // slot is `hidden`, which is `display: none` in weight.css, so it
+    // occupies nothing -- it is not #60's empty-box-plus-gap. Keeping the
+    // shape means a future per-parent verdict, if WIMI ever gains a way to
+    // know a tree is genuinely nested (#664 option 3), has somewhere to go.
 }
 
 /**
@@ -530,7 +510,7 @@ function renderWeightEditor(node) {
             <div class="weight-range-indicator">
                 <span class="range-icon">↔</span>
                 <span class="range-label">Weight Range Mode</span>
-                ${node.exam_source ? `<span class="range-source" title="Source: ${escapeHtml(node.exam_source)}">📋</span>` : ''}
+                ${node.exam_source ? `<span class="range-source" title="Source: ${WimiEscape.html(node.exam_source)}">📋</span>` : ''}
             </div>
         `;
     }
@@ -545,9 +525,9 @@ function renderWeightEditor(node) {
         parentContextHeader = `
             <div class="weight-modal-context-header" data-testid="weight-modal-context-header">
                 <span class="weight-modal-context-label">Weight for</span>
-                <strong id="weight-modal-child-name" data-testid="weight-modal-child-name">${escapeHtml(node.name)}</strong>
+                <strong id="weight-modal-child-name" data-testid="weight-modal-child-name">${WimiEscape.html(node.name)}</strong>
                 <span class="weight-modal-context-label">under</span>
-                <strong id="weight-modal-parent-name" data-testid="weight-modal-parent-name">${escapeHtml(WeightEditorState.parentName)}</strong>
+                <strong id="weight-modal-parent-name" data-testid="weight-modal-parent-name">${WimiEscape.html(WeightEditorState.parentName)}</strong>
             </div>
         `;
     }
@@ -568,7 +548,7 @@ function renderWeightEditor(node) {
                data-parent-id="${e.parent_id}"
                data-testid="weight-switch-parent-link-${e.edge_id}"
                onclick="event.preventDefault(); switchWeightEditorParent(${e.edge_id}, ${e.parent_id});">
-                ${escapeHtml(e.parent_name || ('Parent ' + e.parent_id))}
+                ${WimiEscape.html(e.parent_name || ('Parent ' + e.parent_id))}
             </a>
         `).join(', ');
         switchParentBlock = `
@@ -604,6 +584,7 @@ function renderWeightEditor(node) {
                     data-unit="Q"
                     class="weight-unit-btn ${currentUnit === 'Q' ? 'active' : ''}"
                     data-testid="weight-unit-questions"
+                    ${showUnitToggle ? 'data-tour-anchor="tree-weight-unit-q"' : ''}
                     onclick="setWeightEditorUnit('Q')">Q</button>
         </div>
     `;
@@ -623,7 +604,7 @@ function renderWeightEditor(node) {
             ?.is_anchor !== false
     );
     const anchorToggleMarkup = showAnchorToggle ? `
-        <label class="weight-anchor-toggle" data-testid="weight-anchor-toggle">
+        <label class="weight-anchor-toggle" data-testid="weight-anchor-toggle" data-tour-anchor="tree-weight-anchor">
             <input type="checkbox"
                    id="weight-anchor-checkbox"
                    data-testid="weight-anchor-checkbox"
@@ -649,8 +630,8 @@ function renderWeightEditor(node) {
             <!-- Weight Status Header -->
             <div class="weight-status-header">
                 <div class="weight-badges">
-                    <span class="weight-type-badge ${weightType}">${getWeightTypeLabel(weightType)}</span>
-                    <span class="weight-confidence-badge ${confidence}" title="Confidence: ${confidence}">
+                    <span class="weight-type-badge ${weightType}" data-tour-anchor="tree-weight-type">${getWeightTypeLabel(weightType)}</span>
+                    <span class="weight-confidence-badge ${confidence}" data-tour-anchor="tree-weight-confidence" title="Confidence: ${confidence}">
                         ${getConfidenceIcon(confidence)} ${capitalizeFirst(confidence)}
                     </span>
                     ${isLocked ? '<span class="weight-lock-badge">🔒 Locked</span>' : ''}
@@ -776,7 +757,7 @@ function renderWeightEditor(node) {
                     <span>Mode:</span>
                     <span class="weight-mode-name">${getWeightModeLabel(WeightEditorState.weightConfig.weight_mode)}</span>
                     ${WeightEditorState.weightConfig.source_name ? 
-                        `<span class="weight-mode-source" title="${WeightEditorState.weightConfig.source_name}">📋 ${WeightEditorState.weightConfig.source_name}</span>` : ''}
+                        `<span class="weight-mode-source" title="${WimiEscape.attr(WeightEditorState.weightConfig.source_name)}">📋 ${WimiEscape.html(WeightEditorState.weightConfig.source_name)}</span>` : ''}
                 </div>
             ` : ''}
             
@@ -785,7 +766,7 @@ function renderWeightEditor(node) {
                 <div class="weight-algorithm-info">
                     <span class="icon">⚖️</span>
                     <span>Balancing:</span>
-                    <span class="weight-algorithm-name">${capitalizeFirst(WeightEditorState.algorithm)}</span>
+                    <span class="weight-algorithm-name">${WimiEscape.html(capitalizeFirst(WeightEditorState.algorithm))}</span>
                     <span class="weight-algorithm-desc">${getAlgorithmDescription(WeightEditorState.algorithm)}</span>
                 </div>
             ` : ''}
@@ -825,7 +806,7 @@ function renderWeightEditor(node) {
                     <button class="btn btn-secondary" id="btn-reset-weight-enhanced" data-testid="tree-reset-weight-enhanced" onclick="resetWeightEditor()">
                         Reset
                     </button>
-                    <button class="btn btn-secondary btn-rebalance-siblings" id="btn-rebalance-siblings-enhanced" data-testid="weight-panel-rebalance-siblings" onclick="rebalanceSiblings()" title="Redistribute remaining weight across non-anchored, non-locked siblings" ${canRebalanceSiblings() ? '' : 'disabled'}>
+                    <button class="btn btn-secondary btn-rebalance-siblings" id="btn-rebalance-siblings-enhanced" data-testid="weight-panel-rebalance-siblings" data-tour-anchor="tree-weight-rebalance" onclick="rebalanceSiblings()" title="Redistribute remaining weight across non-anchored, non-locked siblings" ${canRebalanceSiblings() ? '' : 'disabled'}>
                         Rebalance siblings
                     </button>
                     <button class="btn btn-apply" id="btn-apply-weight-enhanced" data-testid="tree-apply-weight-enhanced" onclick="applyWeightChange()" ${delta === 0 ? 'disabled' : ''}>
@@ -840,6 +821,11 @@ function renderWeightEditor(node) {
     if (!isLocked) {
         setupWeightEditorListeners();
     }
+
+    // This subject's weight controls are on screen only from here, so the
+    // tour rebuilds now (#682). Behind a typeof: the editor must not depend
+    // on the tree editor's tour.
+    if (typeof startTreeTour === 'function') startTreeTour();
 }
 
 /**
@@ -1070,10 +1056,10 @@ function renderSiblingsChart() {
 
         return `
             <div class="sibling-row ${s.isCurrent ? 'current' : ''} ${showPreview && !s.isCurrent ? 'will-change' : ''} ${s.isLocked ? 'locked' : ''} ${s.isAnchor ? 'anchored' : 'auto'}">
-                <span class="sibling-row-name" title="${escapeHtml(rowTitle)}">
-                    ${s.isLocked ? '🔒 ' : ''}${anchorPin}${escapeHtml(s.name)}
+                <span class="sibling-row-name" title="${WimiEscape.html(rowTitle)}">
+                    ${s.isLocked ? '🔒 ' : ''}${anchorPin}${WimiEscape.html(s.name)}
                 </span>
-                <div class="sibling-bar-wrapper" title="${escapeHtml(rowTitle)}">
+                <div class="sibling-bar-wrapper" title="${WimiEscape.html(rowTitle)}">
                     <div class="sibling-bar-current ${barFillClass}" style="width: ${currentWeight}%"></div>
                     ${showPreview ? `<div class="sibling-bar-preview" style="width: ${previewWeight}%"></div>` : ''}
                 </div>
@@ -1129,8 +1115,8 @@ function renderBasicSiblingsChart() {
         
         return `
             <div class="sibling-bar ${s.isCurrent ? 'current' : ''} ${showPreview ? 'preview' : ''} ${s.isLocked ? 'locked' : ''}">
-                <span class="sibling-name" title="${escapeHtml(s.name)}">
-                    ${s.isLocked ? '🔒 ' : ''}${escapeHtml(s.name)}
+                <span class="sibling-name" title="${WimiEscape.html(s.name)}">
+                    ${s.isLocked ? '🔒 ' : ''}${WimiEscape.html(s.name)}
                 </span>
                 <div class="sibling-bar-container">
                     <div class="sibling-bar-fill" style="width: ${showPreview ? previewWeight : currentWeight}%"></div>
@@ -1230,7 +1216,7 @@ function renderWeightHistory() {
                     <span class="history-new-value">${newValue}%</span>
                 </div>
                 <span class="history-badge ${isAuto ? 'auto' : 'user'}">${isAuto ? 'Auto' : 'Manual'}</span>
-                ${entry.edited_reason ? `<span class="history-reason" title="${escapeHtml(entry.edited_reason)}">${escapeHtml(entry.edited_reason)}</span>` : ''}
+                ${entry.edited_reason ? `<span class="history-reason" title="${WimiEscape.html(entry.edited_reason)}">${WimiEscape.html(entry.edited_reason)}</span>` : ''}
             </div>
         `;
     }).join('');
@@ -2070,15 +2056,6 @@ function capitalizeFirst(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function escapeHtmlWeight(text) {
-    if (typeof escapeHtml === 'function') {
-        return escapeHtml(text);
-    }
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 // =========================================================================
 // Global Exports

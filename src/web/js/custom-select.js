@@ -33,19 +33,19 @@ class CustomSelect {
         const displayText = selectedOption ? selectedOption.label : this.placeholder;
         
         this.container.innerHTML = `
-            <div class="custom-select" id="${this.id}" data-value="${this.value}">
+            <div class="custom-select" id="${WimiEscape.attr(this.id)}" data-value="${WimiEscape.attr(this.value)}">
                 <div class="custom-select-trigger" tabindex="0" role="combobox" aria-haspopup="listbox" aria-expanded="false">
-                    <span class="custom-select-value ${!selectedOption ? 'placeholder' : ''}">${displayText}</span>
+                    <span class="custom-select-value ${!selectedOption ? 'placeholder' : ''}">${WimiEscape.html(displayText)}</span>
                     <span class="custom-select-arrow">▾</span>
                 </div>
                 <div class="custom-select-options" role="listbox">
                     ${this.options.map((opt, index) => `
                         <div class="custom-select-option ${opt.value === this.value ? 'selected' : ''}" 
-                             data-value="${opt.value}"
+                             data-value="${WimiEscape.attr(opt.value)}"
                              data-index="${index}"
                              role="option"
                              aria-selected="${opt.value === this.value}">
-                            ${opt.label}
+                            ${WimiEscape.html(opt.label)}
                         </div>
                     `).join('')}
                 </div>
@@ -279,12 +279,12 @@ class CustomSelect {
         
         this.optionsContainer.innerHTML = this.options.map((opt, index) => `
             <div class="custom-select-option ${String(opt.value) === String(this.value) ? 'selected' : ''}" 
-                 data-value="${opt.value}"
+                 data-value="${WimiEscape.attr(opt.value)}"
                  data-index="${index}"
                  role="option"
                  tabindex="-1"
                  aria-selected="${String(opt.value) === String(this.value)}">
-                ${opt.label}
+                ${WimiEscape.html(opt.label)}
             </div>
         `).join('');
     }

@@ -78,6 +78,7 @@
     <script src="../js/plugin_loader.js"></script>
 
     <!-- Error Viewer JavaScript -->
+    <script src="../js/escape.js"></script>
     <script src="../js/error-logger.js"></script>
     <script>
         class ErrorViewer {
@@ -180,9 +181,9 @@
                             <span class="error-level level-${error.level}">${error.level}</span>
                             <span class="error-time">${new Date(error.timestamp).toLocaleTimeString()}</span>
                         </div>
-                        <div class="error-message">${this.escapeHtml(error.message)}</div>
+                        <div class="error-message">${WimiEscape.html(error.message)}</div>
                         <div class="error-details" data-testid="error-viewer-error-details-${error.id}">
-                            ${error.stack ? `<div class="error-stack">${this.escapeHtml(error.stack)}</div>` : ''}
+                            ${error.stack ? `<div class="error-stack">${WimiEscape.html(error.stack)}</div>` : ''}
                             <div class="error-context">
                                 <div class="context-item">
                                     <span class="context-label">Category:</span>
@@ -195,7 +196,7 @@
                                 ${error.context.url ? `
                                     <div class="context-item">
                                         <span class="context-label">URL:</span>
-                                        <span class="context-value">${this.escapeHtml(error.context.url)}</span>
+                                        <span class="context-value">${WimiEscape.html(error.context.url)}</span>
                                     </div>
                                 ` : ''}
                                 ${error.context.userId ? `
@@ -251,16 +252,11 @@
                     `).join('')}
                     <div class="stat-row">
                         <span class="stat-label">Session ID:</span>
-                        <span class="stat-value" style="font-size: 10px;">${stats.sessionId}</span>
+                        <span class="stat-value" style="font-size: var(--font-size-xs);">${stats.sessionId}</span>
                     </div>
                 `;
             }
             
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
         }
         
         // Initialize error viewer

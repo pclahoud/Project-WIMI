@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building your subject tree from a published outline - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/03_outline_to_tree.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 3</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Building your subject tree from a published outline</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_the_first_hour.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Your first hour</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_subject_hierarchies.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Your subject tree and its levels</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Building your subject tree from a published outline
+
+## In short
+
+WIMI ships no exam outline and no AI of its own, and transcribing a 1,800-line content outline by hand is not a reasonable thing to ask of anybody. So the route this chapter describes is to find your exam's published content outline, hand it to whichever chat assistant you already use in your browser together with WIMI's own import format specification, and import the file it gives you back. The one thing to watch is weights, because a model will cheerfully invent a percentage, and an invented percentage is worse than no percentage at all.
+
+## What this is, and what it is not
+
+Nothing in this chapter happens inside WIMI. There is no model in the app, no
+account to connect and no network call; the work happens in your browser and in
+a text editor, and WIMI only ever sees the finished file.
+
+Nor is any of it special to a chat assistant. The file is the same JSON file the
+tree editor has always imported, and the import path is the one described in
+[Your first hour](help_the_first_hour.html). If you would rather write the file
+by hand, or generate it with a script, nothing changes.
+
+What a chat assistant is good at is exactly the tedious part: taking a
+structured document you already have and re-typing it as structured data.
+That is transcription, and it is the only job you should give it here.
+
+## The one thing a model must not invent
+
+<!-- tour
+page: tree-editor
+anchor: tree-import-help
+text: WIMI ships no exam outline and no model of its own: this button opens
+  the import format guide, and Copy the whole guide inside it gives you the
+  format to hand a chat assistant with your exam's published outline. Check
+  the percentages it hands back, as an invented one looks like a published one.
+-->
+
+A weight in WIMI is a percentage of the whole exam, at every level of the tree,
+and WIMI never rescales it. You will read those numbers for months and make
+decisions about what to revise against them. The chapter [Weights: what a percentage means here](help_weights.html) is about what they mean.
+
+A model asked to fill in a blueprint will produce percentages that look exactly
+like published ones. They are the most convincing wrong thing it can give you,
+because there is nothing on the page afterwards to mark them as guesses: a
+hallucinated 9% sits in the tree looking identical to a 9% off the real
+document, and no later fix can tell them apart.
+
+So the rule, and the reason the prompt below is shaped the way it is: **a weight
+goes in the file only where your document prints one, and is left out
+otherwise.**
+
+Leaving one out is a real answer rather than a gap:
+
+- **A subject with no weight in the file is imported at 0%.** That is WIMI reading the document correctly — the blueprint listed that topic and gave it no number. Import a real outline and you may well get a long tail of subjects at 0%.
+- **Nothing shares a parent's percentage out among its children**, on import or afterwards. The tree editor's **Rebalance siblings** button is the only thing in WIMI that writes a weight you did not type, and you have to press it. The weights chapter covers what it does.
+- **A 0% is visible and fixable.** You can see it in the tree, you can type over it when you find the number, and you know you have not checked it yet. A plausible fabricated number is none of those things.
+
+That is the whole of the risk. Everything else a model gets wrong about an
+outline — a missing topic, a name run together, a level in the wrong place — you
+will notice by reading. A wrong percentage you will not.
+
+## What you need
+
+- **Your exam's published content outline.** Most examining boards publish one, as a PDF or a web page. WIMI ships nobody's blueprint, and picking a template in the exam wizard does not bring one, so this is the piece you have to go and find.
+- **WIMI's import format specification**, which is in the app. The next section is about getting it out.
+- **A chat assistant you already use in your browser**, and twenty minutes to read what it hands back.
+
+## Step 1. Copy the format specification out of WIMI
+
+Open your exam's subject tree — the **Subjects** button on the exam card — and
+find the small question-mark button sitting between **Import** and **Export**.
+It opens the **Import Format Guide**, which is WIMI's one description of the
+file it imports. That guide is what you give the model.
+
+Press **Copy the whole guide** at the bottom of that panel. It confirms with a
+line beside the button, and what it copies is the guide's own source rather than
+the formatted page, which is what a model should be reading. It is a long
+document and that is fine — a chat assistant reads it in a second, and it covers
+every field, the forms a weight can take, what an import reports and what it
+refuses.
+
+If the copy fails for any reason the panel says so and leaves the text selected,
+so Ctrl+C finishes the job.
+
+**Give it the guide rather than a summary of the guide.** A paraphrase is a
+second description of the format, written by somebody who is not maintaining it,
+and the two will disagree sooner than you expect. The guide travels with the
+app, so the copy inside your WIMI is the one that matches your WIMI.
+
+## Step 2. Have the outline ready
+
+Paste the outline as text, or attach the file if your assistant accepts files.
+Two things are worth checking before you do:
+
+- **That it is the outline for your exam and your sitting.** Boards revise these, and a content outline two revisions old is a confident, well-structured, wrong blueprint.
+- **That the percentages survived.** Copying a table out of a PDF often loses the numbers or scrambles which row they belong to. If the percentages are missing from what you pasted, the model has nothing to transcribe and every incentive to invent — which is the one failure this chapter exists to prevent. Fix the paste, or accept a tree with no weights and add them yourself later.
+
+## Step 3. The prompt
+
+Paste this, then the guide where it says, then your outline.
+
+```
+You are transcribing a published exam content outline into a JSON file for a
+study app called WIMI. You are a transcriber, not an author. Everything in the
+file has to come from the document I give you.
+
+I am giving you two things: WIMI's import format specification, and my exam's
+published content outline. Produce one JSON file that matches the
+specification and describes exactly what my outline says.
+
+Rules, most important first.
+
+1. Never invent a weight. In WIMI a weight is a percentage of the whole exam
+at every level, and WIMI never rescales it, so a number you guess is a number
+I will plan months of study against. Write a weight only for a subject whose
+percentage my outline actually prints. If my outline prints no percentage for
+a subject, leave its weight out of the file completely. Do not estimate, do
+not interpolate, do not divide a parent's percentage among its children, and
+do not adjust anything to make a total reach 100.
+
+2. Copy the numbers exactly as printed. A range stays a range: if my outline
+says 8 to 12 percent, write the low and the high, not the midpoint. Do not
+round. If my outline's percentages add up to more than 100, or less, leave
+them exactly as they are - published blueprints often do, and WIMI expects it.
+
+3. Never invent a subject. Every subject in the file must appear in my
+outline. Do not add topics you think belong, do not finish a list my outline
+leaves unfinished, and do not expand an example into extra rows.
+
+4. Copy names as printed, including capitalisation and punctuation. Where my
+outline gives a second name for the same thing - a synonym, an eponym, an
+acronym - put it in that subject's aliases rather than in its name.
+
+5. Give every subject a short, unique, lowercase id. I will send you a
+corrected outline later, and those ids are what let WIMI tell a correction
+from a replacement.
+
+6. Give every subject a level_type naming what kind of row it is in my
+outline. Use my outline's own word for that tier, not a word of your own.
+
+7. If my outline is a single table of content areas, use the single-tree form
+of the format. If it is several tables that each describe the whole exam from
+a different angle, use the whole-exam form, with one entry per table, and
+include every table in the one file.
+
+Give me the JSON first, as one code block holding one JSON object and nothing
+else. No comments inside it.
+
+After the code block, give me two short lists:
+
+- every subject you wrote with no weight, because my outline printed none;
+- anything in my outline you could not place in the file, and why.
+
+Here is WIMI's import format specification.
+
+[paste the Import Format Guide here]
+
+Here is my exam's published content outline.
+
+[paste or attach your outline here]
+```
+
+The two lists at the end are not decoration. The first one is your checklist
+for weights, and the second is where a model admits what it skipped, which it
+will not volunteer if you do not ask.
+
+## Step 4. Read the file before WIMI does
+
+Save the code block as a file whose name ends in `.json`. Then spend a few
+minutes on it, because this is the cheapest moment to fix anything:
+
+- **Count the top-level subjects** against your document. A table of sixteen content areas should give you sixteen.
+- **Check every percentage.** Search the file for the word `weight` and compare each number with the document, one at a time. This is the one check nothing downstream can do for you.
+- **Check that nothing was added.** Spot-check names, especially deep in the tree and at the end of long lists, which is where a model starts filling in from memory.
+- **Read the two lists it gave you.** A subject in the no-weight list that your document does weight is a transcription error; a subject it could not place is a decision you need to make.
+- **If anything is wrong, say what and ask for the whole file again** rather than editing it yourself. One corrected file is less work than one corrected tree.
+
+## Step 5. Import it, and read the preview
+
+Back in the tree editor, use **Import**, pick your file, and WIMI shows you a
+preview of what the import would do before it writes anything. It reports:
+
+- how many subjects it would add, update, rename, move and remove;
+- how many it would keep because entries of yours are tagged to them;
+- how many axes it would add or archive, if your file describes a whole exam;
+- each axis's own weight total, marked when it cannot span 100% — **on a whole-exam file only**.
+
+That last one is worth knowing before it misleads you: **a single-tree file's preview shows no weight figure at all.** The total, and the sentence about it not spanning 100%, arrive as a notification *after* the import instead. Nothing about a weight ever stops an import, so this costs you nothing you cannot undo — but if you are checking a transcription, check the percentages in the file rather than expecting the preview to do it. [Changing your tree](help_changing_your_tree.html) covers the preview in full.
+
+**Read it rather than pressing through it.** The same code computes the preview
+and performs the import, so it cannot show you one thing and do another, and it
+is the last point at which anything is reversible for free.
+
+It earns its place. The file written while this chapter was being tested
+described the whole exam, and went through that preview exactly once: three axes
+and 79 subjects to add, nothing to remove, nothing kept in use, no errors — and
+one warning, that one of the three tables totalled 118–155%, which cannot span
+100%. The warning was correct, and it was about the transcription rather than
+the import. Nothing else in the process would have mentioned it. That it was a
+whole-exam file is why the figure was there to read at all.
+
+A warning does not stop an import, and most warnings about weights are the
+blueprint being a blueprint — the weights chapter is about why a total over 100%
+is normal. What a warning does is tell you where to look.
+
+## A file about one tree, and a file about the whole exam
+
+The format has two forms, and the difference costs nothing on a first import
+and quite a lot later.
+
+- **A single-tree file** describes one tree and merges into the tree you have open. It says nothing about the rest of the exam.
+- **A whole-exam file** lists every axis of the exam with its own tree, and it is treated as authoritative about the exam's structure: it creates the axes it names, and **archives the axes it does not**.
+
+For a first import onto a new exam that is exactly what you want — a whole-exam
+file is how a multi-dimensional exam gets its axes in the first place, and there
+is nothing there to archive yet.
+
+Later it is a trap. Importing a whole-exam file that describes only one of your
+three axes reports two axes to be removed, and the subjects in them go with
+them. That is measured, not hypothetical: re-importing a one-axis file into the
+three-axis exam above offered to remove two axes and 17 subjects. The preview
+says so plainly, which is the whole argument for reading it. Archiving is
+undoable from the tree editor's **Archived subjects** panel, and that is worth
+knowing rather than worth relying on.
+
+See [Dimensions, and questions with several axes](help_dimensions.html) for what
+an axis is and why they do not add up.
+
+## Doing it a second time
+
+You will do this again — outlines get revised, and your first transcription will
+have mistakes in it. Three things make the second time safe:
+
+- **The same file imported twice changes nothing.** Measured on the file above: the second pass reported 79 subjects unchanged, three axes unchanged, nothing added and nothing removed. So re-importing to check you have the right file is free.
+- **A subject carrying entries is never removed by an import.** If your corrected file drops a topic you have already logged mistakes against, WIMI keeps the subject and tells you it did, so an improved blueprint cannot quietly take your work with it.
+- **Keep the ids.** Ask the model to reuse the ids from the previous file for the subjects that have not changed. With stable ids a renamed subject is a rename; without them it is a removal and a brand-new subject, and anything attached to the old one is left behind.
+
+One thing to expect rather than be surprised by: every weight an import writes
+is recorded as a weight you defined, not as an official one, whatever your file
+says about its source. That is a note about provenance and it changes no number
+WIMI calculates — the weights chapter has the detail.
+
+## What this will not do for you
+
+Be clear-eyed about what you are using. A chat assistant transcribes well and
+is wrong confidently, and the two are not distinguishable in its output. It
+does not know which revision of your outline you need, it cannot tell you when
+it has dropped a row, and it has no way to flag the difference between a
+percentage it read and a percentage it produced.
+
+You are the only person who will ever compare the file against the document.
+WIMI's preview tells you what a file would do to your tree; it has no opinion
+at all about whether the file matches your exam. That part is yours, and it is
+worth the twenty minutes, because every number on every chart afterwards rests
+on it.
+
+## Where to go next
+
+- [Weights: what a percentage means here](help_weights.html) — what the numbers you just imported mean, and why a total over 100% is fine.
+- [Your subject tree and its levels](help_subject_hierarchies.html) — what the levels in your file become.
+- [Dimensions, and questions with several axes](help_dimensions.html) — if your outline came as several tables.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

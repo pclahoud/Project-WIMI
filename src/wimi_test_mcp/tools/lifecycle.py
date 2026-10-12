@@ -30,7 +30,7 @@ def start_session(scenario: str, seed: str | None = None) -> dict:
 
     Only one session can be active at a time. Call end_session() before
     starting another. If `seed` is given, the named seeder (e.g., 'minimal',
-    'usmle_step1_outline') is applied to the new test user's database
+    'exam_outline') is applied to the new test user's database
     before the session is returned.
     """
     try:

@@ -30,13 +30,13 @@ class SettingsPage {
             default_session_duration_minutes: 60,
             default_break_interval_minutes: 25,
             default_long_break_minutes: 15,
-            manual_break_control: true,
+            manual_break_control: false,
             long_break_interval_rounds: 4,
             timer_display_size: 'normal',
             hotkey_timer_pause_resume: 'Alt+P',
             hotkey_timer_new_round: 'Alt+N',
             hotkey_timer_end_round: 'Alt+E',
-            analytics_detail_level: 'detailed',
+            analytics_detail_level: 'advanced',
             dashboard_auto_refresh_seconds: 300,
             show_performance_trends: true,
             show_mistake_patterns: true,
@@ -45,6 +45,8 @@ class SettingsPage {
             // #133 -- off means one number plus the Weight Sources card,
             // which is the full information either way.
             efficiency_show_confidence_band: false,
+            // #60, decided on #380: 0.80 by default, 0.10-0.95 by 0.05.
+            relation_confidence_threshold: 0.8,
             calendar_default_view: 'week',
             calendar_time_slot_minutes: 30,
             show_weekend_in_calendar: true,
@@ -59,11 +61,21 @@ class SettingsPage {
             realtime_update_delay_ms: 1500,
             mcp_server_enabled: false,
             mcp_server_port: 8000,
+            // Question Banks (#509). All three are user-level choices with a
+            // control on this page, and they were missing here -- the case the
+            // comment below warns about. pane_default_source_id goes back to
+            // null, i.e. no bank chosen; the banks themselves are data and a
+            // reset does not touch them.
+            pane_open_mode: 'last',
+            pane_default_source_id: null,
+            pane_shortcut_opens: 'current',
             // Speech to text (#59). Two of these are device-local --
             // update_settings() routes stt_model_size and stt_input_device_id
             // to device_settings -- but DEFAULTS is also what
             // resetToDefaults() posts wholesale, so a field missing from here
             // is silently un-resettable whichever store owns it.
+            // tests/test_settings_defaults_cover_the_page.py holds every
+            // data-field on the page to that, with a named exemption list.
             //
             // null for both of those is the stored default and not a
             // placeholder: "whichever model the pin table recommends" and
@@ -106,7 +118,8 @@ class SettingsPage {
             { key: 'cross_dimension_heatmap', label: 'Cross-Dimension Heatmap', dimensionOnly: true },
             { key: 'study_recommendations', label: 'Study Recommendations', dimensionOnly: true },
             { key: 'interaction_effects', label: 'Interaction Effects', dimensionOnly: true },
-            { key: 'weight_analysis', label: 'Weight Analysis', dimensionOnly: false }
+            { key: 'weight_analysis', label: 'Weight Analysis', dimensionOnly: false },
+            { key: 'source_comparison', label: 'Question Banks Compared', dimensionOnly: false }
         ];
         this._examAnalyticsConfig = null;
         this._selectedExamId = null;
@@ -133,10 +146,12 @@ class SettingsPage {
             await this.initProfileSection();
             await this.initQuestionBanks();
             await this.initSpeechToText();
+            await this.initRelatedTopics();
             await this.initAddons();
             await this.initFolderSync();
             await this.refreshMcpStatus();
             await this.initAbout();
+            this.initTourReplay();
 
             // Handle URL hash navigation (e.g., from gear icon on dashboard)
             this.handleHashNavigation();
@@ -147,6 +162,26 @@ class SettingsPage {
             // is a far worse bug than the one this gate fixes (#114's own
             // rule), so every exit from init() releases it.
             this.markSettingsPageReady();
+            this.startTour();
+        }
+    }
+
+    /**
+     * The first-run tour (#430). Called once the page gate has released, and
+     * again on every view change -- a panel switch, an exam chosen for
+     * Per-Exam Analytics -- because a step renders only on the panel it
+     * describes, and a panel switch hides the old panel rather than removing
+     * it. A call while a step is open rebuilds the tour from what renders now
+     * (tour.js start()). Never before the release: until then .app-container
+     * is inert, so a tour drawn over it could be neither reached nor read.
+     * Behind a typeof check and a try, so a broken tour cannot break the page.
+     */
+    startTour() {
+        if (!this.isPageReady) return;
+        try {
+            if (typeof WimiTour !== 'undefined') WimiTour.start('settings');
+        } catch (e) {
+            console.error('Tour failed to start:', e);
         }
     }
 
@@ -246,6 +281,9 @@ class SettingsPage {
                 if (targetPanel) {
                     targetPanel.classList.add('active');
                 }
+                // A no-op before the release: handleHashNavigation() clicks a
+                // nav item during init(), and init()'s own call covers that.
+                this.startTour();
             });
         }
     }
@@ -301,12 +339,7 @@ class SettingsPage {
             if (el.type === 'range') {
                 el.addEventListener('input', () => {
                     const value = parseFloat(el.value);
-                    // Update the range-value display
-                    const rangeGroup = el.closest('.range-input-group');
-                    if (rangeGroup) {
-                        const display = rangeGroup.querySelector('.range-value');
-                        if (display) display.textContent = value;
-                    }
+                    this._showRangeValue(el, value);
                     this._onFieldChange(field, value);
                 });
                 return;
@@ -328,11 +361,62 @@ class SettingsPage {
                 return;
             }
 
+            // ------ Entry browser default sort (#504) ------
+            if (field === 'entry_review_default_sort_field' ||
+                field === 'entry_review_default_sort_direction') {
+                el.addEventListener('change', () => this._onSortChange());
+                return;
+            }
+
             // ------ Select / text / everything else ------
             el.addEventListener('change', () => {
                 this._onFieldChange(field, el.value);
             });
         });
+    }
+
+    /**
+     * The entry browser's default sort as the page shows it: a base and a
+     * direction (#504).
+     *
+     * The browser reads ONE value, `entry_review_default_sort_field`, and it
+     * already carries the direction ("date_desc"), which is why the separate
+     * direction control used to do nothing. So the page shows the two halves
+     * and stores them joined. A stored value that is not of that shape (the
+     * column's legacy default "answered_incorrectly_date") is shown as what
+     * the browser actually does with it: date, newest first.
+     */
+    static splitSortPreference(prefs) {
+        const m = /^(date|difficulty)_(asc|desc)$/.exec(
+            (prefs && prefs.entry_review_default_sort_field) || '');
+        return m ? { base: m[1], dir: m[2] } : { base: 'date', dir: 'desc' };
+    }
+
+    _onSortChange() {
+        const base = document.getElementById('entry_review_default_sort_field').value;
+        const dir = document.getElementById('entry_review_default_sort_direction').value;
+        this._onFieldChange('entry_review_default_sort_direction', dir);
+        this._onFieldChange('entry_review_default_sort_field', `${base}_${dir}`);
+    }
+
+    /**
+     * Write a range input's value into its group's `.range-value` and onto
+     * `aria-valuetext`.
+     *
+     * The group class is `.range-group`, the one settings.css styles. This
+     * code used to look for `.range-input-group`, which nothing in the markup
+     * or the stylesheet carries, so no slider on this page had ever shown its
+     * value. `data-display="percent"` renders 0.8 as "80%", and a screen
+     * reader hears the same words as the label shows rather than "0.8".
+     */
+    _showRangeValue(el, value) {
+        const text = el.dataset.display === 'percent'
+            ? Math.round(value * 100) + '%'
+            : String(value);
+        el.setAttribute('aria-valuetext', text);
+        const group = el.closest('.range-group');
+        const display = group ? group.querySelector('.range-value') : null;
+        if (display) display.textContent = text;
     }
 
     /**
@@ -517,6 +601,14 @@ class SettingsPage {
                 return;
             }
 
+            // ------ Entry browser default sort, stored joined (#504) ------
+            if (field === 'entry_review_default_sort_field' ||
+                field === 'entry_review_default_sort_direction') {
+                const sort = SettingsPage.splitSortPreference(prefs);
+                el.value = field === 'entry_review_default_sort_field' ? sort.base : sort.dir;
+                return;
+            }
+
             if (!(field in prefs)) return;
 
             const value = prefs[field];
@@ -539,11 +631,7 @@ class SettingsPage {
             // ------ Range inputs ------
             if (el.type === 'range') {
                 el.value = value;
-                const rangeGroup = el.closest('.range-input-group');
-                if (rangeGroup) {
-                    const display = rangeGroup.querySelector('.range-value');
-                    if (display) display.textContent = value;
-                }
+                this._showRangeValue(el, value);
                 return;
             }
 
@@ -815,7 +903,15 @@ class SettingsPage {
     }
 
     async resetToDefaults() {
-        if (!confirm('Reset all settings to their default values?')) return;
+        // The scope is in the label and here, at the moment of the press
+        // (owner, #652): Reset posts DEFAULTS, which covers exactly what the
+        // page's Save covers. Controls that save themselves on change keep
+        // their values. Not "device-local": stt_model_size is device-local
+        // and IS reset; the line is whether a control waits for Save.
+        if (!confirm('Reset everything Save covers to its default? Controls that save '
+            + 'themselves keep their values: per-exam analytics, question bank '
+            + 'addresses, Desktop site switches and add-ons. Your exams, subjects '
+            + 'and entries are untouched.')) return;
         try {
             const updated = await api.updateUserPreferences(this.DEFAULTS);
             this.originalPreferences = JSON.parse(JSON.stringify(updated));
@@ -823,7 +919,7 @@ class SettingsPage {
             this.populateForm(updated);
             this.revertLivePreview();
             this.clearDirty();
-            this.showToast('Settings reset to defaults', 'success');
+            this.showToast('Everything Save covers is back to its default', 'success');
         } catch (e) {
             console.error('Failed to reset settings:', e);
             this.showToast('Failed to reset settings', 'error');
@@ -859,11 +955,13 @@ class SettingsPage {
             const configDiv = document.getElementById('examAnalyticsConfig');
             if (!examId) {
                 configDiv.style.display = 'none';
+                this.startTour();
                 return;
             }
 
             await this.loadExamAnalyticsConfig(examId);
             configDiv.style.display = 'block';
+            this.startTour();
         });
 
         // Save button
@@ -1377,7 +1475,7 @@ class SettingsPage {
         const chosen = pick.value || (saved != null ? String(saved) : '');
         pick.innerHTML = withUrl.length
             ? withUrl.map(b =>
-                '<option value="' + b.id + '">' + this._escapeHtml(b.name) + '</option>'
+                '<option value="' + b.id + '">' + WimiEscape.html(b.name) + '</option>'
               ).join('')
             : '<option value="">Add a web address to a question bank first</option>';
         if (chosen && withUrl.some(b => String(b.id) === String(chosen))) {
@@ -1409,16 +1507,19 @@ class SettingsPage {
             const toggleId = 'qbank-desktop-' + bank.id;
 
             row.innerHTML =
-                '<label class="qbank-row-name" for="' + urlId + '">' + this._escapeHtml(bank.name) + '</label>' +
+                '<label class="qbank-row-name" for="' + urlId + '">' + WimiEscape.html(bank.name) + '</label>' +
                 '<input type="url" class="qbank-row-url" id="' + urlId + '"' +
                     ' data-testid="settings-qbank-url-' + bank.id + '"' +
-                    ' value="' + this._escapeHtml(bank.url) + '"' +
+                    ' value="' + WimiEscape.html(bank.url) + '"' +
                     ' placeholder="Add a web address"' +
                     ' spellcheck="false" autocomplete="off">' +
                 (hasUrl
                     ? '<label class="qbank-row-desktop" for="' + toggleId + '">' +
                           '<input type="checkbox" id="' + toggleId + '"' +
                               ' data-testid="settings-qbank-desktop-' + bank.id + '"' +
+                              // The tour's Desktop site step (#682); every
+                              // row carries it and the first one is used.
+                              ' data-tour-anchor="settings-qbank-desktop"' +
                               (bank.desktopSite ? ' checked' : '') + '>' +
                           '<span>Desktop site</span>' +
                       '</label>'
@@ -1561,7 +1662,7 @@ class SettingsPage {
         container.innerHTML = '';
 
         if (!this._installedPlugins || this._installedPlugins.length === 0) {
-            container.innerHTML = '<div class="addon-empty">No addons installed. Use "Install from .zip" above or place plugin folders in <code>app_data/plugins/</code>.</div>';
+            container.innerHTML = '<div class="addon-empty">No addons installed. Use "Install from .zip" above or place plugin folders in <code>app_data/plugins/</code> and restart WIMI.</div>';
             return;
         }
 
@@ -1572,21 +1673,21 @@ class SettingsPage {
             card.setAttribute('data-testid', 'settings-addon-card-' + plugin.id);
 
             const toggleId = 'addon-toggle-' + plugin.id;
-            const safePluginId = this._escapeHtml(plugin.id);
+            const safePluginId = WimiEscape.html(plugin.id);
 
             card.innerHTML =
                 '<div class="addon-card-header">' +
                     '<div class="addon-card-info">' +
-                        '<span class="addon-card-name">' + this._escapeHtml(plugin.name) + '</span>' +
-                        '<span class="addon-card-version">v' + this._escapeHtml(plugin.version) + '</span>' +
-                        (plugin.author ? '<span class="addon-card-author">by ' + this._escapeHtml(plugin.author) + '</span>' : '') +
+                        '<span class="addon-card-name">' + WimiEscape.html(plugin.name) + '</span>' +
+                        '<span class="addon-card-version">v' + WimiEscape.html(plugin.version) + '</span>' +
+                        (plugin.author ? '<span class="addon-card-author">by ' + WimiEscape.html(plugin.author) + '</span>' : '') +
                     '</div>' +
                     '<label class="addon-toggle-label" for="' + toggleId + '">' +
                         '<input type="checkbox" id="' + toggleId + '" data-testid="settings-addon-toggle-' + safePluginId + '" ' + (plugin.enabled ? 'checked' : '') + '>' +
                         '<span>Enabled</span>' +
                     '</label>' +
                 '</div>' +
-                (plugin.description ? '<p class="addon-card-description">' + this._escapeHtml(plugin.description) + '</p>' : '') +
+                (plugin.description ? '<p class="addon-card-description">' + WimiEscape.html(plugin.description) + '</p>' : '') +
                 (plugin.permissions && plugin.permissions.length > 0 ?
                     '<div class="addon-permissions">' +
                         plugin.permissions.map(function(p) {
@@ -1646,7 +1747,7 @@ class SettingsPage {
             btn.setAttribute('data-testid', 'settings-plugin-nav-' + plugin.id);
             btn.innerHTML =
                 '<span class="nav-icon">&#128268;</span>' +
-                '<span class="nav-label">' + this._escapeHtml(plugin.name) + '</span>';
+                '<span class="nav-label">' + WimiEscape.html(plugin.name) + '</span>';
             container.appendChild(btn);
         });
     }
@@ -1669,14 +1770,14 @@ class SettingsPage {
             panel.setAttribute('data-panel', 'plugin-settings-' + plugin.id);
             panel.setAttribute('data-testid', 'settings-plugin-panel-' + plugin.id);
 
-            let html = '<h2 class="panel-title">' + this._escapeHtml(plugin.name) + ' Settings</h2>';
+            let html = '<h2 class="panel-title">' + WimiEscape.html(plugin.name) + ' Settings</h2>';
 
             if (hasManifestSettings) {
                 plugin.settings.forEach(setting => {
                     html += '<div class="form-group">';
-                    html += '<label for="plugin-setting-' + plugin.id + '-' + setting.key + '">' + this._escapeHtml(setting.label) + '</label>';
+                    html += '<label for="plugin-setting-' + plugin.id + '-' + setting.key + '">' + WimiEscape.html(setting.label) + '</label>';
                     if (setting.description) {
-                        html += '<p class="field-description">' + this._escapeHtml(setting.description) + '</p>';
+                        html += '<p class="field-description">' + WimiEscape.html(setting.description) + '</p>';
                     }
                     html += this._renderPluginSettingField(plugin.id, setting, setting.default);
                     html += '</div>';
@@ -1687,7 +1788,7 @@ class SettingsPage {
             html += '<div data-plugin-slot="plugin-settings-' + plugin.id + '"></div>';
 
             if (hasManifestSettings) {
-                html += '<button class="btn-save plugin-settings-save" data-testid="settings-plugin-save-' + this._escapeHtml(plugin.id) + '" data-plugin-id="' + plugin.id + '">Save ' + this._escapeHtml(plugin.name) + ' Settings</button>';
+                html += '<button class="btn-save plugin-settings-save" data-testid="settings-plugin-save-' + WimiEscape.html(plugin.id) + '" data-plugin-id="' + plugin.id + '">Save ' + WimiEscape.html(plugin.name) + ' Settings</button>';
             }
 
             panel.innerHTML = html;
@@ -1730,7 +1831,7 @@ class SettingsPage {
 
         switch (setting.type) {
             case 'text':
-                return '<input type="text" id="' + id + '" data-plugin-setting="' + setting.key + '" value="' + this._escapeHtml(String(value || '')) + '">';
+                return '<input type="text" id="' + id + '" data-plugin-setting="' + setting.key + '" value="' + WimiEscape.html(String(value || '')) + '">';
 
             case 'number': {
                 var attrs = '';
@@ -1740,7 +1841,7 @@ class SettingsPage {
             }
 
             case 'toggle':
-                return '<label class="checkbox-label"><input type="checkbox" id="' + id + '" data-plugin-setting="' + setting.key + '" ' + (value ? 'checked' : '') + '><span>' + this._escapeHtml(setting.label) + '</span></label>';
+                return '<label class="checkbox-label"><input type="checkbox" id="' + id + '" data-plugin-setting="' + setting.key + '" ' + (value ? 'checked' : '') + '><span>' + WimiEscape.html(setting.label) + '</span></label>';
 
             case 'select': {
                 var html = '<select id="' + id + '" data-plugin-setting="' + setting.key + '">';
@@ -1755,7 +1856,7 @@ class SettingsPage {
             }
 
             default:
-                return '<input type="text" id="' + id + '" data-plugin-setting="' + setting.key + '" value="' + this._escapeHtml(String(value || '')) + '">';
+                return '<input type="text" id="' + id + '" data-plugin-setting="' + setting.key + '" value="' + WimiEscape.html(String(value || '')) + '">';
         }
     }
 
@@ -1800,14 +1901,6 @@ class SettingsPage {
         }
     }
 
-    _escapeHtml(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     // =========================================================================
     // Toast Notifications
@@ -2025,7 +2118,7 @@ class SettingsPage {
         const select = document.getElementById('folder-sync-provider');
         if (select) {
             select.innerHTML = this.folderSyncProviders
-                .map(p => `<option value="${this._escapeHtml(p.id)}">${this._escapeHtml(p.name)}</option>`)
+                .map(p => `<option value="${WimiEscape.html(p.id)}">${WimiEscape.html(p.name)}</option>`)
                 .join('');
             select.addEventListener('change', () => this.relinkFolderSync());
         }
@@ -2053,6 +2146,30 @@ class SettingsPage {
             sessionStorage.removeItem('wimi.folderSync.flash');
         } catch (e) { return; }
         if (flash) this.showToast(flash, 'success');
+    }
+
+    /**
+     * Replay for the first-run tour (#430). Clears the shown-tips list
+     * straight away; the tips then reappear on each page once their target
+     * is on screen. The status line says what happened in words, because a
+     * button that changes nothing visible on this page would otherwise read
+     * as broken.
+     */
+    initTourReplay() {
+        const status = document.getElementById('tour-replay-status');
+        this.bindClick('tour-replay-btn', async () => {
+            try {
+                await api.resetTour();
+                if (status) {
+                    status.textContent = 'Done. Each page will show its tips again, '
+                        + 'starting the next time you open it.';
+                }
+            } catch (error) {
+                if (status) {
+                    status.textContent = `The tips could not be reset: ${error.message || error}`;
+                }
+            }
+        });
     }
 
     bindClick(id, handler) {
@@ -2097,9 +2214,9 @@ class SettingsPage {
                 // immutable-file design is the worst case for a streaming
                 // client's cache policy: our files are written once and never
                 // modified, which is exactly the condition Box evicts on.
-                p.innerHTML = 'Pin this folder in ' + this._escapeHtml(link.provider_name || 'your cloud client')
+                p.innerHTML = 'Pin this folder in ' + WimiEscape.html(link.provider_name || 'your cloud client')
                     + ' so its files stay on this computer - the setting is called <strong>'
-                    + this._escapeHtml(link.pin_hint) + '</strong>.';
+                    + WimiEscape.html(link.pin_hint) + '</strong>.';
                 pin.hidden = false;
             } else {
                 pin.hidden = true;
@@ -2148,14 +2265,14 @@ class SettingsPage {
             + 'but have not sent it yet.</strong> ' + already + '</p>',
         ];
         if (state === 'folder_moved') {
-            const who = (unseen || []).map(u => this._escapeHtml(u.device_name || 'another computer')
+            const who = (unseen || []).map(u => WimiEscape.html(u.device_name || 'another computer')
                 + ' (generation ' + u.generation + ')').join(', ');
             lines.push('<p class="field-description folder-sync-problem">The folder has '
                 + 'changed since you chose' + (who ? ': ' + who + ' sent a copy' : '')
                 + '. Nothing will be sent until you look at the copies again and choose.</p>');
         } else {
             const others = (pending.set_aside_devices || [])
-                .map(d => this._escapeHtml(d || 'the other computer')).join(', ');
+                .map(d => WimiEscape.html(d || 'the other computer')).join(', ');
             lines.push('<p class="field-description">Until you send, '
                 + (others || 'the other computer') + ' still sees two copies. '
                 + 'Sending tells it which one you kept.</p>');
@@ -2176,7 +2293,7 @@ class SettingsPage {
         const seen = state.last_seen_generation;
         if (seen !== undefined && seen !== null && seen > 0) {
             lines.push(`Newest copy seen in the folder: <strong>generation ${seen}</strong>`
-                + (state.head_device ? ` from ${this._escapeHtml(state.head_device)}` : '')
+                + (state.head_device ? ` from ${WimiEscape.html(state.head_device)}` : '')
                 + (state.last_seen_at ? `, when we looked at ${this.formatSyncTime(state.last_seen_at)}` : ''));
             // #147: we read the small manifest, not the archive. Checking the
             // archive means downloading it, which on a streaming client is the
@@ -2202,7 +2319,7 @@ class SettingsPage {
 
         if (state.rejected && state.rejected.length) {
             lines.push(state.rejected
-                .map(r => `Ignored generation ${r.generation}: ${this._escapeHtml(r.reason)}`)
+                .map(r => `Ignored generation ${r.generation}: ${WimiEscape.html(r.reason)}`)
                 .join('<br>'));
         }
 
@@ -2212,12 +2329,12 @@ class SettingsPage {
         const rel = state.relation_detail || {};
         if (state.base_relation === 'superseded') {
             lines.push('<strong>This computer\u2019s copy was not the one kept.</strong> '
-                + this._escapeHtml(rel.device_name || 'Another computer')
+                + WimiEscape.html(rel.device_name || 'Another computer')
                 + (rel.created_at ? ' chose its own copy on ' + this.formatSyncTime(rel.created_at) : ' chose its own copy')
                 + '. Nothing has been removed from this computer - choose below what you want.');
         } else if (state.base_relation === 'behind') {
             lines.push('The folder has a newer copy from '
-                + this._escapeHtml(rel.device_name || 'another computer')
+                + WimiEscape.html(rel.device_name || 'another computer')
                 + (rel.generation ? ` (generation ${rel.generation})` : '')
                 + ' that builds on this computer\u2019s - see below.');
         }
@@ -2297,7 +2414,11 @@ class SettingsPage {
         }
 
         try {
-            await api.linkFolderSync(picked.folder, providerId);
+            const linked = await this.linkFolderSyncAsking(picked.folder, providerId);
+            if (!linked) {
+                await this.renderFolderSyncLink();
+                return false;
+            }
             this.showToast('Cloud sync folder set.', 'success');
         } catch (e) {
             this.showToast('Could not use that folder: ' + e.message, 'error');
@@ -2311,15 +2432,108 @@ class SettingsPage {
 
     async relinkFolderSync() {
         // Changing the client for an already-linked folder re-links in place;
-        // the folder and the profile's segment are unchanged.
+        // the folder and the profile's segment are unchanged. A client with a
+        // stricter limit can bring warnings the old one did not (#412), so
+        // this asks too; declining keeps the link as it was, and the render
+        // below puts the select back to the recorded client.
         if (!this.folderSyncLink || !this.folderSyncLink.linked) return;
         const select = document.getElementById('folder-sync-provider');
         try {
-            await api.linkFolderSync(this.folderSyncLink.folder, select.value);
+            await this.linkFolderSyncAsking(this.folderSyncLink.folder, select.value);
         } catch (e) {
             this.showToast('Could not change the cloud client: ' + e.message, 'error');
         }
         await this.renderFolderSyncLink();
+    }
+
+    /**
+     * Link a folder, showing its warnings FIRST if it has any (#412).
+     *
+     * Owner's decision on #412: the problems a folder check finds that do not
+     * stop a link -- Box's 255-character path budget, a folder name the client
+     * will not sync -- are shown in the dialog before the link is recorded.
+     * Until then they were computed and discarded, and the student saw only
+     * "Cloud sync folder set." (measured on Windows machine B). The backend
+     * records nothing on the first attempt when there are warnings, so
+     * declining here leaves no half-made link behind.
+     *
+     * Every warning the check returns is listed: the backend defines warnings
+     * by exclusion from the blocking set, so a new one reaches this dialog
+     * without a change here.
+     *
+     * @returns {Promise<boolean>} true when linked, false when declined.
+     */
+    async linkFolderSyncAsking(folder, providerId) {
+        const first = await api.linkFolderSync(folder, providerId);
+        if (!first || !first.needs_confirmation) return true;
+        const proceed = await this.confirmFolderSyncWarnings(first.warnings || []);
+        if (!proceed) return false;
+        await api.linkFolderSync(folder, providerId, undefined, {acknowledged: true});
+        return true;
+    }
+
+    /**
+     * The warnings dialog. Resolves true for "Use this folder anyway".
+     *
+     * The shared modal pattern (#318/#319): role, aria-modal and the name are
+     * in the markup, and modal_dialog.js moves focus in and back. Escape,
+     * the backdrop and Cancel all decline. Escape is stopped here because the
+     * page's own Escape shortcut discards unsaved settings, which is not what
+     * dismissing a dialog should do.
+     *
+     * No button promises a fix WIMI cannot make (#174): each warning names a
+     * limit of the cloud client or of the folder chosen, and the only actions
+     * offered are the two that work -- link anyway, or don't.
+     */
+    confirmFolderSyncWarnings(warnings) {
+        return new Promise(resolve => {
+            const items = warnings.map(w => {
+                const text = String(w);
+                return '<li>' + WimiEscape.html(text.charAt(0).toUpperCase() + text.slice(1)) + '</li>';
+            }).join('');
+            const host = document.createElement('div');
+            host.className = 'folder-sync-warning-modal';
+            host.setAttribute('data-testid', 'folder-sync-warning-modal');
+            host.innerHTML = `
+                <div class="modal-backdrop"></div>
+                <div class="modal-content" data-modal-surface role="dialog"
+                     aria-modal="true" aria-labelledby="folder-sync-warning-title"
+                     aria-describedby="folder-sync-warning-lede">
+                    <div class="modal-header">
+                        <h2 id="folder-sync-warning-title">Check this folder before you use it</h2>
+                    </div>
+                    <div class="modal-body">
+                        <p id="folder-sync-warning-lede">WIMI can use this folder, but syncing may not work as expected:</p>
+                        <ul class="folder-sync-warning-list" data-testid="folder-sync-warnings">${items}</ul>
+                        <p class="folder-sync-warning-note">The folder is not set up until you choose.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary"
+                                data-testid="folder-sync-warning-cancel">Cancel</button>
+                        <button type="button" class="btn-primary"
+                                data-testid="folder-sync-warning-accept">Use this folder anyway</button>
+                    </div>
+                </div>`;
+            const finish = (answer) => {
+                host.removeEventListener('keydown', onKey);
+                if (host.parentNode) host.parentNode.removeChild(host);
+                resolve(answer);
+            };
+            const onKey = (e) => {
+                if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    finish(false);
+                }
+            };
+            host.addEventListener('keydown', onKey);
+            host.querySelector('.modal-backdrop').addEventListener('click', () => finish(false));
+            host.querySelector('[data-testid="folder-sync-warning-cancel"]')
+                .addEventListener('click', () => finish(false));
+            host.querySelector('[data-testid="folder-sync-warning-accept"]')
+                .addEventListener('click', () => finish(true));
+            document.body.appendChild(host);
+        });
     }
 
     async withFolderSyncBusy(buttonId, label, work) {
@@ -2366,7 +2580,7 @@ class SettingsPage {
         if (!problems.length) { mount.hidden = true; mount.innerHTML = ''; return; }
         mount.hidden = false;
         mount.innerHTML = problems
-            .map(p => `<p class="field-description folder-sync-problem">${this._escapeHtml(p)}</p>`)
+            .map(p => `<p class="field-description folder-sync-problem">${WimiEscape.html(p)}</p>`)
             .join('');
     }
 
@@ -2446,7 +2660,7 @@ class SettingsPage {
 
         const lines = [
             '<p class="field-description"><strong>'
-            + this._escapeHtml(newer.device_name || 'Another computer') + '</strong> sent generation '
+            + WimiEscape.html(newer.device_name || 'Another computer') + '</strong> sent generation '
             + newer.generation
             + (newer.created_at ? ' on ' + this.formatSyncTime(newer.created_at) : '')
             + ', built on this computer\u2019s copy'
@@ -2458,8 +2672,8 @@ class SettingsPage {
         let anyway = false;
         if (changes.checked && differs.length) {
             anyway = true;
-            const list = differs.map(d => `${this._escapeHtml(d.label)}: ${this._escapeHtml(String(d.here))} `
-                + `here, ${this._escapeHtml(String(d.then))} when it last synced`).join('; ');
+            const list = differs.map(d => `${WimiEscape.html(d.label)}: ${WimiEscape.html(String(d.here))} `
+                + `here, ${WimiEscape.html(String(d.then))} when it last synced`).join('; ');
             lines.push('<p class="field-description"><strong>This computer has changed since it last '
                 + 'synced</strong> - ' + list + '. Using the newer copy replaces those changes; '
                 + 'they are kept in the backup WIMI takes first. <strong>Send mine first</strong> '
@@ -2471,7 +2685,7 @@ class SettingsPage {
         } else {
             anyway = true;
             lines.push('<p class="field-description">WIMI cannot tell whether this computer has changes '
-                + 'the newer copy lacks' + (changes.reason ? ' (' + this._escapeHtml(changes.reason) + ')' : '')
+                + 'the newer copy lacks' + (changes.reason ? ' (' + WimiEscape.html(changes.reason) + ')' : '')
                 + '. Using the newer copy replaces this computer\u2019s; it is kept in the backup '
                 + 'WIMI takes first.</p>');
         }
@@ -2550,7 +2764,7 @@ class SettingsPage {
         const note = document.getElementById('folder-sync-fork-note');
         if (report.notes && report.notes.length) {
             note.hidden = false;
-            note.innerHTML = report.notes.map(n => this._escapeHtml(n)).join('<br>');
+            note.innerHTML = report.notes.map(n => WimiEscape.html(n)).join('<br>');
         } else {
             note.hidden = true;
         }
@@ -2589,7 +2803,7 @@ class SettingsPage {
 
     renderForkSide(side, report) {
         const rows = [];
-        rows.push(`<strong>${this._escapeHtml(side.device_name || 'Unknown computer')}</strong>`
+        rows.push(`<strong>${WimiEscape.html(side.device_name || 'Unknown computer')}</strong>`
             + (side.is_local ? ' <em>(this computer\u2019s copy)</em>' : ''));
         if (side.entries !== null && side.entries !== undefined) {
             rows.push(`${side.entries} entries`);
@@ -2597,11 +2811,11 @@ class SettingsPage {
         // The date range is what separates "a month of work" from "a stale
         // copy" -- two copies can have identical counts.
         if (side.encountered_first && side.encountered_last) {
-            rows.push('questions sat ' + this._escapeHtml(side.encountered_first)
-                + ' to ' + this._escapeHtml(side.encountered_last));
+            rows.push('questions sat ' + WimiEscape.html(side.encountered_first)
+                + ' to ' + WimiEscape.html(side.encountered_last));
         }
         if (side.logged_last) {
-            rows.push('last added to ' + this._escapeHtml(String(side.logged_last).slice(0, 16)));
+            rows.push('last added to ' + WimiEscape.html(String(side.logged_last).slice(0, 16)));
         }
         if (side.created_at) {
             rows.push('sent to the folder ' + this.formatSyncTime(side.created_at));
@@ -2613,14 +2827,14 @@ class SettingsPage {
         } else if (side.subjects_only_here_count === 0) {
             unique = 'No subjects that the other copy lacks.';
         } else {
-            const named = side.subjects_only_here_named.map(s => this._escapeHtml(s)).join(', ');
+            const named = side.subjects_only_here_named.map(s => WimiEscape.html(s)).join(', ');
             const extra = side.subjects_only_here_count - side.subjects_only_here_named.length;
             unique = `<strong>Only here:</strong> ${named}`
                 + (extra > 0 ? ` and ${extra} more` : '');
         }
 
         return '<div class="folder-sync-fork-side" data-blob="'
-            + this._escapeHtml(side.blob_name || '') + '">'
+            + WimiEscape.html(side.blob_name || '') + '">'
             + '<p class="field-description">' + rows.join(' &middot; ') + '</p>'
             + '<p class="field-description">' + unique + '</p>'
             + '</div>';
@@ -3012,13 +3226,13 @@ class SettingsPage {
 
         const options = ['<option value="">System default</option>'];
         devices.forEach(device => {
-            options.push('<option value="' + this._escapeHtml(device.id) + '">'
-                + this._escapeHtml(device.label)
+            options.push('<option value="' + WimiEscape.html(device.id) + '">'
+                + WimiEscape.html(device.label)
                 + (device.is_default ? ' (system default)' : '')
                 + '</option>');
         });
         if (storedId && !devices.some(d => String(d.id) === storedId)) {
-            options.push('<option value="' + this._escapeHtml(storedId) + '">'
+            options.push('<option value="' + WimiEscape.html(storedId) + '">'
                 + 'The microphone you chose &mdash; not connected right now'
                 + '</option>');
         }
@@ -3039,19 +3253,19 @@ class SettingsPage {
         const storedSize = stored == null ? '' : String(stored);
 
         const options = ['<option value="">Recommended'
-            + (recommended ? ' (' + this._escapeHtml(recommended) + ')' : '')
+            + (recommended ? ' (' + WimiEscape.html(recommended) + ')' : '')
             + '</option>'];
         models.forEach(model => {
-            const bits = [this._escapeHtml(model.size),
+            const bits = [WimiEscape.html(model.size),
                 Math.round(model.megabytes) + ' MB'];
             if (model.size === recommended) bits.push('recommended');
             bits.push(model.installed ? 'downloaded' : 'not downloaded');
-            options.push('<option value="' + this._escapeHtml(model.size) + '">'
+            options.push('<option value="' + WimiEscape.html(model.size) + '">'
                 + bits.join(' &middot; ') + '</option>');
         });
         if (storedSize && !models.some(m => m.size === storedSize)) {
-            options.push('<option value="' + this._escapeHtml(storedSize) + '">'
-                + this._escapeHtml(storedSize)
+            options.push('<option value="' + WimiEscape.html(storedSize) + '">'
+                + WimiEscape.html(storedSize)
                 + ' &middot; no longer offered</option>');
         }
 
@@ -3088,15 +3302,15 @@ class SettingsPage {
         if (!size) {
             parts.push('No model is offered on this computer.');
         } else if (!spec) {
-            parts.push(this._escapeHtml(size) + ' is not one of the models '
+            parts.push(WimiEscape.html(size) + ' is not one of the models '
                 + 'this version of WIMI knows how to fetch.');
         } else if (corrupt) {
-            parts.push('The ' + this._escapeHtml(size) + ' file here is damaged.');
+            parts.push('The ' + WimiEscape.html(size) + ' file here is damaged.');
         } else if (spec.installed) {
-            parts.push(this._escapeHtml(size) + ' is on this computer ('
+            parts.push(WimiEscape.html(size) + ' is on this computer ('
                 + Math.round(spec.megabytes) + ' MB).');
         } else {
-            parts.push(this._escapeHtml(size) + ' has not been downloaded yet: '
+            parts.push(WimiEscape.html(size) + ' has not been downloaded yet: '
                 + 'about ' + Math.round(spec.megabytes) + ' MB, once.');
         }
 
@@ -3326,14 +3540,14 @@ class SettingsPage {
         const removable = typeof api.removeSttModel === 'function';
         group.style.display = '';
         list.innerHTML = models.map(model => {
-            const bits = [this._escapeHtml(model.size),
+            const bits = [WimiEscape.html(model.size),
                 Math.round(model.megabytes) + ' MB'];
             if (model.size === inUse) bits.push('in use');
             return '<div class="stt-model-row">'
                 + '<span class="stt-model-name">' + bits.join(' &middot; ') + '</span>'
                 + (removable
                     ? '<button class="btn-cancel" data-stt-remove="'
-                        + this._escapeHtml(model.size)
+                        + WimiEscape.html(model.size)
                         + '" data-testid="settings-stt-remove">Remove</button>'
                     : '')
                 + '</div>';
@@ -3383,6 +3597,423 @@ class SettingsPage {
                 'error');
         }
         await this.refreshSpeechToText();
+    }
+
+    // =====================================================================
+    // Related Topics: the availability line and the model download (#60)
+    // =====================================================================
+    //
+    // Owner's decision (#5179, #5183): a machine that cannot extract gets
+    // **one line in Settings and silence everywhere else**. This is that
+    // line. Five states, three of them actionable with three different
+    // actions, which is why they cannot share a sentence -- telling somebody
+    // their computer cannot run this, when what they have is the smaller
+    // download, is false.
+    //
+    // The dial below is NOT hidden or disabled in the states where nothing
+    // can run. `relation_confidence_threshold` is `user_preferences`, so it
+    // travels in a `.wimi` (m028): a student on the default build is setting
+    // it for the machine that took the larger download. Hiding it there
+    // would make a travelling preference unsettable on whichever machine
+    // happens to be in front of them.
+
+    /** Poll interval for a running download. Matches the speech panel's. */
+    get RELATIONS_POLL_MS() { return 400; }
+
+    async initRelatedTopics() {
+        // Feature-detect as the speech and question-bank sections do, so the
+        // page still works against a build whose api layer predates this.
+        // The nav item goes with it -- a panel that cannot report anything
+        // should not be reachable.
+        if (typeof api.getRelationExtractionStatus !== 'function') {
+            const navItem = document.querySelector(
+                '.settings-nav-item[data-panel="related_topics"]');
+            if (navItem) navItem.style.display = 'none';
+            return;
+        }
+
+        this._relationsDownloadJobId = null;
+        this._relationsStatus = null;
+
+        this.bindClick('relationsDownloadBtn', () => this.startRelationsDownload());
+        this.bindClick('relationsCancelDownloadBtn', () => this.cancelRelationsDownload());
+        this.bindClick('relationsDiscardBtn', () => this.discardRelationsDownload());
+
+        await this.refreshRelatedTopics();
+    }
+
+    /** Re-read the status and repaint the line and the buttons from it. */
+    async refreshRelatedTopics() {
+        let status = null;
+        let failure = '';
+        try {
+            status = await api.getRelationExtractionStatus();
+        } catch (e) {
+            failure = e && e.message ? e.message : String(e);
+        }
+        this._relationsStatus = status;
+        this.renderRelationsStatus(status, failure);
+
+        // A download that was already running when this page opened. The
+        // bridge outlives the page, so Settings reopened mid-transfer takes
+        // the job back over instead of watching a frozen bar -- which is why
+        // the status payload carries the job id at all.
+        if (status && status.download && status.download.state === 'running'
+                && !this._relationsDownloadJobId) {
+            this._relationsDownloadJobId = status.download.job_id;
+            this._setRelationsDownloadRunning(true);
+            this._renderRelationsProgress(status.download);
+            this._followRelationsDownload();
+        }
+    }
+
+    /**
+     * Paint the one line, and decide which buttons are honest.
+     *
+     * Every branch sets the dot, the sentence and the buttons together. A
+     * branch that set the text and left a stale button visible is the
+     * failure this shape exists to prevent.
+     */
+    renderRelationsStatus(status, failure) {
+        const dot = document.getElementById('relationsStatusDot');
+        const text = document.getElementById('relationsStatusText');
+        const download = document.getElementById('relationsDownloadBtn');
+        const discard = document.getElementById('relationsDiscardBtn');
+        if (!dot || !text) return;
+
+        const show = (el, visible) => { if (el) el.style.display = visible ? '' : 'none'; };
+        const setDot = kind => { dot.className = 'feature-status-dot ' + kind; };
+
+        if (!status) {
+            setDot('problem');
+            text.textContent = 'WIMI could not check whether relation '
+                + 'suggestions are available' + (failure ? ': ' + failure : '.');
+            show(download, false);
+            show(discard, false);
+            return;
+        }
+
+        const model = status.model || {};
+        const running = !!(status.download && status.download.state === 'running');
+        // Partial files on disk with nothing fetching them: the only state
+        // in which starting over means anything.
+        const partial = !running && !model.installed
+            && Number(model.bytes_still_needed) > 0
+            && Number(model.bytes_still_needed) < Number(model.total_bytes);
+
+        switch (status.state) {
+            case 'ready':
+                setDot('ready');
+                text.textContent = 'Ready. The model is installed on this '
+                    + 'computer and runs here, so nothing you write is uploaded.';
+                show(download, false);
+                break;
+
+            case 'model_not_downloaded':
+                // Not a failure: the first-use resting state, one press from
+                // resolved, which is why the dot is `action` rather than
+                // `problem`. The size is stated because 845 MB is a decision.
+                //
+                // "download" means the model here and in every other sentence
+                // in this panel (#402). It used to mean the model and then,
+                // four words later, the WIMI package -- so the nearest
+                // antecedent of "the download" was the model download, and the
+                // sentence read "the model is not included in the model
+                // download". The button beside it says "Download the model",
+                // which is now the right antecedent rather than a misleading
+                // one.
+                setDot('action');
+                text.textContent = 'WIMI needs to download the model once ('
+                    + this._relationsMegabytes(model.total_bytes) + ' MB). It is '
+                    + 'not bundled with WIMI, so the app stays small '
+                    + 'for people who do not use this.'
+                    + (partial ? ' Part of it is already here, so the download '
+                        + 'carries on from where it stopped.' : '');
+                show(download, !running);
+                break;
+
+            case 'not_in_this_build':
+                // Actionable, but by nothing in this build: the action is to
+                // fetch the other artifact. So no button, because none here
+                // could perform it (#174), and the sentence names it instead.
+                //
+                // The artifact is "this version of WIMI" and the other one is
+                // "the full version" (#402). Calling either a "download" put
+                // the word on a third referent in a panel that already uses it
+                // for the model fetch.
+                setDot('action');
+                text.textContent = 'This version of WIMI does not include '
+                    + 'relation suggestions. The full version does, and is '
+                    + 'identical in every other way.';
+                show(download, false);
+                break;
+
+            case 'dev_runtime_missing':
+                setDot('action');
+                text.textContent = 'The relation-extraction packages are not '
+                    + 'installed in this checkout'
+                    + this._relationsMissingList(status.missing)
+                    + '. Install requirements-relations.txt from the CPU index.';
+                show(download, false);
+                break;
+
+            case 'runtime_broken':
+                // The student took the full version and did not get what it
+                // promised. A packaging fault should say so rather than
+                // impersonating "not in this build", and there is no retry:
+                // looking again finds the same thing missing.
+                //
+                // It changes with the two states above rather than being left
+                // on the old vocabulary (#402, owner's decision: all five
+                // states), because one state still calling the artifact "the
+                // download" leaves the ambiguity reachable. "this version"
+                // repeats the sanctioned name instead of introducing a fourth
+                // one for the same thing.
+                setDot('problem');
+                text.textContent = 'This version of WIMI should include '
+                    + 'relation suggestions, but part of it is missing'
+                    + this._relationsMissingList(status.missing)
+                    + '. That is a fault in this version rather than '
+                    + 'something you can fix here.';
+                show(download, false);
+                break;
+
+            default:
+                setDot('unknown');
+                text.textContent = 'Relation suggestions are in a state WIMI '
+                    + 'does not recognise (' + status.state + ').';
+                show(download, false);
+        }
+
+        show(discard, partial);
+    }
+
+    _relationsMissingList(missing) {
+        const names = (missing || []).filter(Boolean);
+        return names.length ? ' (' + names.join(', ') + ')' : '';
+    }
+
+    _relationsMegabytes(bytes) {
+        return (Number(bytes || 0) / 1000000).toFixed(0);
+    }
+
+    /**
+     * Fetch the model, showing progress and offering a cancel.
+     *
+     * start/poll/cancel by hand, as the speech panel does and for the same
+     * reasons: the job id is live before the first poll, the bar is drawn
+     * from the pin table's own total straight away rather than starting
+     * blank, and a start that was refused reads differently from a poll that
+     * stopped answering.
+     *
+     * No size to choose, unlike speech: the pin table names one revision of
+     * one model, and which files it holds is not a user decision.
+     */
+    async startRelationsDownload() {
+        if (this._relationsDownloadJobId) return;
+        this._setRelationsDownloadError('');
+
+        let started;
+        try {
+            started = await api.startRelationModelDownload();
+        } catch (e) {
+            // The bridge refusing outright -- no app-data directory. Not a
+            // taxonomy failure, so it carries no kind.
+            this._setRelationsDownloadError('Could not start the download: ' + e.message);
+            return;
+        }
+
+        this._relationsDownloadJobId = started.job_id;
+        this._setRelationsDownloadRunning(true);
+        this._renderRelationsProgress({
+            bytes: Number(started.total_bytes) - Number(started.bytes_still_needed),
+            total: started.total_bytes,
+            file_index: 0,
+            file_count: started.file_count
+        });
+        await this._followRelationsDownload();
+    }
+
+    /**
+     * Poll a running download to its end.
+     *
+     * Split out from the start so that a page reopened mid-transfer can pick
+     * up a job it did not begin.
+     */
+    async _followRelationsDownload() {
+        for (;;) {
+            let report;
+            try {
+                report = await api.pollRelationModelDownload(this._relationsDownloadJobId);
+            } catch (e) {
+                this._setRelationsDownloadRunning(false);
+                this._setRelationsDownloadError('Lost track of the download: ' + e.message);
+                await this.refreshRelatedTopics();
+                return;
+            }
+
+            if (report.state === 'running') {
+                this._renderRelationsProgress(report);
+                await new Promise(r => setTimeout(r, this.RELATIONS_POLL_MS));
+                continue;
+            }
+
+            this._setRelationsDownloadRunning(false);
+
+            if (report.state === 'done') {
+                this.showToast('The relations model is downloaded. '
+                    + 'Suggestions can run on this computer now.', 'success');
+            } else {
+                // A NAMED failure resolves with state 'failed' and an error
+                // object; it does not reject. So this branch is reached by
+                // reading the payload and never by a catch.
+                const error = report.error || {};
+                if (error.kind === 'download_cancelled') {
+                    // Deliberately unlike speech, which deletes its partial
+                    // file: 845 MB across eight files makes a cancel far more
+                    // often "not now" than "never", so what was fetched is
+                    // kept and the next press carries on from there.
+                    this.showToast('Download stopped. What was fetched is '
+                        + 'kept, so starting again carries on from there.', 'info');
+                } else {
+                    this._setRelationsDownloadError(
+                        this._relationsFailureText(error), error.retryable);
+                }
+            }
+
+            await this.refreshRelatedTopics();
+            return;
+        }
+    }
+
+    async cancelRelationsDownload() {
+        const jobId = this._relationsDownloadJobId;
+        if (!jobId) return;
+        try {
+            await api.cancelRelationModelDownload(jobId);
+        } catch (e) {
+            this._setRelationsDownloadError('Could not stop the download: ' + e.message);
+            return;
+        }
+        // Nothing is torn down here: the job reaches 'failed' with
+        // download_cancelled a moment later and the poll loop ends on it.
+    }
+
+    /**
+     * Throw away the partial files.
+     *
+     * Confirmed, because it costs the student those bytes again. Installed
+     * files are never touched -- deleting those is uninstalling, which would
+     * be a different button.
+     */
+    async discardRelationsDownload() {
+        if (this._relationsDownloadJobId) return;
+        const model = (this._relationsStatus || {}).model || {};
+        const done = Number(model.total_bytes) - Number(model.bytes_still_needed);
+        if (!confirm('Throw away the ' + this._relationsMegabytes(done)
+                + ' MB already downloaded and start again?\n\nOnly worth doing '
+                + 'if the download keeps failing in the same place.')) return;
+
+        try {
+            const result = await api.discardRelationModelDownload();
+            if (result.running) {
+                this.showToast('A download is running, so nothing was thrown '
+                    + 'away. Stop it first.', 'info');
+            } else {
+                this.showToast(result.discarded.length
+                    ? 'Part-downloaded files removed. The next download starts '
+                        + 'from the beginning.'
+                    : 'There was nothing part-downloaded to remove.', 'success');
+            }
+        } catch (e) {
+            this.showToast('Could not remove the partial files: ' + e.message, 'error');
+        }
+        await this.refreshRelatedTopics();
+    }
+
+    _relationsFailureText(error) {
+        const detail = error.detail ? ' (' + error.detail + ')' : '';
+        if (error.kind === 'model_corrupt') {
+            return 'A downloaded file does not match what it should be'
+                + detail + '. Use "Start the download again", then download '
+                + 'it once more.';
+        }
+        return 'The download did not finish' + detail + '.';
+    }
+
+    /**
+     * Draw the bar, and say which file of how many.
+     *
+     * `total` is never null here, unlike the speech panel's: both numbers
+     * come from the pin table rather than from a `Content-Length`, so there
+     * is always a percentage to show. `bytes` starts at what is already on
+     * disk, so a resumed transfer does not crawl from 0% through ground it
+     * has already covered.
+     */
+    _renderRelationsProgress(report) {
+        const wrap = document.getElementById('relationsDownloadProgress');
+        const bar = document.getElementById('relationsDownloadBar');
+        const text = document.getElementById('relationsDownloadText');
+        if (!wrap || !bar || !text) return;
+
+        const bytes = Number(report.bytes || 0);
+        const total = Number(report.total || 0);
+        wrap.style.display = '';
+
+        const pct = total ? Math.max(0, Math.min(100, (bytes / total) * 100)) : 0;
+        bar.style.width = pct.toFixed(1) + '%';
+
+        const amount = this._relationsMegabytes(bytes) + ' of '
+            + this._relationsMegabytes(total) + ' MB';
+        const where = report.file_count
+            ? ' -- file ' + report.file_index + ' of ' + report.file_count
+                + (report.file ? ' (' + report.file + ')' : '')
+            : '';
+        text.textContent = amount + ' (' + Math.round(pct) + '%)' + where;
+
+        // The same position for assistive tech (#401), written where the
+        // width is so the two cannot disagree. valuetext carries megabytes
+        // because a bare percentage of an 845 MB download says little. Not
+        // announced on its own -- a progressbar is read when visited, which
+        // is the throttling #401 asks for.
+        const track = document.getElementById('relationsDownloadTrack');
+        if (track) {
+            track.setAttribute('aria-valuenow', String(Math.round(pct)));
+            track.setAttribute('aria-valuetext',
+                amount + ', ' + Math.round(pct) + ' percent');
+        }
+    }
+
+    _setRelationsDownloadRunning(running) {
+        if (!running) this._relationsDownloadJobId = null;
+        const cancel = document.getElementById('relationsCancelDownloadBtn');
+        if (cancel) cancel.style.display = running ? '' : 'none';
+        const download = document.getElementById('relationsDownloadBtn');
+        if (download && running) download.style.display = 'none';
+        const discard = document.getElementById('relationsDiscardBtn');
+        if (discard && running) discard.style.display = 'none';
+        const progress = document.getElementById('relationsDownloadProgress');
+        if (progress && !running) progress.style.display = 'none';
+    }
+
+    /**
+     * Show or clear the download problem line.
+     *
+     * `retryable` comes straight off the taxonomy -- it is the answer to "is
+     * a retry honest here", and re-deriving it from the kind is how a page
+     * ends up directing a press that cannot work (#174).
+     *
+     * TEXT ONLY, never `display` (#401). The line is `role="alert"`, and a
+     * live region shown in the same moment its text arrives is not reliably
+     * announced -- it has to be in the tree first. Empty, it takes no space.
+     * Clearing it is also what lets a second identical failure be announced
+     * again: `startRelationsDownload` clears it before every attempt.
+     */
+    _setRelationsDownloadError(message, retryable) {
+        const el = document.getElementById('relationsDownloadError');
+        if (!el) return;
+        el.textContent = !message ? ''
+            : retryable ? message + ' You can try again.' : message;
     }
 
 }

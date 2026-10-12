@@ -13,7 +13,14 @@
     <link rel="stylesheet" href="../lib/katex/katex.min.css">
     <!-- Rich Editor CSS -->
     <link rel="stylesheet" href="../css/rich_editor.css">
+    <!-- #60. Per-page: the proposal classes exist nowhere else. -->
+    <link rel="stylesheet" href="../css/relation_proposals.css">
+    <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/escape.js"></script>
+    <!-- #548: the attach picker's note preview reduces a stored note to its
+         words through this, not a detached <div>'s innerHTML. -->
+    <script src="../js/text_preview.js"></script>
     <script src="../js/api/_bridge.js"></script>
     <script src="../js/api/_loader.js"></script>
     <script src="../js/themes.js"></script>
@@ -38,6 +45,7 @@
          question_entry.js, which calls attachDictation() from
          initRichTextEditors(). -->
     <script src="../js/dictation.js"></script>
+    <script src="../js/relation_proposals.js"></script>
 </head>
 <body>
     <!--
@@ -111,6 +119,14 @@
                     <button type="button" class="session-timer-btn" id="btn-timer-pause" title="Pause timer" aria-label="Pause timer" data-testid="entry-form-timer-pause-button">
                         <span id="timer-pause-icon">&#x23F8;</span>
                     </button>
+                    <!-- #504: a break the student takes when they choose, mid-round
+                         or between rounds. Mid-round it stops the round's clock and
+                         starts it again when the break ends; during a break this
+                         same button ends it early. Its name flips with that, via
+                         setTakeBreakAffordance(). -->
+                    <button type="button" class="session-timer-btn" id="btn-take-break" title="Take a break" aria-label="Take a break" data-testid="entry-form-timer-take-break-button">
+                        <span id="take-break-icon">&#x2615;</span>
+                    </button>
                     <button type="button" class="session-timer-btn session-timer-new-round" id="btn-new-round" title="Start new timer round" aria-label="Start a new timer round" style="display: none;" data-testid="entry-form-timer-new-round-button">
                         &#x21BB;
                     </button>
@@ -123,7 +139,7 @@
                         data-testid="entry-form-question-bank-button" hidden>
                     Open question bank
                 </button>
-                <div class="auto-save-indicator" id="auto-save-indicator" data-testid="entry-form-auto-save-indicator">
+                <div class="auto-save-indicator" id="auto-save-indicator" aria-label="Save status" data-testid="entry-form-auto-save-indicator">
                     <span class="auto-save-icon">💾</span>
                     <span class="auto-save-text">Auto-save enabled</span>
                 </div>
@@ -146,7 +162,7 @@
         <!-- Main Content -->
         <main class="entry-content">
             <div data-plugin-slot="entry-before-form"></div>
-            <form id="entry-form" class="entry-form">
+            <form id="entry-form" class="entry-form" data-testid="entry-form-form" aria-label="Entry form">
 
                 <!-- Question information.
 
@@ -227,46 +243,53 @@
                          the chips, so there is nothing to open before you can
                          type. Each row's dropdown escapes into a full-width
                          anchor below it -- see .fact-dropdown-anchor. -->
-                    <div class="fact-row">
-                        <div class="fact-line">
-                            <label class="fact-label" for="primary-subject-search">Primary Subject(s) <span class="required">*</span></label>
-                            <div class="fact-value">
-                                <div class="chip-field">
-                                    <div class="selected-chips" id="primary-subjects-chips">
-                                        <!-- Selected primary subjects will appear here -->
+                    <!-- The two subject rows as one unit, so the tour can point at
+                         the contrast between them (#430, #620 #26). A wrapper
+                         breaks `.fact-row + .fact-row`, which draws the dividers;
+                         entry.css restates them at its edges. -->
+                    <div class="fact-row-group" role="group" aria-label="Subjects"
+                         data-tour-anchor="entry-form-subject-rows">
+                        <div class="fact-row">
+                            <div class="fact-line">
+                                <label class="fact-label" for="primary-subject-search">Primary Subject(s) <span class="required">*</span></label>
+                                <div class="fact-value">
+                                    <div class="chip-field">
+                                        <div class="selected-chips" id="primary-subjects-chips">
+                                            <!-- Selected primary subjects will appear here -->
+                                        </div>
+                                        <input type="text" id="primary-subject-search" class="subject-search"
+                                               placeholder="Search the main topic(s) this question tests..." autocomplete="off"
+                                               data-testid="entry-form-subject-primary-search">
                                     </div>
-                                    <input type="text" id="primary-subject-search" class="subject-search"
-                                           placeholder="Search the main topic(s) this question tests..." autocomplete="off"
-                                           data-testid="entry-form-subject-primary-search">
                                 </div>
                             </div>
+                            <div class="fact-dropdown-anchor">
+                                <div class="subject-dropdown" id="primary-subject-dropdown"></div>
+                            </div>
                         </div>
-                        <div class="fact-dropdown-anchor">
-                            <div class="subject-dropdown" id="primary-subject-dropdown"></div>
-                        </div>
-                    </div>
 
-                    <div class="fact-row">
-                        <div class="fact-line">
-                            <label class="fact-label" for="secondary-subject-search">Secondary Subject(s)</label>
-                            <div class="fact-value">
-                                <div class="chip-field">
-                                    <div class="selected-chips" id="secondary-subjects-chips">
-                                        <!-- Selected secondary subjects will appear here -->
+                        <div class="fact-row">
+                            <div class="fact-line">
+                                <label class="fact-label" for="secondary-subject-search">Secondary Subject(s)</label>
+                                <div class="fact-value">
+                                    <div class="chip-field">
+                                        <div class="selected-chips" id="secondary-subjects-chips">
+                                            <!-- Selected secondary subjects will appear here -->
+                                        </div>
+                                        <input type="text" id="secondary-subject-search" class="subject-search"
+                                               placeholder="Search related topics also tested..." autocomplete="off"
+                                               data-testid="entry-form-subject-secondary-search">
+                                        <button type="button" class="btn btn-sm btn-ghost chip-field-action"
+                                                id="btn-quick-add-subject"
+                                                data-testid="entry-form-subject-add-quick-button">
+                                            + Add New Subject
+                                        </button>
                                     </div>
-                                    <input type="text" id="secondary-subject-search" class="subject-search"
-                                           placeholder="Search related topics also tested..." autocomplete="off"
-                                           data-testid="entry-form-subject-secondary-search">
-                                    <button type="button" class="btn btn-sm btn-ghost chip-field-action"
-                                            id="btn-quick-add-subject"
-                                            data-testid="entry-form-subject-add-quick-button">
-                                        + Add New Subject
-                                    </button>
                                 </div>
                             </div>
-                        </div>
-                        <div class="fact-dropdown-anchor">
-                            <div class="subject-dropdown" id="secondary-subject-dropdown"></div>
+                            <div class="fact-dropdown-anchor">
+                                <div class="subject-dropdown" id="secondary-subject-dropdown"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -316,10 +339,13 @@
                      reflection is the largest thing on the page. -->
                 <div class="entry-writing">
                     <div class="write-block">
-                        <label for="reflection-editor">Why did you get this wrong? <span class="required">*</span></label>
+                        <label for="reflection-editor"><span id="reflection-editor-label">Why did you get this wrong?</span> <span class="required">*</span></label>
                         <p class="form-help">Say it out loud, as if you were teaching it. Where the
                             spoken explanation runs out is the thing you actually missed.</p>
+                        <!-- A <label for> cannot name a div, so the editor region is a
+                             group named by the label's text (without the asterisk). -->
                         <div id="reflection-editor" class="rich-editor-container"
+                             role="group" aria-labelledby="reflection-editor-label"
                              data-testid="entry-form-reflection-editor"></div>
                         <!-- Host for the microphone (#59). Empty in the markup:
                              dictation.js renders into it, and only after the
@@ -328,12 +354,31 @@
                     </div>
 
                     <div class="write-block">
-                        <label for="explanation-editor">Why is the correct answer correct? <span class="required">*</span></label>
+                        <label for="explanation-editor"><span id="explanation-editor-label">Why is the correct answer correct?</span> <span class="required">*</span></label>
                         <p class="form-help">Explain it the way you would to a classmate who asked.
                             If you cannot say it plainly, you have found the gap.</p>
                         <div id="explanation-editor" class="rich-editor-container"
+                             role="group" aria-labelledby="explanation-editor-label"
                              data-testid="entry-form-explanation-editor"></div>
                         <div class="dictation-mount" id="explanation-dictation"></div>
+                        <!-- Relation proposals (#60), immediately after the
+                             explanation because that is what they are read
+                             from: #4695's decision is inline confirmation,
+                             "not a later review queue" -- verification gets
+                             more expensive the further it sits from the
+                             writing.
+
+                             Empty in the markup and left empty by
+                             relation_proposals.js unless the feature can
+                             actually run (#5179): no disabled button, no
+                             notice, no placeholder. Settings carries the one
+                             line that says why. Inside .entry-page, so the
+                             page gate's `inert` covers it and nothing here
+                             can be pressed before the form can keep what it
+                             is given (#114). -->
+                        <div class="relation-proposals-mount"
+                             id="explanation-relations"
+                             data-testid="entry-form-relations-mount"></div>
                     </div>
                 </div>
 
@@ -342,13 +387,15 @@
                      empty, and an empty list is simply absent rather than
                      collapsed behind something to open. -->
                 <div class="entry-attachments">
-                    <div class="attach-block">
+                    <div class="attach-block" role="group" aria-labelledby="entry-notes-label"
+                         data-tour-anchor="entry-form-notes-block">
                         <div class="attach-header">
-                            <span class="attach-label">Notes</span>
+                            <span class="attach-label" id="entry-notes-label">Notes</span>
                             <button type="button"
                                     class="btn btn-sm btn-ghost attach-action"
                                     id="btn-attach-existing-notes"
                                     data-testid="entry-form-notes-attach-existing-button"
+                                    aria-label="Add existing notes"
                                     disabled
                                     title="No matching notes found for this entry's subjects yet"
                                     onclick="openAttachExistingPicker('notes')">
@@ -362,13 +409,15 @@
                         <div id="notes-list-container" data-testid="entry-form-notes-list"></div>
                     </div>
 
-                    <div class="attach-block" id="entry-media-block">
+                    <div class="attach-block" id="entry-media-block" role="group"
+                         aria-labelledby="entry-media-label" data-tour-anchor="entry-form-media-block">
                         <div class="attach-header">
-                            <span class="attach-label">Media Attachments</span>
+                            <span class="attach-label" id="entry-media-label">Media Attachments</span>
                             <button type="button"
                                     class="btn btn-sm btn-ghost attach-action"
                                     id="btn-attach-existing-media"
                                     data-testid="entry-form-media-attach-existing-button"
+                                    aria-label="Add existing images"
                                     disabled
                                     title="No matching images found for this entry's subjects yet"
                                     onclick="openAttachExistingPicker('media')">
@@ -609,6 +658,21 @@
         </div>
     </div>
 
+    <!-- Take a Break Dialog (#504) -->
+    <div class="new-round-dialog-overlay" id="take-break-dialog-overlay" style="display: none;" data-testid="entry-form-take-break-dialog">
+        <div class="new-round-dialog" data-modal-surface role="dialog"
+             aria-modal="true" aria-labelledby="take-break-title">
+            <h2 id="take-break-title">Take a break</h2>
+            <p id="take-break-message" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">The round's clock stops while you are away and starts again when the break ends.</p>
+            <label for="take-break-duration">Break length (minutes)</label>
+            <input type="number" id="take-break-duration" min="1" max="60" value="5" data-testid="entry-form-take-break-duration-input" />
+            <div class="new-round-dialog-actions">
+                <button type="button" class="btn btn-sm btn-outline" onclick="cancelTakeBreak()" data-testid="entry-form-take-break-cancel-button">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="startTakeBreak()" data-testid="entry-form-take-break-start-button">Start break</button>
+            </div>
+        </div>
+    </div>
+
     <!-- New Timer Round Dialog -->
     <div class="new-round-dialog-overlay" id="new-round-dialog-overlay" style="display: none;" data-testid="entry-form-new-round-dialog">
         <div class="new-round-dialog" data-modal-surface role="dialog"
@@ -624,6 +688,11 @@
     </div>
 
     <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner.
+         question_entry.js starts it once the form is released, and again
+         when a tag-context pill mounts. -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
     <script src="../js/question_entry.js"></script>
 </body>
 </html>
