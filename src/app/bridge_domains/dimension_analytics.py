@@ -473,7 +473,10 @@ class DimensionAnalyticsBridgeMixin:
         Get priority-ranked study recommendations.
 
         Args:
-            params_json: JSON with exam_context_id, limit
+            params_json: JSON with exam_context_id, limit, and optionally the
+                cross-dimension heatmap's scope (#824): dimension_a_id,
+                dimension_b_id, level_type_a, level_type_b, parent_node_a_id,
+                parent_node_b_id
 
         Returns:
             JSON response with list of study recommendations
@@ -489,9 +492,16 @@ class DimensionAnalyticsBridgeMixin:
             if not exam_context_id:
                 return serialize_response(False, error='exam_context_id required')
 
+            # The heatmap's own scope (#824); every key is optional.
             result = self.user_db.get_weighted_study_recommendations(
                 exam_context_id=exam_context_id,
-                limit=limit
+                limit=limit,
+                dimension_a_id=params.get('dimension_a_id'),
+                dimension_b_id=params.get('dimension_b_id'),
+                level_type_a=params.get('level_type_a') or None,
+                level_type_b=params.get('level_type_b') or None,
+                parent_node_a_id=params.get('parent_node_a_id'),
+                parent_node_b_id=params.get('parent_node_b_id'),
             )
 
             return serialize_response(True, data=result)

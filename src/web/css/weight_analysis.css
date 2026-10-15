@@ -73,7 +73,7 @@
 /* -----------------------------------------------------------------------
    #133 -- weight-confidence affordances on the efficiency card.
 
-   The icon and tooltip mirror .sunburst-info-icon / .sunburst-info-tooltip
+   The icon and tooltip mirror .card-info-icon / .card-info-tooltip
    in analytics.css (added for #6's non-additive arcs) rather than reusing
    them: those classes are linked per page, and duplicating the twenty
    lines here means the component carries its own styling wherever
@@ -111,7 +111,7 @@
 }
 
 /* #304, and the mirroring noted above is why this is duplicated rather than
-   shared: this icon copies `.sunburst-info-icon` deliberately, so it copied
+   shared: this icon copies `.card-info-icon` deliberately, so it copied
    the `outline: none` too and was the second of the audit's two invisible
    analytics tooltips. Must stay AFTER the rule above -- same specificity,
    source order decides. */
@@ -210,6 +210,18 @@
     margin-bottom: 0.5rem;
 }
 
+/* How many subjects the quadrant holds, and the toggle past the top five
+ * (#817): the list is capped, so the total has to be on screen. */
+.quadrant-count {
+    margin-left: auto;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.quadrant-more {
+    margin-top: var(--space-sm);
+}
+
 .quadrant-icon {
     font-size: var(--font-size-lg);
 }
@@ -229,12 +241,22 @@
     gap: 0.375rem;
 }
 
+/* A subject row: name and count, a bar, then the two figures in words
+   (#827 follow-up). The bar's marks are positioned by percentages written
+   inline, against a scale shared by the whole card. */
 .quadrant-subjects li {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.3125rem;
     font-size: 0.8125rem;
-    padding: 0.25rem 0;
+    padding: 0.375rem 0;
+}
+
+.band-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-sm);
 }
 
 .subject-name {
@@ -242,9 +264,119 @@
     color: var(--text-primary);
 }
 
-.subject-stats {
+.band-row-count {
+    flex-shrink: 0;
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The tree editor's range-bar track (#346), so a band looks the same
+   wherever WIMI draws one. */
+.band-track {
+    position: relative;
+    height: 0.625rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-tertiary);
+    background-image: repeating-linear-gradient(to right,
+        var(--border-color) 0 1px, transparent 1px var(--axis-step));
+    box-shadow: inset 0 0 0 1px var(--border-light);
+}
+
+.band-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--band-left);
+    width: var(--band-width);
+    min-width: 0.25rem;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+}
+
+/* A single figure (a band of 5-5%, or 0%) is a tick, not a sliver. */
+.band-mark.is-point {
+    width: 0.1875rem;
+    min-width: 0;
+    left: clamp(0px, calc(var(--band-left) - 0.09375rem), calc(100% - 0.1875rem));
+    top: -0.1875rem;
+    bottom: -0.1875rem;
+    border-radius: 1px;
+}
+
+/* The student's share: a dot standing proud of the track, ringed in the
+   page background so it reads over the band as well as beside it. */
+.share-mark {
+    position: absolute;
+    top: 50%;
+    left: clamp(0px, calc(var(--share) - 0.4375rem), calc(100% - 0.875rem));
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-top: -0.4375rem;
+    border-radius: var(--radius-full);
+    background: var(--text-primary);
+    box-shadow: 0 0 0 2px var(--bg-primary);
+}
+
+.subject-stats {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.125rem var(--space-sm);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.band-stat-exam,
+.band-stat-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.band-stat-share {
+    margin-left: auto;
+}
+
+.band-swatch {
+    width: 0.75rem;
+    height: 0.5rem;
+    border-radius: 2px;
+    background: var(--color-primary);
+}
+
+.share-swatch {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: var(--radius-full);
+    background: var(--text-primary);
+}
+
+/* The scale sits in a box shaped like a quadrant section -- same border
+   widths, same padding -- so its 0% and its end line up with every track. */
+.band-scale {
+    position: relative;
+    height: 1.125rem;
+    margin: 0 calc(0.75rem + 1px) 0 calc(0.75rem + 3px);
+}
+
+.band-tick {
+    position: absolute;
+    top: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    transform: translateX(-50%);
+    font-variant-numeric: tabular-nums;
+}
+
+.band-tick.is-first {
+    transform: none;
+}
+
+.band-tick.is-last {
+    transform: translateX(-100%);
 }
 
 /* Quadrant-specific colors */

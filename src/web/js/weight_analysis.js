@@ -40,6 +40,43 @@
  */
 const EFFICIENCY_SCORE_ENABLED = false;
 
+/** Subjects drawn per quadrant before "Show all" (owner, #817). */
+const QUADRANT_LIMIT = 5;
+
+/** Gridline steps for the shared scale, smallest first (#827 follow-up). */
+const BAND_AXIS_STEPS = [1, 2, 5, 10, 20, 25, 50];
+
+/**
+ * One scale for every row on the card, so a bar in Priority and a bar in
+ * Low Priority can be compared by eye. Its end is the largest figure on the
+ * card -- a share or a band's top -- rounded up to a step, never 100%: the
+ * rows are shares of one exam that do not sum to 100 (#6, #64), and a
+ * 0-100 axis would squeeze every band into its first tenth. The tree
+ * editor's range bars take their end the same way (#346).
+ */
+function bandAxisFor(subjects) {
+    const top = subjects.reduce((m, s) => Math.max(m,
+        Number(s.mistake_percentage) || 0,
+        Number(s.exam_weight_high ?? s.exam_weight) || 0), 0);
+    if (!(top > 0)) return null;
+    let step = BAND_AXIS_STEPS[BAND_AXIS_STEPS.length - 1];
+    for (const candidate of BAND_AXIS_STEPS) {
+        if (top / candidate <= 4) { step = candidate; break; }
+    }
+    const max = Math.ceil(top / step) * step;
+    const ticks = [];
+    for (let v = 0; v <= max + 1e-9; v += step) ticks.push(Math.round(v * 1000) / 1000);
+    return {max, step, ticks};
+}
+
+/** The four quadrants, in reading order. ``key`` is the payload's. */
+const QUADRANTS = [
+    {key: 'priority', cls: 'priority', icon: '🔴', title: 'Priority (Focus Here)'},
+    {key: 'well_maintained', cls: 'well-maintained', icon: '🟢', title: 'Well-Maintained'},
+    {key: 'reduce_focus', cls: 'reduce-focus', icon: '🟡', title: 'Reduce Focus'},
+    {key: 'low_priority', cls: 'low-priority', icon: '⚪', title: 'Low Priority'},
+];
+
 class WeightAnalysis {
     constructor(containerId, api) {
         this.container = document.getElementById(containerId);
@@ -142,8 +179,18 @@ class WeightAnalysis {
     /**
      * Load and render weight analysis
      * @param {number} examContextId - Exam context ID (required)
+     * @param {object} scope - Optional {dimensionId, levelType} (#820):
+     *     list one dimension's subjects at one level. Empty lists every
+     *     weighted subject, which is what an exam without dimensions gets.
      */
-    async load(examContextId) {
+    async load(examContextId, scope = {}) {
+        // Only the newest load may draw: two quick picker changes must not
+        // let the slower, older answer land last.
+        const seq = (this.loadSeq = (this.loadSeq || 0) + 1);
+        const scopeKey = `${scope.dimensionId ?? ''}|${scope.levelType ?? ''}`;
+        if (scopeKey !== this.scopeKey) this.expandedQuadrants = new Set();
+        this.scopeKey = scopeKey;
+        this.scope = scope;
         console.log('[WeightAnalysis] Starting load with examContextId:', examContextId);
         
         if (!examContextId) {
@@ -155,7 +202,12 @@ class WeightAnalysis {
         try {
             console.log('[WeightAnalysis] Calling API.getSubjectExamWeightAnalysis...');
             
-            const data = await this.api.getSubjectExamWeightAnalysis({ examContextId });
+            const data = await this.api.getSubjectExamWeightAnalysis({
+                examContextId,
+                dimensionId: scope.dimensionId ?? null,
+                levelType: scope.levelType || null,
+            });
+            if (seq !== this.loadSeq) return;
             
             console.log('[WeightAnalysis] Data received:', data);
 
@@ -180,6 +232,7 @@ class WeightAnalysis {
                 return;
             }
 
+            if (seq !== this.loadSeq) return;
             this.data = data;
             
             console.log('[WeightAnalysis] Calling render...');
@@ -187,6 +240,7 @@ class WeightAnalysis {
             console.log('[WeightAnalysis] Render complete');
 
         } catch (error) {
+            if (seq !== this.loadSeq) return;
             console.error('[WeightAnalysis] Exception caught:', error);
             console.error('[WeightAnalysis] Error stack:', error.stack);
             this.renderError(`Failed to load analysis: ${error.message}`);
@@ -225,122 +279,121 @@ class WeightAnalysis {
     }
 
     /**
-     * Render quadrant analysis with categorized subjects
+     * Render quadrant analysis with categorized subjects.
+     *
+     * Each quadrant shows its QUADRANT_LIMIT subjects with the largest gap
+     * between mistake share and exam weight, and a toggle for the rest
+     * (owner, #817). Before that every subject of every quadrant was drawn:
+     * dozens of screens on a full published blueprint, where almost every
+     * subject has no entries and still lands in a quadrant.
      */
     renderQuadrantAnalysis() {
         const container = document.getElementById('quadrantAnalysis');
         if (!container) return;
 
         const quadrants = this.data.quadrant_analysis;
+        if (!this.expandedQuadrants) this.expandedQuadrants = new Set();
+        // From every subject, not the rows on screen, so "Show all" does
+        // not rescale the bars already drawn.
+        const axis = bandAxisFor(this.data.subjects || []);
+        const axisStyle = axis
+            ? ` style="--axis-step: ${((axis.step / axis.max) * 100).toFixed(3)}%"` : '';
 
-        let html = '<div class="quadrant-list">';
-
-        // Priority (Red) - Focus Here
-        if (quadrants.priority && quadrants.priority.length > 0) {
+        let html = `<div class="quadrant-list"${axisStyle}>`;
+        QUADRANTS.forEach(q => {
+            const subjects = (quadrants[q.key] || []).slice()
+                .sort((a, b) => Math.abs(b.difference || 0) - Math.abs(a.difference || 0));
+            if (!subjects.length) return;
+            const open = this.expandedQuadrants.has(q.key);
+            const shown = open ? subjects : subjects.slice(0, QUADRANT_LIMIT);
             html += `
-                <div class="quadrant-section priority">
+                <div class="quadrant-section ${q.cls}">
                     <div class="quadrant-header">
-                        <span class="quadrant-icon">🔴</span>
-                        <span class="quadrant-title">Priority (Focus Here)</span>
+                        <span class="quadrant-icon">${q.icon}</span>
+                        <span class="quadrant-title">${q.title}</span>
+                        <span class="quadrant-count">${subjects.length}</span>
                     </div>
                     <ul class="quadrant-subjects">
             `;
-            
-            quadrants.priority.forEach(subject => {
-                html += `
-                    <li>
-                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
-                        <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
-                    </li>
-                `;
-            });
-            
-            html += `
-                    </ul>
-                </div>
-            `;
-        }
-
-        // Well-Maintained (Green) - Keep Up
-        if (quadrants.well_maintained && quadrants.well_maintained.length > 0) {
-            html += `
-                <div class="quadrant-section well-maintained">
-                    <div class="quadrant-header">
-                        <span class="quadrant-icon">🟢</span>
-                        <span class="quadrant-title">Well-Maintained</span>
-                    </div>
-                    <ul class="quadrant-subjects">
-            `;
-            
-            quadrants.well_maintained.forEach(subject => {
-                html += `
-                    <li>
-                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
-                        <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
-                    </li>
-                `;
-            });
-            
-            html += `
-                    </ul>
-                </div>
-            `;
-        }
-
-        // Reduce Focus (Yellow) - Over-studying
-        if (quadrants.reduce_focus && quadrants.reduce_focus.length > 0) {
-            html += `
-                <div class="quadrant-section reduce-focus">
-                    <div class="quadrant-header">
-                        <span class="quadrant-icon">🟡</span>
-                        <span class="quadrant-title">Reduce Focus</span>
-                    </div>
-                    <ul class="quadrant-subjects">
-            `;
-            
-            quadrants.reduce_focus.forEach(subject => {
-                html += `
-                    <li>
-                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
-                        <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
-                    </li>
-                `;
-            });
-            
-            html += `
-                    </ul>
-                </div>
-            `;
-        }
-
-        // Low Priority (Gray) - Acceptable
-        if (quadrants.low_priority && quadrants.low_priority.length > 0) {
-            html += `
-                <div class="quadrant-section low-priority">
-                    <div class="quadrant-header">
-                        <span class="quadrant-icon">⚪</span>
-                        <span class="quadrant-title">Low Priority</span>
-                    </div>
-                    <ul class="quadrant-subjects">
-            `;
-            
-            quadrants.low_priority.forEach(subject => {
-                html += `
-                    <li>
-                        <span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>
-                        <span class="subject-stats">(${subject.mistake_percentage}% vs ${this.formatWeightDisplay(subject)})${this.renderSourceMarker(subject)}</span>
-                    </li>
-                `;
-            });
-            
-            html += `
-                    </ul>
-                </div>
-            `;
-        }
-
+            shown.forEach(subject => { html += this.renderBandRow(subject, axis); });
+            html += '</ul>';
+            if (subjects.length > QUADRANT_LIMIT) {
+                html += `<button type="button" class="btn btn-secondary btn-sm quadrant-more"
+                                 data-quadrant="${q.key}" aria-expanded="${open}">${
+                            open ? `Show top ${QUADRANT_LIMIT}` : `Show all ${subjects.length}`}</button>`;
+            }
+            html += '</div>';
+        });
+        if (axis) html += this.renderBandScale(axis);
         html += '</div>';
         container.innerHTML = html;
+
+        if (!container.dataset.quadrantToggle) {
+            container.dataset.quadrantToggle = 'wired';
+            container.addEventListener('click', (event) => {
+                const button = event.target.closest('button.quadrant-more');
+                if (!button) return;
+                const key = button.dataset.quadrant;
+                if (this.expandedQuadrants.has(key)) this.expandedQuadrants.delete(key);
+                else this.expandedQuadrants.add(key);
+                this.renderQuadrantAnalysis();
+                const again = container.querySelector(`button.quadrant-more[data-quadrant="${key}"]`);
+                if (again) again.focus();
+            });
+        }
+    }
+
+    /**
+     * One subject: its name and count, then a bar on the card's shared scale
+     * with the exam's band shaded and the student's share as a dot, then the
+     * two figures in words (#827 follow-up, owner's choice of three layouts).
+     *
+     * The words sit in two fixed places under the bar, not under the marks:
+     * a share inside or beside its band would put the two labels on top of
+     * each other. Each carries the swatch of its mark, which is the link
+     * between the words and the bar. The weight-source glyph sits by the
+     * name: beside the figures, official's filled circle read as a second
+     * share dot. The bar is decoration for a sighted
+     * reader; everything it says is also in the text.
+     */
+    renderBandRow(subject, axis) {
+        const count = subject.mistake_count ?? 0;
+        const low = Number(subject.exam_weight_low ?? subject.exam_weight) || 0;
+        const high = Number(subject.exam_weight_high ?? subject.exam_weight) || 0;
+        const share = Number(subject.mistake_percentage) || 0;
+        let bar = '';
+        if (axis) {
+            const pct = v => Math.min(100, (v / axis.max) * 100).toFixed(3);
+            const point = low === high;
+            bar = `
+                        <div class="band-track" aria-hidden="true">
+                            <span class="band-mark${point ? ' is-point' : ''}"
+                                  style="--band-left: ${pct(low)}%; --band-width: ${(pct(high) - pct(low)).toFixed(3)}%"></span>
+                            <span class="share-mark" style="--share: ${pct(share)}%"></span>
+                        </div>`;
+        }
+        return `
+                    <li class="band-row">
+                        <div class="band-row-head">
+                            <span class="band-row-name"><span class="subject-name">${WimiEscape.html(subject.subject_name)}</span>${this.renderSourceMarker(subject)}</span>
+                            <span class="band-row-count">${count} ${count === 1 ? 'mistake' : 'mistakes'}</span>
+                        </div>${bar}
+                        <div class="subject-stats">
+                            <span class="band-stat-exam"><span class="band-swatch" aria-hidden="true"></span>${this.formatWeightDisplay(subject)} of the exam</span>
+                            <span class="band-stat-share"><span class="share-swatch" aria-hidden="true"></span>${subject.mistake_percentage}% of your mistakes</span>
+                        </div>
+                    </li>
+                `;
+    }
+
+    /** The shared scale, once, under the last group (#827 follow-up). */
+    renderBandScale(axis) {
+        const ticks = axis.ticks.map((t, i) => {
+            const cls = i === 0 ? ' is-first' : (i === axis.ticks.length - 1 ? ' is-last' : '');
+            return `<span class="band-tick${cls}" style="left: ${((t / axis.max) * 100).toFixed(3)}%">${t}%</span>`;
+        }).join('');
+        return `
+                <div class="band-scale" aria-hidden="true">${ticks}</div>`;
     }
 
     /**
@@ -548,12 +601,37 @@ class WeightAnalysis {
      * Render empty state
      */
     renderEmpty() {
+        if (this.scope && this.scope.levelType) {
+            this.renderPrompt(
+                'No subject at this level has an exam weight.',
+                'Choose another level, or add weights in the tree editor.');
+            return;
+        }
         this.container.innerHTML = `
             <div class="empty-state">
                 <p>No weight analysis data available.</p>
                 <p class="empty-hint">This analysis requires subjects with exam weights and logged mistakes.</p>
             </div>
         `;
+    }
+
+    /**
+     * Say what to do instead of drawing (#820). Text only, never markup.
+     */
+    renderPrompt(message, hint) {
+        this.data = null;
+        const box = document.createElement('div');
+        box.className = 'empty-state';
+        const p = document.createElement('p');
+        p.textContent = message;
+        box.appendChild(p);
+        if (hint) {
+            const h = document.createElement('p');
+            h.className = 'empty-hint';
+            h.textContent = hint;
+            box.appendChild(h);
+        }
+        this.container.replaceChildren(box);
     }
 
     /**

@@ -45,5 +45,10 @@ def seed_analytics_tour_exam(db: Any, name: str) -> dict:
             db.create_question_entry(session.id, "a", "b", perceived_difficulty=3,
                                      explanation="<p>E</p>", reflection="<p>R</p>",
                                      primary_subject_ids=[a, b])
+    # The weight card shows one axis at a time and, with Settings left on
+    # All Dimensions, asks which (#820, owner's decision). The weighted axis
+    # as the default is the state a student who has chosen one is in, and
+    # the only one in which the card's tour anchors exist on load.
+    db.update_exam_analytics_config(exam.id, {"default_dimension_id": system})
     db.conn.commit()
     return {"exam": exam.id}

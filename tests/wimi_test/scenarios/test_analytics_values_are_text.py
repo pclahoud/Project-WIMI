@@ -151,7 +151,8 @@ def test_dashboard_cards_show_stored_names_as_text(
     cell = 'analytics-cross-dim-cell-%d-%d' % (ids['a1'], ids['b1'])
     wimi_page.eval_js("document.querySelector('[data-testid=\"%s\"]')"
                       ".dispatchEvent(new MouseEvent('mouseenter'))" % cell)
-    tip = _state(wimi_page)['tooltip']
+    before = _state(wimi_page)
+    tip = before['tooltip']
     wimi_page.eval_js("document.querySelector('[data-testid=\"analytics-cross-dim-row-header-%d\"]')"
                       ".dispatchEvent(new MouseEvent('click', {bubbles: true}))" % ids['a1'])
     assert poll(wimi_page, "document.querySelectorAll('#breadcrumbPathA .breadcrumb-link').length > 0",
@@ -165,8 +166,10 @@ def test_dashboard_cards_show_stored_names_as_text(
     assert state['tags'] == [TAG_NAME], state['tags']
     assert state['tag_swatch'] == '', (
         f'a colour that is not a colour should paint nothing: {state["tag_swatch"]!r}')
-    assert f'{A_NAME} × {B_NAME}' in state['recs'], state['recs']
-    assert any(A_NAME in t and B_NAME in t for t in state['rec_text']), state['rec_text']
+    # Read before the drill: Study Recommendations follows the heatmap's
+    # drill-down since #824, so afterwards it ranks the payload row's topic.
+    assert f'{A_NAME} × {B_NAME}' in before['recs'], before['recs']
+    assert any(A_NAME in t and B_NAME in t for t in before['rec_text']), before['rec_text']
     assert f'{A_NAME} × {B_NAME}' in state['effects'], state['effects']
     assert tip is not None and tip['imgs'] == 0, tip
     assert tip['header'] == f'{A_NAME} × {B_NAME}', tip

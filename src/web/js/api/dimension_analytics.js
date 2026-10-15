@@ -126,9 +126,16 @@
     api.getWeightedStudyRecommendations = async function(params) {
         params = params || {};
         if (!params.examContextId) throw new Error('examContextId is required');
+        // The rest is the cross-dimension heatmap's scope (#824), all optional.
         return api._callBridge('getWeightedStudyRecommendations', JSON.stringify({
             exam_context_id: params.examContextId,
-            limit: params.limit || 10
+            limit: params.limit || 10,
+            dimension_a_id: params.dimensionAId ?? null,
+            dimension_b_id: params.dimensionBId ?? null,
+            level_type_a: params.levelTypeA || null,
+            level_type_b: params.levelTypeB || null,
+            parent_node_a_id: params.parentNodeAId ?? null,
+            parent_node_b_id: params.parentNodeBId ?? null
         }));
     };
 

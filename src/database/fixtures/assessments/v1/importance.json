@@ -1,0 +1,10 @@
+[
+  {"item_code": "imp_exam_01",       "prompt": "Doing well on my upcoming high-stakes exam is one of my top priorities right now.", "subscale": "exam"},
+  {"item_code": "imp_exam_02",       "prompt": "My score on this exam is something I care deeply about.",                              "subscale": "exam"},
+  {"item_code": "imp_clinical_01",   "prompt": "Becoming a genuinely competent clinician matters to me far more than any individual grade.", "subscale": "clinical"},
+  {"item_code": "imp_clinical_02",   "prompt": "I think often about the kind of doctor I want to become.",                             "subscale": "clinical"},
+  {"item_code": "imp_mastery_01",    "prompt": "Truly understanding the material is more important to me than simply passing.",        "subscale": "mastery"},
+  {"item_code": "imp_mastery_02",    "prompt": "Mastering the content — not just memorizing enough to pass — is central to why I study.", "subscale": "mastery"},
+  {"item_code": "imp_reflection_01", "prompt": "Taking time to think carefully about my mistakes is worth the effort.",               "subscale": "reflection"},
+  {"item_code": "imp_reflection_02", "prompt": "Reflecting on what I got wrong is one of the most valuable things I can do as a learner.", "subscale": "reflection"}
+]

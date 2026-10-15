@@ -820,3 +820,166 @@ class TestStructureCheck:
 
         assert _logical_dump(bob_db) == before
         assert dest_master.get_user(bob.id).display_name == "Bob Target"
+
+
+# ==================== #776: an installed profile is rehomed to its new id ====================
+
+USER_ID_TABLES_2026_10_12 = {
+    "entry_media", "exam_contexts", "question_sources", "reflection_themes",
+    "review_sessions", "user_assessment_preferences", "user_assessments",
+    "user_goals", "user_preferences",
+    # #778 Wave 0 (m033): exam-less plans are allowed, so both tables scope
+    # by user_id and are rehomed on install like the rest.
+    "planned_sessions", "session_templates",
+}
+
+
+def _user_id_tables(db_path: Path) -> set:
+    conn = sqlite3.connect(str(db_path))
+    try:
+        names = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        return {t for t in names
+                if any(c[1] == 'user_id' for c in conn.execute(f'PRAGMA table_info("{t}")'))}
+    finally:
+        conn.close()
+
+
+def _foreign_user_ids(db_path: Path, own_id: int) -> dict:
+    """{table: [other user_ids]} for every table still naming somebody else."""
+    conn = sqlite3.connect(str(db_path))
+    try:
+        out = {}
+        for t in _user_id_tables(db_path):
+            others = [r[0] for r in conn.execute(
+                f'SELECT DISTINCT user_id FROM "{t}" WHERE user_id IS NOT NULL AND user_id != ?',
+                (own_id,))]
+            if others:
+                out[t] = others
+        return out
+    finally:
+        conn.close()
+
+
+class TestInstallRehomesUserId:
+    """#776. The archive's user database names the SENDER's ``users.id``;
+    every read filters on the receiver's. Each test here installs under an
+    id that differs from the one the profile left with, because the round
+    trip into a fresh master (1 -> 1) is exactly the case that hid this."""
+
+    def test_the_user_id_tables_are_the_ones_the_fix_was_written_against(self, dest_master):
+        """Discovery, not a pin on the fix: the rehome reads the list from
+        sqlite_master, so a new table is covered automatically. This test
+        exists so a schema change shows up here with a sentence, rather than
+        silently widening what the fix touches."""
+        u = dest_master.create_user(username="probe", display_name="P")
+        db_path = dest_master.ensure_user_database(u.id)
+        UserDatabase(db_path=db_path, user_id=u.id, username="probe").close()
+        assert _user_id_tables(db_path) == USER_ID_TABLES_2026_10_12
+
+    def test_installed_under_a_different_id_the_exams_are_visible(self, alice_archive, dest_master):
+        dest_master.create_user(username="occupant", display_name="Already Here")
+        result = install_profile_as_new(dest_master, alice_archive)
+        user = dest_master.get_user(result["user_id"])
+        assert user.id != 1, "the test needs the new id to differ from alice's (1)"
+
+        db_path = dest_master.users_dir / user.database_filename
+        assert _foreign_user_ids(db_path, user.id) == {}
+        db = UserDatabase(db_path=db_path, user_id=user.id, username=user.username)
+        try:
+            exams = db.get_all_exam_contexts()
+            assert [e.exam_name for e in exams] == ["Sample Exam"]
+            sessions = db.fetchone(
+                "SELECT COUNT(*) AS n FROM review_sessions WHERE user_id = ?", (user.id,))
+            assert sessions["n"] == 1
+        finally:
+            db.close()
+        assert result["warnings"] == []
+
+    def test_the_archives_preferences_win_over_the_fresh_defaults(
+            self, source_master, alice, dest_master, tmp_path):
+        src_db = UserDatabase(db_path=source_master.users_dir / alice.database_filename,
+                              user_id=alice.id, username=alice.username)
+        try:
+            src_db.update_preferences(theme_name="midnight")
+        finally:
+            src_db.close()
+        archive = tmp_path / "alice_prefs.wimi"
+        build_profile_archive(source_master, alice.id, archive, include_media=False)
+
+        dest_master.create_user(username="occupant", display_name="Already Here")
+        result = install_profile_as_new(dest_master, archive)
+        user = dest_master.get_user(result["user_id"])
+        db_path = dest_master.users_dir / user.database_filename
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            rows = conn.execute("SELECT user_id, theme_name FROM user_preferences").fetchall()
+        finally:
+            conn.close()
+        assert rows == [(user.id, "midnight")], (
+            "the verify-open's default row must yield to the archive's, and only one may remain")
+
+    def test_replace_profile_rehomes_to_the_target_id(self, alice_archive, dest_master):
+        dest_master.create_user(username="occupant", display_name="Already Here")
+        bob = dest_master.create_user(username="bob", display_name="Bob")
+        bob_db = dest_master.ensure_user_database(bob.id)
+        UserDatabase(db_path=bob_db, user_id=bob.id, username="bob").close()
+        assert bob.id != 1
+
+        replace_profile(dest_master, alice_archive, target_user_id=bob.id,
+                        active_user_id=None, confirm_replace=True)
+
+        assert _foreign_user_ids(bob_db, bob.id) == {}
+        db = UserDatabase(db_path=bob_db, user_id=bob.id, username="bob")
+        try:
+            assert [e.exam_name for e in db.get_all_exam_contexts()] == ["Sample Exam"]
+        finally:
+            db.close()
+
+    def test_an_install_under_the_same_id_rewrites_nothing(self, alice_archive, dest_master):
+        """The control: 1 -> 1 was always fine, and must stay a no-op."""
+        result = install_profile_as_new(dest_master, alice_archive)
+        user = dest_master.get_user(result["user_id"])
+        assert user.id == 1
+        db_path = dest_master.users_dir / user.database_filename
+        assert _foreign_user_ids(db_path, 1) == {}
+        db = UserDatabase(db_path=db_path, user_id=1, username=user.username)
+        try:
+            assert [e.exam_name for e in db.get_all_exam_contexts()] == ["Sample Exam"]
+        finally:
+            db.close()
+
+    def test_two_foreign_ids_collapse_to_one_preferences_row_with_a_warning(
+            self, alice_archive, dest_master, tmp_path):
+        """An archive exported from an install this bug had already touched
+        carries the real preferences under the old id AND a default row the
+        buggy install created under its own id. Deterministic outcome: one
+        row, and the caller is told."""
+        db_tmp = _extract_db(alice_archive, tmp_path / "x")
+        conn = sqlite3.connect(str(db_tmp))
+        try:
+            # alice never read her preferences, so the seeded archive has no
+            # row for her at all; write both rows explicitly, with dates.
+            conn.execute("DELETE FROM user_preferences")
+            conn.execute(
+                "INSERT INTO user_preferences (user_id, theme_name, updated_at) "
+                "VALUES (1, 'midnight', '2026-06-01 00:00:00')")
+            conn.execute(
+                "INSERT INTO user_preferences (user_id, theme_name, updated_at) "
+                "VALUES (9, 'default', '2000-01-01 00:00:00')")
+            conn.commit()
+        finally:
+            conn.close()
+        tampered = _rezip_with_db(alice_archive, db_tmp, tmp_path / "two_ids.wimi")
+
+        dest_master.create_user(username="occupant", display_name="Already Here")
+        result = install_profile_as_new(dest_master, tampered)
+        user = dest_master.get_user(result["user_id"])
+        conn = sqlite3.connect(str(dest_master.users_dir / user.database_filename))
+        try:
+            rows = conn.execute("SELECT user_id, theme_name FROM user_preferences").fetchall()
+        finally:
+            conn.close()
+        assert rows == [(user.id, "midnight")]
+        assert any("different profile ids" in w for w in result["warnings"])

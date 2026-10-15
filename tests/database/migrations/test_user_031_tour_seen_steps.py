@@ -33,7 +33,7 @@ def test_registry_has_v31_and_keeps_the_gaps():
     for skipped in (8, 11, 12, 13, 14, 29):
         assert skipped not in versions
     assert {m.version: m.name for m in MIGRATIONS}[31] == "tour_seen_steps"
-    assert max(versions) == 31
+    # The max(versions) snapshot moved to m032's test, as instructed above.
 
 
 def test_an_existing_profile_gains_an_empty_list(fresh_conn):

@@ -96,6 +96,35 @@
                         <button type="button" class="btn btn-secondary" id="sync-notice-dismiss">Dismiss</button>
                     </div>
                 </section>
+                <!-- The self-assessment offer (#766 Wave 3, decision 6).
+                     Ships hidden and is revealed by assessment_notice.js only
+                     once the status is known, so a failed read paints nothing.
+                     Shows on a profile with no completed administration unless
+                     a snooze is in force, and again when re-measurement is due.
+                     "Later" is a 7-day snooze, which is how it persists until
+                     completed without nagging on every launch. -->
+                <section class="assessment-notice" id="assessment-notice" data-testid="dashboard-assessment-notice" hidden>
+                    <p class="assessment-notice-text" id="assessment-notice-text"></p>
+                    <div class="assessment-notice-actions">
+                        <a href="assessment.html" class="btn btn-primary" id="assessment-notice-take" data-testid="dashboard-assessment-take">Take it now</a>
+                        <button type="button" class="btn btn-secondary" id="assessment-notice-later" data-testid="dashboard-assessment-later">Later</button>
+                        <button type="button" class="btn btn-secondary" id="assessment-notice-snooze-long" data-testid="dashboard-assessment-snooze-long" hidden>Snooze 30 days</button>
+                    </div>
+                </section>
+                <!-- Planned-session reminder (#778 Wave 3, decision 7). Ships
+                     hidden; session_reminder_notice.js reveals it only after
+                     getSessionReminders answers, for plans due today or
+                     overdue, once per profile per launch (Dismiss is bridge
+                     state). No toasts in v1: WIMI cannot remind you while it
+                     is closed, and this notice does not pretend to. -->
+                <section class="session-reminder-notice" id="session-reminder-notice" data-testid="dashboard-session-reminder" hidden>
+                    <p class="session-reminder-text" id="session-reminder-text"></p>
+                    <div class="session-reminder-actions">
+                        <a href="calendar.html" class="btn btn-primary" id="session-reminder-start" data-testid="dashboard-session-reminder-start">Start session</a>
+                        <a href="calendar.html" class="btn btn-secondary" id="session-reminder-calendar" data-testid="dashboard-session-reminder-calendar">Open calendar</a>
+                        <button type="button" class="btn btn-secondary" id="session-reminder-dismiss" data-testid="dashboard-session-reminder-dismiss">Dismiss</button>
+                    </div>
+                </section>
                 <!-- Analytics Preview Section -->
                 <section class="analytics-preview-section" id="analytics-preview-container">
                     <!-- Analytics preview will be rendered here by JavaScript -->
@@ -108,9 +137,14 @@
                             <span class="section-title-icon">🎯</span>
                             Your Exams
                         </h2>
-                        <a href="wizards/exam_wizard.html" class="btn btn-primary">
-                            + Create New Exam
-                        </a>
+                        <div class="section-header-actions">
+                            <!-- #778 decision 12: the calendar's entry point lives here, not
+                                 in the hero (#313's compact header has full corners). -->
+                            <a href="calendar.html" class="btn btn-secondary" data-testid="dashboard-calendar-link">Calendar</a>
+                            <a href="wizards/exam_wizard.html" class="btn btn-primary">
+                                + Create New Exam
+                            </a>
+                        </div>
                     </div>
                     
                     <div id="exams-grid" class="exam-cards-grid">
@@ -168,5 +202,7 @@
     <script src="../js/tour_steps.js"></script>
     <script src="../js/tour.js"></script>
     <script src="../js/landing.js"></script>
+    <script src="../js/assessment_notice.js"></script>
+    <script src="../js/session_reminder_notice.js"></script>
 </body>
 </html>

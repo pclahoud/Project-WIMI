@@ -1,0 +1,4 @@
+[
+  {"item_code": "atc_01", "prompt": "To show you are paying attention, please select 'Moderate disagreement' for this item.", "expected_response": 3, "scale": "likert_9", "insert_after_item_code": "nfc_17"},
+  {"item_code": "atc_02", "prompt": "Please select 'Agree somewhat' for this item.",                                           "expected_response": 4, "scale": "likert_6", "insert_after_item_code": "lgo_learning_03"}
+]

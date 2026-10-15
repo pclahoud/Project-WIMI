@@ -169,8 +169,14 @@ _KEYS: dict[str, tuple[int, str | None]] = {
     " ": (32, " "),
     "F2": (113, None),
     "Escape": (27, None),
+    "ArrowLeft": (37, None),
+    "ArrowUp": (38, None),
     "ArrowRight": (39, None),
     "ArrowDown": (40, None),
+    "Home": (36, None),
+    "End": (35, None),
+    "PageUp": (33, None),
+    "PageDown": (34, None),
 }
 
 
@@ -302,7 +308,7 @@ def has_focus_ring(stop: dict) -> bool:
 
     Only the ``outline`` is read. A ``box-shadow`` ring would also be
     visible, but every site these tests cover sets ``outline: none``
-    explicitly (measured: ``.sunburst-info-icon:focus``,
+    explicitly (measured: ``.card-info-icon:focus``,
     ``.efficiency-info-icon:focus`` and ``.search-help-icon:focus`` all do),
     so the fix is an outline and the assertion follows the fix.
 

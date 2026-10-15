@@ -53,8 +53,9 @@ class SettingsPage {
             entry_review_items_per_page: 25,
             entry_review_default_sort_field: 'answered_incorrectly_date',
             entry_review_default_sort_direction: 'desc',
-            anki_integration_enabled: false,
-            ankiconnect_port: 8765,
+            // anki_integration_enabled and ankiconnect_port are not here (#784):
+            // Settings -> Anki saves them itself on change, so a Reset must not
+            // switch Anki off behind a panel that says nothing waits for Save.
             auto_backup_enabled: true,
             backup_frequency_hours: 24,
             backup_retention_days: 30,
@@ -843,6 +844,7 @@ class SettingsPage {
             // block. Anything the student changes from here on is not in
             // `changes` (#119, #267).
             const savedGeneration = this.editGeneration;
+            const storedBefore = this.originalPreferences;
 
             const updated = await api.updateUserPreferences(changes);
             // What the server now holds, whatever happened meanwhile.
@@ -868,14 +870,7 @@ class SettingsPage {
             // the counter. There is nothing to do but not undo it.
             if (window.eventBus) eventBus.emit('settings:changed', updated);
 
-            // Handle MCP server start/stop based on preference change
-            if ('mcp_server_enabled' in changes) {
-                await this._applyMcpServerState(updated.mcp_server_enabled, updated.mcp_server_port);
-            } else if ('mcp_server_port' in changes && updated.mcp_server_enabled) {
-                // Port changed while enabled — restart
-                await api.stopMcpServer();
-                await this._applyMcpServerState(true, updated.mcp_server_port);
-            }
+            await this._reconcileMcpServer(storedBefore, updated);
 
             // A partial success must not read as a complete one (#240's rule,
             // #119's second half). "Settings saved successfully" beside a
@@ -910,15 +905,21 @@ class SettingsPage {
         // and IS reset; the line is whether a control waits for Save.
         if (!confirm('Reset everything Save covers to its default? Controls that save '
             + 'themselves keep their values: per-exam analytics, question bank '
-            + 'addresses, Desktop site switches and add-ons. Your exams, subjects '
+            + 'addresses, Desktop site switches, Anki and add-ons. Your exams, subjects '
             + 'and entries are untouched.')) return;
         try {
+            const storedBefore = this.originalPreferences;
             const updated = await api.updateUserPreferences(this.DEFAULTS);
             this.originalPreferences = JSON.parse(JSON.stringify(updated));
             this.currentPreferences = JSON.parse(JSON.stringify(updated));
             this.populateForm(updated);
             this.revertLivePreview();
             this.clearDirty();
+            // Reset writes mcp_server_enabled: false like any other default, so
+            // it has to stop the server the way Save would (#707). Before this
+            // the box read unticked while the server kept listening until the
+            // next launch.
+            await this._reconcileMcpServer(storedBefore, updated);
             this.showToast('Everything Save covers is back to its default', 'success');
         } catch (e) {
             console.error('Failed to reset settings:', e);
@@ -996,6 +997,10 @@ class SettingsPage {
                 dimGroup.style.display = 'none';
             }
 
+            // The weight card's minimum (#828); every exam has one.
+            const minInput = document.getElementById('min_mistakes_to_flag');
+            if (minInput) minInput.value = String(config.min_mistakes_to_flag ?? 3);
+
             // Render chart toggles
             this.renderChartToggles(config.chart_visibility, hasDimensions);
 
@@ -1065,11 +1070,22 @@ class SettingsPage {
             chartVisibility[cb.dataset.chartKey] = cb.checked;
         });
 
+        // A whole number from 1 to 50 (#828). Refused with a sentence rather
+        // than clamped, so what is saved is what the student typed.
+        const minInput = document.getElementById('min_mistakes_to_flag');
+        const minMistakes = minInput ? Number(minInput.value) : undefined;
+        if (minInput && !(Number.isInteger(minMistakes) && minMistakes >= 1 && minMistakes <= 50)) {
+            this.showToast('The minimum number of mistakes must be a whole number from 1 to 50.', 'error');
+            minInput.focus();
+            return;
+        }
+
         try {
             await api.updateExamAnalyticsConfig({
                 examContextId: this._selectedExamId,
                 defaultDimensionId: defaultDimensionId,
-                chartVisibility: chartVisibility
+                chartVisibility: chartVisibility,
+                minMistakesToFlag: minMistakes
             });
             this.showToast('Exam analytics config saved', 'success');
         } catch (e) {
@@ -1987,6 +2003,26 @@ class SettingsPage {
         if (instructions) instructions.style.display = 'none';
     }
 
+    /**
+     * Make the running server match what was just stored, given what was
+     * stored before. One rule for Save and Reset (#707): a write that flips
+     * mcp_server_enabled starts or stops the server, and a port change while
+     * enabled restarts it on the new port. Anything that writes the MCP
+     * preferences and does not call this leaves the server and the switch
+     * disagreeing.
+     */
+    async _reconcileMcpServer(storedBefore, storedAfter) {
+        const before = storedBefore || {};
+        const enabledChanged = !!before.mcp_server_enabled !== !!storedAfter.mcp_server_enabled;
+        const portChanged = Number(before.mcp_server_port) !== Number(storedAfter.mcp_server_port);
+        if (enabledChanged) {
+            await this._applyMcpServerState(storedAfter.mcp_server_enabled, storedAfter.mcp_server_port);
+        } else if (portChanged && storedAfter.mcp_server_enabled) {
+            await api.stopMcpServer();
+            await this._applyMcpServerState(true, storedAfter.mcp_server_port);
+        }
+    }
+
     async _applyMcpServerState(enabled, port) {
         try {
             if (enabled) {
@@ -2009,6 +2045,7 @@ class SettingsPage {
         const text = document.getElementById('mcpStatusText');
         const urlWrap = document.getElementById('mcpConnectionUrl');
         const urlValue = document.getElementById('mcpUrlValue');
+        const httpUrlValue = document.getElementById('mcpHttpUrlValue');
         const instructions = document.getElementById('mcpConnectInstructions');
 
         if (!dot || !text) return;
@@ -2018,11 +2055,12 @@ class SettingsPage {
             dot.classList.add('running');
             text.textContent = 'Running on port ' + status.port;
             if (urlWrap && urlValue) {
-                urlValue.textContent = status.url;
+                urlValue.textContent = status.sse_url || status.url;
+                if (httpUrlValue) httpUrlValue.textContent = status.http_url || '';
                 urlWrap.style.display = '';
             }
             if (instructions) {
-                this._populateMcpInstructions(status.url, status.port);
+                this._populateMcpInstructions(status);
                 instructions.style.display = '';
             }
         } else if (status.error) {
@@ -2038,38 +2076,51 @@ class SettingsPage {
         }
     }
 
-    _populateMcpInstructions(url, port) {
-        const jsonEl = document.getElementById('mcpConfigJson');
-        const cliEl = document.getElementById('mcpConfigCli');
-
-        if (jsonEl) {
-            const config = {
+    /**
+     * The three ways an assistant can reach the server, as copy-ready
+     * blocks. Client-agnostic on purpose: every block is the de facto
+     * `mcpServers` shape, which is what most assistants and editors read, and
+     * no block names a product or runs one vendor's command-line tool. The
+     * bridge decides the stdio command (frozen build or checkout), so the page
+     * never guesses a path.
+     */
+    _populateMcpInstructions(status) {
+        const blocks = {
+            mcpConfigHttp: status.http_url && {
+                mcpServers: { 'wimi-db': { type: 'http', url: status.http_url } }
+            },
+            mcpConfigJson: {
+                mcpServers: { 'wimi-db': { type: 'sse', url: status.sse_url || status.url } }
+            },
+            mcpConfigStdio: Array.isArray(status.stdio_command) && status.stdio_command.length && {
                 mcpServers: {
                     'wimi-db': {
-                        type: 'sse',
-                        url: url
+                        command: status.stdio_command[0],
+                        args: status.stdio_command.slice(1),
+                        cwd: status.stdio_cwd || undefined
                     }
                 }
-            };
-            jsonEl.textContent = JSON.stringify(config, null, 2);
-        }
-
-        if (cliEl) {
-            cliEl.textContent =
-                'claude mcp remove wimi-db\n' +
-                'claude mcp add --scope project --transport sse wimi-db ' + url;
-        }
-
-        // Wire up copy buttons (idempotent — re-binding is fine)
-        const jsonBtn = document.getElementById('mcpCopyJsonBtn');
-        const cliBtn = document.getElementById('mcpCopyCliBtn');
-
-        if (jsonBtn) {
-            jsonBtn.onclick = () => this._copyToClipboard(jsonEl.textContent, jsonBtn);
-        }
-        if (cliBtn) {
-            cliBtn.onclick = () => this._copyToClipboard(cliEl.textContent, cliBtn);
-        }
+            }
+        };
+        const buttons = {
+            mcpConfigHttp: 'mcpCopyHttpBtn',
+            mcpConfigJson: 'mcpCopyJsonBtn',
+            mcpConfigStdio: 'mcpCopyStdioBtn'
+        };
+        Object.keys(blocks).forEach((id) => {
+            const el = document.getElementById(id);
+            const btn = document.getElementById(buttons[id]);
+            const block = el ? el.closest('.mcp-config-block') : null;
+            if (!el) return;
+            if (!blocks[id]) {
+                // A route the bridge did not offer is not drawn at all (#174).
+                if (block) block.hidden = true;
+                return;
+            }
+            if (block) block.hidden = false;
+            el.textContent = JSON.stringify(blocks[id], null, 2);
+            if (btn) btn.onclick = () => this._copyToClipboard(el.textContent, btn);
+        });
     }
 
     _copyToClipboard(text, btn) {

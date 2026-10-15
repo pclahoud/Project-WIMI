@@ -638,6 +638,12 @@ class MainWindow(QMainWindow):
         # profile in app_data for good (#123).
         if getattr(self, 'db_bridge', None) is not None:
             self.db_bridge.teardownFolderSync()
+            # The Anki worker likewise (#784): drop jobs nobody polled, so no
+            # finish phase writes to a database this method is about to close.
+            # getattr because the bridge is sometimes a stand-in in tests.
+            teardown_anki = getattr(self.db_bridge, 'teardownAnki', None)
+            if teardown_anki is not None:
+                teardown_anki()
 
         # Close database connections. After the teardown above, deliberately:
         # phase 3 of a sync job runs on this thread and may touch master_db.

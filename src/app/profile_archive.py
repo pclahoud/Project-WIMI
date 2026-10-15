@@ -883,6 +883,96 @@ def _structure_problems(db_path: Path) -> List[str]:
 
 # ---------------------------------------------------------------------- import: create new
 
+def _single_column_unique_on(db: UserDatabase, table: str, column: str) -> bool:
+    """True when ``table`` has a UNIQUE index over exactly ``column``."""
+    for idx in db.fetchall(f'PRAGMA index_list("{table}")'):
+        if not idx.get('unique'):
+            continue
+        cols = [c['name'] for c in db.fetchall(f'PRAGMA index_info("{idx["name"]}")')]
+        if cols == [column]:
+            return True
+    return False
+
+
+def rehome_user_rows(db: UserDatabase, new_user_id: int) -> Dict[str, Any]:
+    """Make every ``user_id`` column in an installed database name its new owner (#776).
+
+    A ``.wimi`` carries the sender's user database byte for byte, and nine of
+    its tables (``exam_contexts``, ``review_sessions``, ``question_sources``,
+    ``entry_media``, ``user_preferences``, ``user_goals``,
+    ``reflection_themes``, ``user_assessments``,
+    ``user_assessment_preferences`` on the 2026-10-12 schema) carry the
+    ``users.id`` the sender's master database gave that profile. The receiver
+    registers the copy under its own next free id, and every domain read
+    filters on ``self.user_id``, so a profile installed under any id other
+    than the one it left with showed **no exams at all** — measured on the
+    owner's real import: six exams, 163 sessions and 1,055 media links all
+    still saying ``1`` inside a database registered as user 2 (#776).
+
+    This runs against the verify-open connection, after migrations, so the
+    table list is read from ``sqlite_master`` rather than written here: a
+    table added later is covered the day it carries the column. Rules:
+
+    - Every row whose ``user_id`` is not ``new_user_id`` is rewritten to it.
+    - A **one-row-per-user** table (``user_id`` is the primary key, or has a
+      single-column UNIQUE index) first drops the row the verify-open's own
+      initialisation may have created for the new id — the archive's row is
+      the student's, the fresh one is a default — and, if the archive
+      somehow carries rows for more than one foreign id (an archive exported
+      from an install this bug had already touched), keeps the one with the
+      latest ``updated_at`` when the table has that column and the lowest id
+      otherwise, so the outcome is deterministic.
+    - One transaction. A UNIQUE collision that cannot be resolved (two
+      foreign exams with one name, say) raises and the caller's rollback
+      removes the whole install; a half-rehomed profile would be this bug
+      with a different shape.
+
+    Returns ``{"tables": {name: rows_rewritten}, "foreign_user_ids": [...]}``.
+    An archive installed under the id it left with rewrites nothing, which is
+    the case every round-trip test exercised and why this went unseen.
+    """
+    tables = [
+        r['name'] for r in db.fetchall(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+    ]
+    rewritten: Dict[str, int] = {}
+    foreign: set = set()
+    with db.transaction():
+        for table in tables:
+            cols = db.fetchall(f'PRAGMA table_info("{table}")')
+            uid = next((c for c in cols if c['name'] == 'user_id'), None)
+            if uid is None:
+                continue
+            others = [
+                r['user_id'] for r in db.fetchall(
+                    f'SELECT DISTINCT user_id FROM "{table}" '
+                    f'WHERE user_id IS NOT NULL AND user_id != ?',
+                    (new_user_id,),
+                )
+            ]
+            if not others:
+                continue
+            foreign.update(int(o) for o in others)
+            one_per_user = bool(uid.get('pk')) or _single_column_unique_on(db, table, 'user_id')
+            if one_per_user:
+                db.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (new_user_id,))
+                if len(others) > 1:
+                    has_updated = any(c['name'] == 'updated_at' for c in cols)
+                    order = 'updated_at DESC, user_id ASC' if has_updated else 'user_id ASC'
+                    keep = db.fetchone(
+                        f'SELECT user_id FROM "{table}" ORDER BY {order} LIMIT 1'
+                    )['user_id']
+                    db.execute(f'DELETE FROM "{table}" WHERE user_id != ?', (keep,))
+            cur = db.execute(
+                f'UPDATE "{table}" SET user_id = ? WHERE user_id != ?',
+                (new_user_id, new_user_id),
+            )
+            rewritten[table] = int(cur.rowcount)
+    return {"tables": rewritten, "foreign_user_ids": sorted(foreign)}
+
+
 def install_profile_as_new(
     master_db: MasterDatabase,
     archive_path: str | Path,
@@ -1025,6 +1115,17 @@ def install_profile_as_new(
                 error_logger=master_db.error_logger,
                 device_id=master_db.get_device_id(),
             )
+            # The copy still names the SENDER's users.id in nine tables and
+            # every read filters on ours, so without this the profile opens
+            # with no exams (#776). After the migrations, so the table list
+            # is the current schema's.
+            rehomed = rehome_user_rows(verify_db, user.id)
+            if len(rehomed["foreign_user_ids"]) > 1:
+                warnings.append(
+                    f"The archive carried rows for {len(rehomed['foreign_user_ids'])} "
+                    f"different profile ids ({rehomed['foreign_user_ids']}); all were "
+                    f"assigned to this profile, keeping one preferences row."
+                )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")
             entry_count = int(row['n']) if row else 0
             installed_uuid = verify_db.get_profile_uuid()
@@ -1259,6 +1360,15 @@ def replace_profile(
                 error_logger=master_db.error_logger,
                 device_id=master_db.get_device_id(),
             )
+            # Same as install_profile_as_new: the archive's rows name the
+            # sender's users.id, and this slot's id is the target's (#776).
+            rehomed = rehome_user_rows(verify_db, user.id)
+            if len(rehomed["foreign_user_ids"]) > 1:
+                warnings.append(
+                    f"The archive carried rows for {len(rehomed['foreign_user_ids'])} "
+                    f"different profile ids ({rehomed['foreign_user_ids']}); all were "
+                    f"assigned to this profile, keeping one preferences row."
+                )
             row = verify_db.fetchone("SELECT COUNT(*) AS n FROM question_entries")
             entry_count = int(row['n']) if row else 0
             # The archive's profile id is preserved, and it REPLACES the

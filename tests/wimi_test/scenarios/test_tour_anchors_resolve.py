@@ -299,7 +299,22 @@ _PREVIEW_A_FIVE_LEVEL_FILE = (
 #: would state the no-X case while the truth is unknown (#289, #174). The fix
 #: is a runner change, not a seeder. That state is a failed bridge call, not a
 #: database state, so it is deliberately not seeded here.
+def _a_week_with_a_logged_and_a_planned_session(db) -> None:
+    """One chip of each kind on today, so the grid, the Plan button and a
+    populated legend (hidden with no exams) are all on screen (#778)."""
+    exam = db.create_exam_context(exam_name="Tour calendar", exam_description="")
+    db.create_review_session(exam_context_id=exam.id, total_questions=10,
+                             total_incorrect=2, session_name="Tour logged",
+                             date_encountered=date.today())
+    db.create_planned_session(date.today(), exam_context_id=exam.id, title="Tour planned")
+    db.conn.commit()
+
+
 STATES: dict[str, list[tuple]] = {
+    "calendar": [
+        ("a week with a logged and a planned session",
+         _a_week_with_a_logged_and_a_planned_session, "calendar"),
+    ],
     "dashboard": [
         ("no exams", _no_exams, "dashboard"),
         ("an active exam with an entry", _one_active_exam_with_an_entry, "dashboard"),
@@ -389,6 +404,10 @@ STATES: dict[str, list[tuple]] = {
 }
 
 READY = {
+    # Released on every exit of init(); isLoading is cleared in the same place.
+    "calendar": ("(() => { const g = document.querySelector('[data-page-gated]');"
+                 " return !!g && !g.hasAttribute('inert') && !!window.CalendarState"
+                 " && window.CalendarState.isLoading === false; })()"),
     "dashboard": ("(() => { try { return LandingState.isLoading === false"
                   " && LandingState.hasExams !== null; } catch (e) { return false; } })()"),
     # Released in a `finally` after both loaders resolve (session_setup.js).

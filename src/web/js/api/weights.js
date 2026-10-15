@@ -76,8 +76,12 @@
     api.getSubjectExamWeightAnalysis = async function(params) {
         params = params || {};
         if (!params.examContextId) throw new Error('examContextId is required for weight analysis');
+        // dimensionId / levelType are optional (#820): one dimension's
+        // subjects at one level. Omitted, every weighted subject is listed.
         return api._callBridge('getSubjectExamWeightAnalysis', JSON.stringify({
-            examContextId: params.examContextId
+            examContextId: params.examContextId,
+            dimensionId: params.dimensionId ?? null,
+            levelType: params.levelType || null
         }));
     };
 

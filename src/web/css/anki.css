@@ -1,0 +1,337 @@
+/* Entry detail -> Anki cards (#784 Waves 4-5, redesigned in #815).
+ *
+ * Linked from entry_detail.html beside detail.css. Tokens only, no capitals,
+ * no :empty, no fill colour painted as text, and no size below the 12px floor.
+ * Buttons keep the global :focus-visible ring.
+ *
+ * The shape is a divided list, not a stack of boxed cards: eleven cards of
+ * one deck look alike, and boxes would repeat the wall #815 measured as
+ * tiles. Each row is the card's own words, one line of figures, and -- only
+ * when it says something -- a proposal strip. Everything else is behind the
+ * row's toggle.
+ */
+
+.anki-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+/* Load-bearing, the calendar's lesson (#778): a class rule's display beats
+ * the [hidden] attribute, so without these the section paints at load on a
+ * computer with Anki off, and a hidden Refresh button or row body still shows. */
+.anki-section[hidden],
+.anki-section [hidden] {
+    display: none;
+}
+
+.anki-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}
+
+.anki-section-head .section-title {
+    margin-bottom: 0;
+}
+
+.anki-synced,
+.anki-status,
+.anki-estimate-note,
+.anki-empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.anki-status.is-error {
+    color: var(--color-error-text);
+}
+
+.anki-cards {
+    display: flex;
+    flex-direction: column;
+}
+
+.anki-proposals-note {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.anki-card {
+    padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
+    border-top: 1px solid var(--border-color);
+    /* The marker for "shown first": a rule down the row's edge, in the fill
+     * colour, which is a border and never text (#325). */
+    border-left: 3px solid transparent;
+}
+
+.anki-card:last-of-type {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.anki-card.is-first {
+    border-left-color: var(--color-primary);
+}
+
+.anki-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+/* The row title is a button so the whole line opens the card. It reads as
+ * text: the theme's own body face and colour, no button chrome. */
+.anki-toggle {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    min-width: 0;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.anki-toggle::before {
+    content: '';
+    flex: none;
+    width: 0.45em;
+    height: 0.45em;
+    margin-top: 0.45em;
+    border-right: 2px solid var(--text-secondary);
+    border-bottom: 2px solid var(--text-secondary);
+    transform: rotate(-45deg);
+    transition: transform 120ms ease;
+}
+
+.anki-toggle[aria-expanded="true"]::before {
+    transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .anki-toggle::before {
+        transition: none;
+    }
+}
+
+.anki-card-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--font-size-md);
+    line-height: 1.45;
+}
+
+.anki-toggle[aria-expanded="true"] .anki-card-title {
+    display: block;
+    font-weight: 600;
+}
+
+.anki-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+}
+
+.anki-badge {
+    padding: 0 var(--space-xs);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.anki-badge-first {
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+}
+
+.anki-badge-suspended {
+    border-color: var(--color-warning-text);
+    color: var(--color-warning-text);
+}
+
+/* One line of figures, its parts spaced rather than joined by symbols. */
+.anki-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-md);
+    margin: var(--space-xs) 0 0 calc(0.45em + var(--space-sm));
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.anki-card-feedback {
+    margin: var(--space-xs) 0 0 calc(0.45em + var(--space-sm));
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+/* ------------------------------------------------- proposal strip (Wave 5)
+ * The three answers share .anki-proposal-action and nothing else styles one
+ * of them differently: equal weight, no default (decision 14, #60). */
+
+.anki-proposal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs) var(--space-md);
+    margin: var(--space-sm) 0 0 calc(0.45em + var(--space-sm));
+}
+
+.anki-proposal-reason {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.anki-proposal .anki-proposals-note {
+    flex-basis: 100%;
+    margin: 0;
+}
+
+.anki-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+/* ------------------------------------------------------------- open row */
+
+.anki-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin: var(--space-md) 0 var(--space-xs) calc(0.45em + var(--space-sm));
+    max-width: 72ch;
+}
+
+.anki-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.anki-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.anki-field-name,
+.anki-more-fields-label {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.anki-field-text {
+    margin: 0;
+    white-space: pre-line;
+    line-height: 1.55;
+    color: var(--text-primary);
+}
+
+.anki-more-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs) var(--space-sm);
+}
+
+.anki-field-toggle {
+    min-height: 24px;
+    padding: 0 var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.anki-field-toggle[aria-expanded="true"] {
+    border-color: var(--color-primary);
+}
+
+/* Thumbnails: squares the image fills, so a row of them is a contact sheet
+ * rather than a list of file names. */
+.anki-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.anki-thumb {
+    width: 88px;
+    height: 88px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    cursor: zoom-in;
+}
+
+.anki-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.anki-thumb img:not([src]) {
+    visibility: hidden;
+}
+
+.anki-thumb.is-missing {
+    cursor: not-allowed;
+}
+
+.anki-stats {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-xs) var(--space-md);
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+.anki-stats dt {
+    color: var(--text-secondary);
+}
+
+.anki-stats dd {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.anki-estimate-note {
+    margin-top: var(--space-sm);
+}
+
+@media (max-width: 640px) {
+    .anki-card-head {
+        flex-direction: column;
+    }
+
+    .anki-badges {
+        justify-content: flex-start;
+    }
+}

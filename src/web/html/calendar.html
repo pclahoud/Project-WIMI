@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar - WIMI</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/calendar.css">
+    <link rel="stylesheet" href="../css/tour.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <!-- Every day on this page is a local calendar day (#286). -->
+    <script src="../js/local_date.js"></script>
+    <!-- The page gate's voice (#127). Before calendar.js, which calls
+         PageGate.release() from markCalendarReady(). -->
+    <script src="../js/page_gate.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<body>
+    <!--
+      The gate's voice (#127). Outside .calendar-page on purpose: `inert`
+      removes the gated subtree from the accessibility tree, so a status
+      element inside it would be heard by nobody. The holding message ships in
+      the markup so it is true before any script has run.
+    -->
+    <div class="page-gate" data-page-gate role="status" aria-live="polite"
+         aria-atomic="true">Loading your calendar. The page will open when your sessions are ready.</div>
+
+    <!--
+      Ships `inert` (#114's pattern via docs/guides/PAGE_GATE.md). Until
+      calendar.js has the range from the bridge nothing here could be kept, so
+      nothing is accepted. tests/test_page_gate_markup.py checks the voice
+      above is not inside this container.
+    -->
+    <div class="calendar-page" inert data-page-gated>
+        <header class="calendar-header">
+            <a href="index.html" class="calendar-back" id="calendar-back">Back to dashboard</a>
+            <h1>Calendar</h1>
+            <div class="cal-toolbar" role="toolbar" aria-label="Calendar navigation">
+                <div class="cal-toolbar-group">
+                    <button type="button" class="btn btn-secondary" id="cal-prev" aria-label="Previous period">&lsaquo;</button>
+                    <button type="button" class="btn btn-secondary" id="cal-today">Today</button>
+                    <button type="button" class="btn btn-secondary" id="cal-next" aria-label="Next period">&rsaquo;</button>
+                </div>
+                <!-- Written by calendar.js from LocalDate; ships empty, no placeholder (#289). -->
+                <h2 class="cal-range" id="cal-range" tabindex="-1"></h2>
+                <fieldset class="cal-view">
+                    <legend>View</legend>
+                    <label><input type="radio" name="cal-view" value="month" id="cal-view-month"> Month</label>
+                    <label><input type="radio" name="cal-view" value="week" id="cal-view-week"> Week</label>
+                </fieldset>
+                <label class="cal-exam-filter-label" for="cal-exam-filter">Exam
+                    <select id="cal-exam-filter">
+                        <option value="">All exams</option>
+                    </select>
+                </label>
+                <button type="button" class="btn btn-primary" id="cal-plan" data-tour-anchor="cal-plan">Plan a session</button>
+                <button type="button" class="btn btn-secondary" id="cal-export">Export (.ics)</button>
+            </div>
+            <!-- Not a live region: the page already has one (the gate), and a second
+                 beside a modal is #420's precondition twice over. -->
+            <p class="cal-status hidden" id="cal-status"></p>
+        </header>
+
+        <main>
+            <section class="card cal-grid-card">
+                <table class="cal-grid" id="cal-grid" role="grid" aria-labelledby="cal-range" data-tour-anchor="cal-grid">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-weekday="0"><abbr title="Monday">Mon</abbr></th>
+                            <th scope="col" data-weekday="1"><abbr title="Tuesday">Tue</abbr></th>
+                            <th scope="col" data-weekday="2"><abbr title="Wednesday">Wed</abbr></th>
+                            <th scope="col" data-weekday="3"><abbr title="Thursday">Thu</abbr></th>
+                            <th scope="col" data-weekday="4"><abbr title="Friday">Fri</abbr></th>
+                            <th scope="col" data-weekday="5" class="cal-weekend"><abbr title="Saturday">Sat</abbr></th>
+                            <th scope="col" data-weekday="6" class="cal-weekend"><abbr title="Sunday">Sun</abbr></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cal-grid-body"></tbody>
+                </table>
+            </section>
+
+            <section class="card cal-day-panel" id="cal-day-panel" hidden aria-labelledby="cal-day-heading">
+                <h2 id="cal-day-heading" tabindex="-1"></h2>
+                <ul class="cal-day-list" id="cal-day-list"></ul>
+                <p class="cal-day-empty hidden" id="cal-day-empty">Nothing on this day. Plan a session to add one.</p>
+            </section>
+
+            <section class="card cal-legend" data-tour-anchor="cal-legend">
+                <h2>Exams</h2>
+                <ul class="cal-legend-list" id="cal-legend-list"></ul>
+                <p class="cal-legend-empty hidden" id="cal-legend-empty">No exams yet. Sessions you plan without an exam appear in grey.</p>
+            </section>
+
+            <section class="card cal-error hidden" id="cal-error" role="alert">
+                <h2>Something went wrong</h2>
+                <p id="cal-error-text"></p>
+                <a href="index.html" class="btn btn-secondary">Back to dashboard</a>
+            </section>
+        </main>
+
+        <!-- Plan a session: the shared modal pattern (#318/#319), own overlay class
+             because landing.css's .modal-backdrop belongs to the dashboard. -->
+        <div class="cal-modal-backdrop" id="cal-plan-modal" hidden>
+            <div class="cal-modal" data-modal-surface role="dialog" aria-modal="true" aria-labelledby="cal-plan-title">
+                <h2 class="modal-title" id="cal-plan-title">Plan a session</h2>
+                <form id="cal-plan-form" novalidate>
+                    <div class="form-group">
+                        <label for="cal-plan-template">Start from a template</label>
+                        <select id="cal-plan-template"><option value="">None</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cal-plan-exam">Exam</label>
+                        <select id="cal-plan-exam"><option value="">No exam</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cal-plan-bank">Question bank</label>
+                        <select id="cal-plan-bank"><option value="">Any</option></select>
+                    </div>
+                    <div class="form-group cal-form-row">
+                        <label for="cal-plan-date">Date
+                            <input type="date" id="cal-plan-date" required>
+                        </label>
+                        <label for="cal-plan-time">Start time (optional)
+                            <input type="time" id="cal-plan-time">
+                        </label>
+                    </div>
+                    <div class="form-group cal-form-row">
+                        <label for="cal-plan-duration">Duration
+                            <select id="cal-plan-duration">
+                                <option value="">Untimed</option>
+                                <option value="25">25 minutes</option>
+                                <option value="45">45 minutes</option>
+                                <option value="60">60 minutes</option>
+                                <option value="90">90 minutes</option>
+                                <option value="120">2 hours</option>
+                            </select>
+                        </label>
+                        <label for="cal-plan-questions">Questions
+                            <input type="number" id="cal-plan-questions" min="1" max="1000" placeholder="e.g. 40">
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cal-plan-title-input">Title (optional)</label>
+                        <input type="text" id="cal-plan-title-input" maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="cal-plan-notes">Notes (optional)</label>
+                        <textarea id="cal-plan-notes" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label"><input type="checkbox" id="cal-plan-repeat"> <span>Repeat weekly</span></label>
+                    </div>
+                    <!-- Templates (decision 10). A template is a preset of the fields above;
+                         saving one here is the only way to make one, and Settings -> Calendar
+                         lists and archives them. -->
+                    <div class="form-group" id="cal-plan-save-template-group">
+                        <label class="checkbox-label"><input type="checkbox" id="cal-plan-save-template"> <span>Also save these settings as a template</span></label>
+                        <label for="cal-plan-template-name" class="hidden" id="cal-plan-template-name-label">Template name
+                            <input type="text" id="cal-plan-template-name" maxlength="80" placeholder="e.g. Morning cardio block">
+                        </label>
+                    </div>
+                    <fieldset class="cal-repeat hidden" id="cal-repeat-fields">
+                        <legend>Repeat on</legend>
+                        <div class="cal-weekdays">
+                            <label><input type="checkbox" value="MO"> Mon</label>
+                            <label><input type="checkbox" value="TU"> Tue</label>
+                            <label><input type="checkbox" value="WE"> Wed</label>
+                            <label><input type="checkbox" value="TH"> Thu</label>
+                            <label><input type="checkbox" value="FR"> Fri</label>
+                            <label><input type="checkbox" value="SA"> Sat</label>
+                            <label><input type="checkbox" value="SU"> Sun</label>
+                        </div>
+                        <div class="cal-form-row">
+                            <label for="cal-repeat-end">Ends
+                                <select id="cal-repeat-end">
+                                    <option value="never">Never</option>
+                                    <option value="until">On a date</option>
+                                    <option value="count">After a number of sessions</option>
+                                </select>
+                            </label>
+                            <label for="cal-repeat-until" class="hidden" id="cal-repeat-until-label">End date
+                                <input type="date" id="cal-repeat-until">
+                            </label>
+                            <label for="cal-repeat-count" class="hidden" id="cal-repeat-count-label">Sessions
+                                <input type="number" id="cal-repeat-count" min="1" max="520">
+                            </label>
+                        </div>
+                    </fieldset>
+                    <p class="cal-form-error hidden" id="cal-plan-error"></p>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cal-plan-cancel">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="cal-plan-save">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="cal-modal-backdrop" id="cal-remove-modal" hidden>
+            <div class="cal-modal" data-modal-surface role="dialog" aria-modal="true" aria-labelledby="cal-remove-title">
+                <h2 class="modal-title" id="cal-remove-title">Remove this plan?</h2>
+                <p id="cal-remove-text">The plan is removed from your calendar. A session you already started stays in your history.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cal-remove-cancel">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="cal-remove-confirm">Remove</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/modal_dialog.js"></script>
+    <!-- The first-run tour (#430): its generated steps, then the runner;
+         calendar.js starts it once the gate releases (chapter 34's blocks). -->
+    <script src="../js/tour_steps.js"></script>
+    <script src="../js/tour.js"></script>
+    <script src="../js/calendar.js"></script>
+</body>
+</html>

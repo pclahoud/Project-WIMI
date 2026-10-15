@@ -627,6 +627,28 @@
     white-space: nowrap;
 }
 
+/* An Anki card's image can be saved from here (#815). Same line as the
+ * caption, at the right edge, so it never covers the picture. The [hidden]
+ * rule is needed because .btn sets a display of its own (#778's lesson). */
+.lightbox-save {
+    position: absolute;
+    bottom: -2.75rem;
+    right: 0;
+}
+
+.lightbox-save[hidden] {
+    display: none;
+}
+
+/* The lightbox shrinks to its image, and Close sits above it while Save sits
+ * below: on a small image (an icon, a 1px test image) the two overlapped and
+ * Close could not be pressed. While Save is offered the box keeps a floor
+ * tall enough to hold both apart. */
+.lightbox-content:has(.lightbox-save:not([hidden])) {
+    min-width: 18rem;
+    min-height: 8rem;
+}
+
 /* ============================================
    Responsive Design
    ============================================ */

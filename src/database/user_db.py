@@ -37,6 +37,9 @@ from .domains import (
     SubjectRestoreMixin,
     PluginDataMixin,
     GraphMixin,
+    AssessmentsMixin,
+    CalendarMixin,
+    AnkiMixin,
 )
 
 # Re-export exceptions and models so that existing ``from .user_db import …``
@@ -58,6 +61,9 @@ class UserDatabase(
     SharedHelpersMixin,
     PreferencesMixin,
     DeviceSettingsMixin,
+    AssessmentsMixin,
+    CalendarMixin,
+    AnkiMixin,
     ExamContextMixin,
     HierarchyMixin,
     EdgesMixin,

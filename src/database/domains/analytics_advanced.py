@@ -1269,7 +1269,9 @@ class AdvancedAnalyticsMixin:
 
     def get_subject_exam_weight_analysis(
         self,
-        exam_context_id: int
+        exam_context_id: int,
+        dimension_id: Optional[int] = None,
+        level_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Compare mistake distribution against exam weight distribution.
@@ -1278,6 +1280,15 @@ class AdvancedAnalyticsMixin:
 
         Args:
             exam_context_id: Exam context ID (required)
+            dimension_id: List only this dimension's subjects (#820). The
+                dimensions overlap -- each covers the whole exam -- so the
+                unfiltered list mixes several partitions of one item pool.
+            level_type: List only subjects stored at this level (#820), read
+                from ``level_type`` and never from depth (#49).
+
+        Neither filter changes the counting: a subject's mistakes still
+        include everything beneath it (#468) and are still shared out of
+        every entry in the exam. They only choose which rows are listed.
 
         Returns:
             {
@@ -1386,11 +1397,19 @@ class AdvancedAnalyticsMixin:
                 AND (sn.exam_weight_low IS NOT NULL
                      OR sn.exam_weight_high IS NOT NULL)
                 AND (rs.user_id = ? OR qe.id IS NULL)
+                {scope}
             GROUP BY sn.id, sn.name, sn.exam_weight_low, sn.exam_weight_high, sn.weight_source
             ORDER BY exam_weight DESC
         """
 
-        results = self.fetchall(query, (exam_name, self.user_id))
+        scope, params = '', [exam_name, self.user_id]
+        if dimension_id is not None:
+            scope += ' AND sn.dimension_id = ?'
+            params.append(dimension_id)
+        if level_type:
+            scope += ' AND sn.level_type = ?'
+            params.append(level_type)
+        results = self.fetchall(query.replace('{scope}', scope), tuple(params))
 
         # Stage 9: dominant-edge weight_source per node. One query
         # over ``subject_edges`` returns the edge with the largest
@@ -1461,6 +1480,8 @@ class AdvancedAnalyticsMixin:
         # mistakes while the right-hand one was a share of the whole exam.
         rolled = self._quadrant_rollup(exam_name, exam_context_id)
         total_mistakes = rolled['total_entries']
+        min_mistakes = self.get_exam_analytics_config(exam_context_id).get(
+            'min_mistakes_to_flag', self.MIN_MISTAKES_TO_FLAG_DEFAULT)
 
         # Calculate mistake percentages
         subjects = []
@@ -1475,7 +1496,9 @@ class AdvancedAnalyticsMixin:
             difference = mistake_pct - weight_pct
 
             # Determine quadrant using range-aware categorization
-            quadrant = self._categorize_subject_quadrant(mistake_pct, weight_low, weight_high)
+            quadrant = self._categorize_subject_quadrant(
+                mistake_pct, weight_low, weight_high,
+                mistake_count=row['mistake_count'], min_mistakes=min_mistakes)
 
             # Stage 9: pick the dominant edge's weight_source. Falls
             # back to the legacy node-level value when the node has no
@@ -1546,6 +1569,7 @@ class AdvancedAnalyticsMixin:
             'total_mistakes': total_mistakes,
             'weighted_subjects': len(subjects),
             'weight_source_distribution': weight_source_distribution,
+            'min_mistakes_to_flag': min_mistakes,
         }
 
     def _quadrant_rollup(self, exam_name: str, exam_context_id: int) -> Dict[str, Any]:
@@ -1615,7 +1639,9 @@ class AdvancedAnalyticsMixin:
         self,
         mistake_pct: float,
         weight_low: float,
-        weight_high: float
+        weight_high: float,
+        mistake_count: Optional[int] = None,
+        min_mistakes: int = 1,
     ) -> str:
         """
         Categorize a subject into one of four quadrants with range-aware comparison.
@@ -1639,9 +1665,20 @@ class AdvancedAnalyticsMixin:
 
         is_high_weight = midpoint >= HIGH_WEIGHT_THRESHOLD
 
-        # Use high bound for over-representation check to be conservative
-        # (only flag as over-represented if clearly above the range)
-        is_over_represented = mistake_pct > (weight_high * OVER_REPRESENTED_THRESHOLD)
+        # Measured from the MIDDLE of the band (#827, owner's decision
+        # 2026-10-14: "instead of the higher end of the range, make it the
+        # median"). It was 1.3 x the top, so a 20-30% subject needed over 39%
+        # of the mistakes before it was flagged. A share inside the band is
+        # still never over-represented (the branch above), which with the
+        # middle as reference matters only for wide bands: for 5-15% the cut
+        # is 13%, and 13-15% stays unflagged because it is in the band.
+        is_over_represented = mistake_pct > (midpoint * OVER_REPRESENTED_THRESHOLD)
+        # And only on enough mistakes to be a pattern (#828, owner's decision
+        # 2026-10-14, set per exam in Settings). Without it a 0% subject was
+        # over-represented on its first mistake, since any share beats
+        # 1.3 x 0. The count is the rolled-up one the row shows.
+        if mistake_count is not None and mistake_count < min_mistakes:
+            is_over_represented = False
 
         # Subjects within their weight range are considered well-aligned
         if is_within_range:

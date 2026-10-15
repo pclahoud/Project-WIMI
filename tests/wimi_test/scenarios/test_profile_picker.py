@@ -1,11 +1,14 @@
-"""Regression: profile picker create -> select -> dashboard flow.
+"""Regression: profile picker create -> dashboard flow.
 
 Covers the launch-time profile picker (``profile_select.html``) end to
 end: the page renders the card grid from ``listProfiles``, the inline
-"+ New profile" form creates a profile via ``createProfile``, and
-clicking the new card runs ``selectProfile`` (which swaps
+"+ New profile" form creates a profile via ``createProfile`` and then
+OPENS it: ``submitCreateForm`` calls ``selectProfile`` itself (which swaps
 ``bridge.user_db`` and emits ``userDatabaseLoaded`` so ``MainWindow``
-rewires media/plugins) before navigating to the dashboard.
+rewires media/plugins) and navigates to the dashboard with no further
+press. Until #775 (owner, 2026-10-12) the picker stayed put and the
+student had to click the new card; the owner called that "jarring", and
+this test used to assert it.
 
 The final assertions prove the swap really happened: the bridge reports
 a connected user DB (``checkConnection``) and the dashboard header
@@ -74,17 +77,17 @@ def _wait_js(
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_profile_picker_create_and_select(
+def test_profile_picker_create_opens_the_profile(
     wimi_session: WimiTestSession,
     wimi_page: WimiPage,
     wimi_master_db: Any,  # session-scoped: guarantees app_data_test cleanup
 ) -> None:
-    """Create a profile via the picker form, open it, land on the dashboard.
+    """Create a profile via the picker form and land on the dashboard.
 
     Arrange: navigate to the picker (the session's own test user renders
     as the "currently open" card). Act: create a fresh profile through
-    the inline form, then click its card. Assert: the app navigates to
-    the dashboard, the bridge reports ``user_db_connected`` and the
+    the inline form, and nothing else. Assert: the app navigates to the
+    dashboard by itself, the bridge reports ``user_db_connected`` and the
     header profile chip shows the new display name.
     """
     username = f"picker_{uuid4().hex[:8]}"
@@ -115,43 +118,9 @@ def test_profile_picker_create_and_select(
     )
     assert filled, "Create form inputs were not present after opening the form."
 
-    # Grid refreshes after createProfile resolves — wait for the card.
-    _wait_js(
-        wimi_page,
-        f"""
-        [...document.querySelectorAll(
-            '[data-testid="profile-card"] .profile-card-username'
-        )].some(el => el.textContent === '@{username}')
-        """,
-        desc=f"card for @{username} in the grid",
-    )
-
-    # No create-form error should be showing.
-    create_error = wimi_page.eval_js(
-        "(() => { const el = document.getElementById('createError');"
-        " return el && !el.classList.contains('hidden')"
-        " ? el.textContent : null; })()"
-    )
-    assert not create_error, f"createProfile surfaced an error: {create_error!r}"
-
-    # ---- Act 2: click the new card -> selectProfile -> dashboard -----
-    clicked = wimi_page.eval_js(
-        f"""
-        (() => {{
-            const card = [...document.querySelectorAll(
-                '.profile-card[data-user-id]'
-            )].find(c =>
-                c.querySelector('.profile-card-username')?.textContent
-                    === '@{username}'
-            );
-            if (!card) return false;
-            card.querySelector('[data-action="select"]').click();
-            return true;
-        }})()
-        """
-    )
-    assert clicked, f"Could not find/click the card for @{username}."
-
+    # ---- Act 2 is gone: creating opens the profile (#775) ------------
+    # No card is clicked. If the create failed, the error block shows and
+    # the navigation below never happens, which is the failure we want.
     # selectProfile awaits the bridge then sets location.href='index.html'.
     _wait_js(
         wimi_page,

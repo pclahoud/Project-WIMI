@@ -54,6 +54,11 @@ ENTRY_DETAIL_POPULATED_IDS = [
     'explanation-content',
     'subject-path',
     'tags-container',
+    # #784 Wave 4: the Anki section's lines and card list, written by
+    # anki_stats_panel.js.
+    'anki-synced',
+    'anki-status',
+    'anki-cards',
 ]
 
 # The entry form shipped `Entry 1 of 0` in its header counter -- a fabricated

@@ -1,7 +1,9 @@
 """WIMI MCP Server bridge operations — start/stop SSE server from the GUI."""
 
 import json
+import sys
 import threading
+from pathlib import Path
 
 from PyQt6.QtCore import pyqtSlot
 
@@ -11,7 +13,38 @@ from ..bridge_helpers import serialize_response
 
 
 class McpServerBridgeMixin:
-    """Bridge mixin for MCP SSE server lifecycle control."""
+    """Bridge mixin for the in-app MCP server's lifecycle.
+
+    One uvicorn server on 127.0.0.1 answers two transports, because MCP
+    clients disagree on which they speak: the original SSE pair (``/sse`` and
+    ``/messages/``) and Streamable HTTP (``/mcp``), which superseded SSE in the
+    2025-03-26 protocol revision. A client that launches its servers as
+    processes gets ``stdio_command`` instead -- ``--mcp-server`` on this very
+    executable. The Settings panel shows all three so it favours no one
+    client; the server itself has no model and no vendor in it.
+    """
+
+    #: Streamable HTTP's path. FastMCP's default; stated so the panel and the
+    #: server cannot drift.
+    MCP_HTTP_PATH = '/mcp'
+
+    def _mcp_connection(self, port: int) -> dict:
+        """Every way a client can reach this computer's server, for one port."""
+        base = f'http://127.0.0.1:{port}'
+        if getattr(sys, 'frozen', False):
+            command = [sys.executable, '--mcp-server']
+            cwd = str(Path(sys.executable).parent)
+        else:
+            root = Path(__file__).resolve().parents[3]
+            command = [sys.executable, str(root / 'run_wimi.py'), '--mcp-server']
+            cwd = str(root)
+        return {
+            'url': f'{base}/sse',               # kept: the key pages and .mcp.json already read
+            'sse_url': f'{base}/sse',
+            'http_url': f'{base}{self.MCP_HTTP_PATH}',
+            'stdio_command': command,
+            'stdio_cwd': cwd,
+        }
 
     _mcp_thread: threading.Thread = None
     _mcp_uvicorn_server = None  # uvicorn.Server instance
@@ -25,10 +58,8 @@ class McpServerBridgeMixin:
         """Start the MCP SSE server on the configured port."""
         if self._mcp_running:
             return serialize_response(True, data={
-                'running': True,
-                'port': self._mcp_port,
-                'url': f'http://127.0.0.1:{self._mcp_port}/sse'
-            })
+                'running': True, 'port': self._mcp_port,
+                **self._mcp_connection(self._mcp_port)})
 
         try:
             params = json.loads(params_json)
@@ -72,10 +103,7 @@ class McpServerBridgeMixin:
 
             self._mcp_running = True
             return serialize_response(True, data={
-                'running': True,
-                'port': port,
-                'url': f'http://127.0.0.1:{port}/sse'
-            })
+                'running': True, 'port': port, **self._mcp_connection(port)})
 
         except Exception as e:
             self._mcp_running = False
@@ -119,7 +147,7 @@ class McpServerBridgeMixin:
             'port': self._mcp_port,
         }
         if self._mcp_running and self._mcp_port:
-            data['url'] = f'http://127.0.0.1:{self._mcp_port}/sse'
+            data.update(self._mcp_connection(self._mcp_port))
         if self._mcp_error:
             data['error'] = self._mcp_error
 
@@ -136,8 +164,24 @@ class McpServerBridgeMixin:
             # Configure the FastMCP instance with the requested port
             mcp_instance.settings.host = '127.0.0.1'
             mcp_instance.settings.port = port
+            mcp_instance.settings.streamable_http_path = self.MCP_HTTP_PATH
 
-            starlette_app = mcp_instance.sse_app()
+            # Both transports on one port. The Streamable HTTP app carries the
+            # lifespan its session manager needs, so it is the app uvicorn
+            # runs; the SSE routes are added to it, since the SSE transport
+            # needs no lifespan of its own. tests/app/test_mcp_server_transports.py
+            # connects over each and compares the tool lists.
+            #
+            # FastMCP caches one StreamableHTTPSessionManager on the module
+            # singleton and that manager's run() may be called ONCE, so a
+            # server stopped and started again (Save, Reset, a port change)
+            # would fail at startup with "can only be called once per
+            # instance". Dropping the cached manager makes streamable_http_app()
+            # build a fresh one. Measured: the second start in one process
+            # failed exactly that way before this line.
+            mcp_instance._session_manager = None
+            starlette_app = mcp_instance.streamable_http_app()
+            starlette_app.router.routes.extend(mcp_instance.sse_app().routes)
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

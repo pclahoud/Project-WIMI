@@ -459,7 +459,23 @@ def verify_mixin_decomposition(user_id: int = None) -> str:
     if db is None:
         return json.dumps({"error": "User database not found"})
 
-    checks = {
+    # #790: a hand-kept map here drifted to eight mixins short. The list is
+    # now DERIVED from the composed class, so it cannot drift, and each mixin
+    # reports every public method it contributes. The sample-method checks
+    # that used to live here are kept for the mixins they named, as a
+    # second, independent assertion that composition still exposes them.
+    from database.user_db import UserDatabase
+    import inspect
+    checks = {}
+    for base in UserDatabase.__bases__:
+        if base.__name__ == "BaseDatabase":
+            continue
+        public = sorted(
+            name for name, member in vars(base).items()
+            if callable(member) and not name.startswith("_")
+        )
+        checks[base.__name__] = public
+    samples = {
         "SharedHelpersMixin": ["_build_subject_path", "_entry_to_dict", "_subject_with_dimension", "_get_descendant_node_ids"],
         "SchemaMigrationMixin": ["_ensure_phase2_schema", "_ensure_phase4_schema", "_ensure_phase7_schema"],
         "PreferencesMixin": ["get_preferences", "update_preferences"],
@@ -478,7 +494,11 @@ def verify_mixin_decomposition(user_id: int = None) -> str:
         "DimensionsMixin": ["create_dimension", "exam_uses_dimensions", "get_cross_dimension_performance"],
         "AliasesMixin": ["create_subject_alias", "check_alias_conflicts"],
         "ImportExportMixin": ["get_saved_delimiters", "get_import_mapping_profiles"],
+        "CalendarMixin": ["create_planned_session", "get_calendar_range"],
     }
+    for mixin_name, methods in samples.items():
+        checks.setdefault(mixin_name, [])
+        checks[mixin_name] = sorted(set(checks[mixin_name]) | set(methods))
 
     results = {}
     all_ok = True

@@ -502,14 +502,16 @@ class AnalyticsDashboard {
         dimBSelect.value = dimensions[1].id;
 
         // Add change listeners for dimension selectors
+        // The heatmap waits on heatmapLevelsReady (#799): a dimension change
+        // nulls the level, and a query with no level draws every subject.
         dimASelect.addEventListener('change', () => {
             this.resetDrilldown('A');
-            this.loadLevelOptionsForDimension('A', parseInt(dimASelect.value));
+            this.heatmapLevelsReady = this.loadLevelOptionsForDimension('A', parseInt(dimASelect.value));
             this.loadCrossDimensionHeatmap();
         });
         dimBSelect.addEventListener('change', () => {
             this.resetDrilldown('B');
-            this.loadLevelOptionsForDimension('B', parseInt(dimBSelect.value));
+            this.heatmapLevelsReady = this.loadLevelOptionsForDimension('B', parseInt(dimBSelect.value));
             this.loadCrossDimensionHeatmap();
         });
 
@@ -547,34 +549,6 @@ class AnalyticsDashboard {
             });
         }
 
-        // Swap button
-        const swapBtn = document.getElementById('swapDimensionsBtn');
-        if (swapBtn) {
-            swapBtn.addEventListener('click', () => {
-                const tempVal = dimASelect.value;
-                dimASelect.value = dimBSelect.value;
-                dimBSelect.value = tempVal;
-                // Swap drilldown state (levels, parents, paths, cached levels)
-                const tempLevelA = this.drilldownState.levelTypeA;
-                const tempParentA = this.drilldownState.parentNodeA;
-                const tempPathA = this.drilldownState.drillPathA;
-                const tempLevelsA = this.drilldownState.levelsA;
-                this.drilldownState.levelTypeA = this.drilldownState.levelTypeB;
-                this.drilldownState.parentNodeA = this.drilldownState.parentNodeB;
-                this.drilldownState.drillPathA = this.drilldownState.drillPathB;
-                this.drilldownState.levelsA = this.drilldownState.levelsB;
-                this.drilldownState.levelTypeB = tempLevelA;
-                this.drilldownState.parentNodeB = tempParentA;
-                this.drilldownState.drillPathB = tempPathA;
-                this.drilldownState.levelsB = tempLevelsA;
-                // Reload level options for swapped dimensions
-                this.loadLevelOptionsForDimension('A', parseInt(dimASelect.value));
-                this.loadLevelOptionsForDimension('B', parseInt(dimBSelect.value));
-                this.loadCrossDimensionHeatmap();
-                this.updateBreadcrumb();
-            });
-        }
-
         // Export CSV button
         const exportBtn = document.getElementById('exportHeatmapCSV');
         if (exportBtn) {
@@ -585,9 +559,15 @@ class AnalyticsDashboard {
             });
         }
 
-        // Load initial level options
-        this.loadLevelOptionsForDimension('A', parseInt(dimASelect.value));
-        this.loadLevelOptionsForDimension('B', parseInt(dimBSelect.value));
+        // Load initial level options. Every heatmap load awaits this first
+        // (#799): the page's first load used to run before the levels
+        // arrived, query with no level -- every subject at every depth -- and
+        // nothing redrew it once they did. On a full published blueprint that
+        // was hundreds of thousands of SVG shapes under top-level pickers.
+        this.heatmapLevelsReady = Promise.all([
+            this.loadLevelOptionsForDimension('A', parseInt(dimASelect.value)),
+            this.loadLevelOptionsForDimension('B', parseInt(dimBSelect.value)),
+        ]);
     }
 
     /**
@@ -943,10 +923,11 @@ class AnalyticsDashboard {
             }
         }
 
-        // Load heatmap and check if data was returned
+        // Load heatmap and check if data was returned. null means a newer
+        // load superseded this one (#799), which is not "no data".
         const hasData = await this.loadCrossDimensionHeatmap();
 
-        if (!hasData) {
+        if (hasData === false) {
             // Rollback drilldown state
             if (dimension === 'A') {
                 this.drilldownState.drillPathA = prevPath;
@@ -1144,9 +1125,10 @@ class AnalyticsDashboard {
 
         // Add multi-dimensional analytics if available
         if (this.dimensionAnalytics && this.dimensionAnalytics.examUsesDimensions()) {
+            // Study Recommendations is loaded by the heatmap, with the
+            // heatmap's scope, every time it draws (#824).
             promises.push(
                 this.loadCrossDimensionHeatmap(),
-                this.loadStudyRecommendations(),
                 this.loadInteractionEffects()
             );
         }
@@ -2084,12 +2066,85 @@ class AnalyticsDashboard {
     }
 
     /**
+     * Fill the weight card's dimension and level pickers and return what
+     * they select (#820): ``{}`` for an exam without dimensions, ``null``
+     * when no dimension is chosen yet, else ``{dimensionId, levelType}``.
+     *
+     * The dimension starts at Settings' default dimension filter, the
+     * setting the sunburst and the error-type chart already follow. The
+     * level list is the cross-dimension pickers' own, so the two cards
+     * offer the same levels in the same order (and share #818's).
+     */
+    async weightAnalysisScope() {
+        const row = document.getElementById('weightScope');
+        const dimSel = document.getElementById('weightDim');
+        const levelSel = document.getElementById('weightLevel');
+        const dims = this.dimensionAnalytics?.examUsesDimensions()
+            ? (this.dimensionAnalytics.getDimensions() || []) : [];
+        if (!row || !dimSel || !levelSel || !dims.length) {
+            if (row) row.hidden = true;
+            return {};
+        }
+        row.hidden = false;
+
+        if (!this.weightScopeBound) {
+            dimSel.addEventListener('change', () => {
+                this.weightLevel = null;
+                this.loadWeightAnalysis();
+            });
+            levelSel.addEventListener('change', () => {
+                this.weightLevel = levelSel.value;
+                this.loadWeightAnalysis();
+            });
+            this.weightScopeBound = true;
+        }
+
+        if (dimSel.dataset.exam !== String(this.currentExamFilter)) {
+            const prompt = new Option('Choose a dimension', '');
+            prompt.disabled = true;
+            dimSel.replaceChildren(prompt, ...dims.map(d => new Option(d.name, String(d.id))));
+            const preset = this.currentDimensionFilter;
+            dimSel.value = dims.some(d => d.id === preset) ? String(preset) : '';
+            dimSel.dataset.exam = String(this.currentExamFilter);
+            this.weightLevel = null;
+        }
+
+        const dimensionId = dimSel.value ? parseInt(dimSel.value, 10) : null;
+        if (!dimensionId) {
+            levelSel.replaceChildren();
+            levelSel.disabled = true;
+            return null;
+        }
+
+        let levels = [];
+        try {
+            const data = await api.getHierarchyLevelsForDimension({
+                examContextId: this.currentExamFilter,
+                dimensionId,
+            });
+            levels = (data && data.levels) || [];
+        } catch (e) {
+            console.warn('Could not load levels for the weight analysis:', e);
+        }
+        levelSel.replaceChildren(...levels.map(l =>
+            new Option(`${l.level_type} (${l.count})`, l.level_type)));
+        levelSel.disabled = !levels.length;
+        if (!levels.some(l => l.level_type === this.weightLevel)) {
+            this.weightLevel = levels.length ? levels[0].level_type : null;
+        }
+        if (this.weightLevel) levelSel.value = this.weightLevel;
+        return {dimensionId, levelType: this.weightLevel};
+    }
+
+    /**
      * Load and render subject vs exam weight analysis
      */
     async loadWeightAnalysis() {
         try {
             // Weight analysis requires an exam context to be selected
             if (!this.currentExamFilter) {
+                const scopeRow = document.getElementById('weightScope');
+                if (scopeRow) scopeRow.hidden = true;
                 // Show message that exam selection is required
                 const container = document.getElementById('weightAnalysis');
                 if (container) {
@@ -2111,8 +2166,19 @@ class AnalyticsDashboard {
                 this.weightAnalysis = new WeightAnalysis('weightAnalysis', api);
             }
 
-            // Load the weight analysis data
-            await this.weightAnalysis.load(this.currentExamFilter);
+            // One dimension at one level (#820). null means the exam has
+            // dimensions and none is chosen: the owner's decision is to ask
+            // rather than mix them, since each covers the whole exam.
+            const scope = await this.weightAnalysisScope();
+            if (scope === null) {
+                // A load still in flight must not draw over the prompt.
+                this.weightAnalysis.loadSeq = (this.weightAnalysis.loadSeq || 0) + 1;
+                this.weightAnalysis.renderPrompt(
+                    'Choose a dimension to compare its subjects with their exam weights.',
+                    'Each dimension covers the whole exam on its own, so they are compared one at a time.');
+            } else {
+                await this.weightAnalysis.load(this.currentExamFilter, scope);
+            }
 
             // Stage 9: render the confidence breakdown card. We do
             // this in parallel with the main analysis so the card
@@ -2187,7 +2253,12 @@ class AnalyticsDashboard {
             // The tour's step is about the counts, so only the branch that
             // draws them carries its anchor (#682).
             card.innerHTML = `
-                <div class="breakdown-title" data-tour-anchor="analytics-weight-sources">Weight Sources</div>
+                <div class="section-title-row">
+                    <div class="breakdown-title" data-tour-anchor="analytics-weight-sources">Weight Sources</div>
+                    <span class="card-info-icon" tabindex="0" data-testid="analytics-info-weight-sources"
+                          aria-label="${WEIGHT_SOURCES_TIP}">i<span class="card-info-tooltip"
+                          data-testid="analytics-info-weight-sources-tooltip">${WEIGHT_SOURCES_TIP}</span></span>
+                </div>
                 <ul class="breakdown-list">${listHtml}</ul>
             `;
             card.style.display = '';
@@ -2210,6 +2281,17 @@ class AnalyticsDashboard {
         if (!this.dimensionAnalytics?.examUsesDimensions() || !this.dimensionHeatmap) {
             return false;
         }
+
+        // Only the newest request may draw (#799). An older one -- above all
+        // an unlevelled one, the slowest query on the page -- would otherwise
+        // land after it and overwrite the right grid with the wrong one.
+        // A superseded call returns null, never false: the drilldown handler
+        // reads false as "no data here" and rolls its own state back.
+        const ticket = (this.heatmapRequest = (this.heatmapRequest || 0) + 1);
+        if (this.heatmapLevelsReady) {
+            try { await this.heatmapLevelsReady; } catch (e) { /* drawn below as All Levels */ }
+        }
+        if (ticket !== this.heatmapRequest) return null;
 
         try {
             const dimASelect = document.getElementById('heatmapDimA');
@@ -2239,16 +2321,23 @@ class AnalyticsDashboard {
             const parentNodeAId = this.drilldownState.parentNodeA?.id || null;
             const parentNodeBId = this.drilldownState.parentNodeB?.id || null;
 
-            const data = await api.getCrossDimensionPerformance({
-                examContextId: this.currentExamFilter,
+            const scope = {
                 dimensionAId: dimensionAId,
                 dimensionBId: dimensionBId,
-                minEntries: 1,
                 levelTypeA: levelTypeA,
                 levelTypeB: levelTypeB,
                 parentNodeAId: parentNodeAId,
                 parentNodeBId: parentNodeBId
+            };
+            const data = await api.getCrossDimensionPerformance({
+                examContextId: this.currentExamFilter,
+                minEntries: 1,
+                ...scope
             });
+            if (ticket !== this.heatmapRequest) return null;
+            // Recommendations rank exactly these cells (#824). Not awaited:
+            // the heatmap's own result must not wait on a second query.
+            this.loadStudyRecommendations(scope);
 
             if (!data || !data.matrix || data.matrix.length === 0) {
                 // Render the empty state but signal no data
@@ -2268,6 +2357,7 @@ class AnalyticsDashboard {
             return true;
 
         } catch (error) {
+            if (ticket !== this.heatmapRequest) return null;
             console.error('Error loading cross-dimension heatmap:', error);
             const container = document.getElementById('dimensionHeatmap');
             if (container) {
@@ -2284,20 +2374,25 @@ class AnalyticsDashboard {
     /**
      * Load and render study recommendations
      */
-    async loadStudyRecommendations() {
+    async loadStudyRecommendations(scope = {}) {
         if (!this.dimensionAnalytics?.examUsesDimensions() || !this.dimensionInsights) {
             return;
         }
+        // Only the newest request may draw, as with the heatmap (#799).
+        const seq = (this.recommendationsRequest = (this.recommendationsRequest || 0) + 1);
 
         try {
             const data = await api.getWeightedStudyRecommendations({
                 examContextId: this.currentExamFilter,
-                limit: 5
+                limit: 5,
+                ...scope
             });
+            if (seq !== this.recommendationsRequest) return;
 
             this.dimensionInsights.renderStudyRecommendations(data);
 
         } catch (error) {
+            if (seq !== this.recommendationsRequest) return;
             console.error('Error loading study recommendations:', error);
             // Say so in the card (#469). This was console-only, so a failure
             // left the heading STUDY RECOMMENDATIONS with nothing under it --
@@ -2391,11 +2486,23 @@ class AnalyticsDashboard {
     /**
      * Handle study recommendation click
      */
+    /**
+     * Open the entries behind a recommended pair (#829, owner's decision).
+     * Since #824 a recommendation is one of the heatmap's cells, so this goes
+     * through the cell's own handler and the two land on the same list.
+     */
     handleRecommendationClick(recommendation) {
-        console.log('Recommendation clicked:', recommendation);
-        // Could navigate to filtered entries view
+        if (!recommendation) return;
+        this.handleHeatmapCellClick({
+            dimA: {id: recommendation.dim_a_hierarchy_id},
+            dimB: {id: recommendation.dim_b_hierarchy_id},
+        });
     }
 }
+
+/** The Weight Sources card's tip, the owner's approved text (#825). No
+ *  markup characters, so it is safe in an attribute and in text alike. */
+const WEIGHT_SOURCES_TIP = "Where your subjects' weights came from. It describes your data and changes no number on this page.";
 
 // Initialize dashboard when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

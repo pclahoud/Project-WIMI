@@ -21,7 +21,7 @@
  *
  * 2. **It is not a bare `title=`.** `title` never appears on keyboard
  *    focus, is unreliable for assistive tech and cannot be styled. This
- *    copies the shape WIMI already uses three times — `.sunburst-info-icon`
+ *    copies the shape WIMI already uses three times — `.card-info-icon`
  *    (#6), `.efficiency-info-icon` (#133), `.search-help-icon` — a
  *    `tabindex="0"` host with an `aria-label` carrying the same sentence as
  *    the visible tooltip, which opens on `:hover` AND `:focus`. #319's

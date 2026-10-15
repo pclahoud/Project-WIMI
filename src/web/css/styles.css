@@ -1386,7 +1386,7 @@ input[type="radio"] {
    `ArchivedAncestorNote.sentence(...)` to it rather than nesting a
    `tabindex="0"` host inside a clickable filter control.
 
-   Shape copied from `.sunburst-info-icon` / `.sunburst-info-tooltip`
+   Shape copied from `.card-info-icon` / `.card-info-tooltip`
    (#6) and `.efficiency-info-icon` (#133): a `tabindex="0"` host whose
    tooltip opens on `:hover` AND `:focus`, with the ring on
    `:focus-visible` only. The `:focus` half is not decoration -- `title=`

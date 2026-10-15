@@ -57,6 +57,20 @@ KNOWN_AT_RISK = {
     "question_entry.html",
     "session_setup.html",
     "tree_editor.html",
+    # #778 Wave 2 (2026-10-12): measured by tests/wimi_test/scenarios/
+    # test_calendar_page_smoke.py::test_the_plan_dialog_draws_an_accessibility_boundary,
+    # a REAL hit-tested click on #cal-plan: the exposed node count falls and
+    # modal_dialog.js holds aria-hidden attributes. The first measurement
+    # found both dialogs painted at load (display: flex beat [hidden]); the
+    # stylesheet rule that fixed it is pinned in test_calendar_markup.py.
+    "calendar.html",
+    # #784 Wave 4: the Anki section's role="status" sits inside #main-content
+    # beside the lightbox. Measured by tests/wimi_test/scenarios/
+    # test_entry_detail_anki_boundary.py, a REAL hit-tested click on a card
+    # image's View button: the exposed count falls and modal_dialog.js holds
+    # aria-hidden attributes. The section ships hidden, so the region exists
+    # only on a computer with Anki switched on.
+    "entry_detail.html",
 }
 
 

@@ -1,0 +1,15 @@
+[
+  {"item_code": "lgo_learning_01", "prompt": "I am willing to take on a challenging study task that I can learn a lot from.", "subscale": "learning"},
+  {"item_code": "lgo_learning_02", "prompt": "I often look for opportunities to develop new skills and knowledge.", "subscale": "learning"},
+  {"item_code": "lgo_learning_03", "prompt": "I enjoy challenging and difficult tasks in my studies where I'll learn new skills.", "subscale": "learning"},
+  {"item_code": "lgo_learning_04", "prompt": "For me, development of my ability is important enough to take risks.", "subscale": "learning"},
+  {"item_code": "lgo_learning_05", "prompt": "I prefer to work in situations that require a high level of ability and talent.", "subscale": "learning"},
+  {"item_code": "lgo_prove_01",    "prompt": "I'm concerned with showing that I can perform better than my classmates.", "subscale": "prove"},
+  {"item_code": "lgo_prove_02",    "prompt": "I try to figure out what it takes to prove my ability to others in my studies.", "subscale": "prove"},
+  {"item_code": "lgo_prove_03",    "prompt": "I enjoy it when others in my program are aware of how well I'm doing.", "subscale": "prove"},
+  {"item_code": "lgo_prove_04",    "prompt": "I prefer to work on assignments where I can prove my ability to others.", "subscale": "prove"},
+  {"item_code": "lgo_avoid_01",    "prompt": "I would avoid taking on a new task if there was a chance that I would appear rather incompetent to others.", "subscale": "avoid"},
+  {"item_code": "lgo_avoid_02",    "prompt": "Avoiding a show of low ability is more important to me than learning a new skill.", "subscale": "avoid"},
+  {"item_code": "lgo_avoid_03",    "prompt": "I'm concerned about taking on a task in my studies if my performance would reveal that I had low ability.", "subscale": "avoid"},
+  {"item_code": "lgo_avoid_04",    "prompt": "I prefer to avoid situations in my studies where I might perform poorly.", "subscale": "avoid"}
+]

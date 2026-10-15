@@ -236,3 +236,39 @@ class HierarchyTagNotFoundError(HierarchyTagError):
 class DuplicateTagError(HierarchyTagError):
     """Raised when attempting to create a duplicate tag"""
     pass
+
+
+# ==================== Psychometric Assessment Exceptions ====================
+# See docs/planning/PSYCHOMETRIC_ASSESSMENT_IMPLEMENTATION_PLAN.md (Stage 1).
+
+
+class AssessmentError(DatabaseError):
+    """Base class for psychometric-assessment operation failures."""
+    pass
+
+
+class AssessmentNotFoundError(AssessmentError):
+    """Raised when an assessment row cannot be found or is not owned by the current user."""
+    pass
+
+
+class AssessmentAlreadyCompleteError(AssessmentError):
+    """Raised when attempting to mutate an administration that is already finished."""
+    pass
+
+
+class InvalidLikertResponseError(AssessmentError):
+    """Raised when a raw response is outside the item's scale bounds or the item code is unknown."""
+    pass
+
+
+class PlannedSessionError(DatabaseError):
+    """A planned session, template or calendar request was refused, with a
+    sentence (#778). Raised instead of letting an IntegrityError out."""
+    pass
+
+
+class AnkiDataError(DatabaseError):
+    """An Anki template, match or setting was refused, with a sentence (#784).
+    Raised instead of letting an IntegrityError out."""
+    pass

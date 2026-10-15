@@ -16,6 +16,13 @@ class EntryDetail {
         this.relatedTopics = [];
         this.allExamSubjects = [];
         this.currentMediaIndex = 0;
+        // An image from outside the attachments (an Anki card's, #784) shown
+        // in the same lightbox. While set, prev/next and the arrow keys call
+        // its own ``step`` (the card's other images, #815) or do nothing.
+        this.externalImage = null;
+        // Its optional save action, {attached, run} (#815): Save to
+        // Attachments lives in the lightbox, beside the picture it saves.
+        this.externalSave = null;
 
         // Navigation context (from entry browser)
         this.navContext = null;
@@ -114,6 +121,7 @@ class EntryDetail {
             lightboxPrev: document.getElementById('lightbox-prev'),
             lightboxNext: document.getElementById('lightbox-next'),
             lightboxCaption: document.getElementById('lightbox-caption'),
+            lightboxSave: document.getElementById('lightbox-save'),
 
             // Entry Navigation
             prevEntryBtn: document.getElementById('prev-entry-btn'),
@@ -150,6 +158,7 @@ class EntryDetail {
         this.elements.lightboxClose.addEventListener('click', () => this.closeLightbox());
         this.elements.lightboxPrev.addEventListener('click', () => this.prevMedia());
         this.elements.lightboxNext.addEventListener('click', () => this.nextMedia());
+        this.elements.lightboxSave.addEventListener('click', () => this.saveExternalImage());
         
         // Close lightbox on backdrop click
         this.elements.lightboxModal.querySelector('.lightbox-backdrop')
@@ -276,6 +285,12 @@ class EntryDetail {
             // Show content
             this.showContent();
 
+            // Sections that load their own data (the Anki panel, #784) start
+            // here, after the page is drawn, so none of them can delay it.
+            document.dispatchEvent(new CustomEvent('entry-detail:ready', {
+                detail: {entryId: this.entryId}
+            }));
+
             // Show any pending toast from navigation wrap
             this.showPendingToast();
 
@@ -285,6 +300,17 @@ class EntryDetail {
         }
     }
     
+    /** Re-read and redraw the attachments, e.g. after an Anki image was saved. */
+    async reloadAttachments() {
+        await this.loadMedia();
+        this.renderAttachments();
+    }
+
+    /** Whether an attachment with this original file name is already here. */
+    hasAttachmentNamed(filename) {
+        return this.media.some(m => m.original_filename === filename);
+    }
+
     async loadMedia() {
         try {
             this.media = await api.getQuestionMedia(this.entryId);
@@ -909,30 +935,88 @@ class EntryDetail {
     // =========================================================================
     
     openLightbox(index) {
+        this.externalImage = null;
         this.currentMediaIndex = index;
         this.updateLightboxImage();
         this.elements.lightboxModal.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
     
+    /** Show one image that is not an attachment (#784).
+     *  ``save``, when given, is ``{attached, run}``: the lightbox offers Save
+     *  to Attachments and awaits ``run()``, which reports its own outcome.
+     *  ``step``, when given, is ``step(+1 | -1)``: the arrows and the arrow
+     *  keys call it to move through the caller's own set of images (#815),
+     *  and the caller shows the next one through this same method. */
+    showImageInLightbox(src, caption, save, step) {
+        this.externalImage = {src: src, caption: caption, step: step || null};
+        this.externalSave = save || null;
+        this.updateLightboxImage();
+        this.elements.lightboxModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    async saveExternalImage() {
+        const save = this.externalSave;
+        if (!save || save.attached) return;
+        this.elements.lightboxSave.disabled = true;
+        try {
+            await save.run();
+            save.attached = true;
+        } catch (e) {
+            // run() has already said what went wrong; leave the button usable.
+        }
+        if (this.externalSave === save) this.updateLightboxSave();
+    }
+
+    updateLightboxSave() {
+        const button = this.elements.lightboxSave;
+        const save = this.externalImage ? this.externalSave : null;
+        button.hidden = !save;
+        if (!save) return;
+        button.disabled = !!save.attached;
+        button.textContent = save.attached ? 'In Attachments' : 'Save to Attachments';
+    }
+
     closeLightbox() {
+        this.externalImage = null;
+        this.externalSave = null;
+        this.updateLightboxSave();
         this.elements.lightboxModal.classList.remove('active');
         document.body.style.overflow = '';
     }
     
     prevMedia() {
+        if (this.externalImage) {
+            if (this.externalImage.step) this.externalImage.step(-1);
+            return;
+        }
         if (this.media.length <= 1) return;
         this.currentMediaIndex = (this.currentMediaIndex - 1 + this.media.length) % this.media.length;
         this.updateLightboxImage();
     }
     
     nextMedia() {
+        if (this.externalImage) {
+            if (this.externalImage.step) this.externalImage.step(1);
+            return;
+        }
         if (this.media.length <= 1) return;
         this.currentMediaIndex = (this.currentMediaIndex + 1) % this.media.length;
         this.updateLightboxImage();
     }
     
     updateLightboxImage() {
+        if (this.externalImage) {
+            this.elements.lightboxImage.src = this.externalImage.src;
+            this.elements.lightboxCaption.textContent = this.externalImage.caption;
+            const steps = this.externalImage.step ? 'block' : 'none';
+            this.elements.lightboxPrev.style.display = steps;
+            this.elements.lightboxNext.style.display = steps;
+            this.updateLightboxSave();
+            return;
+        }
+        this.updateLightboxSave();
         const item = this.media[this.currentMediaIndex];
         if (!item) return;
         

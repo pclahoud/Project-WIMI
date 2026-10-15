@@ -90,6 +90,7 @@ class ExamContextBridgeMixin:
                 'exam_name': config.exam_name,
                 'exam_description': config.exam_description,
                 'exam_date': config.exam_date,
+                'color_hex': config.color_hex,
                 'is_active': config.is_active,
                 'autonomous_balancing': config.autonomous_balancing,
                 'precision': config.precision,
@@ -136,6 +137,7 @@ class ExamContextBridgeMixin:
                 'exam_name': config.exam_name,
                 'exam_description': config.exam_description,
                 'exam_date': config.exam_date,
+                'color_hex': config.color_hex,
                 'is_active': config.is_active,
                 'autonomous_balancing': config.autonomous_balancing,
                 'precision': config.precision,
@@ -174,6 +176,7 @@ class ExamContextBridgeMixin:
                 'exam_name': config.exam_name,
                 'exam_description': config.exam_description,
                 'exam_date': config.exam_date,
+                'color_hex': config.color_hex,
                 'is_active': config.is_active,
                 'autonomous_balancing': config.autonomous_balancing,
                 'precision': config.precision,
@@ -203,6 +206,8 @@ class ExamContextBridgeMixin:
                 'exam_name': ctx.exam_name,
                 'exam_description': ctx.exam_description,
                 'exam_date': ctx.exam_date,
+                # #778 decision 9: the exam's chosen colour, or None (m033).
+                'color_hex': ctx.color_hex,
                 'is_active': ctx.is_active,
                 'created_date': ctx.created_date,
                 'created_at': ctx.created_at,
@@ -237,6 +242,13 @@ class ExamContextBridgeMixin:
                 kwargs['is_active'] = settings['is_active']
             if 'notes' in settings:
                 kwargs['notes'] = settings['notes']
+            # #778 decision 9: the exam's own colour. A string is validated
+            # by the domain ('#rrggbb' or a sentence); null clears it.
+            if 'color_hex' in settings:
+                if settings['color_hex']:
+                    kwargs['color_hex'] = str(settings['color_hex'])
+                else:
+                    kwargs['clear_color'] = True
 
             weight_rules = {}
             if 'autonomous_balancing' in settings:
@@ -260,6 +272,7 @@ class ExamContextBridgeMixin:
                 'exam_name': config.exam_name,
                 'exam_description': config.exam_description,
                 'exam_date': config.exam_date,
+                'color_hex': config.color_hex,
                 'is_active': config.is_active,
                 'autonomous_balancing': config.autonomous_balancing,
                 'precision': config.precision,

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The self-assessment - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/83_the_self_assessment.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 30</p>
+                <h1 class="help-title" data-testid="help-chapter-title">The self-assessment</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_plugins.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">Plugins</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# The self-assessment
+
+## In short
+
+WIMI asks you, once, to answer a short questionnaire about how you tend to approach thinking and learning. It takes about ten minutes, you can stop and come back, and nothing else in WIMI changes because of your answers yet.
+
+## What it asks
+
+Fifty-seven statements in three parts, each answered on a disagree–agree
+scale:
+
+- **Need for Cognition** — 34 statements about whether you enjoy effortful thinking for its own sake, on a nine-point scale from *very strong disagreement* to *very strong agreement*.
+- **Learning Goal Orientation** — 13 statements about what you are after when you take on something hard: developing ability, demonstrating it, or avoiding being seen to lack it. Six points, *strongly disagree* to *strongly agree*.
+- **Personal Importance** — 8 statements about how much the exam, clinical work, mastery, and reflection matter to you. Seven points.
+
+Two of the statements are attention checks that tell you which answer to
+pick. They are there so the scores can say whether you were reading.
+
+## Where it is and when WIMI offers it
+
+The dashboard offers it when you have never completed one. **Later** puts the
+offer away for a week; it comes back after that until you finish. You can
+also start it, or pick it up again, from **Settings → Self-assessment**.
+
+Each answer is saved the moment you press **Next**. If you leave half way
+through, the next visit resumes at the first statement you have not answered,
+with your earlier answers kept. **Previous** lets you change an answer.
+
+## What you see at the end
+
+Your eight scores, as numbers between the ends of each scale. If an attention
+check was not answered as instructed the page says so, because the scores
+should then be read with that in mind. The scores are stored in your profile,
+travel with it in a `.wimi` file, and are not sent anywhere.
+
+## Taking it again
+
+WIMI will suggest retaking it after 180 days. In **Settings → Self-assessment**
+you can change that to anything between 30 and 730 days, see when you last
+completed it and when the next is due, and snooze a reminder. That setting is
+saved from its own button, not the page's **Save** button, because it is kept
+with your assessment rather than with your preferences.
+
+## Where the questions come from
+
+The Need for Cognition statements are the published scale of Cacioppo and
+Petty (1982), reproduced as published. The Learning Goal Orientation
+statements are adapted from VandeWalle (1997): the published items speak of
+work and coworkers, and WIMI's say studies and classmates, with nothing else
+changed. That adaptation has not been independently validated. The Personal
+Importance statements are WIMI's own. **Settings → About** lists the sources
+and the terms.
+
+## Why WIMI measures this at all
+
+Research on learning from reflection finds that how much it helps depends on
+the person: people who enjoy thinking, who are oriented to developing their
+ability, and who care about the work get more from it. WIMI records these so
+that one day it can adapt — which prompts it offers, how it weighs your
+weaknesses — to you. Today it only records them. The adaptation, when it
+comes, will be a separate decision and a separate chapter.
+
+## Where to go next
+
+- [Settings, and what each one changes](help_settings.html) — the Self-assessment panel, and the About panel where the sources are listed.
+- [Where your work lives, and how to keep it](help_where_your_work_lives.html) — your scores live in your profile and travel with it.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

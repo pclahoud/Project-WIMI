@@ -1,0 +1,451 @@
+/* Calendar page (#778 Wave 2).
+ *
+ * Tokens only (check_css_tokens.py). No literal size under 12px
+ * (test_text_size_floor.py). Text is never painted with a fill token:
+ * --color-primary and friends are fills, the -text variants are the text
+ * (#325, test_theme_text_contrast.py). No text-transform
+ * (check_css_no_shouting.py). No :empty (use :not(:has(*))). No outline
+ * rules: styles.css draws the focus ring globally (#747).
+ *
+ * Chip colour has two sources. An exam with a chosen colour (decision 9)
+ * gets three custom properties written by calendar.js (--cal-chip-bg,
+ * --cal-chip-border, --cal-chip-text), derived from that colour by the
+ * theme's luminance direction. An exam without one takes a series slot,
+ * data-series 1-4, over the existing primary/success/warning/info triples;
+ * error is never a slot because it means "wrong" everywhere else. Slot 0 is
+ * a plan with no exam.
+ */
+
+.calendar-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--space-lg) var(--space-md) var(--space-2xl);
+}
+
+/* ------------------------------------------------------------ header */
+
+.calendar-header {
+    margin-bottom: var(--space-lg);
+}
+
+.calendar-back {
+    display: inline-block;
+    margin-bottom: var(--space-sm);
+    color: var(--color-primary-text);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+}
+
+.calendar-back:hover {
+    text-decoration: underline;
+}
+
+.calendar-header h1 {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-2xl);
+    color: var(--text-primary);
+}
+
+.cal-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm) var(--space-md);
+}
+
+.cal-toolbar-group {
+    display: inline-flex;
+    gap: var(--space-xs);
+}
+
+.cal-range {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+    min-width: 12rem;
+}
+
+.cal-view {
+    display: inline-flex;
+    gap: var(--space-sm);
+    margin: 0;
+    padding: 0 var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.cal-view legend {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    padding: 0 var(--space-xs);
+}
+
+.cal-view label,
+.cal-exam-filter-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.cal-status {
+    margin: var(--space-sm) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------ grid */
+
+.cal-grid-card {
+    padding: var(--space-sm);
+    overflow-x: auto;
+}
+
+.cal-grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.cal-grid th {
+    padding: var(--space-xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cal-grid th abbr {
+    text-decoration: none;
+}
+
+.cal-grid td {
+    vertical-align: top;
+    min-height: 6rem;
+    height: 6rem;
+    padding: var(--space-xs);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    cursor: pointer;
+}
+
+.cal-grid td.cal-outside {
+    background: var(--bg-secondary);
+}
+
+.cal-grid td.cal-outside .cal-day-number {
+    color: var(--text-muted);
+}
+
+.cal-grid td[aria-selected="true"] {
+    background: var(--color-primary-bg);
+}
+
+.cal-grid td.cal-today .cal-day-number {
+    color: var(--color-primary-text);
+    font-weight: var(--font-weight-semibold);
+}
+
+.cal-day-number {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.cal-exam-date {
+    display: block;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+    padding-left: var(--space-xs);
+    border-left: 3px solid var(--cal-chip-border, var(--text-primary));
+}
+
+.cal-events {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* ------------------------------------------------------------ chips */
+
+.cal-event {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-xs);
+    width: 100%;
+    text-align: left;
+    padding: 2px var(--space-xs);
+    border: 1px solid transparent;
+    border-left: 3px solid var(--cal-chip-border, var(--text-muted));
+    border-radius: var(--radius-sm);
+    background: var(--cal-chip-bg, var(--bg-secondary));
+    color: var(--cal-chip-text, var(--text-primary));
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.cal-event:disabled {
+    cursor: default;
+}
+
+.cal-event[data-kind="planned"] {
+    border-style: dashed;
+    border-left-style: solid;
+}
+
+.cal-event-tag {
+    font-weight: var(--font-weight-semibold);
+}
+
+.cal-event-series {
+    font-style: italic;
+}
+
+.cal-event-label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-event-time {
+    color: inherit;
+}
+
+/* Series slots for exams without a chosen colour. The three tokens of each
+   triple are the ones styles.css defines for every theme. */
+.cal-event[data-series="1"],
+.cal-swatch[data-series="1"],
+.cal-exam-date[data-series="1"] {
+    --cal-chip-bg: var(--color-primary-bg);
+    --cal-chip-border: var(--color-primary);
+    --cal-chip-text: var(--color-primary-text);
+}
+
+.cal-event[data-series="2"],
+.cal-swatch[data-series="2"],
+.cal-exam-date[data-series="2"] {
+    --cal-chip-bg: var(--color-success-bg);
+    --cal-chip-border: var(--color-success);
+    --cal-chip-text: var(--color-success-text);
+}
+
+.cal-event[data-series="3"],
+.cal-swatch[data-series="3"],
+.cal-exam-date[data-series="3"] {
+    --cal-chip-bg: var(--color-warning-bg);
+    --cal-chip-border: var(--color-warning);
+    --cal-chip-text: var(--color-warning-text);
+}
+
+.cal-event[data-series="4"],
+.cal-swatch[data-series="4"],
+.cal-exam-date[data-series="4"] {
+    --cal-chip-bg: var(--color-info-bg);
+    --cal-chip-border: var(--color-info);
+    --cal-chip-text: var(--color-info-text);
+}
+
+.cal-event[data-series="0"],
+.cal-swatch[data-series="0"] {
+    --cal-chip-bg: var(--bg-tertiary);
+    --cal-chip-border: var(--text-muted);
+    --cal-chip-text: var(--text-primary);
+}
+
+.cal-more {
+    margin-top: 2px;
+    padding: 0 var(--space-xs);
+    border: none;
+    background: transparent;
+    color: var(--color-primary-text);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+}
+
+/* ------------------------------------------------------------ day panel */
+
+.cal-day-panel,
+.cal-legend,
+.cal-error {
+    margin-top: var(--space-lg);
+    padding: var(--space-md);
+}
+
+.cal-day-panel h2,
+.cal-legend h2,
+.cal-error h2 {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+}
+
+.cal-day-list,
+.cal-legend-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.cal-day-item {
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.cal-day-item-head .cal-event {
+    font-size: var(--font-size-sm);
+}
+
+.cal-day-meta,
+.cal-day-notes,
+.cal-day-empty,
+.cal-legend-empty {
+    margin: var(--space-xs) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.cal-day-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+}
+
+/* ------------------------------------------------------------ legend */
+
+.cal-legend-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.cal-swatch {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--cal-chip-bg, var(--bg-tertiary));
+    border-left: 3px solid var(--cal-chip-border, var(--text-muted));
+}
+
+/* ------------------------------------------------------------ modals */
+
+/* `display: flex` on the class outranks the user agent's `[hidden] {
+ * display: none }`, so without this rule BOTH dialogs painted on load and
+ * modal_dialog.js, seeing an open surface, hid the whole page from
+ * assistive tech: 18 exposed accessibility nodes, all of them the Remove
+ * dialog, measured by the Wave 2 boundary scenario before this line
+ * existed. The attribute has to win. */
+.cal-modal-backdrop[hidden] {
+    display: none;
+}
+
+.cal-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    padding: var(--space-md);
+}
+
+.cal-modal {
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.cal-modal .modal-title {
+    margin: 0 0 var(--space-md);
+    font-size: var(--font-size-xl);
+    color: var(--text-primary);
+}
+
+.cal-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.cal-form-row label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    flex: 1 1 10rem;
+}
+
+.cal-repeat {
+    margin: 0 0 var(--space-md);
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.cal-repeat legend {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    padding: 0 var(--space-xs);
+}
+
+.cal-weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.cal-weekdays label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+}
+
+.cal-form-error {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-error-text);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+@media (max-width: 768px) {
+    .cal-grid td {
+        height: 4.5rem;
+        min-height: 4.5rem;
+    }
+
+    .cal-event-label {
+        white-space: normal;
+    }
+}

@@ -1,0 +1,55 @@
+{
+  "version": "v1",
+  "_populator_notes": [
+    "NFC prompts: the 34 items retained in Cacioppo & Petty (1982), JPSP 42(1):116-131, reproduced as published, in the paper's pool order, with reverse_scored per the paper's keying (21 reversed, 13 positive). Transcribed by the project owner from Table 1 of the paper and mapped on #766 (decision 7, 2026-10-12); the mapping and the three typo corrections are recorded in tests/database/test_nfc_fixture_keying.py. The credit is the 'Self-assessment questionnaire items' table in Settings -> About (#195a: notices live there and nowhere else). Decision 2 (owner): the published items are used as-is; the credit names the source and the publisher's copyright and makes no statement about permission either way (owner, 2026-10-12).",
+    "NFC response scale: the paper's nine-point scale, -4 'very strong disagreement' to +4 'very strong agreement' (owner, 2026-10-12, decision 9), stored as 1..9 with the paper's nine verbal anchors in agree-ascending order. v1 was finalised with this scale before any administration was taken by a real user, so it is not a new instrument version.",
+    "LGO prompts: the 13-item final instrument of VandeWalle (1997), Educational & Psychological Measurement 57(6):995-1015, ADAPTED to the study domain (decision 8, owner approved per item on #766 comment #10553, 2026-10-12): 'at work' -> 'in my studies', 'coworkers' -> 'classmates', 'work assignment' -> 'study task', 'others at work' -> 'others in my program', 'projects' -> 'assignments'. Five items are verbatim. Structure (5 learning + 4 prove + 4 avoid), keying (none reversed) and the six-point scale with the paper's anchors are unchanged. It is an unvalidated adaptation and the About panel says so. Pinned by tests/database/test_lgo_fixture_wording.py.",
+    "Importance items and attention checks are original to WIMI and ship as-is (CC BY 4.0). atc_01 sits inside the NFC section and uses its nine-point scale; atc_02 sits inside LGO and uses its six-point scale."
+  ],
+  "scales": {
+    "likert_5": {
+      "min": 1,
+      "max": 5,
+      "anchors": ["Strongly disagree", "Disagree", "Neither agree nor disagree", "Agree", "Strongly agree"]
+    },
+    "likert_6": {
+      "min": 1,
+      "max": 6,
+      "anchors": ["Strongly disagree", "Disagree", "Disagree somewhat", "Agree somewhat", "Agree", "Strongly agree"]
+    },
+    "likert_7": {
+      "min": 1,
+      "max": 7,
+      "anchors": ["Strongly disagree", "Disagree", "Slightly disagree", "Neither agree nor disagree", "Slightly agree", "Agree", "Strongly agree"]
+    },
+    "likert_9": {
+      "min": 1,
+      "max": 9,
+      "anchors": ["Very strong disagreement", "Strong disagreement", "Moderate disagreement", "Slight disagreement", "Neither agreement nor disagreement", "Slight agreement", "Moderate agreement", "Strong agreement", "Very strong agreement"]
+    }
+  },
+  "sections": [
+    {
+      "name": "nfc",
+      "title": "Need for Cognition",
+      "scale": "likert_9",
+      "fixture": "nfc.json",
+      "scoring": {"method": "mean", "subscales": []}
+    },
+    {
+      "name": "lgo",
+      "title": "Learning Goal Orientation",
+      "scale": "likert_6",
+      "fixture": "lgo.json",
+      "scoring": {"method": "mean_per_subscale", "subscales": ["learning", "prove", "avoid"]}
+    },
+    {
+      "name": "importance",
+      "title": "Personal Importance",
+      "scale": "likert_7",
+      "fixture": "importance.json",
+      "scoring": {"method": "mean_per_subscale", "subscales": ["exam", "clinical", "mastery", "reflection"]}
+    }
+  ],
+  "attention_checks": "attention_checks.json"
+}

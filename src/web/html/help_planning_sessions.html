@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning sessions on the calendar - WIMI manual</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/help.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="../js/api/_bridge.js"></script>
+    <script src="../js/api/_loader.js"></script>
+    <script src="../js/themes.js"></script>
+    <script src="../js/event_bus.js"></script>
+    <script src="../js/plugin_loader.js"></script>
+</head>
+<!--
+  GENERATED PAGE - DO NOT EDIT BY HAND (issue #428).
+
+  The single source is docs/manual/34_planning_sessions.md. Edit that file, then run:
+
+      python scripts/check_manual_sync.py --write
+
+  to regenerate this page and the chapter list in help.html. The same script
+  with no arguments is a CI gate.
+
+  This page is deliberately NOT page-gated (#114/#127). A gate exists to stop
+  a page accepting input it cannot keep; a chapter has no form state to lose
+  and waits on no bridge call, so `inert` here would buy nothing and cost the
+  whole subtree its place in the accessibility tree while the markdown
+  rendered. entry_detail.html is the other ungated page, for the same kind of
+  reason. If a future chapter page grows something that can be typed into,
+  read docs/guides/PAGE_GATE.md before adding one.
+-->
+<body>
+    <div class="help-page">
+        <header class="help-header">
+            <a href="help.html" class="help-back-link" data-testid="help-chapter-back">
+                <span class="help-back-arrow" aria-hidden="true">&#8592;</span>
+                <span>WIMI manual</span>
+            </a>
+        </header>
+        <main class="help-main">
+            <article class="help-article">
+                <p class="help-eyebrow">Chapter 15</p>
+                <h1 class="help-title" data-testid="help-chapter-title">Planning sessions on the calendar</h1>
+                <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
+                    <p class="help-body-holding">Opening this chapter&hellip;</p>
+                </div>
+            </article>
+            <nav class="help-chapter-nav" aria-label="Chapters" data-testid="help-chapter-nav">
+                <a class="help-chapter-nav-link help-chapter-nav-link--prev" href="help_the_session_timer.html" data-testid="help-chapter-prev">
+                    <span class="help-chapter-nav-label">Previous</span>
+                    <span class="help-chapter-nav-title">The session timer, rounds and breaks</span>
+                </a>
+                <a class="help-chapter-nav-link help-chapter-nav-link--next" href="help_finding_an_entry.html" data-testid="help-chapter-next">
+                    <span class="help-chapter-nav-label">Next</span>
+                    <span class="help-chapter-nav-title">Finding an entry again</span>
+                </a>
+            </nav>
+        </main>
+    </div>
+    <script type="text/markdown" id="help-chapter-source">
+# Planning sessions on the calendar
+
+## In short
+
+The calendar shows every study session you have logged and every session you have planned, on one week or month grid, one colour per exam. You plan a session by picking a day and saying what you intend to do; when the day comes you start it from the calendar or from the dashboard, and the plan becomes an ordinary session with nothing to re-enter. A plan you miss stays on the calendar as overdue until you start it or mark it skipped. Nothing on the calendar changes your analytics: a plan counts for nothing until it is a real session with entries in it.
+
+## Getting there
+
+The dashboard has a **Calendar** link beside *Create New Exam*, and a session's setup page has one in its header. The calendar opens on the week containing today, or the month if you changed the default in **Settings → Calendar**. Weeks start on Monday, the same week your weekly goal counts.
+
+<!-- tour
+page: calendar
+anchor: cal-grid
+text: Every session you have logged and every one you have planned, on one
+  grid. Past sessions are solid, planned ones are dashed and say Planned.
+  Arrow keys move between days; Enter opens a day.
+-->
+
+## Reading the grid
+
+Each day is a cell. A solid chip is a session you logged, labelled with its exam; a dashed chip marked *Planned* is a session you intend to have. An exam's scheduled date appears as a marker on its day. The legend under the grid maps each colour to an exam: an exam you gave a colour to in its wizard uses that colour, and any other exam gets one of four from your theme. Plans with no exam are grey.
+
+Pick a day, with a click or with the arrow keys and Enter, and the panel beneath the grid lists everything on it with its actions: open a logged session, or edit, start, skip or remove a planned one.
+
+<!-- tour
+page: calendar
+anchor: cal-plan
+text: Plan a session for a day you choose. The exam, the question bank, a
+  start time, a duration and how many questions are all optional; a
+  weekly repeat makes a series.
+-->
+
+## Planning a session
+
+**Plan a session** opens a dialog. Only the date is required. You can name the exam and question bank, a start time, a duration, how many questions you intend to do, a title and notes.
+
+- **Repeat weekly** turns the plan into a series: tick the weekdays, and either an end date or a number of sessions, or neither for an open-ended series. The calendar draws every occurrence; the series is stored once.
+- **Also save these settings as a template** keeps the exam, bank, time, duration and question count under a name, so the next plan can start from it with the **Start from a template** picker at the top of the dialog. Templates are listed, and archived, in **Settings → Calendar**.
+- A plan can have no exam. You will be asked for one when you start it, because a logged session always belongs to an exam.
+
+## Starting a planned session
+
+On the day, **Start** on the plan (or **Start session** on the dashboard's reminder) opens the session setup page with the plan's exam, bank, date, duration and question count filled in. Starting creates the session the ordinary way and links the plan to it, so the calendar shows one chip for that day, not two. A plan dated in the past is recorded under its planned day unless you change the date in the form; the streak and the heatmap read that date.
+
+Editing a single occurrence of a series, or starting or skipping one, affects that date only; the rest of the series is untouched. Removing a series removes all of its unstarted occurrences. Removing a plan never removes a session it already became.
+
+## When a day passes
+
+A plan whose day passes with no session stays on the calendar as **overdue**, and the dashboard reminds you about it the next time you open WIMI, once per launch, until you start it or mark it skipped. WIMI never marks a plan skipped for you. There are no desktop notifications in this version: WIMI can only remind you while it is open.
+
+<!-- tour
+page: calendar
+anchor: cal-legend
+text: One colour per exam. Give an exam its own colour in its wizard, or
+  let the calendar choose one of four from your theme. Plans with no exam
+  are grey.
+-->
+
+## Exporting to another calendar
+
+**Export (.ics)** writes a standard calendar file you can import into Google Calendar, Outlook or Apple Calendar. It carries your planned sessions, as repeating events where you planned a series, and your logged sessions as all-day events. A plan with a start time is exported as an exact moment in time, in the zone your computer was in when you exported; a plan without one is an all-day event. The file contains your plans and exam names and nothing else.
+
+## What the calendar does not do
+
+- It does not count. A planned session is not a session: it appears nowhere in your analytics, your streak or your goals until you start it and log entries.
+- It does not fill in your sessions for you. Starting a plan takes you to the same setup page a new session uses; the plan only saves the typing.
+- It does not notify you while WIMI is closed.
+
+## Where to go next
+
+- [Settings, and what each one changes](help_settings.html) — the Calendar panel: default view, weekends, and your templates.
+- [The session timer, rounds and breaks](help_the_session_timer.html) — what the duration you plan turns into once a session starts.
+- [Goals, and why drafts do not count toward them](help_goals_and_drafts.html) — the weekly goal a plan can be linked to.
+    </script>
+    <script src="../js/help_page.js"></script>
+</body>
+</html>

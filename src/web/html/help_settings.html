@@ -41,7 +41,7 @@
         </header>
         <main class="help-main">
             <article class="help-article">
-                <p class="help-eyebrow">Chapter 25</p>
+                <p class="help-eyebrow">Chapter 27</p>
                 <h1 class="help-title" data-testid="help-chapter-title">Settings, and what each one changes</h1>
                 <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
                     <p class="help-body-holding">Opening this chapter&hellip;</p>
@@ -64,7 +64,7 @@
 
 ## In short
 
-Settings is fourteen panels behind the gear at the top right of the dashboard, and nothing you change there takes effect anywhere else until you press Save. Two whole panels and the lower half of a third are openly marked Coming Soon, with their controls greyed out. A few controls save themselves the moment you change them instead of waiting for Save, and a few belong to this computer rather than to your profile. This chapter is a tour, and it says which is which, because a settings page you cannot trust is worse than one with fewer settings on it.
+Settings is fifteen panels behind the gear at the top right of the dashboard, and nothing you change there takes effect anywhere else until you press Save. The lower half of one panel is openly marked Coming Soon, with its controls greyed out. A few controls save themselves the moment you change them instead of waiting for Save, and a few belong to this computer rather than to your profile. This chapter is a tour, and it says which is which, because a settings page you cannot trust is worse than one with fewer settings on it.
 
 ## Getting there, and getting out
 
@@ -115,7 +115,7 @@ anchor: settings-reset-defaults
 text: This is not an undo. It writes the shipped default over everything the
   page's Save covers, on every panel, not only the one you are looking at.
   Controls that save themselves are left alone: per-exam analytics, each
-  bank's address and Desktop site switch, and add-ons. So is your data.
+  bank's address and Desktop site switch, Anki, and add-ons. So is your data.
 -->
 
 It asks for confirmation, and then it writes the shipped default value over
@@ -128,7 +128,7 @@ Two kinds of thing it does **not** reset, which is worth knowing because nothing
 on screen says so:
 
 - **Your data**: your exams, your subjects and all of your entries. Reset what Save covers is a settings reset, never a data reset.
-- **Controls that save themselves** instead of waiting for the page's Save. Those are the per-exam choices under **Per-Exam Analytics Configuration**, which have their own **Save Exam Analytics** button; each question bank's web address and its **Desktop site** switch, both saved the moment you change them; and the switches and settings of add-ons. Each keeps whatever you last saved.
+- **Controls that save themselves** instead of waiting for the page's Save. Those are the per-exam choices under **Per-Exam Analytics Configuration**, which have their own **Save Exam Analytics** button; each question bank's web address and its **Desktop site** switch, both saved the moment you change them; the whole **Anki Integration** panel, which saves each control the moment it changes; and the switches and settings of add-ons. Each keeps whatever you last saved.
 
 Every control that waits for the page's Save does go back, the three Question
 Banks choices included. They were the exception until recently, and silently.
@@ -231,9 +231,10 @@ This panel has two halves that work differently, and the difference is worth
 holding on to: the controls at the top apply to **every** exam, and
 **Per-Exam Analytics Configuration** at the bottom applies to one.
 
-Taking the per-exam half first. Choose an exam and you get two things:
+Taking the per-exam half first. Choose an exam and you get three things:
 
-- **Default Dimension Filter** — which dimension the subject sunburst and the mistake-type chart open filtered to for that exam. "All Dimensions" means unfiltered. On an exam with no dimensions this does not appear.
+- **Default Dimension Filter** — which dimension the subject sunburst and the mistake-type chart open filtered to for that exam, and which dimension **Subject vs Exam Weight Analysis** starts on. "All Dimensions" means unfiltered in the two charts; the weight analysis then asks you to choose one. On an exam with no dimensions this does not appear.
+- **Minimum mistakes before a subject is flagged** — in Subject vs Exam Weight Analysis, a subject counts as over-represented only once it has at least this many mistakes, including those on the subjects beneath it. It starts at 3; 1 flags a subject on its first mistake.
 - **Chart Visibility** — a tick box per chart on the analytics dashboard, so you can switch off the ones you do not read. Three of them are only meaningful on an exam with more than one dimension, and they are marked as such.
 
 Press **Save Exam Analytics** for these — they have their own button and are
@@ -305,10 +306,60 @@ you confirm it. A low setting costs you reading time, never your data.
 [Letting WIMI find the links](help_finding_links_automatically.html) is the
 chapter for this.
 
-## Calendar and Anki Integration
+## Calendar
 
-Both panels carry a **Coming Soon** badge and every control in them is greyed
-out. Nothing in them is connected to anything, and they are honest about that.
+Two controls, both covered by the page's Save: the **default view** the
+calendar opens to, week or month, and whether **Saturday and Sunday** are
+shown. Weeks start on Monday in both views, the same week your weekly goals
+count. The calendar itself opens from the dashboard's **Calendar** link beside
+*Create New Exam*, and from the header of a session's setup page; what it shows
+and how planning a session works is the chapter
+[Planning sessions on the calendar](help_planning_sessions.html). Your session
+**templates** are listed and archived at the bottom of this panel.
+
+Until 2026-10-12 this panel was marked Coming Soon with greyed-out controls, and
+this chapter said nothing in it was connected to anything. It is connected now,
+and so is the Anki panel below.
+
+## Anki Integration
+
+WIMI reads your Anki collection on this computer through the **AnkiConnect**
+add-on, so an entry can show the Anki cards for its question.
+[Your Anki cards beside the mistake](help_anki_cards.html) is the chapter about
+what the entry shows. Anki has to be
+open for WIMI to fetch anything. What was fetched before stays readable when
+Anki is closed, and a fetch that finds Anki closed changes nothing.
+
+**Nothing in this panel waits for the page's Save.** Every control here saves
+the moment you change it, and a short line under it says *Saved.* — or says why
+not. So **Reset what Save covers** leaves all of it alone.
+
+- **Use Anki on this computer** and the **AnkiConnect port** stay on this computer. A copy of your profile on another computer starts with Anki off, because the other computer may have no Anki at all. The port is 8765 unless you changed it in the add-on's own settings. WIMI only ever talks to Anki on the same computer; there is no address to fill in.
+- **Test connection** asks whatever is listening on the port in the box. It needs neither the switch nor a saved port, so you can try a port before keeping it. *Connected* names the AnkiConnect version; *Nothing answered* means Anki is closed, the add-on is missing, or the port is wrong.
+- **Refresh an entry's cards when they are older than** a number of minutes, 60 unless you change it. Turn it off and cards are fetched only when you ask.
+- **Show cards on an entry** as one row per card or one combined row per note. Interval, the estimated next review and the other estimates belong to a single card, so the combined view leaves them out.
+
+### Search templates
+
+A search template tells WIMI how to find a question's cards. It is an ordinary
+Anki search with `{{qid}}` where the question id goes, for example
+`tag:MyDeck::{{qid}}`. **Each template belongs to one question bank of one
+exam**, so choose the exam at the top and add the template under the bank it is
+for. A bank can have more than one; their cards are combined. A template
+without `{{qid}}` is refused, because it would find the same cards for every
+question.
+
+**Fetch this exam's cards now** runs the templates for every question of the
+exam that has an id and whose bank has a template. It says how many questions
+it fetched, names any it could not search and why, and says so if Anki stopped
+answering part-way. What it had already fetched is kept, and the rest stays as
+it was.
+
+### Card fields shown on an entry
+
+Once some cards have been fetched, each note type appears here with its fields,
+and you choose which an entry shows. WIMI keeps every field whichever you tick;
+this decides only what is shown.
 
 ## Data and Backup
 
@@ -330,7 +381,10 @@ is the chapter about that, and it matters more than most.
 
 A local, **read-only** server that lets an AI assistant on this computer read
 your WIMI data — your entries, subjects and analytics — if you point it at the
-address shown.
+address shown. It speaks the Model Context Protocol, an open standard, so it
+is not tied to any one assistant: a desktop chat app, a code editor or a front
+end for a model running on your own computer can all connect, and WIMI
+recommends none of them.
 
 <!-- tour
 page: settings
@@ -344,7 +398,7 @@ text: This switch and the port belong to this computer, not to your profile,
 - A tick box to enable it, and a port, which defaults to 8000. Both wait for **Save**, which is when the server starts or stops, and while the box stays ticked WIMI starts the server again every time it opens.
 - **Both belong to this computer, not to your profile.** A profile you export, or sync to another computer, does not switch the server on there; each computer keeps its own setting.
 - A status line that reads *Checking…* until WIMI has actually asked, rather than asserting *Stopped* before it knows.
-- Once it is running, the connection address plus two copy-ready configuration blocks for connecting a tool to it.
+- Once it is running, two addresses and three copy-ready configuration blocks. The addresses differ only in transport (Streamable HTTP, and SSE for older assistants); both are served on the one port and both are this computer only. The blocks are the common `mcpServers` shape most assistants read: one per address, and a third for an assistant that launches its servers itself, which runs WIMI's server over standard input and output with no port at all.
 
 It listens on this computer only, and it cannot write to your data. It is off
 until you turn it on. Whether you want it is entirely a question of whether you
@@ -371,6 +425,20 @@ Installed plugins, with an **Install from .zip** button. See
 same access to your data that WIMI itself has, and the Addons panel does not ask
 you to agree to anything before it runs one.
 
+## Self-assessment
+
+Before you have completed the questionnaire this panel is one sentence and one
+button, **Take it now**. After a completion it shows when you last completed
+it, when the next is due, how many times you have snoozed the reminder, a
+**Take a new assessment now** link, and one setting: **how often to retake the
+assessment**, in days, anywhere from 30 to 730.
+
+That setting has its own **Save cadence** button and is **not** covered by the
+page's Save, because it is stored with your assessment rather than with your
+preferences. The panel says so beside the field. What the questionnaire is, and
+where its questions come from, is the chapter
+[The self-assessment](help_the_self_assessment.html).
+
 ## About, which is a legal document rather than a credits screen
 
 It looks like a credits screen and it is not. WIMI is distributed under the GNU
@@ -383,6 +451,7 @@ WIMI shows them. It carries, deliberately and because it must:
 - **Where to get the source code**, including a file beside the application naming the exact version this copy was built from.
 - **Which licence texts ship beside the application**, by filename, so you can read them without launching anything.
 - **Every third-party component WIMI is distributed with**, its version and its licence. Several of those licences require that this notice travel with the software, which is the other reason the panel exists.
+- **Where the self-assessment's questions come from**: the two published scales it uses, who holds their copyright, which one WIMI adapted, and the terms of the statements WIMI wrote itself.
 
 It is also the quickest way to find out which version of WIMI you are running,
 which is the first thing anybody will ask you if something goes wrong.
@@ -398,6 +467,8 @@ which is the first thing anybody will ask you if something goes wrong.
 - [Plugins](help_plugins.html) — read before pressing Install from .zip.
 - [Your question bank beside the form](help_question_bank_pane.html) — what the Question Banks panel is configuring.
 - [Reading the analytics](help_reading_the_analytics.html) — what the per-exam chart settings switch on and off.
+- [The self-assessment](help_the_self_assessment.html) — what the Self-assessment panel is configuring.
+- [Planning sessions on the calendar](help_planning_sessions.html) — what the Calendar panel is configuring.
     </script>
     <script src="../js/help_page.js"></script>
 </body>

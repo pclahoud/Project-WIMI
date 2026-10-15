@@ -245,6 +245,17 @@ class UserPreferences:
     # be before a relation is proposed. A judgement about proposal quality,
     # not about a machine, so user-level and it travels (m028).
     relation_confidence_threshold: float = 0.8
+    # Anki (#784). All three are user-level: how often to re-ask Anki and how
+    # to lay the panel out are judgements about the student's study, not
+    # facts about a machine. The connection itself -- the switch and the port
+    # -- is on ``DeviceSettings`` (m021). The interval column is from the v1
+    # schema and was read by nothing until m034; its default stays 60
+    # (owner, #784 decision 6). ``anki_auto_refresh = False`` is "manual
+    # only", a separate column because the interval's CHECK (1..1440) cannot
+    # hold a 0 without rebuilding ``user_preferences``.
+    anki_cache_refresh_interval_minutes: int = 60
+    anki_auto_refresh: bool = True
+    anki_display_mode: str = 'card'
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -303,6 +314,11 @@ class UserPreferences:
             relation_confidence_threshold=float(
                 row.get('relation_confidence_threshold', 0.8)
             ),
+            anki_cache_refresh_interval_minutes=int(
+                row.get('anki_cache_refresh_interval_minutes') or 60
+            ),
+            anki_auto_refresh=bool(row.get('anki_auto_refresh', True)),
+            anki_display_mode=row.get('anki_display_mode') or 'card',
             created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
         )
@@ -920,6 +936,10 @@ class ExamContextConfig:
     length_typical: Optional[int] = None
     length_note: Optional[str] = None
 
+    # #778 (owner decision 9): a chosen colour per exam, '#rrggbb' or None.
+    # Added by m033; absent on an older row, so from_db_row uses .get.
+    color_hex: Optional[str] = None
+
     # Default weight validation rules
     DEFAULT_WEIGHT_RULES: Dict[str, Any] = field(default_factory=lambda: {
         "autonomous_weight_balancing": True,
@@ -972,6 +992,7 @@ class ExamContextConfig:
             length_max=row.get('length_max'),
             length_typical=row.get('length_typical'),
             length_note=row.get('length_note'),
+            color_hex=row.get('color_hex'),
         )
     
     @property
@@ -1821,4 +1842,158 @@ class CrossDimensionAnalysis:
             'total_entries': self.total_entries,
             'percentage': self.percentage,
             'performance_metrics': self.performance_metrics
+        }
+
+
+# ==================== Psychometric Assessment Models ====================
+# Stage 1 of docs/planning/PSYCHOMETRIC_ASSESSMENT_IMPLEMENTATION_PLAN.md.
+
+
+def _parse_db_timestamp(value: Any) -> Optional[datetime]:
+    """Parse a SQLite TIMESTAMP cell (already a string under Row factory)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    # SQLite CURRENT_TIMESTAMP produces 'YYYY-MM-DD HH:MM:SS' (space sep).
+    text = str(value).replace('T', ' ')
+    # fromisoformat in 3.11+ accepts both separators; the replace is belt+braces.
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+@dataclass
+class AssessmentRecord:
+    """One administration of the psychometric battery.
+
+    Longitudinal — each retake adds a new row. Scores are NULL until
+    ``finish_assessment`` runs; a subscale stays NULL when no items in
+    that subscale were answered (distinguishes abstained from low).
+    """
+    id: int
+    user_id: int
+    instrument_version: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    completion_time_ms: Optional[int] = None
+    attention_check_pass: Optional[bool] = None
+    nfc_total: Optional[float] = None
+    lgo_learning: Optional[float] = None
+    lgo_prove: Optional[float] = None
+    lgo_avoid: Optional[float] = None
+    importance_exam: Optional[float] = None
+    importance_clinical: Optional[float] = None
+    importance_mastery: Optional[float] = None
+    importance_reflection: Optional[float] = None
+    is_complete: bool = False
+
+    @classmethod
+    def from_db_row(cls, row: Optional[Dict[str, Any]]) -> Optional['AssessmentRecord']:
+        if not row:
+            return None
+        attn = row.get('attention_check_pass')
+        return cls(
+            id=row['id'],
+            user_id=row['user_id'],
+            instrument_version=row['instrument_version'],
+            started_at=_parse_db_timestamp(row.get('started_at')),
+            completed_at=_parse_db_timestamp(row.get('completed_at')),
+            completion_time_ms=row.get('completion_time_ms'),
+            attention_check_pass=bool(attn) if attn is not None else None,
+            nfc_total=row.get('nfc_total'),
+            lgo_learning=row.get('lgo_learning'),
+            lgo_prove=row.get('lgo_prove'),
+            lgo_avoid=row.get('lgo_avoid'),
+            importance_exam=row.get('importance_exam'),
+            importance_clinical=row.get('importance_clinical'),
+            importance_mastery=row.get('importance_mastery'),
+            importance_reflection=row.get('importance_reflection'),
+            is_complete=bool(row.get('is_complete', 0)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'instrument_version': self.instrument_version,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'completion_time_ms': self.completion_time_ms,
+            'attention_check_pass': self.attention_check_pass,
+            'nfc_total': self.nfc_total,
+            'lgo_learning': self.lgo_learning,
+            'lgo_prove': self.lgo_prove,
+            'lgo_avoid': self.lgo_avoid,
+            'importance_exam': self.importance_exam,
+            'importance_clinical': self.importance_clinical,
+            'importance_mastery': self.importance_mastery,
+            'importance_reflection': self.importance_reflection,
+            'is_complete': self.is_complete,
+        }
+
+
+@dataclass
+class AssessmentResponse:
+    """One item response within an administration."""
+    id: int
+    assessment_id: int
+    item_code: str
+    raw_response: int
+    response_time_ms: Optional[int] = None
+    answered_at: Optional[datetime] = None
+
+    @classmethod
+    def from_db_row(cls, row: Optional[Dict[str, Any]]) -> Optional['AssessmentResponse']:
+        if not row:
+            return None
+        return cls(
+            id=row['id'],
+            assessment_id=row['assessment_id'],
+            item_code=row['item_code'],
+            raw_response=int(row['raw_response']),
+            response_time_ms=row.get('response_time_ms'),
+            answered_at=_parse_db_timestamp(row.get('answered_at')),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'assessment_id': self.assessment_id,
+            'item_code': self.item_code,
+            'raw_response': self.raw_response,
+            'response_time_ms': self.response_time_ms,
+            'answered_at': self.answered_at.isoformat() if self.answered_at else None,
+        }
+
+
+@dataclass
+class AssessmentPreferences:
+    """Singleton per user: re-measurement cadence and snooze state."""
+    user_id: int
+    cadence_days: int = 180
+    next_due_at: Optional[datetime] = None
+    last_snoozed_at: Optional[datetime] = None
+    snooze_count: int = 0
+
+    @classmethod
+    def from_db_row(cls, row: Optional[Dict[str, Any]]) -> Optional['AssessmentPreferences']:
+        if not row:
+            return None
+        return cls(
+            user_id=row['user_id'],
+            cadence_days=int(row.get('cadence_days', 180)),
+            next_due_at=_parse_db_timestamp(row.get('next_due_at')),
+            last_snoozed_at=_parse_db_timestamp(row.get('last_snoozed_at')),
+            snooze_count=int(row.get('snooze_count', 0)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'user_id': self.user_id,
+            'cadence_days': self.cadence_days,
+            'next_due_at': self.next_due_at.isoformat() if self.next_due_at else None,
+            'last_snoozed_at': self.last_snoozed_at.isoformat() if self.last_snoozed_at else None,
+            'snooze_count': self.snooze_count,
         }

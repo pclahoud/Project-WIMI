@@ -110,6 +110,8 @@ class PreferencesMixin:
             # validated against the sources table here.
             'pane_open_mode': ['last', 'source', 'blank'],
             'pane_shortcut_opens': ['current', 'new'],
+            'anki_display_mode': ['card', 'note'],
+            'anki_auto_refresh': [True, False],
         }
 
         for field, value in kwargs.items():

@@ -28,6 +28,8 @@ from . import m007_exam_length_triple
 # `feat/psychometric-assessment` branch (commit ca63e69). Dev DBs that
 # checked out that branch already have v8 applied; the registry skips
 # straight to v9 here so master doesn't collide.
+# That feature's migration now lands as m032 (#766, 2026-10-12); v8 stays
+# reserved forever, because monotonicity, not stamping, is the bar.
 from . import m009_entry_note_attachments
 from . import m010_default_tag_definitions
 
@@ -51,6 +53,10 @@ from . import m027_relation_rejections
 from . import m028_relation_confidence_threshold
 from . import m030_settings_defaults_reset
 from . import m031_tour_seen_steps
+from . import m032_assessments
+from . import m033_planned_sessions
+from . import m034_anki
+from . import m035_anki_relevance
 
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
@@ -78,4 +84,8 @@ MIGRATIONS: list[Migration] = [
     build_migration(m028_relation_confidence_threshold),
     build_migration(m030_settings_defaults_reset),
     build_migration(m031_tour_seen_steps),
+    build_migration(m032_assessments),
+    build_migration(m033_planned_sessions),
+    build_migration(m034_anki),
+    build_migration(m035_anki_relevance),
 ]

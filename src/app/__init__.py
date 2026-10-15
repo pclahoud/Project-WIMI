@@ -9,7 +9,10 @@ PyQt6-based desktop application for exam preparation through metacognitive mista
 # Distinct from database.__version__, which tracks the database
 # package/schema phase.
 #
-# 0.2.0-beta, owner's decision 2026-10-09 (#425), via 0.1.1-beta on
+# 0.3.0-beta, owner's go-ahead 2026-10-14 for the release carrying the
+# self-assessment (#766), the calendar (#778), the Anki port (#784), the
+# client-agnostic MCP panel and the analytics batch, plus migrations m032-m035.
+# Before that 0.2.0-beta, owner's decision 2026-10-09 (#425), via 0.1.1-beta on
 # 2026-10-06. It had stood at '0.1.0-beta' since 025ce80 on 2026-07-02 -- the
 # day before the public v0.1.0-beta release -- so a build made at any point
 # since reported the same version as that release. That release was published
@@ -26,7 +29,7 @@ PyQt6-based desktop application for exam preparation through metacognitive mista
 # Compatibility is decided by `format_version` against
 # ARCHIVE_FORMAT_VERSION, and by MAX(version) FROM schema_migrations -- not
 # by this string. See profile_archive._app_version and _local_max_version.
-APP_VERSION = '0.2.0-beta'
+APP_VERSION = '0.3.0-beta'
 
 # Use lazy imports to avoid circular import issues
 # Components are imported when accessed

@@ -4,7 +4,7 @@ The Tab walk in #304's audit found five elements that **accept focus and
 draw nothing**: the entry form's two TinyMCE editing iframes, the two
 analytics info tooltips, and the entry browser's "? Search Syntax" help
 div. Three of them say so in the stylesheet in as many words --
-``.sunburst-info-icon:focus``, ``.efficiency-info-icon:focus`` and
+``.card-info-icon:focus``, ``.efficiency-info-icon:focus`` and
 ``.search-help-icon:focus`` each end with ``outline: none`` -- so the fix
 is an outline and this file reads the computed outline.
 
@@ -169,7 +169,7 @@ def test_the_analytics_info_tooltips_show_their_focus(
     # trusted to memory: `tests/test_efficiency_score_is_disabled.py`
     # asserts this absence against the flag, so re-enabling the score turns
     # it red and names this file.
-    for selector, what in ((".sunburst-info-icon", "the By Subject tooltip"),):
+    for selector, what in ((".card-info-icon", "the By Subject tooltip"),):
         present = wimi_page.eval_js(
             f"document.querySelectorAll('{selector}').length")
         if not present:

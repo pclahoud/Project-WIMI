@@ -278,7 +278,7 @@
  * and a shared subject counts under each parent it routes through, so
  * the segments deliberately sum to more than the centre. The tooltip
  * text lives in the markup (not a CSS ::after) so it is readable. */
-.sunburst-info-icon {
+.card-info-icon {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -299,8 +299,8 @@
     cursor: help;
 }
 
-.sunburst-info-icon:hover,
-.sunburst-info-icon:focus {
+.card-info-icon:hover,
+.card-info-icon:focus {
     background: var(--color-primary-bg);
     color: var(--color-primary-text);
     border-color: var(--color-primary);
@@ -313,12 +313,26 @@
    open it) with the ring on `:focus-visible` so a mouse hover draws none.
    This rule must stay AFTER the one above: same specificity, so source
    order decides which outline wins. */
-.sunburst-info-icon:focus-visible {
+.card-info-icon:focus-visible {
     outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
 }
 
-.sunburst-info-tooltip {
+/* A heading with its tip beside it (#825). The row carries the heading's
+   bottom margin so the heading itself sits on the icon's centre line. */
+.section-title-row {
+    display: flex;
+    align-items: center;
+    margin: 0 0 1rem 0;
+}
+
+.section-title-row > .section-title,
+.section-title-row > .subsection-title,
+.section-title-row > .breakdown-title {
+    margin: 0;
+}
+
+.card-info-tooltip {
     display: none;
     position: absolute;
     top: calc(100% + 0.375rem);
@@ -338,8 +352,8 @@
     z-index: 400;
 }
 
-.sunburst-info-icon:hover .sunburst-info-tooltip,
-.sunburst-info-icon:focus .sunburst-info-tooltip {
+.card-info-icon:hover .card-info-tooltip,
+.card-info-icon:focus .card-info-tooltip {
     display: block;
 }
 
@@ -1769,11 +1783,6 @@
     border-color: var(--color-info);
 }
 
-#swapDimensionsBtn {
-    padding: 0.5rem;
-    min-width: auto;
-}
-
 /* Level Picker (for hierarchy drill-down) */
 .level-picker-label {
     display: flex;
@@ -1912,15 +1921,21 @@
 }
 
 /* Heatmap Container */
+/* Not a centring flex box (#821). The SVG has width/height attributes and a
+   viewBox, so as a flex item it SHRANK to the card while its height stayed,
+   and the viewBox letterboxed the scaled-down drawing: unreadable text with
+   hundreds of pixels of empty space above and below. A centred flex item
+   that overflows also cannot be scrolled to its left edge. A block with an
+   auto margin centres what fits and scrolls what does not. */
 .heatmap-container {
-    display: flex;
-    justify-content: center;
     overflow-x: auto;
     padding: 1rem 0;
 }
 
 .heatmap-container svg {
     display: block;
+    margin: 0 auto;
+    max-width: none;
 }
 
 .heatmap-cell {
@@ -2082,6 +2097,13 @@
 .recommendation-item:hover {
     border-color: var(--color-info);
     box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+}
+
+/* The rows open their entries (#829) and take focus for it, so a keyboard
+   user needs to see where focus is. */
+.recommendation-item:focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
 }
 
 .recommendation-rank {

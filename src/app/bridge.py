@@ -19,6 +19,7 @@ from app_logging import ErrorLogger
 from app.bridge_helpers import DateTimeEncoder, serialize_response  # noqa: F401
 
 from app.bridge_domains import (
+    AnkiBridgeMixin,
     SerializerMixin,
     PreferencesBridgeMixin,
     ProfileBridgeMixin,
@@ -42,6 +43,8 @@ from app.bridge_domains import (
     RelationExtractionBridgeMixin,
     SubjectRestoreBridgeMixin,
     ExamContextBridgeMixin,
+    AssessmentBridgeMixin,
+    CalendarBridgeMixin,
     WeightBridgeMixin,
     BrowsingBridgeMixin,
     AnalyticsBridgeMixin,
@@ -58,6 +61,9 @@ class DatabaseBridge(
     QObject,                      # MUST be first for PyQt6 MRO
     SerializerMixin,
     ExamContextBridgeMixin,
+    AssessmentBridgeMixin,
+    CalendarBridgeMixin,
+    AnkiBridgeMixin,
     HierarchyBridgeMixin,
     EdgesBridgeMixin,
     RelationsBridgeMixin,

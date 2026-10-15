@@ -17,7 +17,7 @@ _ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 # Version: X.Y.Z
 _VERSION_PATTERN = re.compile(r'^\d+\.\d+\.\d+$')
 # A WIMI version: X.Y.Z with an optional SemVer pre-release, because WIMI's own
-# APP_VERSION carries one ("0.2.0-beta") and min_app_version has to be able to
+# APP_VERSION carries one ("0.3.0-beta") and min_app_version has to be able to
 # name it (#508). The plugin's own `version` stays plain X.Y.Z.
 _APP_VERSION_PATTERN = re.compile(
     r'^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$')

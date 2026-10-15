@@ -260,6 +260,19 @@
                         <p class="form-help">When are you planning to take this exam?</p>
                     </div>
 
+                    <!-- #778 decision 9: a chosen colour per exam, drawn on the calendar's
+                         chips and legend. Optional: unticked means the calendar picks a
+                         colour from the theme. -->
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="exam-color-enabled" data-testid="wizard-exam-color-enabled">
+                            <span>Give this exam a colour on the calendar <span class="optional">(optional)</span></span>
+                        </label>
+                        <input type="color" id="exam-color" data-testid="wizard-exam-color-input"
+                               value="#2563eb" aria-label="Exam colour" disabled>
+                        <p class="form-help">Used for this exam's sessions on the calendar. Leave it unticked and the calendar chooses one from your theme.</p>
+                    </div>
+
                     <div class="form-group">
                         <label for="exam-notes">Additional Notes <span class="optional">(optional)</span></label>
                         <textarea

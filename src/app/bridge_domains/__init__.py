@@ -6,6 +6,9 @@ Composed into DatabaseBridge via multiple inheritance.
 
 from ._serializers import SerializerMixin
 from .preferences import PreferencesBridgeMixin
+from .assessment import AssessmentBridgeMixin
+from .calendar import CalendarBridgeMixin
+from .anki import AnkiBridgeMixin
 from .profiles import ProfileBridgeMixin
 from .profile_transfer import ProfileTransferBridgeMixin
 from .browser_pane import BrowserPaneBridgeMixin
@@ -68,4 +71,7 @@ __all__ = [
     'ImportExportBridgeMixin',
     'PluginDispatchMixin',
     'PluginManagementMixin',
+    'AssessmentBridgeMixin',
+    'CalendarBridgeMixin',
+    'AnkiBridgeMixin',
 ]

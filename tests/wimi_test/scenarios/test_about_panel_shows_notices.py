@@ -179,3 +179,18 @@ def test_the_windows_runtime_is_marked_as_windows_only(about):
 
     assert "Windows builds only" in text
     assert "MSVCP140" in text
+
+
+@pytest.mark.slow
+@pytest.mark.regression
+def test_the_self_assessment_items_are_credited(about):
+    """#766 Wave 5b: the two published scales the questionnaire uses are
+    credited here, because #195(a) puts every notice in this panel and the
+    assessment page's footer only says where the notices are."""
+    text = _panel_text(about)
+
+    assert "Cacioppo" in text and "VandeWalle" in text
+    assert "has not been independently validated" in text, (
+        "the Learning Goal Orientation items are an adaptation (decision 8) "
+        "and the credit has to say so"
+    )

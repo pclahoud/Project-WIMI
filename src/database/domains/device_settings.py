@@ -47,6 +47,10 @@ from ..device_local import (
 from ..exceptions import ValidationError
 from ..models import DeviceSettings
 
+#: The only values ``device_settings.ankiconnect_host`` may take (#784
+#: decision 4). m021's default is ``'localhost'``.
+_ANKICONNECT_HOSTS = ("localhost", "127.0.0.1")
+
 
 class DeviceSettingsMixin:
     """Mixin for device-local settings + profile identity. Composed into UserDatabase."""
@@ -203,6 +207,18 @@ class DeviceSettingsMixin:
                 raise ValidationError(
                     f"'{field}' is not a device-local setting. User-level "
                     f"preferences go through update_preferences()."
+                )
+            if field == "ankiconnect_host" and value is None:
+                raise ValidationError("ankiconnect_host cannot be empty")
+            if field == "ankiconnect_host" and value not in _ANKICONNECT_HOSTS:
+                # Owner, #784 decision 4: AnkiConnect is loopback only and
+                # the host is not exposed. The client dials 127.0.0.1
+                # whatever this says; refusing anything else here keeps the
+                # stored value from claiming a connection WIMI never makes.
+                raise ValidationError(
+                    "ankiconnect_host must be this computer "
+                    "('localhost' or '127.0.0.1'); WIMI talks to Anki only "
+                    "on this machine."
                 )
             constraint = validated_fields.get(field)
             if constraint is not None and value is not None:

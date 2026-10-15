@@ -6,6 +6,7 @@
     <title>WIMI - Settings</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/settings.css">
+    <link rel="stylesheet" href="../css/settings_anki.css">
     <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../js/escape.js"></script>
@@ -131,6 +132,10 @@
                     <span class="nav-label">Addons</span>
                 </button>
                 <div id="pluginSubNav"></div>
+                <button class="settings-nav-item" data-panel="self_assessment" data-testid="settings-nav-self-assessment">
+                    <span class="nav-icon">&#128203;</span>
+                    <span class="nav-label">Self-assessment</span>
+                </button>
                 <button class="settings-nav-item" data-panel="about" data-testid="settings-nav-about">
                     <span class="nav-icon">&#8505;</span>
                     <span class="nav-label">About</span>
@@ -438,10 +443,17 @@
                     <div id="examAnalyticsConfig" style="display:none;">
                         <div class="form-group" id="defaultDimensionGroup" style="display:none;">
                             <label for="default_dimension_id">Default Dimension Filter</label>
-                            <p class="field-description">Applied to Subject Sunburst and Mistake Type charts. "All Dimensions" shows unfiltered data.</p>
+                            <p class="field-description">Applied to Subject Sunburst and Mistake Type charts, and the dimension Subject vs Exam Weight Analysis starts on. "All Dimensions" shows unfiltered data in the two charts; the weight analysis then asks you to choose one.</p>
                             <select id="default_dimension_id" data-testid="settings-analytics-dimension-selector">
                                 <option value="">All Dimensions</option>
                             </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="min_mistakes_to_flag">Minimum mistakes before a subject is flagged</label>
+                            <p class="field-description" id="min_mistakes_to_flag_hint">In Subject vs Exam Weight Analysis, a subject counts as over-represented only once it has at least this many mistakes, including those on the subjects beneath it. 1 flags a subject on its first mistake.</p>
+                            <input type="number" id="min_mistakes_to_flag" min="1" max="50" step="1" inputmode="numeric"
+                                   aria-describedby="min_mistakes_to_flag_hint" data-testid="settings-analytics-min-mistakes">
                         </div>
 
                         <div class="form-group">
@@ -825,65 +837,116 @@
                 </div>
 
                 <!-- ============================================================
-                     Panel 6: Calendar (COMING SOON)
+                     Panel 6: Calendar (#778 Wave 2; was Coming Soon until 2026-10-12)
+                     Two controls, both covered by the page's Save. Owner decision 8
+                     dropped the day view and the time-slot control: events carry no
+                     time grid, and a live control that changes nothing is the #504
+                     class. The stored default is 'week' (models.py, settings.js
+                     DEFAULTS); the markup used to select 'month' and disagreed.
                      ============================================================ -->
-                <div class="settings-panel" data-panel="calendar">
+                <div class="settings-panel" data-panel="calendar" data-testid="settings-panel-calendar">
                     <h2 class="panel-title">Calendar</h2>
-                    <div class="coming-soon-badge">Coming Soon</div>
+                    <p class="field-description">Planned and past study sessions on one calendar. Open it from the dashboard's <strong>Calendar</strong> link or from a session's setup page.</p>
 
-                    <div class="coming-soon-panel">
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label for="calendar_default_view">Default Calendar View</label>
-                            <p class="field-description">The default time range displayed when opening the calendar.</p>
-                            <select id="calendar_default_view" data-field="calendar_default_view" disabled>
-                                <option value="week">Week</option>
-                                <option value="month" selected>Month</option>
-                                <option value="day">Day</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label for="calendar_default_view">Default view</label>
+                        <p class="field-description">What the calendar opens to. Weeks start on Monday, like your weekly goals.</p>
+                        <select id="calendar_default_view" data-field="calendar_default_view">
+                            <option value="week" selected>Week</option>
+                            <option value="month">Month</option>
+                        </select>
+                    </div>
 
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label for="calendar_time_slot_minutes">Time Slot Duration (minutes)</label>
-                            <p class="field-description">The granularity of time slots in the calendar view.</p>
-                            <select id="calendar_time_slot_minutes" data-field="calendar_time_slot_minutes" disabled>
-                                <option value="15">15 minutes</option>
-                                <option value="30" selected>30 minutes</option>
-                                <option value="60">60 minutes</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show_weekend_in_calendar" data-field="show_weekend_in_calendar" checked>
+                            <span>Show Saturday and Sunday</span>
+                        </label>
+                        <p class="field-description">Untick to hide the weekend columns in both views.</p>
+                    </div>
 
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="show_weekend_in_calendar" data-field="show_weekend_in_calendar" checked disabled>
-                                <span>Show Weekends in Calendar</span>
-                            </label>
-                            <p class="field-description">Whether to display Saturday and Sunday in the calendar view.</p>
-                        </div>
+                    <!-- Session templates (decision 10). No data-field: templates are rows,
+                         not preferences, and archiving saves itself through the bridge
+                         (settings_calendar.js), like the self-assessment panel. -->
+                    <div class="form-group" id="calendar-templates">
+                        <h3 class="about-subhead">Session templates</h3>
+                        <p class="field-description">A template is a set of plan settings (exam, bank, time, duration, questions) you can start a new plan from. Make one from the calendar's <strong>Plan a session</strong> dialog by ticking <em>save as a template</em>. Archiving one here hides it from the picker; plans already made from it are untouched.</p>
+                        <p id="calendar-templates-empty" class="field-description" hidden>You have no templates yet.</p>
+                        <p id="calendar-templates-error" class="assessment-settings-message is-error" hidden></p>
+                        <ul class="calendar-templates-list" id="calendar-templates-list" data-testid="settings-calendar-templates"></ul>
                     </div>
                 </div>
 
                 <!-- ============================================================
-                     Panel 7: Anki Integration (COMING SOON)
+                     Panel 7: Anki Integration (#784 Wave 3)
+                     No control here carries data-field, on purpose: every one
+                     saves itself the moment it changes, through
+                     settings_anki.js, as Question Banks and Self-assessment do.
+                     So the page's Save button never covers Anki, and
+                     anki_integration_enabled / ankiconnect_port are NOT in
+                     SettingsPage.DEFAULTS: Reset leaves Anki alone
+                     (tests/test_settings_anki_markup.py asserts the absence).
                      ============================================================ -->
-                <div class="settings-panel" data-panel="anki_integration">
+                <div class="settings-panel" data-panel="anki_integration" data-testid="settings-panel-anki" id="anki-settings">
                     <h2 class="panel-title">Anki Integration</h2>
-                    <div class="coming-soon-badge">Coming Soon</div>
+                    <p class="field-description">WIMI reads your Anki collection on this computer through the AnkiConnect add-on, so an entry can show the cards for its question. Anki must be open for WIMI to fetch anything; what was fetched before stays readable when it is closed. Every change here is saved as you make it.</p>
+                    <p id="anki-settings-error" class="anki-settings-message is-error" role="alert" hidden></p>
 
-                    <div class="coming-soon-panel">
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="anki_integration_enabled" data-field="anki_integration_enabled" disabled>
-                                <span>Enable Anki Integration</span>
-                            </label>
-                            <p class="field-description">Connect WIMI to Anki via AnkiConnect for flashcard synchronization.</p>
+                    <h3 class="anki-subhead">Connection on this computer</h3>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="anki-enabled" data-testid="settings-anki-enabled">
+                            <span>Use Anki on this computer</span>
+                        </label>
+                        <p class="field-description">This setting stays on this computer. A copy of your profile on another computer starts with it off.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="anki-port">AnkiConnect port</label>
+                        <p class="field-description">The port the AnkiConnect add-on listens on, 8765 unless you changed it in the add-on's settings. WIMI only ever connects to Anki on this computer.</p>
+                        <div class="anki-inline-row">
+                            <input type="number" id="anki-port" min="1000" max="65535" step="1" value="8765" data-testid="settings-anki-port">
+                            <button type="button" class="btn btn-secondary btn-sm" id="anki-test-connection" data-testid="settings-anki-test">Test connection</button>
                         </div>
+                        <p id="anki-connection-status" class="anki-settings-message" role="status" data-testid="settings-anki-connection-status"></p>
+                    </div>
 
-                        <div class="form-group coming-soon-control" title="Coming soon">
-                            <label for="ankiconnect_port">AnkiConnect Port</label>
-                            <p class="field-description">The port number AnkiConnect is listening on (default: 8765).</p>
-                            <input type="number" id="ankiconnect_port" data-field="ankiconnect_port" value="8765" disabled>
+                    <h3 class="anki-subhead">Refreshing and display</h3>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="anki-auto-refresh" data-testid="settings-anki-auto-refresh">
+                            <span>Refresh an entry's cards when they are older than the time below</span>
+                        </label>
+                        <p class="field-description">When this is off, cards are fetched only when you ask, from the entry or with Sync below.</p>
+                        <div class="anki-inline-row">
+                            <label for="anki-refresh-minutes" class="anki-inline-label">Minutes</label>
+                            <input type="number" id="anki-refresh-minutes" min="1" max="1440" step="1" value="60" data-testid="settings-anki-refresh-minutes">
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label for="anki-display-mode">Show cards on an entry</label>
+                        <p class="field-description">One row per card, or one combined row per note. Interval, due date and the memory estimates belong to a single card, so the combined view leaves them out.</p>
+                        <select id="anki-display-mode" data-testid="settings-anki-display-mode">
+                            <option value="card">One row per card</option>
+                            <option value="note">One row per note</option>
+                        </select>
+                    </div>
+                    <p id="anki-prefs-status" class="anki-settings-message" role="status" data-testid="settings-anki-prefs-status"></p>
+
+                    <h3 class="anki-subhead">Search templates</h3>
+                    <p class="field-description">A search template tells WIMI how to find a question's cards in Anki. Write it as an Anki search and put <code>{{qid}}</code> where the question id goes, for example <code>tag:MyDeck::{{qid}}</code>. Each template belongs to one question bank of one exam.</p>
+                    <div class="form-group">
+                        <label for="anki-template-exam">Exam</label>
+                        <select id="anki-template-exam" data-testid="settings-anki-template-exam"></select>
+                    </div>
+                    <div id="anki-template-list" data-testid="settings-anki-template-list"></div>
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary btn-sm" id="anki-sync-exam" data-testid="settings-anki-sync">Fetch this exam's cards now</button>
+                        <p id="anki-sync-status" class="anki-settings-message" role="status" data-testid="settings-anki-sync-status"></p>
+                    </div>
+
+                    <h3 class="anki-subhead">Card fields shown on an entry</h3>
+                    <p class="field-description">Choose which fields of each note type an entry shows. Note types appear here once some of their cards have been fetched.</p>
+                    <div id="anki-field-list" data-testid="settings-anki-field-list"></div>
                 </div>
 
                 <!-- ============================================================
@@ -1053,8 +1116,11 @@
                 <div class="settings-panel" data-panel="mcp_server">
                     <h2 class="panel-title">MCP Server</h2>
                     <p class="field-description">
-                        Run a local MCP (Model Context Protocol) server so AI assistants
-                        like Claude can read your WIMI data. The server is read-only.
+                        Run a local Model Context Protocol (MCP) server so an AI assistant
+                        on this computer can read your WIMI data. Any assistant or tool that
+                        speaks MCP can connect: a desktop chat app, a code editor, or a
+                        front end for a model running on this computer, so nothing has to
+                        leave the machine. WIMI favours no provider; the server is read-only.
                     </p>
 
                     <div class="form-group">
@@ -1062,7 +1128,7 @@
                             <input type="checkbox" data-field="mcp_server_enabled" id="mcp_server_enabled" data-testid="settings-mcp-server-enabled">
                             <span>Enable MCP Server</span>
                         </label>
-                        <p class="field-description">Start an SSE server on localhost when enabled.</p>
+                        <p class="field-description">Start a server on this computer only (127.0.0.1) when enabled.</p>
                     </div>
 
                     <div class="form-group">
@@ -1085,29 +1151,45 @@
                             <span class="mcp-status-dot unknown" id="mcpStatusDot"></span>
                             <span class="mcp-status-text" id="mcpStatusText">Checking&hellip;</span>
                         </div>
+                        <!-- Two addresses because clients disagree on transport:
+                             Streamable HTTP superseded SSE in the 2025-03-26 MCP
+                             revision, and both are served on the one port. -->
                         <p class="field-description mcp-connection-url" id="mcpConnectionUrl" style="display:none;">
-                            Connection URL: <code id="mcpUrlValue"></code>
+                            Streamable HTTP address: <code id="mcpHttpUrlValue"></code><br>
+                            SSE address: <code id="mcpUrlValue"></code>
                         </p>
                     </div>
 
                     <div class="mcp-connect-instructions" id="mcpConnectInstructions" style="display:none;">
-                        <label>Connect Claude Code</label>
+                        <label>Connect an assistant</label>
                         <p class="field-description">
-                            Add this to your project's <code>.mcp.json</code> file, or run the CLI commands below.
+                            Give your assistant one of the addresses above, or paste one of
+                            these blocks into its MCP configuration. Most assistants read the
+                            <code>mcpServers</code> shape shown here; if yours asks for a
+                            single address, use the Streamable HTTP one. The third block is
+                            for an assistant that launches its servers itself: it runs WIMI's
+                            server over standard input and output, with no port involved.
                         </p>
                         <div class="mcp-config-block">
                             <div class="mcp-config-header">
-                                <span class="mcp-config-label">.mcp.json</span>
+                                <span class="mcp-config-label">Over the network (Streamable HTTP)</span>
+                                <button class="mcp-copy-btn" id="mcpCopyHttpBtn" data-testid="settings-mcp-server-copy-http" title="Copy to clipboard">Copy</button>
+                            </div>
+                            <pre class="mcp-config-code" id="mcpConfigHttp"></pre>
+                        </div>
+                        <div class="mcp-config-block">
+                            <div class="mcp-config-header">
+                                <span class="mcp-config-label">Over the network (SSE, for older clients)</span>
                                 <button class="mcp-copy-btn" id="mcpCopyJsonBtn" data-testid="settings-mcp-server-copy-json" title="Copy to clipboard">Copy</button>
                             </div>
                             <pre class="mcp-config-code" id="mcpConfigJson"></pre>
                         </div>
                         <div class="mcp-config-block">
                             <div class="mcp-config-header">
-                                <span class="mcp-config-label">CLI</span>
-                                <button class="mcp-copy-btn" id="mcpCopyCliBtn" data-testid="settings-mcp-server-copy-cli" title="Copy to clipboard">Copy</button>
+                                <span class="mcp-config-label">Launched by the assistant (stdio)</span>
+                                <button class="mcp-copy-btn" id="mcpCopyStdioBtn" data-testid="settings-mcp-server-copy-stdio" title="Copy to clipboard">Copy</button>
                             </div>
-                            <pre class="mcp-config-code" id="mcpConfigCli"></pre>
+                            <pre class="mcp-config-code" id="mcpConfigStdio"></pre>
                         </div>
                     </div>
                 </div>
@@ -1188,6 +1270,45 @@
                      memory. The versions are pinned in requirements-prod.txt
                      and the vendored ones carry their version in the file.
                      ========================================================== -->
+                <!-- ============================================================
+                     Self-assessment (#766 Wave 3, plan Stage 5)
+                     No control here carries data-field, on purpose: the cadence
+                     lives in user_assessment_preferences, not user_preferences,
+                     so it cannot ride the page's flat save and must not be in
+                     the DEFAULTS sweep. It saves through its own button and
+                     settings_assessment.js.
+                     ============================================================ -->
+                <div class="settings-panel" data-panel="self_assessment" data-testid="settings-panel-self-assessment" id="assessment-settings">
+                    <h2 class="panel-title">Self-assessment</h2>
+                    <p id="assessment-settings-error" class="assessment-settings-message is-error" hidden></p>
+
+                    <div id="assessment-settings-empty" hidden>
+                        <p class="field-description">A short questionnaire about how you approach thinking and learning. Complete it once and the re-measurement settings appear here. Nothing else in WIMI changes because of it yet.</p>
+                        <a href="assessment.html" class="btn btn-primary" id="assessment-settings-take" data-testid="settings-assessment-take">Take it now</a>
+                    </div>
+
+                    <div id="assessment-settings-started" hidden>
+                        <div class="form-group">
+                            <label for="assessment_cadence_days">How often to retake the assessment (days)</label>
+                            <p class="field-description">Between 30 and 730. Saved with the button beside it, not the page's Save button: this is kept with your assessment, not with your preferences.</p>
+                            <input type="number" id="assessment_cadence_days" min="30" max="730" step="1" value="180">
+                            <button type="button" class="btn btn-secondary btn-sm" id="assessment-cadence-save">Save cadence</button>
+                            <p id="assessment-cadence-message" class="assessment-settings-message" hidden></p>
+                        </div>
+
+                        <dl class="assessment-settings-status">
+                            <dt>Last completed</dt>
+                            <dd id="assessment-last-completed"></dd>
+                            <dt>Next due</dt>
+                            <dd id="assessment-next-due"></dd>
+                            <dt>Times snoozed</dt>
+                            <dd id="assessment-snooze-count"></dd>
+                        </dl>
+
+                        <a href="assessment.html" class="btn btn-primary" id="assessment-settings-retake">Take a new assessment now</a>
+                    </div>
+                </div>
+
                 <div class="settings-panel" data-panel="about" data-testid="settings-panel-about">
                     <h2 class="panel-title">About</h2>
 
@@ -1362,6 +1483,45 @@
                             (MIT), from Hugging Face.
                         </p>
 
+                        <!-- Self-assessment items (#766 Wave 5b, plan Stage 7). This
+                             is the credit the plan put in LICENSES.md, which does not
+                             exist: #195(a) keeps every notice here. Decision 2 (owner,
+                             2026-10-12): the published NFC items are used as published
+                             and the credit names the source and the copyright holder.
+                             The owner declined a sentence stating whether permission
+                             was sought, so this table makes no claim about permission
+                             in either direction; do not add one. Decision 8: the LGO
+                             items are ADAPTED (work-domain wording replaced with
+                             study-domain wording) and so are an unvalidated adaptation,
+                             which the table says. -->
+                        <h4 class="about-subhead">Self-assessment questionnaire items</h4>
+                        <table class="about-notices-table" data-testid="about-notices-assessment">
+                            <thead>
+                                <tr><th>Instrument</th><th>Source</th><th>Status in WIMI</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Need for Cognition Scale (34 items)</td>
+                                    <td>Cacioppo, J. T., &amp; Petty, R. E. (1982). The need for cognition. <em>Journal of Personality and Social Psychology</em>, 42(1), 116&ndash;131. Copyright the publisher.</td>
+                                    <td>Reproduced as published, including the nine-point response scale.</td>
+                                </tr>
+                                <tr>
+                                    <td>Learning Goal Orientation (13 items)</td>
+                                    <td>VandeWalle, D. (1997). Development and validation of a work domain goal orientation instrument. <em>Educational and Psychological Measurement</em>, 57(6), 995&ndash;1015. Copyright the publisher.</td>
+                                    <td>Adapted: work-domain wording (&ldquo;at work&rdquo;, &ldquo;my coworkers&rdquo;) replaced with study-domain wording; structure, subscales, response scale and scoring unchanged. This adaptation has not been independently validated.</td>
+                                </tr>
+                                <tr>
+                                    <td>Personal Importance (8 items)</td>
+                                    <td>Original to WIMI, 2026.</td>
+                                    <td>Released under CC BY 4.0. Use with attribution to &ldquo;WIMI Personal Importance Scale, 2026&rdquo;.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="field-description">
+                            Your answers and scores stay in your own profile and are not
+                            sent anywhere. Nothing else in WIMI changes because of them yet.
+                        </p>
+
                         <h4 class="about-subhead">Where the full licence texts are</h4>
                         <p class="field-description">
                             Full texts for the web libraries and for whisper.cpp
@@ -1394,5 +1554,8 @@
     <script src="../js/tour_steps.js"></script>
     <script src="../js/tour.js"></script>
     <script src="../js/settings.js"></script>
+    <script src="../js/settings_assessment.js"></script>
+    <script src="../js/settings_calendar.js"></script>
+    <script src="../js/settings_anki.js"></script>
 </body>
 </html>

@@ -29,6 +29,9 @@ from .subject_import import SubjectImportMixin
 from .subject_restore import SubjectRestoreMixin
 from .plugin_data import PluginDataMixin
 from .graph import GraphMixin
+from .assessments import AssessmentsMixin
+from .calendar import CalendarMixin
+from .anki import AnkiMixin
 
 __all__ = [
     'SharedHelpersMixin',
@@ -56,4 +59,7 @@ __all__ = [
     'SubjectRestoreMixin',
     'PluginDataMixin',
     'GraphMixin',
+    'AssessmentsMixin',
+    'CalendarMixin',
+    'AnkiMixin',
 ]

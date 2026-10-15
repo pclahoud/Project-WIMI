@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../css/rich_content.css">
     <link rel="stylesheet" href="../css/toast.css">
     <link rel="stylesheet" href="../css/export_dialog.css">
+    <link rel="stylesheet" href="../css/anki.css">
     <link rel="stylesheet" href="../lib/katex/katex.min.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../lib/katex/katex.min.js"></script>
@@ -163,6 +164,24 @@
                 <div class="section-content" id="explanation-content" data-testid="detail-explanation-content"></div>
             </section>
 
+            <!-- Anki cards (#784 Wave 4). Ships hidden; anki_stats_panel.js
+                 reveals it only when this computer has Anki switched on, and
+                 only after the page is drawn, so it never delays the entry.
+                 Everything inside is built from DOM nodes. It sits after the
+                 explanation (owner, #815): the cards are what to review once
+                 the why is written down. -->
+            <section class="content-section anki-section" id="anki-section" data-testid="detail-anki-section"
+                     aria-labelledby="anki-heading" hidden>
+                <div class="anki-section-head">
+                    <h2 class="section-title" id="anki-heading">Anki cards</h2>
+                    <button type="button" class="btn btn-secondary btn-sm" id="anki-refresh"
+                            data-testid="detail-anki-refresh">Refresh from Anki</button>
+                </div>
+                <p class="anki-synced" id="anki-synced" data-testid="detail-anki-synced"></p>
+                <p class="anki-status" id="anki-status" role="status" data-testid="detail-anki-status"></p>
+                <div class="anki-cards" id="anki-cards" data-testid="detail-anki-cards"></div>
+            </section>
+
             <!-- Attachments and Notes Row -->
             <section class="attachments-notes-section">
                 <div class="attachments-panel">
@@ -221,6 +240,11 @@
             <img class="lightbox-image" id="lightbox-image" src="" alt="Attachment">
             <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next image" data-testid="detail-lightbox-next">›</button>
             <div class="lightbox-caption" id="lightbox-caption"></div>
+            <!-- Shown only for an Anki card's image (#815): saving it to the
+                 entry's attachments happens here, beside the picture, instead
+                 of as a second button beside every file name. -->
+            <button type="button" class="btn btn-secondary btn-sm lightbox-save" id="lightbox-save"
+                    data-testid="detail-lightbox-save" hidden>Save to Attachments</button>
         </div>
     </div>
 
@@ -232,5 +256,6 @@
     <!-- #301: the archived-ancestor note on the subject breadcrumb. -->
     <script src="../js/archived_ancestor_note.js"></script>
     <script src="../js/entry_detail.js"></script>
+    <script src="../js/anki_stats_panel.js"></script>
 </body>
 </html>

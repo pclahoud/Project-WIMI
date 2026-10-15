@@ -46,6 +46,7 @@ class ExamWizard {
             examName: '',
             examDescription: '',
             examDate: '',
+            examColor: '',        // '#rrggbb' or '' (#778 decision 9)
             notes: '',
             hierarchyLevels: ['System', 'Subsystem', 'Topic', 'Subtopic', 'Child'],
             dimensions: [],  // For multi-dimensional exams
@@ -170,6 +171,7 @@ class ExamWizard {
             this.data.examName = exam.exam_name || '';
             this.data.examDescription = exam.exam_description || '';
             this.data.examDate = exam.exam_date || '';
+            this.data.examColor = exam.color_hex || '';
             this.data.notes = exam.notes || '';
             
             // Determine exam type based on dimensions
@@ -1508,6 +1510,17 @@ class ExamWizard {
         if (dateInput) {
             dateInput.value = this.data.examDate || '';
         }
+        const colorEnabled = document.getElementById('exam-color-enabled');
+        const colorInput = document.getElementById('exam-color');
+        if (colorEnabled && colorInput) {
+            colorEnabled.checked = !!this.data.examColor;
+            colorInput.disabled = !this.data.examColor;
+            if (this.data.examColor) colorInput.value = this.data.examColor;
+            if (!colorEnabled.dataset.wired) {
+                colorEnabled.dataset.wired = '1';
+                colorEnabled.addEventListener('change', () => { colorInput.disabled = !colorEnabled.checked; });
+            }
+        }
         if (notesInput) {
             notesInput.value = this.data.notes || '';
         }
@@ -1591,6 +1604,8 @@ class ExamWizard {
                 this.data.examName = document.getElementById('exam-name').value.trim();
                 this.data.examDescription = document.getElementById('exam-description').value.trim();
                 this.data.examDate = document.getElementById('exam-date').value;
+                this.data.examColor = document.getElementById('exam-color-enabled')?.checked
+                    ? (document.getElementById('exam-color').value || '') : '';
                 this.data.notes = document.getElementById('exam-notes').value.trim();
                 break;
                 
@@ -2137,6 +2152,12 @@ class ExamWizard {
             hierarchyLevels: this.data.hierarchyLevels,
             notes: this.data.notes
         });
+        // #778 decision 9: createExamContext's slot signature is positional and
+        // predates the colour; set it with the settings slot instead of
+        // widening a registered signature.
+        if (this.data.examColor) {
+            await api.updateExamContextSettings(examResult.id, { color_hex: this.data.examColor });
+        }
 
         // Stage 4 — persist the length triple. We always call this
         // (including for kind='unknown') so the row's length_kind is
@@ -2196,6 +2217,7 @@ class ExamWizard {
         const settings = {
             exam_description: this.data.examDescription,
             exam_date: this.data.examDate,
+            color_hex: this.data.examColor || null,
             notes: this.data.notes,
             autonomous_balancing: this.data.weightSettings.autonomousBalancing,
             precision: this.data.weightSettings.precision,

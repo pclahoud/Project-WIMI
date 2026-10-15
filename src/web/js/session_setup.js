@@ -704,15 +704,28 @@ async function startSession() {
     startBtn.innerHTML = '<span class="spinner spinner-sm"></span> Creating...';
     
     try {
-        const session = await api.createReviewSession({
-            exam_context_id: SessionState.examContextId,
-            question_source_id: parseInt(source),
-            session_name: generatedName,
-            date_encountered: date,
-            total_questions: totalQuestions,
-            total_incorrect: totalIncorrect,
-            session_duration_minutes: getSessionDurationMinutes()
-        });
+        let session;
+        if (SessionState.plannedSession) {
+            // The plan becomes this session inside one bridge transaction (#778).
+            const started = await api.startPlannedSession(SessionState.plannedSession.id, {
+                total_questions: totalQuestions,
+                total_incorrect: totalIncorrect,
+                date_encountered: date,
+                session_name: generatedName,
+                exam_context_id: SessionState.examContextId
+            });
+            session = started.review_session;
+        } else {
+            session = await api.createReviewSession({
+                exam_context_id: SessionState.examContextId,
+                question_source_id: parseInt(source),
+                session_name: generatedName,
+                date_encountered: date,
+                total_questions: totalQuestions,
+                total_incorrect: totalIncorrect,
+                session_duration_minutes: getSessionDurationMinutes()
+            });
+        }
         if (window.eventBus) eventBus.emit('session:created', { id: session.id });
 
         Toast.success('Session Created', 'Redirecting to question entry...');
@@ -1273,6 +1286,64 @@ function markSessionSetupReady() {
     }
 }
 
+// =========================================================================
+// Planned session prefill (#778)
+// =========================================================================
+
+/**
+ * Read the plan named by ?planned_id= and keep it on SessionState. A plan
+ * that cannot be read is reported and the form behaves as it always did.
+ */
+async function loadPlannedSessionPrefill() {
+    const plannedId = getUrlParam('planned_id');
+    SessionState.plannedSession = null;
+    if (!plannedId) return;
+    try {
+        const plan = await api.getPlannedSession(parseInt(plannedId));
+        if (plan && plan.status === 'planned') {
+            SessionState.plannedSession = plan;
+            SessionState.selectedSourceId = plan.question_source_id || null;
+        } else if (plan) {
+            Toast.warning('That planned session is ' + plan.status + '; starting a fresh session instead.');
+        }
+    } catch (error) {
+        console.warn('Could not load the planned session:', error);
+        Toast.warning('That planned session could not be read; starting a fresh session instead.');
+    }
+}
+
+/**
+ * Prefill the form from the plan once the controls exist: date, question
+ * count, name and duration. The source is restored by loadQuestionSources
+ * through SessionState.selectedSourceId.
+ */
+function applyPlannedSessionToForm() {
+    const plan = SessionState.plannedSession;
+    if (!plan) return;
+    const dateInput = document.getElementById('session-date');
+    if (dateInput && plan.planned_date) dateInput.value = plan.planned_date;
+    const qInput = document.getElementById('session-total-questions');
+    if (qInput && plan.planned_questions) qInput.value = String(plan.planned_questions);
+    const nameInput = document.getElementById('session-name');
+    if (nameInput && plan.title && !nameInput.value) nameInput.value = plan.title;
+    const presetSelect = document.getElementById('session-duration-preset');
+    const customInput = document.getElementById('session-duration-custom');
+    if (presetSelect && plan.planned_duration_minutes) {
+        const minutes = String(plan.planned_duration_minutes);
+        const presetValues = Array.from(presetSelect.options).map(o => o.value);
+        if (presetValues.includes(minutes)) {
+            presetSelect.value = minutes;
+            if (customInput) customInput.style.display = 'none';
+        } else {
+            presetSelect.value = 'custom';
+            if (customInput) { customInput.style.display = 'inline-block'; customInput.value = minutes; }
+        }
+    }
+    const badge = document.getElementById('exam-badge');
+    if (badge) badge.textContent = 'Planned session';
+    validateForm();
+}
+
 async function initializeSessionSetup() {
     console.log('🚀 Initializing session setup page...');
     
@@ -1305,6 +1376,11 @@ async function initializeSessionSetup() {
         
         // Set default date to today
         document.getElementById('session-date').value = getTodayDateString();
+
+        // #778: arriving from the calendar with ?planned_id= prefills the form
+        // from the plan, and Start then goes through startPlannedSession so the
+        // plan and the session are linked and one session appears, not two.
+        await loadPlannedSessionPrefill();
         
         // Load data
         await Promise.all([
@@ -1314,6 +1390,7 @@ async function initializeSessionSetup() {
 
         // Pre-fill session duration from user preferences
         await initializeSessionDuration();
+        applyPlannedSessionToForm();
 
         // Initialize modal handlers
         initializeModalHandlers();

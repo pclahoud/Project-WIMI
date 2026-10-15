@@ -29,6 +29,7 @@ Valid route names:
 - ``exam-wizard``
 - ``error-viewer``
 - ``profile-select``
+- ``assessment``
 - ``help`` (the manual's index; chapter pages are generated per
   chapter and are reached from it by link, so they deliberately have no
   route of their own -- one per chapter would mean editing this file every
@@ -62,6 +63,8 @@ ROUTES: MappingProxyType = MappingProxyType({
     "exam-wizard": "wizards/exam_wizard.html",
     "error-viewer": "error-viewer.html",
     "profile-select": "profile_select.html",
+    "assessment": "assessment.html",
+    "calendar": "calendar.html",
     "help": "help.html",
 })
 

@@ -41,7 +41,7 @@
         </header>
         <main class="help-main">
             <article class="help-article">
-                <p class="help-eyebrow">Chapter 16</p>
+                <p class="help-eyebrow">Chapter 17</p>
                 <h1 class="help-title" data-testid="help-chapter-title">Reading the analytics dashboard</h1>
                 <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
                     <p class="help-body-holding">Opening this chapter&hellip;</p>
@@ -154,6 +154,12 @@ Two controls worth knowing about before you start distrusting a card:
 
 Some cards also stay away on their own. The cross-dimension cards appear only on an exam with dimensions, and **Question Banks Compared** only once you have logged an entry in roughly the last six months.
 
+### The i beside each title
+
+Every card except the four counts at the top has a small **i** beside its
+title. Hover over it, or Tab to it, for a few lines on what the card counts.
+This chapter is the longer version of the same thing.
+
 ## Overview: the four cards at the top
 
 <!-- tour
@@ -240,7 +246,8 @@ chapter about those. It is the surface that answers the question a single tree
 cannot: not "how am I on cardiology" but "how am I on cardiology *when the task
 is diagnosis*".
 
-- **Pick an axis for the rows and an axis for the columns**, and a level within each — System, Topic and so on. The level selectors say how many subjects sit at each level.
+- **Pick two axes**, and a level within each — System, Topic and so on. The level selectors say how many subjects sit at each level.
+- **Whichever axis has more subjects at its level runs down the side**, with full names, and the other runs across the top. Thirty-six systems read as thirty-six rows; as columns they were thirty-six slanted, cut-off labels. Hovering a heading shows its full name. A grid too wide for the card scrolls sideways rather than shrinking.
 - **A cell is a count of entries** tagged in both. Hovering gives the pair, the count and the average difficulty of those entries.
 - **Clicking a cell opens the entry browser** showing you those entries, which is the point of the whole card: it turns a hot spot into a reading list.
 - **Clicking a row or column heading drills down** one level into that subject, and a breadcrumb with a **Reset** button takes you back.
@@ -267,6 +274,22 @@ one entry, so a grey cell has none.
 Early on the card will say *No cross-dimension data available* and ask for more
 entries with dimension tags. That is the truthful answer: a crossing of two axes
 needs entries in enough combinations before any pattern in it is real.
+
+## Study recommendations
+
+Under the cross-dimension grid, up to five pairs from that grid, best first.
+**It ranks exactly the cells the grid is showing**: the same two axes, the same
+levels and the same drill-down, and it re-ranks every time the grid redraws. A
+cell needs at least two entries to be ranked.
+
+- **A pair ranks higher the more of the grid's mistakes it holds, the more the exam weights its two subjects, and the harder you rated those questions.** The weight is the average of the two subjects' weights, each the middle of its band.
+- **A subject with no weight is ranked as if it were 5%**, so an unweighted exam still gets a ranking. The row then leaves out its **Weight** figure rather than print that stand-in as if it were yours.
+- **The stars compare each pair with the top one**, not with any fixed scale.
+- **Clicking a pair opens its entries** in the entry browser — the same list as clicking that pair's cell in the grid.
+
+It ranked every level at once until October 2026, so a system and its own
+topics competed for the same five places; if you read it before then, it reads
+differently now.
 
 ## Activity over time
 
@@ -396,6 +419,25 @@ with none it tells you so.
 [Weights: what a percentage means here](help_weights.html) is the chapter about
 where those numbers come from.
 
+**It counts mistakes, not your accuracy.** WIMI records the questions you got
+wrong and each session's totals, but not which subject each correct answer was
+in. So the card compares how your mistakes are spread with how the exam is
+spread, and that says something about your accuracy only when you practise
+subjects in roughly the exam's proportions — random, mixed blocks from a bank
+that follows the blueprint. A week of blocks filtered to one subject fills that
+subject with mistakes whatever your accuracy there, and a subject you have not
+practised yet has no mistakes to show, so it looks fine when it is only
+untested. Read the card with your own mix of practice in mind.
+
+On an exam with several axes the card shows **one axis at one level**, chosen
+with the **Dimension** and **Level** selectors at its top. The axis starts on
+the **Default Dimension Filter** in Settings → Analytics, the same setting the
+subject sunburst follows; when that says *All Dimensions* the card asks you to
+choose one. Each axis covers the whole exam on its own, so mixing them in one
+list compared you against several different cuts of the same questions at
+once. The level starts at the top one, and moving down — System to Topic, say —
+is how you look inside a subject the top level says needs work.
+
 Today the card holds two panels.
 
 ### Quadrant Analysis
@@ -405,7 +447,7 @@ page: analytics
 anchor: analytics-weight-quadrant
 text: Reduce Focus is not praise. It lists subjects light on the exam, under
   10% at the middle of their band, where your share of mistakes is over 1.3
-  times the top of that band: subjects you keep getting wrong. It ranks them
+  times that middle and outside the band: subjects you keep getting wrong. It ranks them
   below heavier subjects; it does not say you have learned them.
 -->
 
@@ -418,11 +460,23 @@ and are you missing more of it than its weight would lead you to expect?
 - **Reduce focus** — light on the exam and over-represented in your mistakes. You keep getting it wrong, but the exam asks little of it, so it ranks below the heavy subjects. It is not a sign you have mastered it.
 - **Low priority** — light on the exam and not over-represented. Leave it.
 
+Each group shows **its five subjects with the largest gap** between your share
+of mistakes and the exam's weight, largest first, with the group's total beside
+its name. **Show all** under a group lists the rest of that group, and **Show
+top 5** folds it back. On an exam built from a full blueprint most subjects have
+no entries yet, and listing all of them buried the five that matter.
+
 A subject counts as heavy when the middle of its band is 10% of the exam or
 more, and as over-represented once your share of mistakes is more than 1.3
-times the top of its published band, rather than merely above its middle. A
-share that falls inside the band is never over-represented. The thresholds are
-blunt on purpose: this is a sorting aid, not a score.
+times the middle of its band — above 32.5% for a 20–30% subject. A share that
+falls inside the band is never over-represented, which matters only for a wide
+band: at 5–15% the cut is 13%, and 13–15% is still inside. **A subject also
+needs a minimum number of mistakes before it can be over-represented** — 3 to
+start with, set per exam under **Per-Exam Analytics Configuration** in
+Settings. Without it a subject weighted 0% was flagged on its first mistake,
+because any share is more than 1.3 times nothing. The card's **i** states the
+same rule. The thresholds are blunt on purpose: this is a sorting aid, not a
+score.
 
 **That is what makes a weak small topic rank below a middling large one, and it
 is the whole point of the card.** A 2% topic you keep missing lands in Reduce
@@ -430,16 +484,22 @@ focus; a 15% subject you miss about as often as its weight predicts lands in
 Well-maintained. Studied as a pure weakness list those two would be the wrong
 way round, and the exam would punish you for it.
 
-Each row reads as a pair — your share of the mistakes beside the exam's weight,
-as in 18% against a published 8–12% — followed by a small glyph saying where
-that weight came from. Both halves are shares of the same thing, which is what
+Each row is a small bar. The shaded stretch is the exam's band for that subject
+and the dot is your share of the mistakes, so a dot to the right of the stretch
+is a subject you miss more than its weight. Every bar on the card uses the same
+scale, printed once under the last group, so bars in different groups can be
+compared by eye. Under the bar the two figures are written out — *8–12% of the
+exam* on the left and *18% of your mistakes* on the right — and beside the name
+is how many mistakes that share is, so a share of five mistakes and a share of
+five hundred no longer look alike. The small glyph after the name says where
+the weight came from. Both halves are shares of the same thing, which is what
 makes the comparison mean something: the left is your share of **every** mistake
 you have logged in this exam, and the right is that subject's share of the exam.
 
 Two consequences worth knowing, because they look like errors and are not.
 
 - **A parent's row includes everything beneath it.** A weight is a share of the whole exam at every level, so Cardiovascular's 20–25% already covers its topics, and its mistake share has to cover them too. Tag three mistakes on Hypertension and Cardiovascular's row moves, even though nothing is tagged on Cardiovascular itself.
-- **The rows therefore overlap, and they will add up to more than 100%.** Those same three mistakes are counted on Hypertension's row and on Cardiovascular's. That is the same non-additivity the sunburst's arcs have, for the same reason, and summing the column would describe nothing.
+- **Rows at different levels therefore overlap.** Those same three mistakes are counted on Hypertension's row and on Cardiovascular's. On an exam without axes the card lists every level at once, so its rows add up to more than 100% — the same non-additivity the sunburst's arcs have, for the same reason, and summing the column would describe nothing. Choosing one level on an axis keeps a mistake to one row, except for a subject filed under two parents, which counts under each.
 
 A subject with **no** weight recorded is left off the card, since there is
 nothing to compare against. A subject weighted at **0%** is on it: a blueprint

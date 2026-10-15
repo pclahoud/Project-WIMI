@@ -417,19 +417,28 @@ async function submitCreateForm() {
     showCreateError(null);
 
     if (submitBtn) submitBtn.disabled = true;
+    let created = null;
     try {
-        await api.createProfile({
+        created = await api.createProfile({
             username: username,
             display_name: displayName || username
         });
-        Toast.success('Profile created', `@${username} is ready to use.`);
-        await loadProfiles();
     } catch (error) {
         console.error('Failed to create profile:', error);
         showCreateError(error.message || 'Failed to create profile');
-    } finally {
         if (submitBtn) submitBtn.disabled = false;
+        return;
     }
+    // Creating a profile OPENS it (#775, owner 2026-10-12). The picker used
+    // to redraw its grid here and wait for a press on the new card; the
+    // owner's first run went create -> "why am I still here?" -> card ->
+    // tour, and that press was the whole complaint. selectProfile owns the
+    // navigation and the button state from here; on its failure the picker
+    // is still on screen with the new card, which is the honest fallback.
+    // The "ready to use" toast is gone because the dashboard is the
+    // confirmation. This holds from Settings -> Switch profile... too: a
+    // second profile created there is opened as well (owner's decision).
+    await selectProfile(created.id, submitBtn);
 }
 
 // =========================================================================

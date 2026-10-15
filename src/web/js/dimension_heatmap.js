@@ -46,6 +46,20 @@ class DimensionHeatmap {
             return;
         }
 
+        // The dimension with more values runs down the side (#821, owner's
+        // decision): 36 values are 36 readable rows, where as columns they
+        // were 36 rotated, truncated labels. Only the drawing turns; the
+        // pickers keep saying which dimension is A and which is B, and a
+        // header click still drills into the dimension it belongs to.
+        this.transposed = matrixData.dimension_b.values.length > matrixData.dimension_a.values.length;
+        if (this.transposed) {
+            matrixData = DimensionHeatmap.transpose(matrixData);
+            drilldownOptions = {
+                onRowHeaderClick: drilldownOptions.onColHeaderClick,
+                onColHeaderClick: drilldownOptions.onRowHeaderClick,
+            };
+        }
+
         const _cs = getComputedStyle(document.documentElement);
 
         this.data = matrixData;
@@ -60,8 +74,7 @@ class DimensionHeatmap {
         const cellFont = Math.round(12 * sf);
         const titleFont = Math.round(13 * sf);
         const colTruncLen = Math.round(15 * sf);
-        const rowTruncLen = Math.round(18 * sf);
-        this.options.marginLeft = Math.round(140 * sf);
+        const rowTruncLen = Math.round(40 * sf);
 
         // Get unique values for each dimension
         const dimAValues = matrixData.dimension_a.values;
@@ -76,6 +89,15 @@ class DimensionHeatmap {
         truncatedLabels.forEach(label => {
             maxTextWidth = Math.max(maxTextWidth, ctx.measureText(label).width);
         });
+
+        // Row labels get the width they need (#821). A fixed 140 px cut them
+        // at 18 characters and ran the longer ones into the rotated axis
+        // title, which sits in the first 30 px.
+        let maxRowWidth = 0;
+        dimAValues.forEach(v => {
+            maxRowWidth = Math.max(maxRowWidth, ctx.measureText(this._truncateLabel(v.name, rowTruncLen)).width);
+        });
+        this.options.marginLeft = Math.max(Math.round(140 * sf), Math.round(30 * sf) + Math.ceil(maxRowWidth) + 14);
 
         // Vertical extent of longest label when rotated -45deg
         const labelHeight = Math.ceil(maxTextWidth * Math.sin(Math.PI / 4));
@@ -138,6 +160,7 @@ class DimensionHeatmap {
             .attr('font-size', `${headerFont}px`)
             .style('cursor', drilldownOptions.onColHeaderClick ? 'pointer' : 'default')
             .text(d => this._truncateLabel(d.name, colTruncLen));
+        colHeaders.append('title').text(d => d.name);
 
         // Add click handler for column headers
         if (drilldownOptions.onColHeaderClick) {
@@ -162,6 +185,7 @@ class DimensionHeatmap {
             .attr('font-size', `${headerFont}px`)
             .style('cursor', drilldownOptions.onRowHeaderClick ? 'pointer' : 'default')
             .text(d => this._truncateLabel(d.name, rowTruncLen));
+        rowHeaders.append('title').text(d => d.name);
 
         // Add click handler for row headers
         if (drilldownOptions.onRowHeaderClick) {
@@ -240,6 +264,25 @@ class DimensionHeatmap {
             .attr('font-size', `${titleFont}px`)
             .attr('font-weight', '600')
             .text(matrixData.dimension_a.name);
+    }
+
+    /**
+     * The same matrix with its two dimensions exchanged (#821). Cells keep
+     * their count; only which side each subject is drawn on changes.
+     */
+    static transpose(matrixData) {
+        return {
+            ...matrixData,
+            dimension_a: matrixData.dimension_b,
+            dimension_b: matrixData.dimension_a,
+            matrix: matrixData.matrix.map(c => ({
+                ...c,
+                dim_a_hierarchy_id: c.dim_b_hierarchy_id,
+                dim_a_value: c.dim_b_value,
+                dim_b_hierarchy_id: c.dim_a_hierarchy_id,
+                dim_b_value: c.dim_a_value,
+            })),
+        };
     }
 
     /**

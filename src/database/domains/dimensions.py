@@ -1932,32 +1932,38 @@ class DimensionsMixin:
         if not dimension:
             return {'dimension_id': dimension_id, 'dimension_name': '', 'levels': []}
 
-        # Get distinct level_types with counts
-        cursor = self.conn.execute("""
-            SELECT
-                level_type,
-                COUNT(*) as count
+        counts = self.fetchall("""
+            SELECT level_type, COUNT(*) AS count
             FROM subject_nodes
             WHERE exam_context = (SELECT exam_name FROM exam_contexts WHERE id = ?)
             AND dimension_id = ?
             AND status = 'active'
             GROUP BY level_type
-            ORDER BY
-                CASE level_type
-                    WHEN 'System' THEN 0
-                    WHEN 'Subsystem' THEN 1
-                    WHEN 'Topic' THEN 2
-                    WHEN 'Subtopic' THEN 3
-                    WHEN 'Child' THEN 4
-                    ELSE 5
-                END
         """, (exam_context_id, dimension_id))
 
+        # Order (#818, owner's decision 2026-10-14): the exam's own level list
+        # first, as set in its setup; a name not in that list after it, by
+        # how far down this dimension's tree its subjects sit. This was a
+        # CASE over five built-in names with every other name tied, so a
+        # dimension whose top level is called anything else could open its
+        # pickers on a lower level. A new exam's default list is those same
+        # five names in that order, so such an exam orders as it always did.
+        listed = {}
+        for level in self.get_hierarchy_levels(exam_context_id):
+            listed.setdefault(level.level_name, level.level_order)
+        depth_of = self._level_depths(exam_context_id, dimension_id)
+
+        def key(row):
+            name = row['level_type']
+            if name in listed:
+                return (0, listed[name], 0, '')
+            return (1, 0, depth_of.get(name, float('inf')), name or '')
+
         levels = []
-        for idx, row in enumerate(cursor.fetchall()):
+        for idx, row in enumerate(sorted(counts, key=key)):
             levels.append({
-                'level_type': row[0],
-                'count': row[1],
+                'level_type': row['level_type'],
+                'count': row['count'],
                 'depth': idx
             })
 
@@ -1966,6 +1972,47 @@ class DimensionsMixin:
             'dimension_name': dimension['name'],
             'levels': levels
         }
+
+    def _level_depths(self, exam_context_id: int, dimension_id: int) -> Dict[str, int]:
+        """For each level name in a dimension, the shallowest depth at which
+        one of its subjects sits, counted from that dimension's roots (#818).
+
+        A root is an active subject with no edge from an active parent in the
+        same dimension. Depth runs breadth-first through ``subject_edges``, so
+        a subject under two parents takes its shallowest position. A subject
+        reachable from no root has no depth, and a name with no reachable
+        subject sorts last.
+        """
+        exam_name_sql = "(SELECT exam_name FROM exam_contexts WHERE id = ?)"
+        nodes = {r['id']: r['level_type'] for r in self.fetchall(
+            f"SELECT id, level_type FROM subject_nodes WHERE exam_context = {exam_name_sql}"
+            " AND dimension_id = ? AND status = 'active'",
+            (exam_context_id, dimension_id))}
+        children: Dict[int, List[int]] = {}
+        has_parent = set()
+        for e in self.fetchall(
+                "SELECT e.parent_id, e.child_id FROM subject_edges e"
+                " JOIN subject_nodes c ON c.id = e.child_id WHERE c.dimension_id = ?",
+                (dimension_id,)):
+            if e['parent_id'] in nodes and e['child_id'] in nodes:
+                children.setdefault(e['parent_id'], []).append(e['child_id'])
+                has_parent.add(e['child_id'])
+        depth = {n: 0 for n in nodes if n not in has_parent}
+        frontier = list(depth)
+        while frontier:
+            nxt = []
+            for n in frontier:
+                for c in children.get(n, ()):
+                    if c not in depth:
+                        depth[c] = depth[n] + 1
+                        nxt.append(c)
+            frontier = nxt
+        shallowest: Dict[str, int] = {}
+        for n, d in depth.items():
+            name = nodes[n]
+            if name not in shallowest or d < shallowest[name]:
+                shallowest[name] = d
+        return shallowest
 
     def get_intersection_entries(
         self,
@@ -2396,19 +2443,40 @@ class DimensionsMixin:
     def get_weighted_study_recommendations(
         self,
         exam_context_id: int,
-        limit: int = 10
+        limit: int = 10,
+        dimension_a_id: Optional[int] = None,
+        dimension_b_id: Optional[int] = None,
+        level_type_a: Optional[str] = None,
+        level_type_b: Optional[str] = None,
+        parent_node_a_id: Optional[int] = None,
+        parent_node_b_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generate priority-ranked study recommendations.
 
         Priority = weight x gap x context_penalty
-        - weight: exam weight of the subject
-        - gap: mistake rate vs expected performance
-        - context_penalty: multiplier for recent mistakes
+        - weight: the average of the two subjects' weight midpoints, 5 for a
+          subject with none (ranking only; never reported)
+        - gap: the cell's share of the entries in the grid
+        - context_penalty: from the cell's average difficulty, 0.8 at 2 to
+          1.4 at 5. It said "multiplier for recent mistakes" until #824;
+          nothing here reads a date.
+
+        The cells ranked are the cross-dimension heatmap's (#824): the same
+        two dimensions, levels and drill-down parents the student is looking
+        at. It used to ask for the first two dimensions with NO level, which
+        put every subject at every depth on both axes -- a system ranked
+        against its own topics, one mistake in each of their pairs -- the
+        query #799 fixed for the heatmap. A level the caller does not name is
+        the dimension's top one, never "all of them".
 
         Args:
             exam_context_id: ID of the exam context
             limit: Maximum recommendations to return
+            dimension_a_id / dimension_b_id: default the exam's first two
+            level_type_a / level_type_b: default each dimension's top level
+                (unless a parent is given, which scopes by itself)
+            parent_node_a_id / parent_node_b_id: a heatmap drill-down
 
         Returns:
             List of recommendations with priority scores
@@ -2422,12 +2490,19 @@ class DimensionsMixin:
         if len(dimensions) < 2:
             return []
 
-        # Get cross-dimension performance for first two dimensions
-        dim_a_id = dimensions[0]['id']
-        dim_b_id = dimensions[1]['id']
+        dim_a_id = dimension_a_id or dimensions[0]['id']
+        dim_b_id = dimension_b_id or dimensions[1]['id']
+        if dim_a_id == dim_b_id:
+            return []
+        if level_type_a is None and parent_node_a_id is None:
+            level_type_a = self._top_level_type(exam_context_id, dim_a_id)
+        if level_type_b is None and parent_node_b_id is None:
+            level_type_b = self._top_level_type(exam_context_id, dim_b_id)
 
         cross_perf = self.get_cross_dimension_performance(
-            exam_context_id, dim_a_id, dim_b_id, min_entries=2
+            exam_context_id, dim_a_id, dim_b_id, min_entries=2,
+            level_type_a=level_type_a, level_type_b=level_type_b,
+            parent_node_a_id=parent_node_a_id, parent_node_b_id=parent_node_b_id,
         )
 
         # Get weights for subjects
@@ -2490,6 +2565,13 @@ class DimensionsMixin:
         # Sort by priority score (highest first)
         recommendations.sort(key=lambda x: x['priority_score'], reverse=True)
         return recommendations[:limit]
+
+    def _top_level_type(self, exam_context_id: int, dimension_id: int) -> Optional[str]:
+        """The first level the heatmap's level picker offers (#824), so a
+        caller that names no level ranks what that picker starts on."""
+        levels = self.get_hierarchy_levels_for_dimension(
+            exam_context_id, dimension_id).get('levels') or []
+        return levels[0]['level_type'] if levels else None
 
     @staticmethod
     def _weight_midpoints(nodes) -> Dict[int, float]:

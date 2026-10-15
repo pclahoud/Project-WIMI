@@ -230,6 +230,7 @@ TOUR_PAGES = (
     "entry-form",
     "entry-browser",
     "analytics",
+    "calendar",
     "settings",
 )
 

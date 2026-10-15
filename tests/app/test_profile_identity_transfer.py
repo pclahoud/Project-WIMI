@@ -71,7 +71,9 @@ def _seed_alice(master: MasterDatabase):
             pane_zoom_pct=135,
             pane_split_app_pct=62,
             pane_last_url="https://desktop.example.com/q/1",
-            ankiconnect_host="desktop-box",
+            # Loopback only since #784 decision 4; still distinguishable
+            # from the receiver's default 'localhost'.
+            ankiconnect_host="127.0.0.1",
             ankiconnect_port=9999,
             mcp_server_enabled=True,
             mcp_server_port=8123,
@@ -515,3 +517,56 @@ def test_a_pre_m021_archive_is_given_an_identity_on_install(
     assert result["profile_uuid"]
     assert device_b.get_user(result["user_id"]).profile_uuid == \
         result["profile_uuid"]
+
+
+def test_anki_data_travels_and_the_anki_connection_stays_home(
+    device_a, device_b, tmp_path
+):
+    """#784 Wave 0, across a real archive: the owner moved the plugin's cache
+    into the profile so card data travels (#784 comment #10736), while the
+    connection -- the switch and the port -- names this machine (m021).
+
+    The receiver registers a user first so the installed profile gets a
+    different ``users.id`` and is rehomed (#776); the Anki tables carry no
+    ``user_id`` and must still be reachable through the rehomed exam.
+    """
+    user_a, _ = _seed_alice(device_a)
+    db_a = _open(device_a, user_a)
+    try:
+        exam_id = db_a.fetchone(
+            "SELECT id FROM exam_contexts WHERE exam_name = 'Sample Exam'")["id"]
+        bank = db_a.create_question_source(source_name="Anki bank")
+        db_a.anki_add_template(exam_id, bank.id, "tag:B::{{qid}}")
+        key = {"exam_context_id": exam_id, "question_source_id": bank.id, "question_id": "9"}
+        db_a.anki_record_refresh(
+            key, reviews={5: [{"id": 1, "ivl": 3, "factor": 2500, "time": 4000}]},
+            cards=[{"cardId": 5, "note": 50, "modelName": "Basic", "queue": 0,
+                    "fields": {"Front": {"value": "front", "order": 0}}}])
+        db_a.update_settings(anki_display_mode="note", anki_integration_enabled=True,
+                             ankiconnect_port=9000)
+    finally:
+        db_a.close()
+    archive = tmp_path / "alice.wimi"
+    build_profile_archive(device_a, user_a.id, archive)
+
+    device_b.create_user(username="first", display_name="First")
+    result = install_profile_as_new(device_b, archive)
+    user_b = device_b.get_user(result["user_id"])
+    assert user_b.id != user_a.id, "the premise: the copy is rehomed"
+    db_b = _open(device_b, user_b)
+    try:
+        templates = db_b.anki_get_templates()
+        assert [t["template"] for t in templates] == ["tag:B::{{qid}}"]
+        exam_b = templates[0]["exam_context_id"]
+        match = db_b.anki_get_match({"exam_context_id": exam_b,
+                                     "question_source_id": templates[0]["question_source_id"],
+                                     "question_id": "9"})
+        assert match is not None
+        assert db_b.fetchone("SELECT COUNT(*) AS n FROM anki_reviews")["n"] == 1
+        assert db_b.fetchone("SELECT field_value FROM anki_note_fields")["field_value"] == "front"
+        settings = db_b.get_all_settings()
+        assert settings["anki_display_mode"] == "note"
+        assert settings["anki_integration_enabled"] is False
+        assert settings["ankiconnect_port"] == 8765
+    finally:
+        db_b.close()

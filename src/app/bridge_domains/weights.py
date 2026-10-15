@@ -462,7 +462,9 @@ class WeightBridgeMixin:
         Get subject vs exam weight analysis with quadrant categorization.
 
         Args:
-            params_json: JSON with required exam_context_id
+            params_json: JSON with required exam_context_id, and optional
+                dimensionId / levelType to list one dimension's subjects at
+                one level (#820)
 
         Returns:
             JSON response with weight analysis data
@@ -487,8 +489,11 @@ class WeightBridgeMixin:
             if self.error_logger:
                 self.error_logger.info(f"[getSubjectExamWeightAnalysis] Analyzing exam_context_id: {exam_context_id}")
 
+            dimension_id = params.get('dimensionId')
             data = self.user_db.get_subject_exam_weight_analysis(
-                exam_context_id=exam_context_id
+                exam_context_id=exam_context_id,
+                dimension_id=int(dimension_id) if dimension_id is not None else None,
+                level_type=params.get('levelType') or None,
             )
 
             if self.error_logger:

@@ -1,0 +1,75 @@
+/* Settings -> Anki Integration panel (#784 Wave 3).
+ *
+ * Linked from settings.html beside settings.css. Tokens only, no capitals,
+ * no :empty, and the shared button and focus styles from styles.css.
+ */
+
+.anki-subhead {
+    margin: var(--space-lg) 0 var(--space-sm);
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+}
+
+.anki-settings-message {
+    margin: var(--space-xs) 0 0;
+    color: var(--text-secondary);
+}
+
+.anki-settings-message.is-error {
+    color: var(--color-error-text);
+}
+
+.anki-inline-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.anki-inline-label {
+    color: var(--text-secondary);
+}
+
+#anki-port,
+#anki-refresh-minutes {
+    width: 8rem;
+}
+
+.anki-bank {
+    margin: var(--space-md) 0;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.anki-bank-name {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.anki-template-row {
+    margin-bottom: var(--space-xs);
+}
+
+.anki-template-input {
+    flex: 1 1 18rem;
+    min-width: 12rem;
+}
+
+.anki-note-type {
+    margin: var(--space-sm) 0;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.anki-note-type legend {
+    padding: 0 var(--space-xs);
+    color: var(--text-primary);
+}
+
+.anki-note-type .checkbox-label {
+    display: inline-flex;
+    margin-right: var(--space-md);
+}

@@ -108,6 +108,14 @@ web_datas = [
 schema_datas = [
     (str(src_dir / 'database' / 'schema'), 'database/schema'),
     (str(src_dir / 'database' / 'migrations'), 'database/migrations'),
+    # #794: the self-assessment's instrument files (#766). The resolver
+    # in database/domains/_assessment_scoring.py reads
+    # <exe dir>/_internal/fixtures/assessments/<version> when frozen, so
+    # the destination is 'fixtures', NOT 'database/fixtures'. Every
+    # frozen build before this line offered the assessment on the
+    # dashboard and could not load a single item; the scenarios never
+    # saw it because they run from a checkout (#760).
+    (str(src_dir / 'database' / 'fixtures'), 'fixtures'),
 ]
 
 # Combine all data files

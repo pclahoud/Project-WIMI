@@ -117,7 +117,8 @@ class DimensionInsights {
             const difficultyLabel = this._getDifficultyLabel(rec.avg_difficulty);
 
             return `
-                <div class="recommendation-item" data-index="${index}">
+                <div class="recommendation-item" data-index="${index}" tabindex="0" role="link"
+                     data-testid="study-recommendation-${index}">
                     <div class="recommendation-rank">${index + 1}</div>
                     <div class="recommendation-content">
                         <div class="recommendation-header">
@@ -151,12 +152,17 @@ class DimensionInsights {
             </div>
         `;
 
-        // Add click handlers
+        // A row opens its entries (#829): by click, and by Enter, which is
+        // what a link answers to -- the rows are focusable for that reason.
         container.querySelectorAll('.recommendation-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
+            const open = () => {
                 if (this.options.onCombinationClick) {
                     this.options.onCombinationClick(limitedData[index]);
                 }
+            };
+            item.addEventListener('click', open);
+            item.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') { event.preventDefault(); open(); }
             });
         });
     }

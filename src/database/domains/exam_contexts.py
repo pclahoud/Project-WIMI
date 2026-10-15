@@ -1,6 +1,7 @@
 """WIMI Exam Contexts database operations."""
 
 import json
+import re
 from typing import Optional, List, Dict, Any
 from datetime import date
 from ..base_db import DatabaseIntegrityError, BaseDatabaseError
@@ -42,8 +43,14 @@ class ExamContextMixin:
     """Mixin for exam context operations. Composed into UserDatabase."""
 
     # Default analytics config applied when column is NULL
+    # The weight card's minimum before a subject can be over-represented
+    # (#828, owner 2026-10-14). 3 to start with; 1 is the behaviour before.
+    MIN_MISTAKES_TO_FLAG_DEFAULT = 3
+    MIN_MISTAKES_TO_FLAG_RANGE = (1, 50)
+
     DEFAULT_ANALYTICS_CONFIG = {
         "default_dimension_id": None,
+        "min_mistakes_to_flag": MIN_MISTAKES_TO_FLAG_DEFAULT,
         "chart_visibility": {
             "subject_sunburst": True,
             "tag_chart": True,
@@ -93,7 +100,7 @@ class ExamContextMixin:
 
         # Import here to avoid circular imports
         from ..models import ExamContextConfig
-        from ..exceptions import ExamContextAlreadyExistsError, ExamContextError
+        from ..exceptions import ValidationError, ExamContextAlreadyExistsError, ExamContextError
 
         # Default weight validation rules
         if weight_validation_rules is None:
@@ -231,7 +238,9 @@ class ExamContextMixin:
         exam_description: Optional[str] = None,
         exam_date: Optional[date] = None,
         notes: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        color_hex: Optional[str] = None,
+        clear_color: bool = False,
     ) -> 'ExamContextConfig':
         """
         Update exam context settings.
@@ -269,6 +278,19 @@ class ExamContextMixin:
         if is_active is not None:
             updates.append("is_active = ?")
             params.append(is_active)
+
+        # #778 decision 9: the exam's own colour, '#rrggbb'. Validated here so
+        # a bad string from the wizard is a sentence, not a stored value the
+        # calendar then paints. clear_color=True sets it back to NULL.
+        from ..exceptions import ValidationError
+        if color_hex is not None:
+            value = color_hex.strip().lower()
+            if not re.fullmatch(r"#[0-9a-f]{6}", value):
+                raise ValidationError(f"An exam colour is written #rrggbb, not {color_hex!r}")
+            updates.append("color_hex = ?")
+            params.append(value)
+        elif clear_color:
+            updates.append("color_hex = NULL")
 
         if not updates:
             return self.get_exam_context_config(exam_context_id)
@@ -658,6 +680,13 @@ class ExamContextMixin:
             current['chart_visibility'] = {**current['chart_visibility'], **config['chart_visibility']}
         if 'chart_sizes' in config:
             current['chart_sizes'] = {**current.get('chart_sizes', {}), **config['chart_sizes']}
+        if config.get('min_mistakes_to_flag') is not None:
+            value = config['min_mistakes_to_flag']
+            low, high = self.MIN_MISTAKES_TO_FLAG_RANGE
+            if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+                raise ValueError(
+                    f'The minimum number of mistakes must be a whole number from {low} to {high}.')
+            current['min_mistakes_to_flag'] = value
 
         config_json = json.dumps(current)
 

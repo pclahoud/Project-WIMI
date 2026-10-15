@@ -363,3 +363,14 @@ def test_goals_report_outstanding_drafts(seed):
         "weekly goals count entries logged, and only the finished one "
         f"counts: {goal!r}"
     )
+
+
+@pytest.mark.database
+def test_calendar_range_counts_drafts(seed):
+    """Surface: the calendar page's day counts (``get_calendar_range``,
+    #778). Same query shape as the heatmap, so the two cannot disagree about
+    a day; both count every entry."""
+    day = seed["db"].fetchone(
+        "SELECT DATE(date_encountered) AS d FROM review_sessions ORDER BY id LIMIT 1")["d"]
+    payload = seed["db"].get_calendar_range(day, day, exam_context_id=seed["exam_id"])
+    assert payload["entry_counts"] == [{"date": day, "count": 3}]

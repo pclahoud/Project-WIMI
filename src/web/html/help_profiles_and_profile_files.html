@@ -41,7 +41,7 @@
         </header>
         <main class="help-main">
             <article class="help-article">
-                <p class="help-eyebrow">Chapter 23</p>
+                <p class="help-eyebrow">Chapter 25</p>
                 <h1 class="help-title" data-testid="help-chapter-title">Profiles, and carrying one to another computer</h1>
                 <div class="help-body" id="help-chapter-body" data-testid="help-chapter-body">
                     <p class="help-body-holding">Opening this chapter&hellip;</p>
@@ -95,9 +95,10 @@ clicking a card opens it.
 From anywhere inside WIMI you reach the picker through
 **Settings → Profile → Switch profile…**.
 
-Creating one is covered in [Your first hour](help_the_first_hour.html), and the
-thing worth repeating is that **creating a profile does not open it**. The
-picker stays where it is and the new card appears; you click the card to go in.
+Creating one is covered in [Your first hour](help_the_first_hour.html).
+**Creating a profile opens it**: you go straight to its dashboard, whether you
+created it on a fresh installation or from Switch profile… with another
+profile open. The picker is where you come back to for the others.
 
 A card shows the display name, the username beneath it, and when the profile
 was last opened — or **Never opened**, for one you made and have not been into.
@@ -298,11 +299,11 @@ This is the rule the whole area turns on, and it is easy to get backwards.
 
 **A value that describes you travels. A value that names a machine does not.**
 
-The example that makes it concrete is the Anki connection setting. Its address
-is *localhost*, meaning "this computer". That string is identical on your
-desktop and your laptop and it means something different on each one, so
-copying it across would be wrong even though the two values match character for
-character.
+The example that makes it concrete is Anki. WIMI talks to Anki on "this
+computer", and that phrase is identical on your desktop and your laptop while
+meaning a different machine on each. So **whether Anki is switched on, and its
+port, stay behind**. Copying them across would be wrong even though they would
+match character for character, and the other computer may not have Anki at all.
 
 The test is therefore not *does this look like a machine setting* but **does
 this value point at a machine**. Several settings fail the obvious guess:
@@ -311,6 +312,7 @@ this value point at a machine**. Several settings fail the obvious guess:
 - **The speech model size and the chosen microphone stay behind.** The microphone names a piece of hardware plugged into one computer; the model size names a file that was downloaded onto one computer, so carrying it would name something that is not there. But **the speech priming preference travels**, because it is a judgement about how you want decoding to behave and it is true of you on any machine.
 - **Each question bank's Desktop site tick stays behind**, because it is about how one browser behaves on one machine, and so does which banks you opened recently.
 - **The link to a sync folder stays behind**, necessarily: the two computers reach the same folder by different paths.
+- **The Anki switch and port stay behind; everything else about Anki travels**: your search templates, the refresh setting, how cards are shown, which fields are shown, the cards already fetched, and your answers about which cards look like each mistake. They describe your collection and your choices, not a machine.
 
 Everything else you would expect travels: your exams and dimensions, your
 subject trees and their weights and aliases, your sessions and entries and

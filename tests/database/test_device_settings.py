@@ -109,8 +109,11 @@ class TestTheSplit:
 
 class TestTwoMachines:
     def test_each_machine_gets_its_own_row(self, db_path, desktop):
+        # '127.0.0.1', not a remote name: since #784 decision 4 the only
+        # writable hosts are this computer's two spellings. It still differs
+        # from the laptop's default 'localhost', which is what this asserts.
         desktop.update_device_settings(
-            pane_zoom_pct=150, ankiconnect_host="desktop-box"
+            pane_zoom_pct=150, ankiconnect_host="127.0.0.1"
         )
         laptop = _laptop(db_path)
         try:

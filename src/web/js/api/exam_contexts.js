@@ -120,7 +120,8 @@
             exam_context_id: config.examContextId,
             default_dimension_id: config.defaultDimensionId,
             chart_visibility: config.chartVisibility,
-            chart_sizes: config.chartSizes
+            chart_sizes: config.chartSizes,
+            min_mistakes_to_flag: config.minMistakesToFlag
         }));
     };
 

@@ -56,7 +56,7 @@ ROOT_PX = 16.0
 #: (file, selector) -> what the glyph is. Kept small and named, so a new
 #: exemption is a visible decision in review rather than a quiet literal.
 GLYPHS = {
-    ("analytics.css", ".sunburst-info-icon"): 'the italic "i" in an 18px info circle',
+    ("analytics.css", ".card-info-icon"): 'the italic "i" in an 18px info circle',
     ("weight_analysis.css", ".efficiency-info-icon"): 'the italic "i" in an info circle',
     ("browser.css", ".dropdown-arrow"): "the filter dropdown's caret",
     ("browser.css", ".tree-toggle"): "the subject tree's expand caret",

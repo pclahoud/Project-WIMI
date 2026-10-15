@@ -19,7 +19,7 @@
  *
  * Each step carries:
  *
- *   page           one of dashboard, exam-wizard, tree-editor, session-setup, entry-form, entry-browser, analytics, settings
+ *   page           one of dashboard, exam-wizard, tree-editor, session-setup, entry-form, entry-browser, analytics, calendar, settings
  *   anchor         what the step points at, in words. The data-testid
  *                  anchoring is #430's own work; this is the brief for it.
  *   text           the short form.
@@ -37,7 +37,7 @@
  * `(window.WIMI_TOUR_STEPS || {})[page] || []`, and an empty array drawn as a tour is the
  * two-empty-boxes-and-a-gap mistake in another file.
  *
- * 113 step(s) across 8 page(s).
+ * 116 step(s) across 9 page(s).
  */
 window.WIMI_TOUR_STEPS = {
   "dashboard": [
@@ -949,7 +949,7 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "analytics",
       "anchor": "analytics-weight-quadrant",
-      "text": "Reduce Focus is not praise. It lists subjects light on the exam, under 10% at the middle of their band, where your share of mistakes is over 1.3 times the top of that band: subjects you keep getting wrong. It ranks them below heavier subjects; it does not say you have learned them.",
+      "text": "Reduce Focus is not praise. It lists subjects light on the exam, under 10% at the middle of their band, where your share of mistakes is over 1.3 times that middle and outside the band: subjects you keep getting wrong. It ranks them below heavier subjects; it does not say you have learned them.",
       "chapter": "reading_the_analytics",
       "chapter_title": "Reading the analytics dashboard",
       "section": "Quadrant Analysis",
@@ -981,6 +981,35 @@ window.WIMI_TOUR_STEPS = {
       "chapter_title": "Reading the analytics dashboard",
       "section": "Drafts are in all of it",
       "link": "help_reading_the_analytics.html#drafts-are-in-all-of-it"
+    }
+  ],
+  "calendar": [
+    {
+      "page": "calendar",
+      "anchor": "cal-grid",
+      "text": "Every session you have logged and every one you have planned, on one grid. Past sessions are solid, planned ones are dashed and say Planned. Arrow keys move between days; Enter opens a day.",
+      "chapter": "planning_sessions",
+      "chapter_title": "Planning sessions on the calendar",
+      "section": "Getting there",
+      "link": "help_planning_sessions.html#getting-there"
+    },
+    {
+      "page": "calendar",
+      "anchor": "cal-plan",
+      "text": "Plan a session for a day you choose. The exam, the question bank, a start time, a duration and how many questions are all optional; a weekly repeat makes a series.",
+      "chapter": "planning_sessions",
+      "chapter_title": "Planning sessions on the calendar",
+      "section": "Reading the grid",
+      "link": "help_planning_sessions.html#reading-the-grid"
+    },
+    {
+      "page": "calendar",
+      "anchor": "cal-legend",
+      "text": "One colour per exam. Give an exam its own colour in its wizard, or let the calendar choose one of four from your theme. Plans with no exam are grey.",
+      "chapter": "planning_sessions",
+      "chapter_title": "Planning sessions on the calendar",
+      "section": "When a day passes",
+      "link": "help_planning_sessions.html#when-a-day-passes"
     }
   ],
   "settings": [
@@ -1023,7 +1052,7 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "settings",
       "anchor": "settings-reset-defaults",
-      "text": "This is not an undo. It writes the shipped default over everything the page's Save covers, on every panel, not only the one you are looking at. Controls that save themselves are left alone: per-exam analytics, each bank's address and Desktop site switch, and add-ons. So is your data.",
+      "text": "This is not an undo. It writes the shipped default over everything the page's Save covers, on every panel, not only the one you are looking at. Controls that save themselves are left alone: per-exam analytics, each bank's address and Desktop site switch, Anki, and add-ons. So is your data.",
       "chapter": "settings",
       "chapter_title": "Settings, and what each one changes",
       "section": "Reset what Save covers is not an undo",
