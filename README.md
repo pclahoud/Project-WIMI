@@ -141,11 +141,14 @@ each release is published here as a single squashed commit rather than as
 upstream history, so there are no branches to follow and the commit log will
 not match the work.
 
-Issues and pull requests are not monitored. The code is
-[GPL-3.0](LICENSE)-licensed, so fork it, use it and take pieces of it. If you
-distribute what you build from it, that has to be GPL-3.0 too, with source.
-If you have found a bug and want to say so, a fork with a note in its README
-is the most reliable way to be seen.
+Issues and pull requests here are not monitored. To report a bug, ask a
+question or get in touch, email **projectwimi@protonmail.com**. Say what you
+expected, what happened, which platform you are on and which version of WIMI
+(Settings → About shows it).
+
+The code is [GPL-3.0](LICENSE)-licensed, so fork it, use it and take pieces of
+it. If you distribute what you build from it, that has to be GPL-3.0 too, with
+source.
 
 ## License
 

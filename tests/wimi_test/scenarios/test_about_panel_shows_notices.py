@@ -143,6 +143,22 @@ def test_wimis_own_licence_is_stated_and_is_not_confused_with_the_rest(about):
 
 @pytest.mark.slow
 @pytest.mark.regression
+def test_the_panel_says_how_to_reach_the_project(about):
+    """The project's contact address is on the About panel (owner, 2026-11-08).
+
+    The public README says its issues are not monitored, so this address is
+    the only way a student can report a problem. The About panel is the one
+    place every copy of the app shows it. Read as rendered text, so a hidden
+    or empty line fails.
+    """
+    text = _panel_text(about)
+    assert "projectwimi@protonmail.com" in text, (
+        "the About panel must name the project's contact address"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.regression
 def test_the_version_is_read_from_the_app_not_written_into_the_page(about):
     """A literal here would go stale silently.
 

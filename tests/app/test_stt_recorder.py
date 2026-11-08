@@ -22,6 +22,12 @@ it does not:
   before ``start()``, and ``start()`` returns ``None`` rather than
   raising -- but a capture-and-play check on hardware is still
   outstanding and belongs to whoever has a microphone.
+* **#897 is the case a fake cannot reach.** Qt told the MacBook's
+  built-in microphone "16 kHz is supported" and then delivered nothing,
+  so a fake that believes ``isFormatSupported`` passes everything here.
+  Section 8 pins what the recorder does once a stream is known to be
+  lying; ``test_stt_recorder_hardware.py`` (opt-in,
+  ``WIMI_STT_HARDWARE_TEST=1``) is the one test that opens a real device.
 
 Markers: ``@pytest.mark.unit`` -- no ``QApplication``, no device, no
 sound.
@@ -159,10 +165,42 @@ class FakeAudioSource(QObject):
         self.stateChanged.emit(0)
 
 
+class FakeWatchdog:
+    """Stands in for the first-data timer. ``fire()`` is the deadline passing.
+
+    A real ``QTimer`` does not run here: there is no ``QCoreApplication`` in
+    this file, and Qt refuses to start one (*"Timers can only be used with
+    threads started with QThread"*), so the deadline is driven by hand.
+    """
+
+    def __init__(self, callback):
+        self._callback = callback
+        self.starts = []
+        self.active = False
+
+    def start(self, ms):
+        self.starts.append(ms)
+        self.active = True
+
+    def stop(self):
+        self.active = False
+
+    def fire(self):
+        assert self.active, 'the deadline fired on a watchdog nobody armed'
+        self.active = False
+        self._callback()
+
+
 def build_recorder(devices, *, permission=PermissionState.GRANTED,
                    error=QAudio.Error.NoError, error_on_start=None,
-                   preferred_device_id=None):
-    """A recorder over fakes, plus the list of sources it constructed."""
+                   preferred_device_id=None, native_format_first=False):
+    """A recorder over fakes, plus the list of sources it constructed.
+
+    ``native_format_first`` is pinned to ``False`` by default so that every
+    test below means the same thing on every platform. The recorder's own
+    default is macOS-only (#897), and this suite runs on the MacBook too.
+    The watchdog is ``recorder.test_watchdog``.
+    """
     constructed = []
 
     def factory(qt_device, fmt):
@@ -170,12 +208,22 @@ def build_recorder(devices, *, permission=PermissionState.GRANTED,
         constructed.append(source)
         return source
 
+    watchdogs = []
+
+    def watchdog_factory(callback):
+        watchdog = FakeWatchdog(callback)
+        watchdogs.append(watchdog)
+        return watchdog
+
     recorder = AudioRecorder(
         preferred_device_id=preferred_device_id,
         media_devices=FakeMediaDevices(devices),
         permission_probe=lambda: permission,
         audio_source_factory=factory,
+        native_format_first=native_format_first,
+        watchdog_factory=watchdog_factory,
     )
+    recorder.test_watchdogs = watchdogs
     return recorder, constructed
 
 
@@ -713,3 +761,198 @@ def test_listing_devices_reports_id_label_and_which_one_is_default():
 
 def test_listing_devices_on_a_machine_with_none_returns_nothing():
     assert list_input_devices(FakeMediaDevices([])) == []
+
+
+# ---------------------------------------------------------------------------
+# 8. A device that says yes to 16 kHz and then sends nothing (#897)
+# ---------------------------------------------------------------------------
+#
+# Measured on a MacBook Pro M1 (macOS 26.5.1, PyQt6 6.9.1 / Qt 6.9.0), the
+# built-in microphone, 3 s of pull-mode capture: `isFormatSupported` answers
+# True for 16 kHz mono Int16 and for 16 kHz Float, `start()` returns a device,
+# `error()` stays NoError, and ZERO bytes arrive -- the source sits in
+# IdleState. At 44.1 kHz and 48 kHz the same code gets audio. So the one
+# signal the recorder trusted was wrong, and every capture on that machine was
+# rejected as "silent". The owner measured both Windows machines unaffected.
+#
+# The fakes cannot reproduce Qt's wrong answer -- that is what
+# test_stt_recorder_hardware.py is for. What they CAN pin is what the
+# recorder does once a stream is known to be lying.
+
+def test_on_macos_the_device_format_is_taken_even_when_16k_is_claimed(tmp_path):
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, constructed = build_recorder([device], native_format_first=True)
+
+    fmt = recorder.start(tmp_path / 'native.wav')
+
+    assert (fmt.sample_rate, fmt.channels) == (44_100, 1), (
+        "#897: on macOS the request is not made at all, because the device's "
+        "yes cannot be believed")
+    assert fmt.degraded, 'degraded means "recording at the device format"'
+    assert constructed[0].format.sampleRate() == 44_100
+
+
+def test_elsewhere_16k_is_still_requested_when_the_device_accepts_it(tmp_path):
+    """The control for the test above: Windows keeps the format it measured working."""
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, _ = build_recorder([device], native_format_first=False)
+
+    fmt = recorder.start(tmp_path / 'requested.wav')
+
+    assert (fmt.sample_rate, fmt.channels, fmt.degraded) == (16_000, 1, False)
+
+
+@pytest.mark.parametrize('platform, expected', [
+    ('darwin', True), ('win32', False), ('linux', False),
+])
+def test_the_device_format_first_default_is_macos_only(monkeypatch, platform, expected):
+    import app.stt.recorder as recorder_module
+    monkeypatch.setattr(recorder_module.sys, 'platform', platform)
+
+    assert AudioRecorder().native_format_first is expected
+
+
+def test_a_stream_that_accepts_16k_and_sends_nothing_is_restarted_at_the_device_format(tmp_path):
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, constructed = build_recorder([device])
+    path = tmp_path / 'restarted.wav'
+    recorder.start(path)
+    [watchdog] = recorder.test_watchdogs
+    assert watchdog.active, 'start() must arm the first-data deadline'
+
+    watchdog.fire()                                  # nothing arrived in time
+
+    assert len(constructed) == 2, '#897: the lying stream was never replaced'
+    first, second = constructed
+    assert first.stopped
+    assert second.started and second.format.sampleRate() == 44_100
+    assert recorder.capture_format.sample_rate == 44_100
+    assert watchdog.active, 'the restarted stream gets its own deadline'
+
+    recorder.capture_device.push(sine(1.0, rate=44_100, amplitude=0.4))
+    recording = recorder.stop()
+
+    assert recording.sample_rate == 44_100
+    assert recording.duration_seconds == pytest.approx(1.0, abs=0.01)
+    with wave.open(str(path), 'rb') as handle:
+        assert handle.getframerate() == 44_100, 'the header must follow the restart'
+        assert handle.getnframes() == 44_100
+
+
+def test_a_stream_that_delivers_is_never_restarted(tmp_path):
+    """The control: a working 16 kHz stream (Windows) passes its deadline untouched."""
+    recorder, constructed = build_recorder([FakeAudioDevice()])
+    recorder.start(tmp_path / 'fine.wav')
+    recorder.capture_device.push(sine(0.2, amplitude=0.4))
+
+    recorder.test_watchdogs[0].fire()
+
+    assert len(constructed) == 1
+    assert not constructed[0].stopped
+    assert recorder.capture_format.sample_rate == 16_000
+
+
+def test_a_quiet_stream_is_not_a_stalled_one(tmp_path):
+    """Zeros are still bytes. A muted mic is the silence floor's case, not this one."""
+    recorder, constructed = build_recorder([FakeAudioDevice()])
+    recorder.start(tmp_path / 'muted.wav')
+    recorder.capture_device.push(b'\x00\x00' * 1_600)
+
+    recorder.test_watchdogs[0].fire()
+
+    assert len(constructed) == 1
+    with pytest.raises(SttError) as caught:
+        recorder.stop()
+    assert caught.value.kind is SttErrorKind.NO_AUDIO_CAPTURED
+
+
+def test_a_device_format_stream_that_never_delivers_is_not_called_silence(tmp_path):
+    """Nothing to fall back to, so it is reported -- as the device, not the student.
+
+    A slow device (a Bluetooth headset switching profile) can take a second
+    to start, so the stream is NOT killed at the deadline: if bytes arrive
+    later the recording is fine. Only a stream that delivered nothing at
+    all by stop() is reported, and it says the microphone sent nothing.
+    """
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, constructed = build_recorder([device], native_format_first=True)
+    recorder.start(tmp_path / 'dead.wav')
+
+    recorder.test_watchdogs[0].fire()
+
+    assert len(constructed) == 1, 'already at the device format: nothing to restart to'
+    assert not constructed[0].stopped, 'a slow start must be allowed to recover'
+    with pytest.raises(SttError) as caught:
+        recorder.stop()
+    assert caught.value.kind is SttErrorKind.CAPTURE_FAILED, (
+        '#897: a microphone that sent no data must not be reported as a silent student')
+    assert caught.value.detail == 'Fake Microphone sent no audio at all, so nothing was recorded.', (
+        'dictation.js shows a capture_failed detail to the student: a sentence, no path')
+
+
+def test_a_late_first_block_after_the_deadline_still_records(tmp_path):
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, _ = build_recorder([device], native_format_first=True)
+    recorder.start(tmp_path / 'late.wav')
+    recorder.test_watchdogs[0].fire()
+
+    recorder.capture_device.push(sine(0.5, rate=44_100, amplitude=0.4))
+    recording = recorder.stop()
+
+    assert recording.capture_error is None
+    assert recording.duration_seconds == pytest.approx(0.5, abs=0.01)
+
+
+def test_a_restart_that_also_sends_nothing_is_a_capture_failure(tmp_path):
+    device = FakeAudioDevice(supports_request=True, preferred=audio_format(44_100, 1))
+    recorder, constructed = build_recorder([device])
+    recorder.start(tmp_path / 'twice.wav')
+    watchdog = recorder.test_watchdogs[0]
+
+    watchdog.fire()
+    watchdog.fire()
+
+    assert len(constructed) == 2, 'one restart, never a loop'
+    with pytest.raises(SttError) as caught:
+        recorder.stop()
+    assert caught.value.kind is SttErrorKind.CAPTURE_FAILED
+
+
+def test_stopping_disarms_the_deadline(tmp_path):
+    recorder, _ = build_recorder([FakeAudioDevice()])
+    recorder.start(tmp_path / 'short.wav')
+    recorder.capture_device.push(sine(0.2, amplitude=0.4))
+
+    recorder.stop()
+
+    assert not recorder.test_watchdogs[0].active
+
+
+def test_a_stop_before_the_deadline_with_nothing_captured_is_still_silence(tmp_path):
+    """The deadline never passed, so nothing is known about the device."""
+    recorder, _ = build_recorder([FakeAudioDevice()])
+    recorder.start(tmp_path / 'instant.wav')
+
+    with pytest.raises(SttError) as caught:
+        recorder.stop()
+
+    assert caught.value.kind is SttErrorKind.NO_AUDIO_CAPTURED
+
+
+def test_a_stated_failure_with_nothing_captured_is_raised_not_handed_on(tmp_path):
+    """The other half of the silence floor's reason 2.
+
+    A stream that failed with a stated error before any audio arrived used to
+    come back from stop() as a 0-frame Recording -- and the bridge queues any
+    Recording for transcription, so whisper.cpp would be handed silence and
+    invent a word. The stated reason is kept; the file is not transcribed.
+    """
+    recorder, constructed = build_recorder([FakeAudioDevice()])
+    recorder.start(tmp_path / 'died.wav')
+    constructed[0].fail_mid_capture(QAudio.Error.IOError)
+
+    with pytest.raises(SttError) as caught:
+        recorder.stop()
+
+    assert caught.value.kind is SttErrorKind.CAPTURE_FAILED, (
+        'the stated reason, not re-diagnosed as silence')

@@ -87,13 +87,14 @@ from __future__ import annotations
 import array
 import logging
 import math
+import sys
 import wave
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
-from PyQt6.QtCore import QCoreApplication, QMicrophonePermission, QObject, Qt, pyqtSignal
+from PyQt6.QtCore import QCoreApplication, QMicrophonePermission, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtMultimedia import QAudio, QAudioFormat, QAudioSource, QMediaDevices
 
 from .errors import SttError, SttErrorKind
@@ -116,6 +117,32 @@ REQUESTED_CHANNELS = 1
 #: chooses, so the window is accumulated across blocks rather than
 #: assumed to be one.
 LEVEL_WINDOW_US = 100_000
+
+#: How long a freshly started stream has to deliver its first byte (#897).
+#:
+#: **Qt's ``isFormatSupported`` can say yes and mean no.** Measured on a
+#: MacBook Pro M1 (macOS 26.5.1, PyQt6 6.9.1 / Qt 6.9.0) with the built-in
+#: microphone: 16 kHz mono, Int16 or Float, is "supported", ``start()``
+#: returns a device, ``error()`` stays ``NoError`` -- and not one byte
+#: arrives; the source idles. 44.1 and 48 kHz on the same device record.
+#: Nothing in Qt's API reports it, so the only detector is the absence of
+#: data, which is what this deadline measures.
+#:
+#: What happens when it passes depends on what there is to fall back to:
+#:
+#: * **At the requested 16 kHz:** restart once at ``preferredFormat()``.
+#:   The device's own format is the one most likely to work, and whisper.cpp
+#:   resamples (point 3 above), so the cost is a larger temporary file.
+#: * **Already at the device's format:** nothing. The stream is NOT stopped,
+#:   because a slow device -- a Bluetooth headset switching to its
+#:   microphone profile can take about a second -- recovers on its own. If
+#:   it never delivers, :meth:`AudioRecorder.stop` reports a microphone
+#:   that sent no audio, not a silent student.
+#:
+#: Long enough that a working device is never restarted; short enough that
+#: a restart costs about a second of the student's first sentence, on the
+#: failing path only.
+FIRST_DATA_DEADLINE_MS = 1_000
 
 #: Peak amplitude, normalised to 0.0-1.0, below which a recording is
 #: reported as :attr:`SttErrorKind.NO_AUDIO_CAPTURED` instead of being
@@ -476,8 +503,11 @@ class CaptureFormat:
     #: Bytes of captured audio per level report -- ``bytesForDuration``
     #: of :data:`LEVEL_WINDOW_US`, which is 3,200 at 16 kHz mono Int16.
     report_bytes: int
-    #: True when the device refused 16 kHz mono Int16 and we took its
-    #: ``preferredFormat()`` instead. A quality note, never a failure.
+    #: True when the recording runs at the device's ``preferredFormat()``
+    #: rather than the requested 16 kHz mono Int16: because the device
+    #: refused the request, because this is macOS and the request is not
+    #: made (#897), or because a 16 kHz stream delivered nothing and was
+    #: restarted. A quality note, never a failure.
     degraded: bool
 
     @property
@@ -593,6 +623,8 @@ class AudioRecorder(QObject):
         media_devices: Any = None,
         permission_probe: Optional[Callable[[], PermissionState]] = None,
         audio_source_factory: Optional[Callable[[Any, QAudioFormat], Any]] = None,
+        native_format_first: Optional[bool] = None,
+        watchdog_factory: Optional[Callable[[Callable[[], None]], Any]] = None,
         parent: Optional[QObject] = None,
     ) -> None:
         """
@@ -601,12 +633,31 @@ class AudioRecorder(QObject):
         touches a database. ``None`` means "use the default device",
         and an id that no longer matches any device falls back to the
         default rather than failing (:func:`resolve_input_device`).
+
+        ``native_format_first`` skips the 16 kHz request and records at the
+        device's ``preferredFormat()``. ``None`` means "on macOS only",
+        where the built-in microphone accepts 16 kHz and then delivers
+        nothing (#897); the owner measured both Windows machines unaffected,
+        so they keep the request.
+
+        ``watchdog_factory(callback)`` builds the first-data deadline: an
+        object with ``start(ms)`` and ``stop()`` that calls ``callback``
+        once when the time passes. A seam for the same reason the others
+        are: a real ``QTimer`` will not run without an application.
         """
         super().__init__(parent)
         self.preferred_device_id = preferred_device_id
         self._media_devices = media_devices or _QtMediaDevices()
         self._permission_probe = permission_probe or check_permission
         self._audio_source_factory = audio_source_factory or self._build_audio_source
+        self.native_format_first = (
+            sys.platform == 'darwin' if native_format_first is None else bool(native_format_first)
+        )
+        self._watchdog_factory = watchdog_factory or self._build_watchdog
+        self._watchdog: Any = None
+        self._bytes_seen = 0
+        self._deadline_passed = False
+        self._restarted = False
 
         self._source: Any = None
         self._io: Any = None
@@ -698,6 +749,9 @@ class AudioRecorder(QObject):
         self._pending = b''
         self._capture_error = None
         self._source = source
+        self._bytes_seen = 0
+        self._deadline_passed = False
+        self._restarted = False
 
         try:
             self._sink = _WavSink(
@@ -715,6 +769,7 @@ class AudioRecorder(QObject):
         except SttError:
             self._teardown(delete_file=True)
             raise
+        self._arm_watchdog()
         return capture_format
 
     def _begin_stream(self, source: Any) -> None:
@@ -745,6 +800,7 @@ class AudioRecorder(QObject):
             return
         data = bytes(self._io.readAll())
         if data:
+            self._bytes_seen += len(data)
             self._consume_block(data)
 
     def _consume_block(self, data: bytes) -> None:
@@ -807,6 +863,112 @@ class AudioRecorder(QObject):
             logger.warning("stt: %s", detail)
             self.errorOccurred.emit(kind.value, detail)
 
+    # -- the first-data deadline (#897) ----------------------------------
+
+    def _arm_watchdog(self) -> None:
+        if self._watchdog is None:
+            self._watchdog = self._watchdog_factory(self._on_first_data_deadline)
+        self._watchdog.start(FIRST_DATA_DEADLINE_MS)
+
+    def _disarm_watchdog(self) -> None:
+        if self._watchdog is not None:
+            self._watchdog.stop()
+
+    def _on_first_data_deadline(self) -> None:
+        """The stream has had :data:`FIRST_DATA_DEADLINE_MS` and sent nothing.
+
+        See the constant for why this exists and why the two branches
+        differ. Runs from the timer, so it never raises: a failure becomes
+        ``_capture_error``, which :meth:`stop` reports.
+        """
+        if not self.is_recording or self._bytes_seen > 0:
+            return
+        fmt, device = self._format, self._device
+        assert fmt is not None and device is not None      # guarded by is_recording
+
+        if fmt.degraded or self._restarted:
+            # Already at the device's own format: nothing better to try.
+            # Leave the stream running -- it may still start.
+            self._deadline_passed = True
+            logger.warning(
+                "stt: %r has sent no audio %d ms after starting at %d Hz",
+                device.label, FIRST_DATA_DEADLINE_MS, fmt.sample_rate,
+            )
+            return
+
+        logger.info(
+            "stt: %r accepted %d Hz but sent no audio in %d ms; "
+            "restarting at its preferred format",
+            device.label, fmt.sample_rate, FIRST_DATA_DEADLINE_MS,
+        )
+        self._restarted = True
+        try:
+            self._restart_at_device_format(device)
+        except SttError as exc:
+            self._deadline_passed = True
+            if self._capture_error is None:
+                self._capture_error = exc
+                logger.warning("stt: restart failed: %s", exc.detail)
+                self.errorOccurred.emit(exc.kind.value, exc.detail)
+            return
+        self._arm_watchdog()
+
+    def _restart_at_device_format(self, device: InputDevice) -> None:
+        """Replace the stream and the file's format; keep the path.
+
+        Nothing has been written (no byte has arrived), so the WAV is
+        reopened rather than converted: its header must name the new rate.
+        """
+        self._release_stream()
+        qt_format, capture_format = self._resolve_format(device, force_device_format=True)
+        source = self._audio_source_factory(device.qt_device, qt_format)
+        error = source.error()
+        if error is not None and self._is_error(error):
+            raise SttError(
+                map_audio_error(error),
+                f'QAudioSource reported {getattr(error, "name", error)} on restart',
+            )
+        assert self._sink is not None and self._path is not None
+        self._sink.close()
+        try:
+            self._sink = _WavSink(
+                self._path,
+                sample_rate=capture_format.sample_rate,
+                channels=capture_format.channels,
+                sample_width=capture_format.sample_width,
+            )
+        except OSError as exc:
+            self._sink = None
+            raise SttError(SttErrorKind.CAPTURE_FAILED, f'cannot write {self._path}: {exc}') from exc
+        self._format = capture_format
+        self._overall = LevelAccumulator()
+        self._window = LevelAccumulator()
+        self._pending = b''
+        self._source = source
+        self._begin_stream(source)
+
+    def _release_stream(self) -> None:
+        """Disconnect and stop the current source, leaving the file alone."""
+        if self._io is not None:
+            try:
+                self._io.readyRead.disconnect(self._drain)
+            except (AttributeError, TypeError, RuntimeError):   # pragma: no cover - Qt teardown
+                pass
+        source = self._source
+        if source is not None:
+            state_changed = getattr(source, 'stateChanged', None)
+            if state_changed is not None:
+                try:
+                    state_changed.disconnect(self._on_state_changed)
+                except (AttributeError, TypeError, RuntimeError):   # pragma: no cover
+                    pass
+            try:
+                source.stop()
+            except Exception as exc:                        # pragma: no cover - Qt teardown
+                logger.warning("stt: QAudioSource.stop() failed: %s", exc)
+        self._io = None
+        self._source = None
+
     # -- stopping --------------------------------------------------------
 
     def stop(self) -> Recording:
@@ -821,6 +983,7 @@ class AudioRecorder(QObject):
         if not self.is_recording:
             raise SttError(SttErrorKind.CAPTURE_FAILED, 'no recording in progress')
 
+        self._disarm_watchdog()
         fmt = self._format
         assert fmt is not None and self._path is not None   # guarded by is_recording
 
@@ -848,11 +1011,32 @@ class AudioRecorder(QObject):
             degraded_format=fmt.degraded,
             capture_error=self._capture_error,
         )
-        if recording.capture_error is None and recording.silent:
+        if recording.silent and recording.capture_error is not None:
+            # A stated failure keeps its own reason, and is still never
+            # handed on: the bridge queues any Recording it gets, and a
+            # silent file is transcribed to an invented word (reason 2 of
+            # SILENCE_PEAK_FLOOR).
+            raise recording.capture_error
+        if recording.silent and self._bytes_seen == 0 and self._deadline_passed:
+            # #897: the device never sent a byte. That is the microphone,
+            # not a student who said nothing, and it must not read as one.
+            # The page shows a capture_failed detail to the student, so the
+            # detail is a sentence and the path goes to the log.
+            label = self._device.label if self._device else 'The microphone'
+            logger.warning(
+                "stt: %r sent no audio data at %d Hz%s (%s)",
+                label, fmt.sample_rate, ' after a restart' if self._restarted else '',
+                recording.path,
+            )
+            raise SttError(
+                SttErrorKind.CAPTURE_FAILED,
+                f'{label} sent no audio at all, so nothing was recorded.',
+            )
+        if recording.silent:
             raise SttError(
                 SttErrorKind.NO_AUDIO_CAPTURED,
                 f'peak {recording.peak:.5f} never rose above {SILENCE_PEAK_FLOOR} '
-                f'over {recording.duration_seconds:.1f}s ({recording.path})',
+                f'over {recording.duration_seconds:.1f}s at {recording.sample_rate} Hz ({recording.path})',
             )
         return recording
 
@@ -860,6 +1044,7 @@ class AudioRecorder(QObject):
         """Stop and discard. Never raises -- it is the cancel path."""
         if not self.is_recording:
             return
+        self._disarm_watchdog()
         source = self._source
         if source is not None:
             try:
@@ -898,20 +1083,33 @@ class AudioRecorder(QObject):
 
     # -- format ----------------------------------------------------------
 
-    def _resolve_format(self, device: InputDevice) -> Tuple[QAudioFormat, CaptureFormat]:
-        """Ask for 16 kHz mono Int16; take what the device offers if refused."""
+    def _resolve_format(
+        self, device: InputDevice, *, force_device_format: bool = False,
+    ) -> Tuple[QAudioFormat, CaptureFormat]:
+        """Ask for 16 kHz mono Int16; take what the device offers if refused.
+
+        On macOS (``native_format_first``), and on a restart after a 16 kHz
+        stream sent nothing, the request is not made: the device's
+        ``isFormatSupported`` answer is the thing that cannot be trusted
+        there (#897).
+        """
         wanted = QAudioFormat()
         wanted.setSampleRate(REQUESTED_SAMPLE_RATE)
         wanted.setChannelCount(REQUESTED_CHANNELS)
         wanted.setSampleFormat(QAudioFormat.SampleFormat.Int16)
 
         qt_device = device.qt_device
-        degraded = not qt_device.isFormatSupported(wanted)
+        if force_device_format or self.native_format_first:
+            degraded = True
+            reason = 'after a 16 kHz stream sent nothing' if force_device_format else 'on macOS (#897)'
+        else:
+            degraded = not qt_device.isFormatSupported(wanted)
+            reason = 'refused 16 kHz mono Int16'
         chosen = qt_device.preferredFormat() if degraded else wanted
         if degraded:
             logger.info(
-                "stt: %r refused 16 kHz mono Int16; recording at %d Hz x%d %s",
-                device.label, chosen.sampleRate(), chosen.channelCount(),
+                "stt: %r %s; recording at %d Hz x%d %s",
+                device.label, reason, chosen.sampleRate(), chosen.channelCount(),
                 chosen.sampleFormat(),
             )
 
@@ -953,9 +1151,27 @@ class AudioRecorder(QObject):
     def _build_audio_source(qt_device: Any, qt_format: QAudioFormat) -> QAudioSource:
         return QAudioSource(qt_device, qt_format)
 
+    def _build_watchdog(self, callback: Callable[[], None]) -> '_QtWatchdog':
+        return _QtWatchdog(self, callback)
+
     @staticmethod
     def _is_error(error: Any) -> bool:
         """True unless this is ``QAudio.Error.NoError``."""
         if error == QAudio.Error.NoError:
             return False
         return 'NoError' not in (getattr(error, 'name', None) or str(error))
+
+
+class _QtWatchdog:
+    """The production first-data deadline: one single-shot ``QTimer``."""
+
+    def __init__(self, parent: QObject, callback: Callable[[], None]) -> None:
+        self._timer = QTimer(parent)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(callback)
+
+    def start(self, ms: int) -> None:
+        self._timer.start(ms)
+
+    def stop(self) -> None:
+        self._timer.stop()
