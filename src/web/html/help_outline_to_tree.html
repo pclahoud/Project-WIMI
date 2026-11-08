@@ -272,6 +272,16 @@ For a first import onto a new exam that is exactly what you want — a whole-exa
 file is how a multi-dimensional exam gets its axes in the first place, and there
 is nothing there to archive yet.
 
+If the exam already has subjects, built by hand or from an earlier single-tree
+file, those subjects belong to no axis, and a whole-exam file that creates the
+first axis would leave them outside every one. So when you press **Import**,
+WIMI first asks **Move your existing subjects into an axis?**, listing your
+top-level subjects with an axis for each. **Move them** puts them in the axes you
+chose, **Keep them aside** leaves them where they are, and **Go back** imports
+nothing and leaves the preview open. The file itself never changes those
+subjects; the move happens only if you choose it. The dialog and its notes are
+covered in [Dimensions, and questions with several axes](help_dimensions.html).
+
 Later it is a trap. Importing a whole-exam file that describes only one of your
 three axes reports two axes to be removed, and the subjects in them go with
 them. That is measured, not hypothetical: re-importing a one-axis file into the

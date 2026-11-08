@@ -1,0 +1,755 @@
+/* =========================================================================
+   Quick note dialog (#848 Wave 2a) -- quick_note.js builds the markup.
+   Linked per page. On the entry form the shared .modal-backdrop / .modal /
+   .modal-title rules come from session.css; the subject deep dive (#848
+   Wave 2b) does not link session.css, whose page-level rules (.section-title
+   among them) would restyle that page, so the scrim and surface rules the
+   dialog needs are restated below, scoped to this dialog and to the deep
+   dive's subject chooser, with the same values session.css gives.
+   ========================================================================= */
+
+.quick-note-btn {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    padding: 0.3125rem 0.75rem;
+}
+
+.quick-note-backdrop,
+.qn-chooser-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.quick-note-backdrop.active,
+.qn-chooser-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.quick-note-modal,
+.qn-chooser {
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+}
+
+.quick-note-modal {
+    max-width: 40rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* The entry step is wider: a sessions column beside the cards. */
+.quick-note-modal.qn-picking {
+    max-width: 54rem;
+}
+
+.qn-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-lg) var(--space-lg) 0 var(--space-lg);
+}
+
+.qn-title {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.qn-close {
+    border: none;
+    background: none;
+    font-size: var(--font-size-xl);
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+}
+
+.qn-close:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.qn-tabs {
+    display: flex;
+    gap: var(--space-lg);
+    padding: var(--space-xs) var(--space-lg) 0 var(--space-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.qn-tab {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    padding: var(--space-sm) 0.125rem;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+
+.qn-tab:hover {
+    color: var(--text-primary);
+}
+
+.qn-tab.qn-tab-active {
+    color: var(--text-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.qn-count {
+    display: inline-block;
+    min-width: 1.125rem;
+    padding: 0 var(--space-xs);
+    margin-left: var(--space-xs);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+}
+
+.qn-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: var(--space-md) var(--space-lg) 0 var(--space-lg);
+}
+
+/* quick_note.js hides the inactive tab panel, the tab's count pill, the
+ * empty-list sentence and the Show more button with the `hidden`
+ * attribute (never the role=status line, which stays in the accessibility
+ * tree empty so that its text, when written, is a change to a live region
+ * rather than a node arriving pre-filled -- see build() in quick_note.js). The user agent's `[hidden] { display: none }` is
+ * UA-origin, so ANY author `display` on the same element outranks it
+ * whatever the specificity -- `.qn-panel { display: flex }` and
+ * `.qn-count { display: inline-block }` above did exactly that, and both
+ * tab panels painted stacked on every open with an empty grey pill on the
+ * Your notes tab. calendar.css records the same trap for its dialogs. One
+ * rule scoped to the dialog restates it for every element inside, so the
+ * next `display` rule in this file cannot reopen it. (0,2,0) beats every
+ * single-class rule here and the `.btn*` rules in styles.css. */
+.quick-note-modal [hidden] {
+    display: none;
+}
+
+.qn-more {
+    align-self: flex-start;
+}
+
+.qn-hint {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+.qn-tag-hint {
+    font-size: var(--font-size-xs);
+}
+
+.qn-editor-host {
+    min-height: 10rem;
+}
+
+.qn-subjects-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.qn-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.qn-chips,
+.qn-row-chips {
+    display: inline-flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+}
+
+.qn-chip {
+    display: inline-block;
+    padding: 0.125rem var(--space-sm);
+    border-radius: 0.75rem;
+    background: var(--color-primary-bg);
+    color: var(--color-primary-text);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.qn-chip-general {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.qn-subjects-btn {
+    border: none;
+    background: none;
+    color: var(--color-primary-text);
+    font-size: var(--font-size-sm);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.qn-subjects-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.qn-status {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-error-text);
+}
+
+.qn-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.qn-empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    padding: var(--space-md) 0;
+}
+
+.qn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-primary);
+}
+
+.qn-row-date {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-muted);
+    min-width: 5.5rem;
+    padding-top: 0.125rem;
+}
+
+.qn-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    cursor: pointer;
+}
+
+.qn-row-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.qn-row-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-row-actions {
+    display: flex;
+    gap: 0.125rem;
+    align-self: flex-start;
+}
+
+.qn-row-actions .btn-text {
+    padding: 0.125rem 0.375rem;
+    font-size: var(--font-size-xs);
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+}
+
+.qn-row-actions .btn-text:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.qn-row-actions .btn-danger-text {
+    color: var(--color-error-text);
+}
+
+.qn-row-actions .btn-danger-text:hover {
+    background: var(--color-error-bg);
+    color: var(--color-error-text);
+}
+
+.qn-row-confirm {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    padding: var(--space-sm) 0.75rem;
+    background: var(--color-error-bg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.qn-row-confirm-text {
+    flex: 1;
+    min-width: 12rem;
+}
+
+.qn-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg) var(--space-lg) var(--space-lg);
+    margin-top: var(--space-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.qn-footer-text {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-footer-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* =========================================================================
+   #848 Wave 2b: where the note lives, and the entry step (the deep dive)
+   ========================================================================= */
+
+.qn-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.qn-where-row {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    flex-wrap: wrap;
+}
+
+.qn-seg {
+    display: inline-flex;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.qn-seg-btn {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    padding: 0.375rem 0.875rem;
+    min-height: 2.125rem;
+    border: none;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.qn-seg-btn + .qn-seg-btn {
+    border-left: 1px solid var(--border-medium);
+}
+
+.qn-seg-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.qn-seg-btn.qn-seg-on {
+    background: var(--color-primary-bg);
+    color: var(--color-primary-text);
+}
+
+.qn-entry-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+}
+
+.qn-entry-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.qn-entry-summary-head {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.qn-entry-summary-meta,
+.qn-entry-summary-empty {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-entry-summary-meta b {
+    color: var(--text-primary);
+}
+
+.qn-pick {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.qn-pick-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: var(--space-md) var(--space-lg) 0.75rem var(--space-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.qn-pick-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    padding: var(--space-xs) var(--space-sm);
+    min-height: 1.875rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.qn-pick-back:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.qn-pick-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.0625rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.qn-pick-lede {
+    font-size: var(--font-size-xs);
+}
+
+.qn-pick-lede b {
+    color: var(--text-primary);
+}
+
+.qn-pick-widen {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.qn-pick-body {
+    display: grid;
+    grid-template-columns: 14.75rem minmax(0, 1fr);
+    min-height: 0;
+    height: 70vh;
+}
+
+.qn-pick-aside {
+    border-right: 1px solid var(--border-color);
+    padding: 0.75rem 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    background: var(--bg-secondary);
+    overflow-y: auto;
+    border-bottom-left-radius: var(--radius-xl);
+}
+
+.qn-pick-aside-label {
+    padding: 0 0.625rem var(--space-xs) 0.625rem;
+    font-size: var(--font-size-xs);
+}
+
+.qn-pick-sessions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.qn-sess {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: var(--space-sm) 0.625rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    text-align: left;
+    background: none;
+    font: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.qn-sess:hover {
+    background: var(--bg-tertiary);
+}
+
+.qn-sess.qn-sess-on {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-light);
+}
+
+.qn-sess-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.qn-sess-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-pick-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.75rem var(--space-lg) var(--space-md) var(--space-lg);
+    gap: var(--space-sm);
+}
+
+.qn-pick-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.4375rem 0.625rem;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.qn-pick-status {
+    font-size: var(--font-size-xs);
+}
+
+.qn-pick-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1;
+}
+
+.qn-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-primary);
+    padding: 0.75rem 0.875rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.qn-card.qn-card-on {
+    border-color: var(--color-primary);
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.qn-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.qn-card-ident,
+.qn-card-side {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.qn-card-id {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.qn-card-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-tag {
+    display: inline-block;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.qn-tag-draft {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+}
+
+.qn-card-answers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+}
+
+.qn-card-ans {
+    display: flex;
+    flex-direction: column;
+    gap: 0.0625rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+}
+
+.qn-card-ans-wrong {
+    background: var(--color-error-bg);
+    color: var(--color-error-text);
+}
+
+.qn-card-ans-right {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
+}
+
+.qn-card-ans-label {
+    font-weight: var(--font-weight-semibold);
+}
+
+.qn-card-ans-text {
+    color: var(--text-primary);
+}
+
+.qn-card-sec {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.qn-card-sec-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-muted);
+}
+
+.qn-card-sec-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.qn-card-sec-text.qn-card-sec-empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* The deep dive's subject chooser (subject_deep_dive.js), over the dialog. */
+.qn-chooser {
+    max-width: 30rem;
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.qn-chooser-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+.qn-chooser-option {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.qn-chooser-option:hover {
+    background: var(--bg-tertiary);
+}
+
+.qn-chooser-path {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.qn-chooser-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+}

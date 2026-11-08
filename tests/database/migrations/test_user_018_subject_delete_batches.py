@@ -78,6 +78,10 @@ def test_existing_subjects_are_not_marked_as_deleted(fresh_conn):
     """The stamp must arrive NULL — a non-NULL default would read as
     'every subject you already have was deleted by batch X'."""
     _runner_through_v17(fresh_conn).apply_pending()
+    # A real exam for the subject's name: since m037 (#884) a subject filed
+    # under a name no exam holds is debris, and the full chain removes it.
+    fresh_conn.execute(
+        "INSERT INTO exam_contexts (user_id, exam_name) VALUES (1, 'USMLE')")
     fresh_conn.execute(
         "INSERT INTO subject_nodes (exam_context, name, level_type) "
         "VALUES ('USMLE', 'Cardiology', 'System')"

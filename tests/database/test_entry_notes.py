@@ -332,19 +332,37 @@ class TestCascadeDelete:
     """Test cascade delete when parent entry is deleted."""
 
     def test_notes_deleted_with_entry(self, db):
-        """Notes should be deleted when the parent entry is deleted."""
+        """Deleting an entry through ``delete_question_entry`` deletes the
+        notes it alone held (#848 decision 2). Asserted on the ROWS: this
+        test once deleted the entry by raw SQL and read
+        ``get_entry_notes_list``, which is empty because the entry is gone,
+        so it passed whether or not the notes were (#862 item 4)."""
         udb = db['db']
         entry = db['entry']
 
-        udb.add_entry_note(entry.id, content_html="<p>Note 1</p>")
-        udb.add_entry_note(entry.id, content_html="<p>Note 2</p>")
+        n1 = udb.add_entry_note(entry.id, content_html="<p>Note 1</p>")
+        n2 = udb.add_entry_note(entry.id, content_html="<p>Note 2</p>")
 
-        # Delete the entry
+        udb.delete_question_entry(entry.id)
+
+        assert udb.fetchall(
+            "SELECT id FROM entry_notes WHERE id IN (?, ?)", (n1.id, n2.id)) == []
+
+    def test_a_raw_entry_delete_leaves_its_notes_as_free_notes(self, db):
+        """The column's own ``ON DELETE SET NULL`` (m036) is the fallback for
+        a path that skips ``release_notes_from_entries``: it frees the notes
+        rather than destroying them, so a missed path shows up as stray free
+        notes under Your notes and never as lost work."""
+        udb = db['db']
+        entry = db['entry']
+        n1 = udb.add_entry_note(entry.id, content_html="<p>Note 1</p>")
+
         udb.execute("DELETE FROM question_entries WHERE id = ?", (entry.id,))
         udb.conn.commit()
 
-        notes = udb.get_entry_notes_list(entry.id)
-        assert len(notes) == 0
+        row = udb.fetchone("SELECT question_entry_id FROM entry_notes WHERE id = ?", (n1.id,))
+        assert row is not None and row['question_entry_id'] is None
+        assert [n.id for n in udb.list_free_notes()] == [n1.id]
 
 
 class TestIntegrationWithGetters:

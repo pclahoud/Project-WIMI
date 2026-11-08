@@ -151,17 +151,83 @@ class EdgesMixin:
             )
         return edge
 
-    def remove_edge(self, edge_id: int) -> None:
-        """Delete an edge by ID.
+    def get_remove_parent_impact(self, edge_id: int) -> Optional[Dict[str, Any]]:
+        """What removing this edge would move, for the confirmation (#738).
+
+        Returns ``None`` for an edge that does not exist. Otherwise
+        ``pinned_entries`` counts the entries on the child whose parent
+        context (``entry_subject_mappings.primary_parent_id``) is this edge's
+        parent, and ``remaining_parents`` lists the child's other active
+        parents, primary first: the places those entries can go.
+        """
+        edge = self.fetchone(
+            "SELECT parent_id, child_id FROM subject_edges WHERE id = ?", (edge_id,))
+        if edge is None:
+            return None
+        pinned = self.fetchone(
+            "SELECT COUNT(*) AS n FROM entry_subject_mappings"
+            " WHERE subject_node_id = ? AND primary_parent_id = ?",
+            (edge['child_id'], edge['parent_id']))['n']
+        remaining = [
+            {'parent_id': e['parent_id'], 'parent_name': e['parent_name'],
+             'is_primary': e['is_primary']}
+            for e in self.get_edges_for_child(edge['child_id'])
+            if e['edge_id'] != edge_id
+        ]
+        return {
+            'edge_id': edge_id,
+            'child_id': edge['child_id'],
+            'parent_id': edge['parent_id'],
+            'pinned_entries': int(pinned),
+            'remaining_parents': remaining,
+        }
+
+    def remove_edge(self, edge_id: int, repin_to_parent_id: Optional[int] = None) -> int:
+        """Delete an edge by ID, re-filing the entries filed under it (#738).
 
         If the deleted edge was the only edge for its child, the child
         becomes orphaned (no parents). That is allowed — the user may
         re-parent it later or it may be a top-level node.
+
+        Entries on the child whose parent context is the removed parent
+        would otherwise keep naming a parent the subject no longer has,
+        which under §5.4 rolls them up through a chain the subject is not
+        in. The owner's decision on #738 is *ask each time*, so the caller
+        passes ``repin_to_parent_id``, one of the child's remaining parents.
+        With no target given, the entries go to the primary remaining
+        parent, so no caller can leave them orphaned; they are cleared to
+        NULL only when no parent remains, the single-parent case where NULL
+        is unambiguous. The re-file and the delete are one transaction.
+
+        Returns:
+            How many entries were re-filed.
         """
+        from ..exceptions import ValidationError
+
         with self.transaction():
+            impact = self.get_remove_parent_impact(edge_id)
+            if impact is None:
+                return 0
+            moved = 0
+            if impact['pinned_entries']:
+                remaining = [r['parent_id'] for r in impact['remaining_parents']]
+                if repin_to_parent_id is not None:
+                    if repin_to_parent_id not in remaining:
+                        raise ValidationError(
+                            "Those entries can only move to one of this "
+                            "subject's other parents")
+                    target = repin_to_parent_id
+                else:
+                    target = remaining[0] if remaining else None
+                cursor = self.execute(
+                    "UPDATE entry_subject_mappings SET primary_parent_id = ?"
+                    " WHERE subject_node_id = ? AND primary_parent_id = ?",
+                    (target, impact['child_id'], impact['parent_id']))
+                moved = cursor.rowcount
             self.execute(
                 "DELETE FROM subject_edges WHERE id = ?", (edge_id,)
             )
+            return moved
 
     def set_primary_parent(
         self,

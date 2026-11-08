@@ -13,6 +13,59 @@ from database.exceptions import (
 )
 
 
+def _settings_kwargs(settings: dict) -> dict:
+    """The wizard's settings JSON as ``update_exam_context_settings`` kwargs.
+
+    Shared by ``updateExamContextSettings`` and ``saveExamEdit`` (#874), so
+    the two slots cannot read the same payload two different ways.
+    """
+    kwargs = {}
+
+    if 'exam_description' in settings:
+        kwargs['exam_description'] = settings['exam_description']
+    # #718: an empty date is a CLEAR. It used to become None, which
+    # the domain reads as "not supplied", so a cleared date came back.
+    if 'exam_date' in settings:
+        if settings['exam_date']:
+            kwargs['exam_date'] = date.fromisoformat(settings['exam_date'])
+        else:
+            kwargs['clear_exam_date'] = True
+    # #718: the rename. The domain moves every row filed under the old
+    # name and refuses a taken one with a sentence (ValidationError).
+    if 'exam_name' in settings:
+        kwargs['exam_name'] = str(settings['exam_name'] or '')
+    if 'is_active' in settings:
+        kwargs['is_active'] = settings['is_active']
+    if 'notes' in settings:
+        kwargs['notes'] = settings['notes']
+    # #778 decision 9: the exam's own colour. A string is validated
+    # by the domain ('#rrggbb' or a sentence); null clears it.
+    if 'color_hex' in settings:
+        if settings['color_hex']:
+            kwargs['color_hex'] = str(settings['color_hex'])
+        else:
+            kwargs['clear_color'] = True
+
+    weight_rules = {}
+    if 'autonomous_balancing' in settings:
+        weight_rules['autonomous_weight_balancing'] = settings['autonomous_balancing']
+    if 'precision' in settings:
+        weight_rules['precision_decimal_places'] = settings['precision']
+    if 'balancing_algorithm' in settings:
+        weight_rules['balancing_algorithm'] = settings['balancing_algorithm']
+    if 'requires_exact_100' in settings:
+        weight_rules['require_exact_100'] = settings['requires_exact_100']
+
+    if weight_rules:
+        kwargs['weight_validation_rules'] = weight_rules
+    return kwargs
+
+
+
+def _as_text(value) -> str:
+    """A JSON length value (number, string or null) as ``_parse_optional_int`` input."""
+    return '' if value is None else str(value)
+
 def _parse_optional_int(value: str) -> 'int | None':
     """Parse a string slot arg to an Optional[int].
 
@@ -232,36 +285,7 @@ class ExamContextBridgeMixin:
         try:
             settings = json.loads(settings_json)
 
-            kwargs = {}
-
-            if 'exam_description' in settings:
-                kwargs['exam_description'] = settings['exam_description']
-            if 'exam_date' in settings:
-                kwargs['exam_date'] = date.fromisoformat(settings['exam_date']) if settings['exam_date'] else None
-            if 'is_active' in settings:
-                kwargs['is_active'] = settings['is_active']
-            if 'notes' in settings:
-                kwargs['notes'] = settings['notes']
-            # #778 decision 9: the exam's own colour. A string is validated
-            # by the domain ('#rrggbb' or a sentence); null clears it.
-            if 'color_hex' in settings:
-                if settings['color_hex']:
-                    kwargs['color_hex'] = str(settings['color_hex'])
-                else:
-                    kwargs['clear_color'] = True
-
-            weight_rules = {}
-            if 'autonomous_balancing' in settings:
-                weight_rules['autonomous_weight_balancing'] = settings['autonomous_balancing']
-            if 'precision' in settings:
-                weight_rules['precision_decimal_places'] = settings['precision']
-            if 'balancing_algorithm' in settings:
-                weight_rules['balancing_algorithm'] = settings['balancing_algorithm']
-            if 'requires_exact_100' in settings:
-                weight_rules['require_exact_100'] = settings['requires_exact_100']
-
-            if weight_rules:
-                kwargs['weight_validation_rules'] = weight_rules
+            kwargs = _settings_kwargs(settings)
 
             config = self.user_db.update_exam_context_settings(exam_context_id, **kwargs)
 
@@ -293,6 +317,68 @@ class ExamContextBridgeMixin:
                 },
             )
             return serialize_response(False, error=f'Failed to update exam context: {e}')
+
+    @pyqtSlot(int, str, result=str)
+    @instrumented_slot
+    def saveExamEdit(self, exam_context_id: int, payload_json: str) -> str:
+        """Save the exam wizard's edit mode in one transaction (#874).
+
+        ``payload_json`` is ``{"settings": {...}, "length": {kind, min, max,
+        typical, note} | null, "dimensions": [{id, name, description,
+        is_required, allow_multiple}, ...] | null, "existing_subjects":
+        {action, assignments} | null, "first_axis": bool}``. The last two are
+        #605's first-axis prompt: the student's answer about the subjects the
+        exam already has, moved in the same transaction, and the page's claim
+        that the exam had no axis when it was opened. ``settings`` is read
+        exactly as ``updateExamContextSettings`` reads it (``_settings_kwargs``),
+        and the axes are listed in their final order.
+
+        Either everything is written or nothing is. A failure is
+        ``success=false`` with a sentence naming the part that could not be
+        saved, so the wizard can never report a partial save as a success
+        (#240).
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            payload = json.loads(payload_json)
+            kwargs = _settings_kwargs(payload.get('settings') or {})
+            length = payload.get('length')
+            if length is not None:
+                try:
+                    length = {
+                        'kind': length.get('kind') or 'unknown',
+                        'min': _parse_optional_int(_as_text(length.get('min'))),
+                        'max': _parse_optional_int(_as_text(length.get('max'))),
+                        'typical': _parse_optional_int(_as_text(length.get('typical'))),
+                        'note': length.get('note') or None,
+                    }
+                except ValueError as e:
+                    return serialize_response(
+                        False, error=f"Nothing was saved. The exam's length is"
+                                     f" not a whole number: {e}")
+            result = self.user_db.save_exam_edit(
+                exam_context_id, kwargs, length=length,
+                dimensions=payload.get('dimensions'),
+                existing_subjects=payload.get('existing_subjects'),
+                first_axis=bool(payload.get('first_axis')))
+            config = result['exam']
+            self.examContextUpdated.emit(str(exam_context_id))
+            return serialize_response(True, data={
+                'id': config.id,
+                'exam_name': config.exam_name,
+                'exam_date': config.exam_date,
+                'dimension_ids': result['dimension_ids'],
+                'moved_existing': result.get('moved_existing'),
+            })
+        except ValidationError as e:
+            return serialize_response(False, error=str(e))
+        except Exception as e:
+            self._log_error(f'Error saving exam edit: {e}',
+                            {'exam_context_id': exam_context_id})
+            return serialize_response(
+                False, error=f'Nothing was saved. The edit failed: {e}')
 
     @pyqtSlot(int, result=str)
     @instrumented_slot

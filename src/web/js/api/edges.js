@@ -16,6 +16,16 @@
         return api._callBridge('removeParent', edgeId);
     };
 
+    // #738: what removing an edge would move, and the removal with the
+    // student's chosen destination for those entries.
+    api.getRemoveParentImpact = async function(edgeId) {
+        return api._callBridge('getRemoveParentImpact', edgeId);
+    };
+
+    api.removeParentMovingEntries = async function(edgeId, targetParentId) {
+        return api._callBridge('removeParentMovingEntries', edgeId, targetParentId);
+    };
+
     api.setPrimaryParent = async function(childId, parentId) {
         return api._callBridge('setPrimaryParent', childId, parentId);
     };

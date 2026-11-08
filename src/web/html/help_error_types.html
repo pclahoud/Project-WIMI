@@ -101,6 +101,12 @@ untagged entry with a clear written reason is worth more than a tagged one
 without. Tag when you know which kind of mistake it was. Do not guess to fill
 the field.
 
+When you do want to go back and tag, two places find the entries still without
+a type. The analytics dashboard's difficulty and time card has **No error type**
+at the top of its error-type list, and it shows where those mistakes fall by
+difficulty and time; click a quadrant and the entry browser opens on them. The
+entry browser's **Tags** filter has the same **No error type** option on its own.
+
 **You can pick several, and there is no maximum.** Often two are honestly true
 at once, and recording both is better than choosing arbitrarily. See *How many
 to pick* below.
@@ -277,7 +283,10 @@ name"** block appears under the search results with:
 - a **Create Tag** button.
 
 Press it and the new type is created and applied to the entry you are on
-immediately.
+immediately. It is offered on **this exam only**: your other exams do not see it
+until you add it to them (see *Your error types are shared across your exams*
+below). If a type of that name already exists in that group because you made it
+on another exam, WIMI offers that one here rather than making a second copy.
 
 **Write the definition.** It is optional and it is the whole point. A type called
 *Buzzword Trap* means something precise to you this week and nothing at all in
@@ -296,8 +305,9 @@ contributes nothing a written reason does not.
 ## Editing a definition
 
 **⚙️ Manage error types**, at the bottom of the open palette, opens a modal
-headed **Manage Error Types** with the sub-line *"Edit definitions or delete
-types. Definitions appear as hover tooltips in the picker."*
+headed **Manage Error Types**. It lists the error types this exam offers, and
+its sub-line says that a definition you edit there changes on every exam that
+offers the type.
 
 Every type gets a text box holding its current definition. Change it and a
 **Save** button appears beside that one box; it stays hidden while the text
@@ -311,16 +321,52 @@ does not match how you think. If *Wrong Guess Strategy* is going to mean
 something specific in your hands, write that down in the box; the sentence you
 write is the one you will see when hovering it at entry two hundred.
 
-Each row also shows how many entries currently carry that type, so the modal
-doubles as an answer to "am I actually using this one".
+Each row also shows how many of this exam's entries currently carry that type,
+so the modal doubles as an answer to "am I actually using this one".
 
-## Deleting one, and what it costs
+**A definition is shared.** One type is one type in every exam that offers it, so
+rewriting *Memory Failure* while you are on your Step 1 exam rewrites it on your
+Shelf exam too. If an exam really needs a different meaning, that is a different
+type with a different name.
 
-The trash button on a row opens a confirmation headed **Delete this error type?**
-which tells you exactly what you are about to do:
+## Removing one from an exam, or deleting it for good
 
-- with entries using it: *"Used by N entries. Deleting removes this tag from those entries and from analytics. This cannot be undone."*
-- with none: *"Not used by any entries. This cannot be undone."*
+Every row in the modal has **Remove from this exam**, and some also have a
+trash button. They do very different things.
+
+**Remove from this exam** is the everyday one. The exam stops offering the type,
+so it leaves this exam's palette, its search results and the entry browser's
+Tags filter for this exam. Nothing else changes:
+
+- entries that already carry it **keep it**, chip and all, and the analytics still count them;
+- every other exam that offers it still does;
+- the type stays in your list, so you can bring it back from **Add from your other exams** at the bottom of the modal.
+
+The confirmation says how many of this exam's entries carry it and keep it.
+Removing a **group** removes the types listed under it on this exam as well.
+If you remove everything, the exam offers nothing, and it stays that way: the
+sixteen defaults are offered once, to a new exam, and are not put back. Bring
+back what you want from **Add from your other exams**.
+
+**Delete for good** is the trash button, and it only appears once **no other
+exam offers the type**. While another exam does, the row says *"Also on N other
+exams"* instead, and the way to delete it is to remove it from those exams
+first. That makes deleting a type a deliberate two-step job; it does **not**
+protect the other exams' entries. Deleting a type takes it off every entry that
+carries it, in every exam — including the entries on an exam you removed it
+from a minute ago, which kept it when you did.
+
+So if you remove *Buzzword Trap* from your Shelf exam, where twelve entries
+carry it, and then delete it for good from your Step 1 exam, those twelve Shelf
+entries lose it too. Removing it from Shelf lost nothing; the delete is what
+takes it off them.
+
+Its confirmation, headed **Delete for good?**, gives the count across every
+exam, and that count is the number to read: it includes the entries on every
+exam, not just this one.
+
+- with entries using it: *"This removes it from N entries in every exam, and from analytics. This cannot be undone."*
+- with none: *"No entry in any exam carries it. This cannot be undone."*
 
 Read that first line literally. **Deleting a type does not delete your entries —
 it untags them.** The entries survive intact, including their written reasons;
@@ -330,10 +376,12 @@ subjects and dimensions, which are archived and can be restored, an error type i
 deleted outright.
 
 So the one case to be careful about is deleting a type you have used a lot
-because you have thought of a better name for it. See the next section.
+because you have thought of a better name for it. See the next section. When in
+doubt, use **Remove from this exam** and stop there: removing loses nothing,
+and it is only a later delete for good that untags the entries.
 
-A **group** can only be deleted when it is empty, and its trash button is greyed
-until then.
+A **group** can only be deleted for good when it holds no types at all, and its
+trash button is greyed until then.
 
 ## Two things you cannot do
 
@@ -343,26 +391,25 @@ create a type rather than after.
 - **You cannot rename an error type.** There is no rename anywhere. The only route is to delete it and create a new one — which untags every entry that used the old name, and those entries do not come back tagged. So: **pick the name you can live with the first time.** Definitions can be rewritten freely; names cannot.
 - **You cannot create a new group**, and you cannot move a type from one group to another. The five groups are fixed, so a type you create lives in whichever of them you pick at creation time, permanently. If none of the five fits well, pick the least wrong one — the type's own definition is doing the real work, and the group is organisation.
 
-## Each exam has its own list
+## Your error types are shared across your exams
 
 <!-- tour
 page: exam-wizard
 anchor: wizard-review
-text: A new exam gets its own copy of the sixteen error types, seeded the
-  first time you open its entry form. The copies are independent, so a
-  definition you rewrite on one exam does not change it on another.
+text: Your error types are shared across your exams. A new exam offers the
+  sixteen defaults the first time you open its entry form, and a type you
+  create on one exam stays on that exam until you add it to another. A
+  definition is shared, so rewriting it changes it everywhere.
 -->
 
-The sixteen are seeded **per exam**, and they are seeded the first time you open
-the entry form for that exam rather than when you create it. So a second exam
-starts with its own fresh copy of the same list.
+Your profile holds **one set of error types**, and each exam has a list of the
+ones it offers. A new exam offers the sixteen defaults, the first time you open
+its entry form rather than when you create it.
 
-The copies are independent. Rewriting *Memory Failure*'s definition on your Step
-1 exam does not change it on your Shelf exam; a type you create on one does not
-appear on the other; deleting one on one leaves the other alone. That is usually
-what you want — different exams genuinely reward different distinctions — but it
-does mean that if you have carefully tuned a list, you will tune it again on your
-next exam.
+- **A type you create on one exam is offered on that exam only.** Your other exams can have types this one does not, and the reverse. To offer it on another exam too, open **Manage Error Types** there and use **Add from your other exams**, which lists every type you have that this exam does not offer yet.
+- **A definition is shared.** Rewriting *Memory Failure* on your Step 1 exam changes it on your Shelf exam too, because it is the same type. That is also why the analytics count one *Memory Failure*, not one per exam.
+- **Remove from this exam** takes a type out of one exam's list and leaves its entries tagged. **Delete for good** appears only when no other exam offers the type, and it untags every entry carrying the type in every exam, including exams you removed it from. See *Removing one from an exam, or deleting it for good* above.
+- **Deleting an exam permanently never deletes an error type.** It takes that exam's list with it; every type, and every other exam's entries carrying it, stay as they were.
 
 ## Using it well
 

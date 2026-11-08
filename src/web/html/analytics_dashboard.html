@@ -11,6 +11,7 @@
          weight.css. Without this link the card renders with browser
          defaults (plain ul/li). -->
     <link rel="stylesheet" href="../css/weight.css">
+    <link rel="stylesheet" href="../css/difficulty_time.css">
     <link rel="stylesheet" href="../css/toast.css">
     <link rel="stylesheet" href="../css/tour.css">
 </head>
@@ -308,6 +309,11 @@
             </div>
         </section>
 
+        <!-- Difficulty and Time Spent (#898). difficulty_time_card.js draws the
+             heading, its tip and the card into this section; the deep dive
+             reuses the same component (Wave 4). -->
+        <section class="dt-section" id="difficultyTimeSection" data-testid="analytics-difficulty-time-section"></section>
+
         <!-- Patterns & Insights -->
         <section class="insights-section" data-testid="analytics-insights-section">
             <div class="section-title-row">
@@ -433,6 +439,9 @@
     <script src="../js/dimension_insights.js"></script>
     <script src="../js/source_chart.js"></script>
     <script src="../js/source_table.js"></script>
+    <script src="../js/difficulty.js"></script>
+    <script src="../js/difficulty_time_links.js"></script>
+    <script src="../js/difficulty_time_card.js"></script>
     <!-- The first-run tour (#430): its generated steps, then the runner.
          analytics_dashboard.js starts it once the cards are drawn. -->
     <script src="../js/tour_steps.js"></script>

@@ -127,17 +127,31 @@
         }));
     };
 
-    api.getTimeVsDifficultyAnalysis = async function(params) {
+    /**
+     * The difficulty and time card (#898): every mistake in scope placed
+     * by its rating and its time spent against the exam's median.
+     *
+     * This replaced two wrappers whose slots never existed (#383); they and
+     * their only caller were deleted in #898 Wave 0.
+     *
+     * @param {object} params
+     * @param {number} params.examContextId - Required.
+     * @param {number} [params.subjectId] - Deep dive: its counted scope.
+     * @param {number} [params.primaryParentId] - Deep dive parent context.
+     * @param {number[]} [params.tagIds] - Picked error types, in pick order.
+     * @param {boolean} [params.untagged] - Mistakes with no error type.
+     *     Exclusive with tagIds.
+     * @param {'any'|'all'} [params.match] - How several tagIds combine.
+     */
+    api.getDifficultyTimeQuadrants = async function(params) {
         params = params || {};
-        return api._callBridge('getTimeVsDifficultyAnalysis', JSON.stringify({
-            examContextId: params.examContextId || null
-        }));
-    };
-
-    api.getTimeDistribution = async function(params) {
-        params = params || {};
-        return api._callBridge('getTimeDistribution', JSON.stringify({
-            examContextId: params.examContextId || null
+        return api._callBridge('getDifficultyTimeQuadrants', JSON.stringify({
+            exam_context_id: params.examContextId || null,
+            subject_id: params.subjectId || null,
+            primary_parent_id: params.primaryParentId || null,
+            tag_ids: params.tagIds || [],
+            untagged: params.untagged === true,
+            match: params.match || 'any'
         }));
     };
 

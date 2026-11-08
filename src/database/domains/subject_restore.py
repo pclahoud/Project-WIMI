@@ -633,11 +633,15 @@ class SubjectRestoreMixin:
 
     @staticmethod
     def _restore_summary(plan: Dict[str, Any]) -> str:
-        """One sentence for the panel, naming skips rather than hiding them.
+        """One message for the panel, naming every skip rather than hiding it.
 
-        The owner's decision is that a partial restore must not read as a
-        complete one, so the skipped count is in the same sentence as the
-        restored count and carries its reason.
+        The owner's decision (#37) is that a partial restore must not read as
+        a complete one, so every kind of skip the planner records reaches the
+        message with the planner's own reason (#728). Until #728 only skipped
+        SUBJECTS did. A promoted child that was deliberately not re-attached, a
+        link re-created by hand since, a parent context the student chose
+        since, and a related-topic link that could not come back were all
+        skipped silently, under a clean "Restored N subjects."
         """
         counts = plan['counts']
         restored = counts['nodes_to_restore']
@@ -645,20 +649,37 @@ class SubjectRestoreMixin:
         total = restored + skipped
         noun = 'subject' if restored == 1 else 'subjects'
 
-        if not skipped:
-            return f"Restored {restored} {noun}."
+        def by_reason(items) -> List[tuple]:
+            reasons: Dict[str, int] = {}
+            for item in items:
+                if not item['restore'] and item['skip_reason']:
+                    why = item['skip_detail'] or item['skip_reason']
+                    reasons[why] = reasons.get(why, 0) + 1
+            return sorted(reasons.items(), key=lambda kv: -kv[1])
 
-        reasons: Dict[str, int] = {}
-        for node in plan['nodes']:
-            if not node['restore'] and node['skip_reason']:
-                reasons[node['skip_detail'] or node['skip_reason']] = (
-                    reasons.get(node['skip_detail'] or node['skip_reason'], 0) + 1
-                )
-        detail = '; '.join(
-            f"{n} {'was' if n == 1 else 'were'} skipped because {why}"
-            for why, n in sorted(reasons.items(), key=lambda kv: -kv[1])
-        )
-        return f"Restored {restored} of {total} subjects. {detail}."
+        if not skipped:
+            sentences = [f"Restored {restored} {noun}."]
+        else:
+            detail = '; '.join(
+                f"{n} {'was' if n == 1 else 'were'} skipped because {why}"
+                for why, n in by_reason(plan['nodes'])
+            )
+            sentences = [f"Restored {restored} of {total} subjects. {detail}."]
+
+        for why, n in by_reason(plan.get('edges', [])):
+            sentences.append(
+                f"{n} {'link to a parent was' if n == 1 else 'links to a parent were'}"
+                f" not put back because {why}.")
+        for why, n in by_reason(plan.get('entry_mappings', [])):
+            sentences.append(
+                f"{n} {'entry' if n == 1 else 'entries'}'"
+                f"{'s parent context was' if n == 1 else ' parent contexts were'}"
+                f" not restored because {why}.")
+        for why, n in by_reason(plan.get('relations', [])):
+            sentences.append(
+                f"{n} related-topic {'link was' if n == 1 else 'links were'}"
+                f" not restored because {why}.")
+        return ' '.join(sentences)
 
     # ------------------------------------------------------------------
     # Listing (the Archived panel's data)

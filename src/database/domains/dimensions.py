@@ -455,6 +455,124 @@ class DimensionsMixin:
         if not active_axes or not active_axes['n']:
             return []
 
+        rows, subtrees, groups = self._stranded_groups(exam_context_id)
+        members: Dict[int, List[Any]] = {}
+        for row in rows:
+            members.setdefault(groups[row['id']], []).append(row)
+
+        listing = []
+        linked_axes_by_group: Dict[int, List[Dict[str, Any]]] = {}
+        for row in rows:
+            group = groups[row['id']]
+            if group not in linked_axes_by_group:
+                nodes = sorted({n for m in members[group]
+                                for n in subtrees[m['id']]})
+                seen: Dict[int, str] = {}
+                for link in self._axis_links_of_subjects(nodes):
+                    seen.setdefault(link['axis_id'], link['axis_name'])
+                linked_axes_by_group[group] = [
+                    {'axis_id': a, 'name': n} for a, n in seen.items()]
+            listing.append({
+                'subject_id': row['id'],
+                'name': row['name'],
+                'level_type': row['level_type'],
+                'subtree_count': len(subtrees[row['id']]),
+                'group': group,
+                'moves_with': [
+                    {'subject_id': m['id'], 'name': m['name']}
+                    for m in members[group] if m['id'] != row['id']],
+                'linked_axes': linked_axes_by_group[group],
+            })
+        return listing
+
+    def _stranded_groups(self, exam_context_id: int):
+        """Top-level subjects outside every axis, their subtrees and their groups.
+
+        ``(rows, subtrees, groups)``: ``rows`` in display order, ``subtrees``
+        root id -> :meth:`_subtree_outside_any_axis`, and ``groups`` root id
+        -> :meth:`_first_axis_groups`. One read for the panel's listing, the
+        panel's move (#903), the first-axis prompt and its move (#605), so
+        "which roots share a subject" has one answer everywhere.
+        """
+        rows = self._roots_outside_any_axis(exam_context_id)
+        subtrees = {row['id']: self._subtree_outside_any_axis(row['id'])
+                    for row in rows}
+        return rows, subtrees, self._first_axis_groups(subtrees)
+
+    def _axis_links_of_subjects(self, nodes: List[int]) -> List[Dict[str, Any]]:
+        """Edges joining a subject in ``nodes`` to an active subject in an axis.
+
+        Each is ``{inside_name, other_name, axis_id, axis_name}``. ``nodes``
+        are subjects outside every axis, so moving them into any axis but
+        ``axis_id`` would turn that edge into one crossing two axes -- a
+        Non-Goal (#903). Both directions count: a parent already in an axis
+        binds its child just as a child already in one binds its parent.
+        """
+        if not nodes:
+            return []
+        marks = ", ".join("?" for _ in nodes)
+        return [dict(row) for row in self.fetchall(
+            f"""
+            SELECT inside.name AS inside_name, other.name AS other_name,
+                   d.id AS axis_id, d.name AS axis_name
+            FROM subject_edges se
+            JOIN subject_nodes inside
+              ON inside.id = se.parent_id
+            JOIN subject_nodes other
+              ON other.id = se.child_id
+            JOIN exam_dimensions d
+              ON d.id = other.dimension_id AND d.status = 'active'
+            WHERE se.parent_id IN ({marks})
+              AND other.status = 'active'
+            UNION ALL
+            SELECT inside.name AS inside_name, other.name AS other_name,
+                   d.id AS axis_id, d.name AS axis_name
+            FROM subject_edges se
+            JOIN subject_nodes inside
+              ON inside.id = se.child_id
+            JOIN subject_nodes other
+              ON other.id = se.parent_id
+            JOIN exam_dimensions d
+              ON d.id = other.dimension_id AND d.status = 'active'
+            WHERE se.child_id IN ({marks})
+              AND other.status = 'active'
+            ORDER BY axis_id, inside_name, other_name
+            """,
+            (*nodes, *nodes),
+        )]
+
+    @staticmethod
+    def _shared_subjects_split(
+        roots: List[int], groups: Dict[int, int], chosen: Dict[int, Any]
+    ) -> Optional[Tuple[int, int]]:
+        """The first two roots, in ``roots`` order, that share a subject but
+        were given different axes, or ``None`` (#605 decision 6, #903).
+
+        ``chosen`` maps a root to its axis id (``None`` for "kept outside").
+        """
+        first_in_group: Dict[int, int] = {}
+        for root in roots:
+            group = groups[root]
+            other = first_in_group.setdefault(group, root)
+            if other != root and chosen[other] != chosen[root]:
+                return other, root
+        return None
+
+    @staticmethod
+    def _import_id_clash_sentence(subject_name: str, axis_name: str) -> str:
+        """The refusal for an ``import_id`` collision in the target axis (#904)."""
+        return (f'"{subject_name}" cannot move into "{axis_name}": a subject '
+                f"there already carries the same import id.")
+
+    def _roots_outside_any_axis(self, exam_context_id: int) -> List[Any]:
+        """Top-level subjects in no axis, whether or not the exam has an axis yet.
+
+        Split out of :meth:`get_subjects_outside_any_axis` for #605's first-
+        axis prompt, which has to ask about these subjects *before* the first
+        axis exists -- the moment that read deliberately answers ``[]``. "Top
+        level" is the same rule as there: no active parent that is also
+        outside every axis.
+        """
         exam = self.fetchone(
             "SELECT exam_name FROM exam_contexts WHERE id = ?",
             (exam_context_id,),
@@ -462,7 +580,7 @@ class DimensionsMixin:
         if not exam:
             return []
 
-        rows = self.fetchall(
+        return self.fetchall(
             """
             SELECT sn.id, sn.name, sn.level_type
             FROM subject_nodes sn
@@ -482,15 +600,280 @@ class DimensionsMixin:
             (exam['exam_name'],),
         )
 
-        return [
-            {
-                'subject_id': row['id'],
+    @staticmethod
+    def _first_axis_groups(subtrees: Dict[int, List[int]]) -> Dict[int, int]:
+        """Union-find over shared descendants: root id -> group id (#605, decision 6).
+
+        Two top-level subjects that share a subject anywhere beneath them must
+        go into the same axis, or the shared subject sits in one axis under a
+        parent in another -- a cross-dimensional edge, which is a Non-Goal.
+        The group id is the smallest root id in the group, so it is stable
+        across reads and means nothing else.
+        """
+        parent = {root: root for root in subtrees}
+
+        def find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        owner: Dict[int, int] = {}
+        for root, nodes in subtrees.items():
+            for node in nodes:
+                if node in owner:
+                    a, b = find(owner[node]), find(root)
+                    if a != b:
+                        parent[max(a, b)] = min(a, b)
+                else:
+                    owner[node] = root
+        return {root: find(root) for root in subtrees}
+
+    def get_existing_subjects_for_first_axis(
+        self,
+        exam_context_id: int,
+        *,
+        incoming_import_ids_by_axis: Optional[Dict[Any, Any]] = None,
+        incoming_names_by_axis: Optional[Dict[Any, Any]] = None,
+    ) -> Dict[str, Any]:
+        """What the first-axis prompt lists (#605).
+
+        Asked before the save that creates an exam's first axis, so unlike the
+        panel's read this answers on an exam with no axes -- that is the only
+        time it is asked. The panel's own read still returns ``[]`` there.
+
+        ``subject_count`` is **distinct**: a subject shared by two top-level
+        subjects is in both subtrees, so summing ``subtree_count`` would count
+        it twice. ``group`` links top-level subjects that share a descendant
+        (decision 6); a group of one is a subject on its own.
+
+        For a whole-exam import (#605 Wave 2) the caller passes what the file
+        declares per axis, keyed however it keys its axes:
+        ``import_id_clash_axes`` lists the axes where a subject in this
+        subtree carries an ``import_id`` the file already holds (decision 7:
+        that copy cannot move there), and ``name_clash_axes`` the axes whose
+        file subjects include this subject's name (decision 8: it moves
+        anyway, with a note).
+        """
+        active = self.fetchone(
+            "SELECT COUNT(*) AS n FROM exam_dimensions "
+            "WHERE exam_id = ? AND status = 'active'",
+            (exam_context_id,),
+        )
+        rows, subtrees, groups = self._stranded_groups(exam_context_id)
+
+        import_ids: Dict[int, set] = {}
+        if incoming_import_ids_by_axis:
+            every = sorted({n for nodes in subtrees.values() for n in nodes})
+            if every:
+                marks = ", ".join("?" for _ in every)
+                held = {
+                    r['id']: r['import_id'] for r in self.fetchall(
+                        f"SELECT id, import_id FROM subject_nodes "
+                        f"WHERE id IN ({marks}) AND import_id IS NOT NULL",
+                        tuple(every))
+                }
+                for root, nodes in subtrees.items():
+                    import_ids[root] = {held[n] for n in nodes if n in held}
+
+        roots = []
+        for row in rows:
+            root = row['id']
+            entry = {
+                'subject_id': root,
                 'name': row['name'],
                 'level_type': row['level_type'],
-                'subtree_count': len(self._subtree_outside_any_axis(row['id'])),
+                'subtree_count': len(subtrees[root]),
+                'group': groups[root],
             }
-            for row in rows
-        ]
+            if incoming_import_ids_by_axis is not None:
+                mine = import_ids.get(root, set())
+                entry['import_id_clash_axes'] = [
+                    axis for axis, ids in incoming_import_ids_by_axis.items()
+                    if mine & set(ids or ())]
+            if incoming_names_by_axis is not None:
+                name = (row['name'] or '').strip().casefold()
+                entry['name_clash_axes'] = [
+                    axis for axis, names in incoming_names_by_axis.items()
+                    if name in {(n or '').strip().casefold() for n in names or ()}]
+            roots.append(entry)
+
+        distinct = {n for nodes in subtrees.values() for n in nodes}
+        return {
+            'has_active_axis': bool(active and active['n']),
+            'subject_count': len(distinct),
+            'roots': roots,
+        }
+
+    def _move_existing_into_new_axes(
+        self,
+        exam_id: int,
+        assignments: List[Dict[str, Any]],
+        default_axis_id: int,
+        *,
+        allow_outside: bool = False,
+    ) -> Dict[str, Any]:
+        """Move an exam's top-level subjects outside every axis into its new axes (#605).
+
+        Called inside the caller's transaction -- ``save_exam_edit`` for the
+        wizard, the whole-exam import's apply in Wave 2 -- so a refusal here
+        rolls back the axes the same save created. A second call after the
+        save would let the page report success over half the work (#874,
+        #240).
+
+        ``assignments`` is ``[{"subject_id": int, "axis_id": int}]``, already
+        resolved to dimension ids by the caller. The roots are worked out
+        here, on the server, inside the transaction: a stale dialog is
+        refused, never trusted.
+
+        Every refusal is a ``ValidationError`` whose sentence starts *"Nothing
+        was saved."*:
+
+        * a subject listed twice;
+        * a listed subject that is no longer a top-level subject outside every
+          axis (moved, archived or re-parented since the dialog was drawn);
+        * an axis that is not an active axis of this exam;
+        * two top-level subjects that share a descendant going to different
+          axes (decision 6), naming both;
+        * a move that would collide on ``import_id`` in the target axis
+          (m020's partial unique index), naming the subject and the axis --
+          a sentence instead of the ``IntegrityError`` #904 shows today.
+
+        A top-level subject the caller did not list (created after the dialog
+        was drawn) goes to ``default_axis_id``, which is what its row would
+        have defaulted to.
+
+        ``move_subjects_into_axis`` RETURNS ``success=False`` rather than
+        raising, so its refusals are turned into a ``ValidationError`` here;
+        otherwise a refused move would commit the new axis without it.
+
+        ``allow_outside`` is the whole-exam import's (#605 Wave 2, decision
+        7): an assignment whose ``axis_id`` is ``None`` keeps that subject
+        outside the axes. It is accepted **only** when the subject collides
+        on ``import_id`` in every active axis -- the file already holds a
+        copy of it everywhere it could go -- and a subject kept outside may
+        not share a descendant with one that moves (decision 6 again: the
+        shared subject would end up in an axis under a parent in none). The
+        wizard never passes it, so there ``None`` is refused like any other
+        unreadable axis.
+        """
+        def refuse(sentence: str):
+            raise ValidationError(f"Nothing was saved. {sentence}")
+
+        axis_rows = self.fetchall(
+            "SELECT id, name FROM exam_dimensions "
+            "WHERE exam_id = ? AND status = 'active' ORDER BY display_order",
+            (exam_id,))
+        axes = {r['id']: r['name'] for r in axis_rows}
+        axis_order = [r['id'] for r in axis_rows]
+        if default_axis_id not in axes:
+            refuse("The axis your existing subjects were to move into is "
+                   "not part of this exam.")
+
+        root_rows, subtrees, groups = self._stranded_groups(exam_id)
+        names = {r['id']: r['name'] for r in root_rows}
+
+        chosen: Dict[int, int] = {}
+        for item in assignments or []:
+            try:
+                subject_id = int(item.get('subject_id'))
+                raw_axis = item.get('axis_id')
+                axis_id = (None if raw_axis is None and allow_outside
+                           else int(raw_axis))
+            except (TypeError, ValueError, AttributeError):
+                refuse("A subject's choice of axis could not be read.")
+            if subject_id in chosen:
+                refuse("A subject was listed twice.")
+            if subject_id not in names:
+                refuse("One of the subjects listed is no longer a top-level "
+                       "subject outside every axis. Reload and try again.")
+            if axis_id is not None and axis_id not in axes:
+                refuse("A subject was assigned to an axis that is not part "
+                       "of this exam.")
+            chosen[subject_id] = axis_id
+        for root in names:
+            chosen.setdefault(root, default_axis_id)
+
+        # Display order, so the sentence is stable.
+        split = self._shared_subjects_split(list(names), groups, chosen)
+        if split:
+            other, root = split
+            if chosen[other] is None or chosen[root] is None:
+                kept = names[other] if chosen[other] is None else names[root]
+                refuse(f'"{names[other]}" and "{names[root]}" share '
+                       f'subjects, so "{kept}" cannot stay outside '
+                       f"the axes while the other moves.")
+            refuse(f'"{names[other]}" and "{names[root]}" share '
+                   f"subjects, so they must go into the same axis.")
+
+        exam = self.fetchone(
+            "SELECT exam_name FROM exam_contexts WHERE id = ?", (exam_id,))
+        for root in names:
+            nodes = subtrees[root]
+            if not nodes:
+                continue
+            if chosen[root] is None:
+                free = [a for a in axis_order
+                        if not self._import_id_clash_in_axis(
+                            nodes, a, exam['exam_name'])]
+                if free:
+                    refuse(f'"{names[root]}" can move into "{axes[free[0]]}", '
+                           f"so it cannot be kept outside the axes.")
+                continue
+            clash = self._import_id_clash_in_axis(
+                nodes, chosen[root], exam['exam_name'])
+            if clash:
+                refuse(self._import_id_clash_sentence(
+                    clash, axes[chosen[root]]))
+
+        by_axis: List[Dict[str, Any]] = []
+        moved = 0
+        for axis_id in [a for a in axis_order if a in set(chosen.values())]:
+            roots = [r for r in names if chosen[r] == axis_id]
+            result = self.move_subjects_into_axis(roots, axis_id)
+            if not result.get('success'):
+                refuse(result.get('error') or "Your existing subjects could "
+                       "not be moved.")
+            moved += result.get('moved', 0)
+            by_axis.append({'axis_id': axis_id, 'name': axes[axis_id],
+                            'moved': result.get('moved', 0)})
+        result: Dict[str, Any] = {'moved': moved, 'by_axis': by_axis}
+        if allow_outside:
+            result['kept_outside'] = [
+                {'subject_id': r, 'name': names[r]}
+                for r in names if chosen[r] is None]
+        return result
+
+    def _import_id_clash_in_axis(
+        self, nodes: List[int], axis_id: int, exam_name: str
+    ) -> Optional[str]:
+        """The name of a subject in ``nodes`` whose ``import_id`` an active
+        subject of ``axis_id`` already holds, or ``None``.
+
+        m020's partial unique index is per exam context and dimension over
+        active rows, so this is exactly the collision a move into that axis
+        would hit -- asked first so the refusal is a sentence (#904).
+        """
+        if not nodes:
+            return None
+        marks = ", ".join("?" for _ in nodes)
+        clash = self.fetchone(
+            f"""
+            SELECT moving.name AS name
+            FROM subject_nodes moving
+            JOIN subject_nodes held
+              ON held.import_id = moving.import_id
+             AND held.exam_context = moving.exam_context
+             AND held.dimension_id = ?
+             AND held.status = 'active'
+            WHERE moving.id IN ({marks})
+              AND moving.import_id IS NOT NULL
+              AND moving.exam_context = ?
+            LIMIT 1
+            """,
+            (axis_id, *nodes, exam_name),
+        )
+        return clash['name'] if clash else None
 
     def _subtree_outside_any_axis(self, root_id: int) -> List[int]:
         """``root_id`` and every active descendant still in no axis.
@@ -547,10 +930,25 @@ class DimensionsMixin:
         forbids -- and leave those children stranded in the same invisible
         state this issue exists to end.
 
-        Two refusals, each a sentence rather than an ``IntegrityError`` from
-        three frames down (#66 2.2): an axis that is not active, and an axis
-        belonging to another exam. The second matters because the ids come
-        from a page that can have two exams in play across a navigation.
+        **Top-level subjects that share a subject move together (#903).** A
+        requested subject that is a top-level subject outside every axis
+        brings every other such subject in its group
+        (:meth:`_first_axis_groups`), the rule the owner set for the first-
+        axis prompt (#605 decision 6). Moving them one at a time let the
+        second go into a different axis from the shared child the first had
+        already taken. The panel names the linked subjects on the row before
+        the press, and the result lists them as ``linked_subjects``.
+
+        Refusals are sentences rather than an ``IntegrityError`` from three
+        frames down (#66 2.2): an axis that is not active; an axis belonging
+        to another exam (the ids come from a page that can have two exams in
+        play across a navigation); a subject that would sit under, or over,
+        a subject already in a *different* axis (#903 -- no move into this
+        axis can avoid that crossing edge, so the sentence names the axis
+        that can take it); and a subject whose ``import_id`` an active
+        subject of the target axis already holds (#904, m020's partial
+        unique index). All of them are checked before the write, so a
+        refused move moves nothing.
 
         One transaction: a half-moved tree is the cross-dimensional state
         above, reached by failure instead of by design.
@@ -573,7 +971,8 @@ class DimensionsMixin:
         placeholders = ", ".join("?" for _ in subject_ids)
         rows = self.fetchall(
             f"""
-            SELECT sn.id, sn.dimension_id, ec.id AS exam_context_id
+            SELECT sn.id, sn.name, sn.dimension_id, ec.id AS exam_context_id,
+                   ec.exam_name
             FROM subject_nodes sn
             JOIN exam_contexts ec ON ec.exam_name = sn.exam_context
             WHERE sn.id IN ({placeholders}) AND sn.status = 'active'
@@ -590,17 +989,52 @@ class DimensionsMixin:
                     'error': f"\"{axis['name']}\" belongs to a different "
                              f"exam from those subjects."}
 
+        names = {r['id']: r['name'] for r in rows}
+        root_rows, subtrees, groups = self._stranded_groups(axis['exam_id'])
+        wanted_groups = {groups[s] for s in subject_ids if s in groups}
+        linked = [r for r in root_rows
+                  if groups[r['id']] in wanted_groups
+                  and r['id'] not in subject_ids]
+        requested = list(subject_ids) + [r['id'] for r in linked]
+
         to_move: List[int] = []
         seen = set()
-        for subject_id in subject_ids:
-            for node_id in self._subtree_outside_any_axis(subject_id):
+        for subject_id in requested:
+            nodes = subtrees.get(subject_id)
+            if nodes is None:
+                nodes = self._subtree_outside_any_axis(subject_id)
+            for node_id in nodes:
                 if node_id not in seen:
                     seen.add(node_id)
                     to_move.append(node_id)
 
         if not to_move:
             return {'success': True, 'moved': 0, 'subject_ids': [],
-                    'dimension_name': axis['name']}
+                    'dimension_name': axis['name'], 'linked_subjects': []}
+
+        lead = names[subject_ids[0]]
+        links = self._axis_links_of_subjects(to_move)
+        crossing = [link for link in links if link['axis_id'] != dimension_id]
+        if crossing:
+            link = crossing[0]
+            if len({c['axis_id'] for c in links}) == 1:
+                way_out = f' Move it into "{link["axis_name"]}" instead.'
+            else:
+                way_out = (" Its subjects are already linked to more than "
+                           "one axis, so no axis can take it.")
+            return {'success': False,
+                    'error': f'"{lead}" cannot go into "{axis["name"]}": '
+                             f'"{link["inside_name"]}" is linked to '
+                             f'"{link["other_name"]}", which is already in '
+                             f'"{link["axis_name"]}", and one subject cannot '
+                             f'sit across two axes.{way_out}'}
+
+        clash = self._import_id_clash_in_axis(
+            to_move, dimension_id, rows[0]['exam_name'])
+        if clash:
+            return {'success': False,
+                    'error': self._import_id_clash_sentence(
+                        clash, axis['name'])}
 
         with self.transaction():
             move_placeholders = ", ".join("?" for _ in to_move)
@@ -615,6 +1049,8 @@ class DimensionsMixin:
             'moved': len(to_move),
             'subject_ids': to_move,
             'dimension_name': axis['name'],
+            'linked_subjects': [{'subject_id': r['id'], 'name': r['name']}
+                                for r in linked],
         }
 
     def archive_dimension(self, dimension_id: int) -> Dict[str, Any]:

@@ -387,12 +387,18 @@ class TestSeededDefinitions:
     def test_all_seeded_tags_have_descriptions(self, db):
         udb = db['db']
         context = "Fresh Seed Exam"
+        exam = udb.create_exam_context(exam_name=context)
         udb.seed_default_tags(context)
 
+        # #888: the defaults are library rows (exam_context NULL) that the
+        # exam lists, not copies filed under its name.
         rows = udb.fetchall(
-            "SELECT tag_name, description, is_group FROM tags WHERE exam_context = ?",
-            (context,)
+            "SELECT t.tag_name, t.description, t.is_group, t.exam_context"
+            " FROM tags t JOIN exam_error_types l ON l.tag_id = t.id"
+            " WHERE l.exam_context_id = ?",
+            (exam.id,)
         )
+        assert {row['exam_context'] for row in rows} == {None}
         assert len(rows) == len(DEFAULT_DEFINITIONS)  # 5 groups + 16 types
         for row in rows:
             assert row['description'] is not None, \
@@ -402,6 +408,7 @@ class TestSeededDefinitions:
     def test_seeded_hierarchy_exposes_descriptions(self, db):
         udb = db['db']
         context = "Fresh Seed Exam 2"
+        udb.create_exam_context(exam_name=context)
         udb.seed_default_tags(context)
 
         def walk(nodes):
@@ -419,12 +426,14 @@ class TestSeededDefinitions:
         """Defaults behave like user tags — deletable once selected."""
         udb = db['db']
         context = "Fresh Seed Exam 3"
+        udb.create_exam_context(exam_name=context)
         udb.seed_default_tags(context)
 
         row = udb.fetchone(
-            "SELECT id FROM tags WHERE exam_context = ? AND tag_name = ?",
-            (context, 'Knowledge Gap')
+            "SELECT id FROM tags WHERE exam_context IS NULL AND tag_name = ?",
+            ('Knowledge Gap',)
         )
-        result = udb.delete_tag(row['id'])
+        # The fixture's exam has not seeded, so this exam alone lists it (4b).
+        result = udb.delete_tag(row['id'], context)
         assert result['name'] == 'Knowledge Gap'
         assert result['affected_entries'] == 0

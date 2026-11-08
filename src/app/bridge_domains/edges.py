@@ -10,7 +10,7 @@ from PyQt6.QtCore import pyqtSlot
 
 from app.bridge_test_instrumentation import instrumented_slot
 
-from database.exceptions import CircularReferenceError
+from database.exceptions import CircularReferenceError, ValidationError
 
 from ..bridge_helpers import serialize_response
 
@@ -78,6 +78,52 @@ class EdgesBridgeMixin:
             self._log_error(
                 f'Error removing parent edge: {e}',
                 {'edge_id': edge_id},
+            )
+            return serialize_response(False, error=f'Failed to remove parent: {e}')
+
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
+    def getRemoveParentImpact(self, edge_id: int) -> str:
+        """What removing a parent edge would move, for the confirmation (#738).
+
+        Returns ``{edge_id, child_id, parent_id, pinned_entries,
+        remaining_parents: [{parent_id, parent_name, is_primary}]}``, or
+        ``success=false`` for an edge that does not exist.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+        try:
+            impact = self.user_db.get_remove_parent_impact(edge_id)
+            if impact is None:
+                return serialize_response(False, error=f'Edge {edge_id} not found')
+            return serialize_response(True, data=impact)
+        except Exception as e:
+            self._log_error(f'Error reading remove-parent impact: {e}', {'edge_id': edge_id})
+            return serialize_response(False, error=f'Failed to read the parent: {e}')
+
+    @pyqtSlot(int, int, result=str)
+    @instrumented_slot
+    def removeParentMovingEntries(self, edge_id: int, target_parent_id: int) -> str:
+        """Remove a parent edge and move the entries filed under it (#738).
+
+        ``target_parent_id`` is one of the subject's remaining parents, the
+        student's choice in the confirmation. A target that is not one is
+        ``success=false`` with a sentence, and nothing is removed.
+
+        Returns:
+            JSON response with ``{ok: true, moved: N}``.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+        try:
+            moved = self.user_db.remove_edge(edge_id, repin_to_parent_id=target_parent_id)
+            return serialize_response(True, data={'ok': True, 'moved': moved})
+        except ValidationError as e:
+            return serialize_response(False, error=str(e))
+        except Exception as e:
+            self._log_error(
+                f'Error removing parent edge: {e}',
+                {'edge_id': edge_id, 'target_parent_id': target_parent_id},
             )
             return serialize_response(False, error=f'Failed to remove parent: {e}')
 

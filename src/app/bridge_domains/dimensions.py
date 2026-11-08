@@ -255,6 +255,30 @@ class DimensionBridgeMixin:
             return serialize_response(
                 False, error=f'Failed to list subjects outside any axis: {e}')
 
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
+    def getExistingSubjectsForFirstAxis(self, exam_context_id: int) -> str:
+        """The subjects an exam already has, for the first-axis prompt (#605).
+
+        Unlike ``getSubjectsOutsideAnyAxis`` this answers on an exam with no
+        axis yet, because that is when the wizard asks. Returns
+        ``{has_active_axis, subject_count, roots}``, with a distinct
+        ``subject_count`` and each root's ``subtree_count`` and ``group``.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            return serialize_response(
+                True, data=self.user_db.get_existing_subjects_for_first_axis(
+                    exam_context_id))
+        except Exception as e:
+            self._log_error(f'Error listing subjects for the first axis: {e}', {
+                'exam_context_id': exam_context_id
+            })
+            return serialize_response(
+                False, error=f'Failed to list the existing subjects: {e}')
+
     @pyqtSlot('QVariantList', int, result=str)
     @instrumented_slot
     def moveSubjectsIntoAxis(self, subject_ids, dimension_id: int) -> str:

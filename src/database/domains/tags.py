@@ -1,4 +1,38 @@
-"""WIMI Tags database operations."""
+"""WIMI Tags database operations.
+
+Since m038 (#888, owner 2026-11-06) error types are **one library per
+profile**. Every ``tags`` row has ``exam_context`` NULL, and a type is the
+same row wherever it appears: its name, definition and colour are shared, so
+rewriting a definition changes it on every exam that lists the type.
+
+Which types an exam's picker and Manage Error Types *offer* is that exam's
+**list**, ``exam_error_types`` (``exam_context_id`` -> ``exam_contexts`` ON
+DELETE CASCADE, ``tag_id`` -> ``tags`` ON DELETE CASCADE). The list decides
+only what can be *added* to an entry. An entry keeps every type it carries
+whether or not its exam still lists it.
+
+The rules, each decided on #888:
+
+* **A type is identified by (group name, type name)** (decision 1), enforced
+  by ``idx_unique_tag_in_group``. Creating one the library already has lists
+  the existing row on the exam instead of making a copy.
+* **A type made on an exam is listed on that exam only** (4a). Other exams add
+  it on purpose (:meth:`TagsMixin.add_tag_to_exam`, "Add from your other
+  exams").
+* **Remove from this exam** (:meth:`TagsMixin.remove_tag_from_exam`) deletes
+  the list row and nothing else: entries keep the type, analytics count it.
+* **The defaults are offered once, to a new exam.** ``exam_error_types_seeded``
+  records every exam whose list has ever held a row, and
+  :meth:`TagsMixin.seed_default_tags` leaves those alone, so a list the
+  student empties with Remove stays empty when the picker reloads.
+* **Delete for good** (:meth:`TagsMixin.delete_tag`) is refused while another
+  exam lists the type (4b). It removes the library row, so ``entry_tags``'
+  cascade takes it off every entry in every exam.
+
+Every public method still takes the exam by NAME, as before, because that is
+what the entry form and the bridge hold. The name only picks the exam's list;
+nothing is filed under it any more.
+"""
 
 from typing import Optional, List, Dict, Any
 
@@ -6,7 +40,6 @@ from ..base_db import DatabaseIntegrityError
 from ..exceptions import ValidationError, TagError, QuestionAnalysisError
 from ..models import Tag, QuestionAnalysis
 from app_logging import ErrorCategory
-
 
 # FROZEN — mirror of ``DEFAULT_DEFINITIONS`` in
 # ``src/database/migrations/user/m010_default_tag_definitions.py``.
@@ -45,12 +78,129 @@ _DEFAULT_TAG_DEFINITIONS: Dict[str, str] = {
     'Fatigue Related': "Tiredness or low energy dulled your performance on this question.",
 }
 
+# The defaults ``seed_default_tags`` puts in the library, by group, in order.
+# Every name here MUST have an entry in _DEFAULT_TAG_DEFINITIONS above (and,
+# mirrored, in m010's DEFAULT_DEFINITIONS and m038's copy).
+_DEFAULT_TAG_GROUPS = (
+    ('Knowledge Issues', '#EF4444',  # Red
+     ('Knowledge Gap', 'Memory Failure', 'Misunderstanding')),
+    ('Reading & Interpretation', '#F59E0B',  # Amber
+     ('Misread Question',)),
+    ('Execution Errors', '#10B981',  # Green
+     ('Calculation Error', 'Careless Mistake', 'Incomplete Solution',
+      'Wrong Approach')),
+    ('Test Strategy', '#3B82F6',  # Blue
+     ('Time Pressure', 'Second-Guessing', 'Elimination Error',
+      'Poor Prioritization', 'Wrong Guess Strategy')),
+    ('Mental & Physical State', '#8B5CF6',  # Purple
+     ('Anxiety Related', 'Focus Problem', 'Fatigue Related')),
+)
+
 
 class TagsMixin:
     """Mixin for tags operations. Composed into UserDatabase."""
 
     VALID_TAG_CATEGORIES = {'mistake_type', 'study_method', 'content_type', 'difficulty', 'strategy', 'personal', 'other'}
     VALID_ASSIGNED_BY = {'user', 'auto_suggested'}
+
+    # ------------------------------------------------------------------
+    # The library and the exam's list (#888)
+    # ------------------------------------------------------------------
+
+    def _tag_exam_id(self, exam_context: Optional[str]) -> Optional[int]:
+        """The id of this profile's exam named ``exam_context``, or None."""
+        if not exam_context:
+            return None
+        row = self.fetchone(
+            "SELECT id FROM exam_contexts WHERE user_id = ? AND exam_name = ?",
+            (self.user_id, exam_context))
+        return row['id'] if row else None
+
+    def _require_tag_exam_id(self, exam_context: Optional[str]) -> int:
+        exam_id = self._tag_exam_id(exam_context)
+        if exam_id is None:
+            raise TagError(f'There is no exam called "{exam_context}".')
+        return exam_id
+
+    def _find_library_tag(self, tag_name: str, parent_id: Optional[int],
+                          is_group: bool) -> Optional[Dict[str, Any]]:
+        """The library row on idx_unique_tag_in_group's key, active or not."""
+        return self.fetchone(
+            "SELECT * FROM tags WHERE IFNULL(parent_id, 0) = IFNULL(?, 0)"
+            " AND tag_name = ? AND IFNULL(is_group, 0) = ?",
+            (parent_id, tag_name, 1 if is_group else 0))
+
+    def _is_listed(self, exam_id: int, tag_id: int) -> bool:
+        return self.fetchone(
+            "SELECT 1 FROM exam_error_types WHERE exam_context_id = ? AND tag_id = ?",
+            (exam_id, tag_id)) is not None
+
+    def _list_on_exam(self, exam_id: int, tag_id: int) -> int:
+        """List a type on an exam, with every group above it. Idempotent.
+
+        The picker draws groups first, so a listed type whose group is not
+        listed could never be offered. Returns how many rows were added.
+        """
+        added = 0
+        # The exam has now had a list, so seed_default_tags leaves it alone
+        # from here on, even once every row is removed again.
+        self.execute("INSERT OR IGNORE INTO exam_error_types_seeded"
+                     " (exam_context_id) VALUES (?)", (exam_id,))
+        current: Optional[int] = tag_id
+        seen = set()
+        while current is not None and current not in seen:
+            seen.add(current)
+            added += self.execute(
+                "INSERT OR IGNORE INTO exam_error_types"
+                " (exam_context_id, tag_id, display_order)"
+                " SELECT ?, id, IFNULL(display_order, 0) FROM tags WHERE id = ?",
+                (exam_id, current)).rowcount
+            row = self.fetchone("SELECT parent_id FROM tags WHERE id = ?", (current,))
+            current = row['parent_id'] if row else None
+        return added
+
+    def _tag_descendant_ids(self, tag_id: int, active_only: bool = False) -> List[int]:
+        """Every row below ``tag_id`` in the library, nearest first."""
+        found: List[int] = []
+        frontier = [tag_id]
+        active = " AND is_active = TRUE" if active_only else ""
+        while frontier:
+            marks = ",".join("?" * len(frontier))
+            rows = self.fetchall(
+                f"SELECT id FROM tags WHERE parent_id IN ({marks}){active}",
+                tuple(frontier))
+            frontier = [r['id'] for r in rows if r['id'] not in found]
+            found.extend(frontier)
+        return found
+
+    def _next_tag_display_order(self, parent_id: Optional[int]) -> int:
+        row = self.fetchone(
+            "SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order"
+            " FROM tags WHERE parent_id IS ?", (parent_id,))
+        return row['next_order']
+
+    def _adopt_or_refuse(self, existing: Dict[str, Any], exam_id: Optional[int],
+                         what: str) -> Tag:
+        """The library already has this (group, name): list it, or refuse.
+
+        Refused with a sentence when this exam already offers it, or when
+        there is no exam to list it on, since the call could then only have
+        meant a second copy (decision 1). Otherwise the existing row is
+        listed on this exam and returned; no copy is made.
+        """
+        name = existing['tag_name']
+        active = bool(existing.get('is_active', 1))
+        if exam_id is None:
+            raise TagError(f'"{name}" is already {what}.')
+        if active and self._is_listed(exam_id, existing['id']):
+            raise TagError(f'"{name}" is already {what} on this exam.')
+        with self.transaction():
+            if not active:
+                self.execute("UPDATE tags SET is_active = TRUE,"
+                             " updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                             (existing['id'],))
+            self._list_on_exam(exam_id, existing['id'])
+        return self.get_tag(existing['id'])
 
     def create_tag(
         self,
@@ -61,17 +211,21 @@ class TagsMixin:
         description: Optional[str] = None
     ) -> Tag:
         """
-        Create a new tag.
+        Create a top-level error type and list it on the exam ``exam_context``.
+
+        If the library already has a top-level type of that name, that row is
+        listed on the exam instead and no copy is made (#888 decision 1). A
+        :class:`TagError` is raised when the exam already offers it.
 
         Args:
-            exam_context: Exam code
+            exam_context: Name of the exam to list it on (4a: that exam only)
             tag_name: Name of the tag
             tag_category: Category of tag
             color_hex: Hex color for the tag
             description: Optional description
 
         Returns:
-            Created Tag object
+            The Tag (new, or the library row now listed on the exam)
         """
         if tag_category not in self.VALID_TAG_CATEGORIES:
             raise ValidationError(f"Invalid tag category: {tag_category}")
@@ -80,16 +234,23 @@ class TagsMixin:
         if not color_hex.startswith('#') or len(color_hex) != 7:
             raise ValidationError(f"Invalid hex color: {color_hex}")
 
+        exam_id = self._tag_exam_id(exam_context)
+        existing = self._find_library_tag(tag_name, None, False)
+        if existing:
+            return self._adopt_or_refuse(existing, exam_id, "an error type")
+
         try:
             with self.transaction():
                 cursor = self.execute("""
                     INSERT INTO tags (
                         exam_context, tag_name, tag_category,
                         color_hex, description, is_active
-                    ) VALUES (?, ?, ?, ?, ?, TRUE)
-                """, (exam_context, tag_name, tag_category, color_hex, description))
+                    ) VALUES (NULL, ?, ?, ?, ?, TRUE)
+                """, (tag_name, tag_category, color_hex, description))
 
                 tag_id = cursor.lastrowid
+                if exam_id is not None:
+                    self._list_on_exam(exam_id, tag_id)
 
                 if self.error_logger:
                     self.error_logger.debug(
@@ -101,9 +262,7 @@ class TagsMixin:
 
         except DatabaseIntegrityError as e:
             if "UNIQUE constraint failed" in str(e):
-                raise TagError(
-                    f"Tag already exists: {exam_context}/{tag_name}"
-                ) from e
+                raise TagError(f'"{tag_name}" is already an error type.') from e
             raise
 
     def get_tag(self, tag_id: int) -> Optional[Tag]:
@@ -120,32 +279,32 @@ class TagsMixin:
         category: Optional[str] = None
     ) -> List[Tag]:
         """
-        Get all tags for an exam context.
+        Get every active tag the exam ``exam_context`` lists (#888).
 
         Args:
-            exam_context: Exam code
+            exam_context: Exam name
             category: Optional category filter
 
         Returns:
             List of Tag objects
         """
-        if category:
-            if category not in self.VALID_TAG_CATEGORIES:
-                raise ValidationError(f"Invalid tag category: {category}")
+        if category and category not in self.VALID_TAG_CATEGORIES:
+            raise ValidationError(f"Invalid tag category: {category}")
 
-            query = """
-                SELECT * FROM tags
-                WHERE exam_context = ? AND tag_category = ? AND is_active = TRUE
-                ORDER BY usage_count DESC, tag_name
-            """
-            params = (exam_context, category)
-        else:
-            query = """
-                SELECT * FROM tags
-                WHERE exam_context = ? AND is_active = TRUE
-                ORDER BY usage_count DESC, tag_name
-            """
-            params = (exam_context,)
+        exam_id = self._tag_exam_id(exam_context)
+        if exam_id is None:
+            return []
+
+        query = """
+            SELECT t.* FROM tags t
+            JOIN exam_error_types l ON l.tag_id = t.id AND l.exam_context_id = ?
+            WHERE t.is_active = TRUE
+        """
+        params: tuple = (exam_id,)
+        if category:
+            query += " AND t.tag_category = ?"
+            params += (category,)
+        query += " ORDER BY t.usage_count DESC, t.tag_name"
 
         rows = self.fetchall(query, params)
         return [Tag.from_db_row(row) for row in rows]
@@ -230,6 +389,7 @@ class TagsMixin:
         rows = self.fetchall(query, (tag_id,))
         return [QuestionAnalysis.from_db_row(row) for row in rows]
 
+
     def create_tag_group(
         self,
         exam_context: str,
@@ -239,10 +399,13 @@ class TagsMixin:
         description: Optional[str] = None
     ) -> 'Tag':
         """
-        Create a tag group (folder for organizing tags).
+        Create a tag group (folder for organizing tags) and list it on the exam.
+
+        A group of that name already in the library (under the same parent)
+        is listed on the exam instead of being copied (#888 decision 1).
 
         Args:
-            exam_context: Exam context code
+            exam_context: Name of the exam to list the group on
             group_name: Name of the group
             parent_id: Optional parent group ID (for nested groups)
             color_hex: Color for the group
@@ -259,12 +422,12 @@ class TagsMixin:
             if depth >= 2:  # 0-indexed, so 2 means we're already at level 3
                 raise TagError("Maximum tag hierarchy depth (3 levels) exceeded")
 
-        # Get next display order
-        row = self.fetchone("""
-            SELECT COALESCE(MAX(display_order), -1) + 1 as next_order
-            FROM tags WHERE exam_context = ? AND parent_id IS ?
-        """, (exam_context, parent_id))
-        display_order = row['next_order']
+        exam_id = self._tag_exam_id(exam_context)
+        existing = self._find_library_tag(group_name, parent_id, True)
+        if existing:
+            return self._adopt_or_refuse(existing, exam_id, "a group")
+
+        display_order = self._next_tag_display_order(parent_id)
 
         try:
             with self.transaction():
@@ -272,13 +435,16 @@ class TagsMixin:
                     INSERT INTO tags (
                         exam_context, tag_name, tag_category, color_hex,
                         description, is_active, parent_id, is_group, display_order
-                    ) VALUES (?, ?, 'other', ?, ?, TRUE, ?, TRUE, ?)
+                    ) VALUES (NULL, ?, 'other', ?, ?, TRUE, ?, TRUE, ?)
                 """, (
-                    exam_context, group_name, color_hex, description,
+                    group_name, color_hex, description,
                     parent_id, display_order
                 ))
+                group_id = cursor.lastrowid
+                if exam_id is not None:
+                    self._list_on_exam(exam_id, group_id)
 
-                return self.get_tag(cursor.lastrowid)
+                return self.get_tag(group_id)
 
         except DatabaseIntegrityError as e:
             raise TagError(f"Failed to create tag group: {e}") from e
@@ -292,10 +458,15 @@ class TagsMixin:
         description: Optional[str] = None
     ) -> 'Tag':
         """
-        Create a tag within a group.
+        Create a tag within a group and list it on the exam ``exam_context``.
+
+        4a (#888): the new type is listed on that exam only. If the group
+        already holds a type of that name in the library, that row is listed
+        on the exam instead (its shared definition is kept); if this exam
+        already offers it, a :class:`TagError` says so.
 
         Args:
-            exam_context: Exam context code
+            exam_context: Name of the exam to list it on
             tag_name: Name of the tag
             group_id: ID of the parent group
             color_hex: Color for the tag
@@ -316,12 +487,13 @@ class TagsMixin:
         if depth >= 2:
             raise TagError("Maximum tag hierarchy depth (3 levels) exceeded")
 
-        # Get next display order
-        row = self.fetchone("""
-            SELECT COALESCE(MAX(display_order), -1) + 1 as next_order
-            FROM tags WHERE exam_context = ? AND parent_id = ?
-        """, (exam_context, group_id))
-        display_order = row['next_order']
+        exam_id = self._tag_exam_id(exam_context)
+        existing = self._find_library_tag(tag_name, group_id, False)
+        if existing:
+            return self._adopt_or_refuse(
+                existing, exam_id, f"an error type in {parent.tag_name}")
+
+        display_order = self._next_tag_display_order(group_id)
 
         try:
             with self.transaction():
@@ -329,13 +501,16 @@ class TagsMixin:
                     INSERT INTO tags (
                         exam_context, tag_name, tag_category, color_hex,
                         description, is_active, parent_id, is_group, display_order
-                    ) VALUES (?, ?, 'mistake_type', ?, ?, TRUE, ?, FALSE, ?)
+                    ) VALUES (NULL, ?, 'mistake_type', ?, ?, TRUE, ?, FALSE, ?)
                 """, (
-                    exam_context, tag_name, color_hex, description,
+                    tag_name, color_hex, description,
                     group_id, display_order
                 ))
+                tag_id = cursor.lastrowid
+                if exam_id is not None:
+                    self._list_on_exam(exam_id, tag_id)
 
-                return self.get_tag(cursor.lastrowid)
+                return self.get_tag(tag_id)
 
         except DatabaseIntegrityError as e:
             raise TagError(f"Failed to create tag: {e}") from e
@@ -419,27 +594,37 @@ class TagsMixin:
 
         return self.get_tag(tag_id)
 
-    def delete_tag(self, tag_id: int) -> Dict[str, Any]:
+
+    def delete_tag(self, tag_id: int, exam_context: Optional[str] = None) -> Dict[str, Any]:
         """
-        Hard-delete a tag (or an EMPTY tag group).
+        Delete for good: remove a type (or an EMPTY group) from the library.
 
         ``entry_tags.tag_id`` and legacy ``question_tags.tag_id`` both
-        declare ``ON DELETE CASCADE``, so the delete untags the tag
-        everywhere with no manual junction cleanup. Groups with active
-        children are refused — ``tags.parent_id`` carries no ON DELETE
-        action, so deleting a populated group would FK-error anyway;
-        we guard explicitly for a clean, actionable message.
+        declare ``ON DELETE CASCADE``, so the delete untags the tag on every
+        entry in EVERY exam, and every exam's list loses it by the same
+        cascade. That is why #888's decision 4b offers it only once no other
+        exam lists the type:
+
+        * with ``exam_context``, it is refused if any exam other than that
+          one lists the type;
+        * without it, it is refused if more than one exam lists the type.
+
+        Groups with active children are refused as before. ``tags.parent_id``
+        carries no ON DELETE action, so deleting a populated group would
+        FK-error anyway; the guard gives a clean, actionable message. The
+        everyday action is :meth:`remove_tag_from_exam`, which deletes nothing.
 
         Args:
             tag_id: Tag ID
+            exam_context: The exam the student is deleting it from, if any
 
         Returns:
             Dict with 'id', 'name', and 'affected_entries' (number of
-            entries that were untagged by the delete)
+            entries, across every exam, that were untagged by the delete)
 
         Raises:
-            TagError: If the tag does not exist, or is a group that
-                still contains active types
+            TagError: If the tag does not exist, is a group that still
+                contains active types, or another exam still lists it
         """
         self._ensure_phase4_schema()
 
@@ -461,6 +646,23 @@ class TagsMixin:
                     f"delete or move them first"
                 )
 
+        listers = self.fetchall("""
+            SELECT ec.id, ec.exam_name FROM exam_error_types l
+            JOIN exam_contexts ec ON ec.id = l.exam_context_id
+            WHERE l.tag_id = ? ORDER BY ec.exam_name
+        """, (tag_id,))
+        if exam_context:
+            exam_id = self._tag_exam_id(exam_context)
+            others = [r['exam_name'] for r in listers if r['id'] != exam_id]
+        else:
+            others = [r['exam_name'] for r in listers] if len(listers) > 1 else []
+        if others:
+            names = ", ".join(f'"{n}"' for n in others)
+            raise TagError(
+                f'"{tag.tag_name}" is still offered on {names}. Deleting it for '
+                f'good would take it off that exam\'s entries too, so remove it '
+                f'from there first, or use Remove from this exam.')
+
         affected = self.get_tag_usage_count(tag_id)
 
         with self.transaction():
@@ -468,7 +670,7 @@ class TagsMixin:
 
         if self.error_logger:
             self.error_logger.info(
-                f"Deleted tag {tag_id} ({tag.tag_name}), "
+                f"Deleted tag {tag_id} ({tag.tag_name}) for good, "
                 f"untagged {affected} entries",
                 category=ErrorCategory.DATABASE
             )
@@ -479,42 +681,191 @@ class TagsMixin:
             'affected_entries': affected
         }
 
+    def add_tag_to_exam(self, exam_context: str, tag_id: int) -> Dict[str, Any]:
+        """
+        List a library type on an exam ("Add from your other exams", #888 4a).
+
+        A type brings its group. A group brings every active type in it, which
+        is what adding a whole group means.
+
+        Returns:
+            Dict with 'id', 'name', 'is_group' and 'added' (list rows made)
+
+        Raises:
+            TagError: If there is no such exam or no such active type
+        """
+        exam_id = self._require_tag_exam_id(exam_context)
+        row = self.fetchone(
+            "SELECT * FROM tags WHERE id = ? AND is_active = TRUE", (tag_id,))
+        if not row:
+            raise TagError(f"Error type {tag_id} not found")
+
+        is_group = bool(row.get('is_group'))
+        ids = [tag_id] + (self._tag_descendant_ids(tag_id, active_only=True)
+                          if is_group else [])
+        with self.transaction():
+            added = sum(self._list_on_exam(exam_id, t) for t in ids)
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Listed error type {tag_id} ({row['tag_name']}) on exam "
+                f"{exam_id}: {added} rows",
+                category=ErrorCategory.DATABASE
+            )
+        return {'id': tag_id, 'name': row['tag_name'], 'is_group': is_group,
+                'added': added}
+
+    def remove_tag_from_exam(self, exam_context: str, tag_id: int) -> Dict[str, Any]:
+        """
+        Remove from this exam: stop offering a type on one exam (#888).
+
+        Deletes the exam's list row and nothing else. Entries that carry the
+        type keep it, on this exam and every other, and analytics still count
+        it. A group takes the types listed under it on this exam with it.
+
+        Returns:
+            Dict with 'id', 'name', 'is_group', 'removed' (list rows deleted)
+            and 'entries_keeping' (this exam's entries that still carry it)
+
+        Raises:
+            TagError: If there is no such exam, or it does not list the type
+        """
+        exam_id = self._require_tag_exam_id(exam_context)
+        row = self.fetchone("SELECT * FROM tags WHERE id = ?", (tag_id,))
+        if not row or not self._is_listed(exam_id, tag_id):
+            name = row['tag_name'] if row else f"Error type {tag_id}"
+            raise TagError(f'"{name}" is not offered on this exam.')
+
+        is_group = bool(row.get('is_group'))
+        ids = [tag_id] + (self._tag_descendant_ids(tag_id) if is_group else [])
+        marks = ",".join("?" * len(ids))
+        kept = self.fetchone(f"""
+            SELECT COUNT(DISTINCT et.question_entry_id) AS n FROM entry_tags et
+            JOIN question_entries qe ON qe.id = et.question_entry_id
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            WHERE rs.exam_context_id = ? AND et.tag_id IN ({marks})
+        """, (exam_id, *ids))['n']
+
+        with self.transaction():
+            removed = self.execute(
+                f"DELETE FROM exam_error_types WHERE exam_context_id = ?"
+                f" AND tag_id IN ({marks})", (exam_id, *ids)).rowcount
+
+        if self.error_logger:
+            self.error_logger.info(
+                f"Removed error type {tag_id} ({row['tag_name']}) from exam "
+                f"{exam_id}: {removed} rows; {kept} entries keep it",
+                category=ErrorCategory.DATABASE
+            )
+        return {'id': tag_id, 'name': row['tag_name'], 'is_group': is_group,
+                'removed': removed, 'entries_keeping': kept}
+
+    def get_tags_not_on_exam(self, exam_context: str) -> List[Dict[str, Any]]:
+        """
+        The library's types and groups this exam does not offer, as a tree.
+
+        For "Add from your other exams" (#888 4a). A group appears when it is
+        not listed itself or holds a type that is not; ``listed`` says which.
+        Each node carries ``exam_count`` (exams that list it) and
+        ``entry_count_all`` (entries carrying it, in any exam).
+
+        Raises:
+            TagError: If there is no such exam
+        """
+        exam_id = self._require_tag_exam_id(exam_context)
+        rows = self.fetchall("""
+            SELECT t.*,
+                (SELECT COUNT(*) FROM exam_error_types o
+                 WHERE o.tag_id = t.id) AS exam_count,
+                (SELECT COUNT(*) FROM entry_tags et
+                 WHERE et.tag_id = t.id) AS entry_count_all,
+                EXISTS (SELECT 1 FROM exam_error_types l
+                        WHERE l.tag_id = t.id AND l.exam_context_id = ?) AS listed
+            FROM tags t
+            WHERE t.is_active = TRUE
+            ORDER BY t.display_order, t.tag_name
+        """, (exam_id,))
+        by_parent: Dict[Optional[int], List[Dict[str, Any]]] = {}
+        for row in rows:
+            by_parent.setdefault(row['parent_id'], []).append(row)
+
+        def build(parent_id: Optional[int]) -> List[Dict[str, Any]]:
+            out = []
+            for row in by_parent.get(parent_id, []):
+                is_group = bool(row.get('is_group'))
+                children = build(row['id']) if is_group else []
+                if row['listed'] and not children:
+                    continue
+                out.append({
+                    'id': row['id'],
+                    'name': row['tag_name'],
+                    'color': row['color_hex'],
+                    'description': row['description'],
+                    'is_group': is_group,
+                    'listed': bool(row['listed']),
+                    'exam_count': row['exam_count'],
+                    'entry_count_all': row['entry_count_all'],
+                    'children': children,
+                })
+            return out
+
+        return build(None)
+
     def get_tag_hierarchy(self, exam_context: str) -> List[Dict[str, Any]]:
         """
-        Get the full tag hierarchy for an exam context.
+        Get the tag hierarchy the exam ``exam_context`` lists (#888).
 
-        ``usage_count`` is LIVE — a correlated ``COUNT(*)`` against
-        ``entry_tags`` per tag, not the stale ``tags.usage_count``
-        column. Group nodes report the sum of their children (plus any
-        direct usage of the group itself, normally zero).
+        Reads through ``exam_error_types``: a library type this exam does not
+        list is absent, even when one of its entries carries it.
+
+        Per node:
+
+        * ``usage_count`` -- this exam's entries carrying it, counted LIVE
+          from ``entry_tags`` (the ``tags.usage_count`` column is stale);
+        * ``entry_count_all`` -- entries carrying it in ANY exam, which is
+          what Delete for good would untag;
+        * ``other_exam_count`` -- how many OTHER exams list it. Delete for
+          good is offered only when this is 0 (4b);
+        * ``library_child_count`` -- active types under a group in the whole
+          library, listed here or not. A group with any cannot be deleted.
+
+        Group nodes add their listed children's ``usage_count`` and
+        ``entry_count_all`` to their own (normally zero).
 
         Args:
-            exam_context: Exam context code
+            exam_context: Exam name
 
         Returns:
             List of tag groups with nested children
         """
         self._ensure_phase4_schema()
 
+        exam_id = self._tag_exam_id(exam_context)
+        if exam_id is None:
+            return []
+
         def build_tree(parent_id: Optional[int]) -> List[Dict[str, Any]]:
-            if parent_id is None:
-                rows = self.fetchall("""
-                    SELECT *,
-                        (SELECT COUNT(*) FROM entry_tags et
-                         WHERE et.tag_id = tags.id) AS live_usage_count
-                    FROM tags
-                    WHERE exam_context = ? AND parent_id IS NULL AND is_active = TRUE
-                    ORDER BY display_order, tag_name
-                """, (exam_context,))
-            else:
-                rows = self.fetchall("""
-                    SELECT *,
-                        (SELECT COUNT(*) FROM entry_tags et
-                         WHERE et.tag_id = tags.id) AS live_usage_count
-                    FROM tags
-                    WHERE exam_context = ? AND parent_id = ? AND is_active = TRUE
-                    ORDER BY display_order, tag_name
-                """, (exam_context, parent_id))
+            rows = self.fetchall("""
+                SELECT t.*,
+                    (SELECT COUNT(*) FROM entry_tags et
+                     JOIN question_entries qe ON qe.id = et.question_entry_id
+                     JOIN review_sessions rs ON rs.id = qe.review_session_id
+                     WHERE et.tag_id = t.id AND rs.exam_context_id = ?)
+                        AS live_usage_count,
+                    (SELECT COUNT(*) FROM entry_tags et
+                     WHERE et.tag_id = t.id) AS entry_count_all,
+                    (SELECT COUNT(*) FROM exam_error_types o
+                     WHERE o.tag_id = t.id AND o.exam_context_id != ?)
+                        AS other_exam_count,
+                    (SELECT COUNT(*) FROM tags c
+                     WHERE c.parent_id = t.id AND c.is_active = TRUE)
+                        AS library_child_count
+                FROM tags t
+                JOIN exam_error_types l
+                    ON l.tag_id = t.id AND l.exam_context_id = ?
+                WHERE t.parent_id IS ? AND t.is_active = TRUE
+                ORDER BY l.display_order, t.tag_name
+            """, (exam_id, exam_id, exam_id, parent_id))
 
             result = []
             for row in rows:
@@ -525,6 +876,9 @@ class TagsMixin:
                     'description': row['description'],
                     'is_group': bool(row.get('is_group', False)),
                     'usage_count': row['live_usage_count'],
+                    'entry_count_all': row['entry_count_all'],
+                    'other_exam_count': row['other_exam_count'],
+                    'library_child_count': row['library_child_count'],
                     'children': []
                 }
 
@@ -534,6 +888,9 @@ class TagsMixin:
                     tag_dict['usage_count'] += sum(
                         child['usage_count'] for child in tag_dict['children']
                     )
+                    tag_dict['entry_count_all'] += sum(
+                        child['entry_count_all'] for child in tag_dict['children']
+                    )
 
                 result.append(tag_dict)
 
@@ -541,72 +898,172 @@ class TagsMixin:
 
         return build_tree(None)
 
-    def seed_default_tags(self, exam_context: str) -> None:
-        """
-        Seed default mistake category tags for an exam context.
+    #: The synthetic group :meth:`get_error_types_for_filter` gathers
+    #: carried-but-unlisted types under. Its ``id`` is None: it is not a row.
+    NOT_LISTED_GROUP_NAME = 'No longer on this exam'
+
+    def get_error_types_for_filter(self, exam_id: int) -> List[Dict[str, Any]]:
+        """The entry browser's error-type list: what the exam lists, plus
+        every type its entries carry that it no longer lists (#898).
+
+        The exam's list decides only what can be *added* to an entry (#888):
+        an entry keeps a type after *Remove from this exam*, and the
+        difficulty and time card still counts it. A filter built from
+        :meth:`get_tag_hierarchy` alone could not find those entries, and
+        ``applyTagFilter`` dropped such a type on Apply because it had no
+        checkbox. So:
+
+        * the listed hierarchy comes first, exactly as
+          :meth:`get_tag_hierarchy` returns it, each node marked
+          ``listed_on_exam: True``;
+        * then, only when there is at least one, a synthetic group with
+          ``id: None``, ``not_listed_group: True`` and the name
+          :attr:`NOT_LISTED_GROUP_NAME`, whose children are the types (never
+          groups) carried by this exam's entries and absent from the
+          hierarchy above, each ``listed_on_exam: False`` (or True for a
+          listed row the hierarchy hides as inactive), with ``group_name``
+          naming its library group and ``usage_count`` counting this exam's
+          entries carrying it.
+
+        "Absent from the hierarchy" rather than "not in exam_error_types",
+        so that anything the card counts and the list does not show still
+        gets a checkbox.
 
         Args:
-            exam_context: Exam context code
+            exam_id: The exam's id (not its name).
+
+        Returns:
+            List of group (and ungrouped type) nodes, as get_tag_hierarchy.
+        """
+        row = self.fetchone(
+            "SELECT exam_name FROM exam_contexts WHERE id = ? AND user_id = ?",
+            (exam_id, self.user_id))
+        if not row:
+            return []
+        hierarchy = self.get_tag_hierarchy(row['exam_name'])
+
+        shown = set()
+
+        def mark(nodes: List[Dict[str, Any]]) -> None:
+            for node in nodes:
+                node['listed_on_exam'] = True
+                shown.add(node['id'])
+                mark(node.get('children') or [])
+
+        mark(hierarchy)
+
+        carried = self.fetchall("""
+            SELECT t.id, t.tag_name, t.color_hex, t.description,
+                   g.tag_name AS group_name,
+                   COUNT(DISTINCT et.question_entry_id) AS usage_count,
+                   EXISTS (SELECT 1 FROM exam_error_types x
+                           WHERE x.exam_context_id = ? AND x.tag_id = t.id)
+                       AS listed
+            FROM entry_tags et
+            JOIN tags t ON t.id = et.tag_id
+            LEFT JOIN tags g ON g.id = t.parent_id
+            JOIN question_entries qe ON qe.id = et.question_entry_id
+            JOIN review_sessions rs ON rs.id = qe.review_session_id
+            WHERE rs.exam_context_id = ? AND rs.user_id = ?
+              AND IFNULL(t.is_group, 0) = 0
+            GROUP BY t.id
+            ORDER BY t.tag_name, t.id
+        """, (exam_id, exam_id, self.user_id))
+
+        missing = [
+            {
+                'id': r['id'],
+                'name': r['tag_name'],
+                'color': r['color_hex'],
+                'description': r['description'],
+                'is_group': False,
+                'usage_count': r['usage_count'],
+                'group_name': r['group_name'],
+                'listed_on_exam': bool(r['listed']),
+                'children': [],
+            }
+            for r in carried if r['id'] not in shown
+        ]
+        if missing:
+            hierarchy.append({
+                'id': None,
+                'name': self.NOT_LISTED_GROUP_NAME,
+                'color': None,
+                'description': None,
+                'is_group': True,
+                'not_listed_group': True,
+                'listed_on_exam': False,
+                'usage_count': sum(t['usage_count'] for t in missing),
+                'children': missing,
+            })
+        return hierarchy
+
+    def seed_default_tags(self, exam_context: str) -> None:
+        """
+        Put the defaults in the library and offer them on ``exam_context`` (#888).
+
+        * The library gains whichever of the 5 default groups and 16 default
+          types it lacks, matched on (group name, type name). None is copied.
+        * The exam named ``exam_context`` then lists every default group and
+          type, but only if it has never had a list
+          (``exam_error_types_seeded``). An exam the student has shaped is
+          left alone, and so is one whose list they emptied on purpose with
+          *Remove from this exam*: that list stays empty.
+
+        The entry form calls this whenever an exam's picker comes up empty,
+        which includes every reload after the last group is removed, so the
+        question is "has this exam ever had a list", never "is it empty now".
+        Idempotent.
+
+        Args:
+            exam_context: Name of the exam to offer the defaults on
         """
         self._ensure_phase4_schema()
 
-        # Check if tags already exist for this exam
-        existing = self.fetchone(
-            "SELECT COUNT(*) as count FROM tags WHERE exam_context = ?",
-            (exam_context,)
-        )
-        if existing and existing['count'] > 0:
-            return  # Already seeded
+        exam_id = self._tag_exam_id(exam_context)
+        if exam_id is not None and self.fetchone(
+                "SELECT 1 FROM exam_error_types_seeded WHERE exam_context_id = ?"
+                " UNION ALL SELECT 1 FROM exam_error_types"
+                " WHERE exam_context_id = ? LIMIT 1",
+                (exam_id, exam_id)):
+            return  # This exam has had a list: it is not new.
 
-        # Default tag structure. Every name below MUST have an entry in
-        # _DEFAULT_TAG_DEFINITIONS (module top) — and, mirrored, in
-        # m010_default_tag_definitions.DEFAULT_DEFINITIONS — so fresh
-        # installs and migrated databases carry the same definitions.
-        default_tags = {
-            'Knowledge Issues': {
-                'color': '#EF4444',  # Red
-                'tags': ['Knowledge Gap', 'Memory Failure', 'Misunderstanding']
-            },
-            'Reading & Interpretation': {
-                'color': '#F59E0B',  # Amber
-                'tags': ['Misread Question']
-            },
-            'Execution Errors': {
-                'color': '#10B981',  # Green
-                'tags': ['Calculation Error', 'Careless Mistake', 'Incomplete Solution', 'Wrong Approach']
-            },
-            'Test Strategy': {
-                'color': '#3B82F6',  # Blue
-                'tags': ['Time Pressure', 'Second-Guessing', 'Elimination Error', 'Poor Prioritization', 'Wrong Guess Strategy']
-            },
-            'Mental & Physical State': {
-                'color': '#8B5CF6',  # Purple
-                'tags': ['Anxiety Related', 'Focus Problem', 'Fatigue Related']
-            }
-        }
-
+        default_ids: List[int] = []
         with self.transaction():
-            for group_name, group_data in default_tags.items():
-                # Create group
-                group = self.create_tag_group(
-                    exam_context=exam_context,
-                    group_name=group_name,
-                    color_hex=group_data['color'],
-                    description=_DEFAULT_TAG_DEFINITIONS.get(group_name)
-                )
-
-                # Create tags within group
-                for tag_name in group_data['tags']:
-                    self.create_hierarchical_tag(
-                        exam_context=exam_context,
-                        tag_name=tag_name,
-                        group_id=group.id,
-                        color_hex=group_data['color'],
-                        description=_DEFAULT_TAG_DEFINITIONS.get(tag_name)
-                    )
+            for group_name, color, type_names in _DEFAULT_TAG_GROUPS:
+                group_id = self._ensure_library_default(
+                    group_name, None, True, color)
+                default_ids.append(group_id)
+                for tag_name in type_names:
+                    default_ids.append(self._ensure_library_default(
+                        tag_name, group_id, False, color))
+            if exam_id is not None:
+                for tag_id in default_ids:
+                    self._list_on_exam(exam_id, tag_id)
 
         if self.error_logger:
             self.error_logger.info(
                 f"Seeded default tags for exam context: {exam_context}",
                 category=ErrorCategory.DATABASE
             )
+
+    def _ensure_library_default(self, name: str, parent_id: Optional[int],
+                                is_group: bool, color: str) -> int:
+        """The library row for one default, created (or reactivated) if needed."""
+        existing = self._find_library_tag(name, parent_id, is_group)
+        if existing:
+            if not existing.get('is_active', 1):
+                self.execute("UPDATE tags SET is_active = TRUE,"
+                             " updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                             (existing['id'],))
+            return existing['id']
+        return self.execute("""
+            INSERT INTO tags (
+                exam_context, tag_name, tag_category, color_hex,
+                description, is_active, parent_id, is_group, display_order
+            ) VALUES (NULL, ?, ?, ?, ?, TRUE, ?, ?, ?)
+        """, (
+            name, 'other' if is_group else 'mistake_type', color,
+            _DEFAULT_TAG_DEFINITIONS.get(name), parent_id, is_group,
+            self._next_tag_display_order(parent_id),
+        )).lastrowid

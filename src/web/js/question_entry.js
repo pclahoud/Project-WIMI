@@ -10,6 +10,9 @@
 const EntryState = {
     sessionId: null,
     session: null,
+    // #879: true once this visit has shown the Session Complete dialog, or
+    // when the session was already complete as the form opened.
+    completionShown: false,
     examContext: null,
     currentEntryIndex: 0,
     entries: [],
@@ -80,6 +83,24 @@ const EntryState = {
     // Available data for selection
     tagHierarchy: [],
     subjects: [],
+    // #856. Whether the exam has an active axis, read ONCE at load through
+    // api.examUsesDimensions -- the same derived flag the tree editor and
+    // session setup use -- rather than inferred from the subject list, so
+    // the form cannot disagree with the tree editor about the same exam.
+    // On a dimensioned exam Quick Add requires a parent and offers no Root
+    // (owner, 2026-11-04); a parentless subject there would land in no axis,
+    // which is the state the "Subjects not in any axis" panel (#605) repairs.
+    examUsesDimensions: false,
+    // Which subject row Quick Add was opened for, and therefore which row the
+    // new or chosen subject is selected into (#694, absorbed by #856). It used
+    // to be 'primary' unconditionally.
+    quickAddTarget: 'primary',
+    // The duplicate guard's "Create anyway" answer (#856). It holds until the
+    // name changes or the dialog closes, so a save the PARENT rule then
+    // refuses on an exam with axes does not re-ask the question the student
+    // has just answered. Without it, pick-a-parent-then-Save re-fired the
+    // guard every time and only a second "Create anyway" went through.
+    quickAddGuardAccepted: false,
 
     // UI state
     imageSuggestionsDismissed: false,
@@ -110,6 +131,9 @@ const Toast = {
             this.container = document.createElement('div');
             this.container.className = 'toast-container';
             document.body.appendChild(this.container);
+            // Here rather than in page init, so the lift is in place for any
+            // toast, including one raised by an init that failed part-way.
+            trackFooterClearance();
         }
     },
     
@@ -163,6 +187,30 @@ const Toast = {
     warning(title, message) { return this.show('warning', title, message); },
     info(title, message) { return this.show('info', title, message); }
 };
+
+/**
+ * Keep toasts clear of the sticky footer (#932).
+ *
+ * Toasts are fixed to the bottom right, which is where the footer's Save &
+ * Next sits. The success toast that every Save & Next raises covered that
+ * button for its whole 4 s life, so a second prompt press landed on the
+ * toast. session.css lifts `.toast-container` by `--entry-footer-clearance`;
+ * this publishes the footer's measured height under that name and keeps it
+ * current through a ResizeObserver, because the footer's height is not a
+ * constant (it stacks under the narrow media query, and its buttons relabel).
+ * The footer is sticky at `bottom: 0`, so its own height is exactly the band
+ * at the bottom of the viewport it occupies.
+ */
+function trackFooterClearance() {
+    const footer = document.querySelector('.entry-footer');
+    if (!footer) return;
+    const publish = () => {
+        document.documentElement.style.setProperty(
+            '--entry-footer-clearance', `${footer.getBoundingClientRect().height}px`);
+    };
+    publish();
+    if (window.ResizeObserver) new ResizeObserver(publish).observe(footer);
+}
 
 // =========================================================================
 // Modal Management
@@ -337,6 +385,24 @@ async function loadAllSubjectsForFuzzySearch() {
     }
 }
 
+/**
+ * Read once whether the exam has an active axis (#856). The same derived flag
+ * the tree editor and session setup read, so the form agrees with them. A
+ * failed read logs and leaves the plain-exam rule in force; the subject list
+ * is deliberately not consulted as a substitute.
+ */
+async function loadExamUsesDimensions() {
+    EntryState.examUsesDimensions = false;
+    const examContextId = EntryState.session?.exam_context_id;
+    if (!examContextId) return;
+    try {
+        const result = await api.examUsesDimensions(examContextId);
+        EntryState.examUsesDimensions = !!(result && result.uses_dimensions);
+    } catch (error) {
+        console.warn('Could not read whether the exam uses axes; Quick Add keeps the plain-exam rule:', error);
+    }
+}
+
 function initSubjectSearch() {
     // Initialize primary subject search with keyboard nav
     initSubjectSearchField('primary-subject-search', 'primary-subject-dropdown', 'primary-subjects-chips', 'primary');
@@ -398,13 +464,147 @@ function initSubjectSearchField(inputId, dropdownId, chipsId, type) {
             searchSubjects(input.value);
         }
     });
-    
+
+    // The creation row and the empty state's button (#856). One delegated
+    // listener reading a data- attribute rather than an onclick carrying the
+    // typed query: the query is student text and must never be interpolated
+    // into a handler attribute (#578/#579). The keyboard controller's Enter
+    // calls .click() on the highlighted row, so arrow-and-Enter arrives here
+    // too.
+    dropdown.addEventListener('click', (e) => {
+        const createRow = e.target.closest('.subject-create-option');
+        if (!createRow || !dropdown.contains(createRow)) return;
+        e.preventDefault();
+        openQuickAddSubject(type, createRow.dataset.query || input.value.trim());
+    });
+
     // Close dropdown on outside click
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !dropdown.contains(e.target)) {
             dropdown.classList.remove('visible');
         }
     });
+}
+
+/**
+ * Case-insensitive, whitespace-trimmed comparison key for a subject name.
+ */
+function normalizeSubjectName(name) {
+    return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * The looser key the duplicate guard uses for a NEAR-exact match: letters and
+ * digits only, so "Pneumo-thorax", "pneumothorax " and "Pneumothorax" agree.
+ */
+function looseSubjectName(name) {
+    return normalizeSubjectName(name).replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Does any active subject of the exam carry exactly this name (case-
+ * insensitive)? Decides whether a result list gets a creation row (#856):
+ * the whole list is consulted rather than the ten results drawn, because the
+ * full list is the one that cannot be wrong.
+ */
+function subjectNameExists(name) {
+    const wanted = normalizeSubjectName(name);
+    if (!wanted) return false;
+    return (EntryState.subjects || []).some(s => normalizeSubjectName(s.name) === wanted);
+}
+
+/**
+ * Levenshtein distance capped at `limit + 1`, enough to ask "within one edit".
+ */
+function editDistanceWithin(a, b, limit) {
+    if (Math.abs(a.length - b.length) > limit) return false;
+    let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i];
+        let rowMin = i;
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+            if (current[j] < rowMin) rowMin = current[j];
+        }
+        if (rowMin > limit) return false;
+        previous = current;
+    }
+    return previous[b.length] <= limit;
+}
+
+/**
+ * Existing subjects whose name is an exact or near-exact match for `name`,
+ * ONE entry per subject (#856's duplicate guard).
+ *
+ * Near-exact is deliberately not the fuzzy index: Fuse ranks "Tension
+ * pneumothorax" as a perfect match for "pneumothorax" (a substring), and a
+ * guard that fired on that would name a different subject as "already
+ * existing". It is the loose key (punctuation, case and spacing ignored), or
+ * one edit away from it for a name of five characters or more.
+ *
+ * The subject list carries a multi-parent subject once per parent, so the
+ * matches are keyed by id and each keeps every path it was found at: one
+ * subject reached through two parents is one subject, not two duplicates.
+ */
+function findExistingSubjectsNamed(name) {
+    const wanted = normalizeSubjectName(name);
+    const loose = looseSubjectName(name);
+    if (!wanted) return [];
+    const byId = new Map();
+    for (const subject of EntryState.subjects || []) {
+        if (subject == null || subject.id == null) continue;
+        const candidateLoose = looseSubjectName(subject.name);
+        const exact = normalizeSubjectName(subject.name) === wanted;
+        const near = candidateLoose === loose
+            || (loose.length >= 5 && editDistanceWithin(candidateLoose, loose, 1));
+        if (!exact && !near) continue;
+        const path = subject.path || subject.name;
+        const match = byId.get(subject.id);
+        if (match) {
+            if (!match.paths.includes(path)) match.paths.push(path);
+        } else {
+            byId.set(subject.id, { id: subject.id, name: subject.name, path, paths: [path], exact });
+        }
+    }
+    return Array.from(byId.values());
+}
+
+/**
+ * "under Respiratory › Disorders of the pleura", or "at the top level" for a
+ * root, for each path the subject appears at.
+ */
+function describeSubjectLocation(match) {
+    const places = match.paths.map(path => {
+        const segments = String(path).split(' > ').map(s => s.trim()).filter(Boolean);
+        return segments.length > 1
+            ? 'under ' + segments.slice(0, -1).join(' › ')
+            : 'at the top level';
+    });
+    return places.join(' and ');
+}
+
+/**
+ * The creation row (#856): "Add 'X' as a new subject…". Rendered as the last
+ * row of a non-empty list and as the button of the empty state. Both carry
+ * .subject-option, which is the keyboard controller's itemSelector, so the
+ * arrow keys reach them and Enter clicks them. The query travels in a data-
+ * attribute, escaped, never in a handler.
+ */
+function renderSubjectCreateOption(type, query, asButton) {
+    const tag = asButton ? 'button' : 'div';
+    const typeAttr = asButton ? ' type="button"' : '';
+    const text = `Add '${WimiEscape.html(query)}' as a new subject` + (asButton ? '' : '…');
+    return `<${tag}${typeAttr} class="subject-option subject-create-option"
+             role="option"
+             id="subject-option-${type}-create"
+             aria-selected="false"
+             data-type="${type}"
+             data-query="${WimiEscape.attr(query)}"
+             data-testid="entry-form-subject-create-${type}">
+            <span class="subject-create-option-icon" aria-hidden="true">+</span>
+            <span class="subject-create-option-text">${text}</span>
+        </${tag}>`;
 }
 
 /**
@@ -415,11 +615,21 @@ function renderSubjectDropdown(dropdown, results, type, query = '') {
     // Check if user has dismissed keyboard hint
     const hintDismissed = localStorage.getItem('wimi_keyboard_hint_dismissed') === 'true';
 
+    // #856. The query is the student's text: escaped in text and attribute
+    // positions and never placed in a handler.
+    const trimmedQuery = String(query || '').trim();
+    const offerCreation = trimmedQuery.length > 0 && !subjectNameExists(trimmedQuery);
+
     if (!results || results.length === 0) {
+        const examName = EntryState.examContext?.exam_name
+            || EntryState.session?.exam_name || 'this exam';
         dropdown.innerHTML = `
-            <div class="dropdown-empty">
-                <span class="dropdown-empty-icon">🔍</span>
-                <span>No subjects found</span>
+            <div class="dropdown-empty subject-dropdown-empty-state"
+                 data-testid="entry-form-subject-empty-${type}">
+                <span class="dropdown-empty-icon" aria-hidden="true">🔍</span>
+                <span class="dropdown-empty-text"
+                      data-testid="entry-form-subject-empty-text-${type}">No subject in ${WimiEscape.html(examName)} matches '${WimiEscape.html(trimmedQuery)}' by name or alias.</span>
+                ${offerCreation ? renderSubjectCreateOption(type, trimmedQuery, true) : ''}
             </div>
         `;
     } else {
@@ -457,6 +667,7 @@ function renderSubjectDropdown(dropdown, results, type, query = '') {
                         </div>
                     `;
                 }).join('')}
+                ${offerCreation ? renderSubjectCreateOption(type, trimmedQuery, false) : ''}
             </div>
             ${!hintDismissed ? `
                 <div class="dropdown-hint" id="keyboard-hint-${type}">
@@ -958,8 +1169,25 @@ function _attachBuildNoteRow(note) {
 
     const meta = document.createElement('div');
     meta.className = 'attach-existing-meta';
+    // Three labels (#848 Wave 2a). A note on no entry (m036) arrives with no
+    // `question_entry_id` key at all -- absent, not null. `attachment_count`
+    // is attached by get_notes_by_subjects since Wave 2a, so a count of 0 is
+    // the honest "not on any entry" and a count of 2 or more names the number
+    // whatever the origin; only a note on exactly its own entry names it.
+    const onEntry = ('question_entry_id' in note) || ('entry_id' in note);
     const entryId = note.question_entry_id || note.entry_id;
-    meta.textContent = entryId ? `from entry #${entryId}` : 'from another entry';
+    const count = typeof note.attachment_count === 'number' ? note.attachment_count : null;
+    let label;
+    if (count === 0 || (!onEntry && count === null)) {
+        label = 'not on any entry';
+    } else if (count !== null && count >= 2) {
+        label = `on ${count} entries`;
+    } else if (onEntry) {
+        label = entryId ? `from entry #${entryId}` : 'from another entry';
+    } else {
+        label = 'on 1 entry';
+    }
+    meta.textContent = label;
     body.appendChild(meta);
 
     row.appendChild(body);
@@ -1455,34 +1683,59 @@ async function syncTagContextChoices(entryId) {
  * Initialize quick add subject controls
  */
 function initQuickAddSubject() {
-    const showBtn = document.getElementById('btn-quick-add-subject');
     const modal = document.getElementById('quick-add-subject-modal');
     const closeBtn = document.getElementById('quick-add-close');
     const cancelBtn = document.getElementById('quick-add-cancel');
     const saveBtn = document.getElementById('quick-add-save');
     const nameInput = document.getElementById('quick-add-name');
+    const guard = document.getElementById('quick-add-guard');
 
-    if (!showBtn || !modal) return;
+    if (!modal) return;
 
     // Initialize parent search field
     initQuickAddParentSearch();
 
-    showBtn.addEventListener('click', () => {
-        resetQuickAddParentSearch();
-        Modal.open('quick-add-subject-modal');
-        nameInput?.focus();
-    });
+    // There is no "+ Add New Subject" button any more (#856, owner
+    // 2026-11-04: "each drop down will have its own"). The dialog opens from
+    // the creation row at the bottom of either subject dropdown and from the
+    // empty state's button, through openQuickAddSubject(type, query).
 
     closeBtn?.addEventListener('click', closeQuickAddModal);
     cancelBtn?.addEventListener('click', closeQuickAddModal);
 
-    saveBtn?.addEventListener('click', handleQuickAddSave);
+    saveBtn?.addEventListener('click', () => handleQuickAddSave());
 
     // Enter key in name input triggers save
     nameInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             handleQuickAddSave();
+        }
+    });
+
+    // A changed name invalidates a guard shown for the old one, and the
+    // "Create anyway" answer given to it.
+    nameInput?.addEventListener('input', resetQuickAddDuplicateGuard);
+
+    // The guard's two answers (#856, owner: both offered). Delegated, reading
+    // the subject id off a data- attribute, so no student text sits in a
+    // handler attribute.
+    guard?.addEventListener('click', (e) => {
+        const selectBtn = e.target.closest('.quick-add-guard-select');
+        if (selectBtn) {
+            e.preventDefault();
+            const match = (EntryState.quickAddGuardMatches || [])
+                .find(m => String(m.id) === selectBtn.dataset.subjectId);
+            if (match) {
+                const target = EntryState.quickAddTarget;
+                closeQuickAddModal();
+                selectSubject(match.id, match.name, match.path || match.name, target);
+            }
+            return;
+        }
+        if (e.target.closest('#quick-add-guard-create')) {
+            e.preventDefault();
+            handleQuickAddSave({ skipGuard: true });
         }
     });
 
@@ -1506,15 +1759,25 @@ function initQuickAddParentSearch() {
 
     if (!input || !dropdown) return;
 
-    const searchParents = (query) => {
+    const searchParents = (rawQuery) => {
+        const query = String(rawQuery || '').trim();
         if (!EntryState.subjects || EntryState.subjects.length === 0) {
-            renderParentDropdown(dropdown, [], query);
+            // Whatever was typed, the true sentence is that the exam has no
+            // subjects yet; "no subject matches 'X'" would describe a search
+            // that had nothing to search.
+            renderParentDropdown(dropdown, [], '');
             return;
         }
 
         let results;
-        if (!query || query.length < 1) {
-            // Show all subjects sorted by path when no query
+        if (query.length < 2) {
+            // No query, or one character: the whole list sorted by path. The
+            // fuzzy index returns nothing for a query under two characters
+            // (fuzzy_search.js searchSubjects), so handing it one came back
+            // empty and, on an exam with axes where no Root row fills the
+            // box, was reported as "no subject matches 'R'" while Respiratory
+            // existed. The empty-state sentence may only follow a search that
+            // actually ran (#856 review).
             results = [...EntryState.subjects].sort((a, b) => {
                 const pathA = a.path || a.name;
                 const pathB = b.path || b.name;
@@ -1543,6 +1806,18 @@ function initQuickAddParentSearch() {
         searchParents(input.value);
     });
 
+    // A click on the field reopens the list when it is closed. The field
+    // can be focused with its list shut: a refused parentless save (#856)
+    // focuses it from inside the Save button's click, and the outside-click
+    // listener below then runs on that same click and closes the list it
+    // just opened. A second click on an already-focused input dispatches no
+    // focus event, so without this the list would come back only on typing.
+    input.addEventListener('click', () => {
+        if (!dropdown.classList.contains('visible')) {
+            searchParents(input.value);
+        }
+    });
+
     // Close dropdown on outside click
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !dropdown.contains(e.target)) {
@@ -1564,8 +1839,11 @@ function renderParentDropdown(dropdown, results, query = '') {
         ? (text) => fuzzySearch.highlightMatches(text, query)
         : (text) => WimiEscape.html(text);
 
-    // Always include "Root (Top Level)" option at the top
-    let optionsHtml = `
+    // "Root (Top Level)" is pinned at the top on a PLAIN exam only (#856,
+    // owner 2026-11-04). On an exam with axes a new subject must have a
+    // parent, because createSubjectNode derives the axis from the parent and
+    // from nothing else: a root created here would be in no axis.
+    let optionsHtml = EntryState.examUsesDimensions ? '' : `
         <div class="subject-option root-option"
              role="option"
              data-id=""
@@ -1596,6 +1874,30 @@ function renderParentDropdown(dropdown, results, query = '') {
         `).join('');
     }
 
+    if (!optionsHtml) {
+        // Only reachable on an exam with axes, where Root is not offered:
+        // on a plain exam the Root row always fills the box. An empty
+        // role="listbox" is a bordered strip a few pixels tall with nothing
+        // in it and nothing announced, so the box says what it found,
+        // the way the subject boxes' empty state does.
+        const trimmedQuery = String(query || '').trim();
+        const examName = EntryState.examContext?.exam_name
+            || EntryState.session?.exam_name || 'this exam';
+        const text = trimmedQuery
+            ? `No subject in ${WimiEscape.html(examName)} matches '${WimiEscape.html(trimmedQuery)}' by name or alias.`
+            : `${WimiEscape.html(examName)} has no subjects yet. The first subjects of an axis are made in the tree editor.`;
+        dropdown.innerHTML = `
+            <div class="dropdown-empty" role="status"
+                 data-testid="entry-form-quick-add-parent-empty">
+                <span class="dropdown-empty-icon" aria-hidden="true">🔍</span>
+                <span class="dropdown-empty-text"
+                      data-testid="entry-form-quick-add-parent-empty-text">${text}</span>
+            </div>
+        `;
+        dropdown.classList.add('visible');
+        return;
+    }
+
     dropdown.innerHTML = `<div class="dropdown-results" role="listbox">${optionsHtml}</div>`;
     dropdown.classList.add('visible');
 }
@@ -1611,6 +1913,7 @@ function selectQuickAddParent(id, name) {
     if (input) input.value = name;
     if (hiddenInput) hiddenInput.value = id;
     if (dropdown) dropdown.classList.remove('visible');
+    hideQuickAddParentError();
 }
 
 /**
@@ -1624,6 +1927,156 @@ function resetQuickAddParentSearch() {
     if (input) input.value = '';
     if (hiddenInput) hiddenInput.value = '';
     if (dropdown) dropdown.classList.remove('visible');
+}
+
+/**
+ * Open Quick Add for one subject row, with the name prefilled (#856).
+ *
+ * `type` is the row the student was typing in; the created or chosen subject
+ * is selected into that row and no other. `prefillName` is the raw query:
+ * what was typed, editable and focused, so a truncated or misspelt query
+ * costs one correction and prefilling nothing would cost retyping every time.
+ */
+function openQuickAddSubject(type, prefillName = '') {
+    const modal = document.getElementById('quick-add-subject-modal');
+    if (!modal) return;
+    EntryState.quickAddTarget = type === 'secondary' ? 'secondary' : 'primary';
+    modal.dataset.target = EntryState.quickAddTarget;
+
+    resetQuickAddParentSearch();
+    resetQuickAddDuplicateGuard();
+    hideQuickAddParentError();
+    applyQuickAddParentRule();
+
+    const nameInput = document.getElementById('quick-add-name');
+    if (nameInput) nameInput.value = prefillName || '';
+
+    const rowDropdown = document.getElementById(`${EntryState.quickAddTarget}-subject-dropdown`);
+    if (rowDropdown) rowDropdown.classList.remove('visible');
+
+    Modal.open('quick-add-subject-modal');
+    if (nameInput) {
+        nameInput.focus();
+        const end = nameInput.value.length;
+        try { nameInput.setSelectionRange(end, end); } catch (err) { /* not a text input */ }
+    }
+}
+
+/**
+ * Say in the dialog which rule the parent field is under (#856). On an exam
+ * with axes the parent is required and the field says so; on a plain exam it
+ * may be left empty for Root. Read off EntryState.examUsesDimensions, which
+ * is loaded once at page start.
+ */
+function applyQuickAddParentRule() {
+    const required = !!EntryState.examUsesDimensions;
+    const modal = document.getElementById('quick-add-subject-modal');
+    const marker = document.getElementById('quick-add-parent-required');
+    const help = document.getElementById('quick-add-parent-help');
+    const input = document.getElementById('quick-add-parent-search');
+
+    if (modal) modal.dataset.parentRequired = required ? 'true' : 'false';
+    if (marker) marker.hidden = !required;
+    if (input) {
+        input.placeholder = required
+            ? 'Search for the parent subject...'
+            : 'Search or leave empty for Root...';
+        input.setAttribute('aria-required', required ? 'true' : 'false');
+    }
+    if (help) {
+        help.textContent = required
+            ? 'This exam has axes, so a new subject needs a parent: it joins the parent\'s axis.'
+            : 'Leave empty to create a top-level subject.';
+    }
+}
+
+function showQuickAddParentError(message) {
+    const error = document.getElementById('quick-add-parent-error');
+    if (!error) return;
+    error.textContent = message;
+    error.hidden = false;
+}
+
+function hideQuickAddParentError() {
+    const error = document.getElementById('quick-add-parent-error');
+    if (!error) return;
+    error.textContent = '';
+    error.hidden = true;
+}
+
+/**
+ * The duplicate guard (#856). Built from nodes, not markup: the names and
+ * paths are student text. Each existing subject gets its own sentence and
+ * its own "Select it instead"; one "Create anyway" closes the box, because
+ * the backend refuses a duplicate only under the same parent in the same axis
+ * (#246) and a same name elsewhere is legal data -- this is a prompt, never a
+ * refusal.
+ */
+function showQuickAddDuplicateGuard(matches) {
+    const guard = document.getElementById('quick-add-guard');
+    if (!guard) return;
+    EntryState.quickAddGuardMatches = matches;
+    guard.replaceChildren();
+
+    for (const match of matches) {
+        const row = document.createElement('div');
+        row.className = 'quick-add-guard-row';
+        row.dataset.subjectId = String(match.id);
+        row.setAttribute('data-testid', 'entry-form-quick-add-guard-match');
+
+        const sentence = document.createElement('p');
+        sentence.className = 'quick-add-guard-sentence';
+        sentence.textContent = `A subject named '${match.name}' already exists `
+            + describeSubjectLocation(match) + '. Select it instead?';
+        row.appendChild(sentence);
+
+        const selectBtn = document.createElement('button');
+        selectBtn.type = 'button';
+        selectBtn.className = 'btn btn-sm btn-secondary quick-add-guard-select';
+        selectBtn.dataset.subjectId = String(match.id);
+        selectBtn.setAttribute('data-testid', 'entry-form-quick-add-guard-select');
+        selectBtn.textContent = 'Select it instead';
+        row.appendChild(selectBtn);
+
+        guard.appendChild(row);
+    }
+
+    const note = document.createElement('p');
+    note.className = 'quick-add-guard-note';
+    note.textContent = 'If this question belongs under a different parent, give the '
+        + 'existing subject a second parent in the tree editor rather than creating another.';
+    guard.appendChild(note);
+
+    const actions = document.createElement('div');
+    actions.className = 'quick-add-guard-actions';
+    const createBtn = document.createElement('button');
+    createBtn.type = 'button';
+    createBtn.id = 'quick-add-guard-create';
+    createBtn.className = 'btn btn-sm btn-ghost';
+    createBtn.setAttribute('data-testid', 'entry-form-quick-add-guard-create');
+    createBtn.textContent = 'Create anyway';
+    actions.appendChild(createBtn);
+    guard.appendChild(actions);
+
+    guard.hidden = false;
+}
+
+function hideQuickAddDuplicateGuard() {
+    const guard = document.getElementById('quick-add-guard');
+    if (!guard) return;
+    EntryState.quickAddGuardMatches = [];
+    guard.hidden = true;
+    guard.replaceChildren();
+}
+
+/**
+ * Hide the guard AND forget its "Create anyway" answer. For a new name, a
+ * fresh dialog and a closed one; `hideQuickAddDuplicateGuard` alone is for
+ * taking the box off the screen while the answer still stands.
+ */
+function resetQuickAddDuplicateGuard() {
+    EntryState.quickAddGuardAccepted = false;
+    hideQuickAddDuplicateGuard();
 }
 
 /**
@@ -1641,15 +2094,35 @@ function closeQuickAddModal() {
         const aliasTypeSelect = document.getElementById('quick-add-alias-type');
         if (aliasTypeSelect) aliasTypeSelect.value = 'alternate_name';
         resetQuickAddParentSearch();
+        resetQuickAddDuplicateGuard();
+        hideQuickAddParentError();
     }
 }
 
 /**
- * Handle quick add save button
+ * Handle quick add save button.
+ *
+ * Order (#856): a name; the duplicate guard, unless the student has already
+ * answered it with "Create anyway" (`skipGuard` on that press, and
+ * `EntryState.quickAddGuardAccepted` on every save after it until the name
+ * changes); the parent, required on an exam with axes; then the create. The
+ * guard comes before the parent rule because when the answer is "select the
+ * existing one" the parent was never the question -- and the answer is
+ * remembered because on an exam with axes the parent rule can refuse the
+ * very save "Create anyway" started, after which the student picks a parent
+ * and presses Save again. That save must not re-ask.
  */
-async function handleQuickAddSave() {
+async function handleQuickAddSave(options = {}) {
+    const skipGuard = !!(options && options.skipGuard);
+    if (skipGuard) {
+        EntryState.quickAddGuardAccepted = true;
+        // The box has been answered; take it off the screen so a parent
+        // error shown next is not read underneath a question already settled.
+        hideQuickAddDuplicateGuard();
+    }
     const nameInput = document.getElementById('quick-add-name');
     const parentSelect = document.getElementById('quick-add-parent');
+    const parentInput = document.getElementById('quick-add-parent-search');
     const saveBtn = document.getElementById('quick-add-save');
 
     const name = nameInput?.value.trim();
@@ -1663,6 +2136,21 @@ async function handleQuickAddSave() {
 
     if (!EntryState.session?.exam_context_id) {
         Toast.error('Error', 'No exam context available');
+        return;
+    }
+
+    if (!skipGuard && !EntryState.quickAddGuardAccepted) {
+        const existing = findExistingSubjectsNamed(name);
+        if (existing.length > 0) {
+            showQuickAddDuplicateGuard(existing);
+            return;
+        }
+    }
+
+    if (EntryState.examUsesDimensions && !parentId) {
+        showQuickAddParentError('This exam has axes, so a new subject needs a parent '
+            + 'to be placed in one. Choose a parent subject.');
+        parentInput?.focus();
         return;
     }
 
@@ -1721,11 +2209,13 @@ async function handleQuickAddSave() {
                 fuzzySearch.refreshSubjects(EntryState.subjects);
             }
 
-            // Select the new subject as primary
-            selectSubject(newSubject.id, newSubject.name, newSubject.path || newSubject.name, 'primary');
-
+            // Select the new subject into the row the dialog was opened for
+            // (#694): primary from the Primary box, secondary from the
+            // Secondary box. It used to be primary whichever row asked.
+            const target = EntryState.quickAddTarget === 'secondary' ? 'secondary' : 'primary';
             closeQuickAddModal();
-            Toast.success('Subject Created', `"${name}" added and selected`);
+            selectSubject(newSubject.id, newSubject.name, newSubject.path || newSubject.name, target);
+            Toast.success('Subject Created', `"${name}" added as a ${target} subject`);
         } else {
             Toast.error('Error', 'Failed to create subject');
         }
@@ -2024,14 +2514,14 @@ async function createTagInline(tagName) {
         const definitionInput = document.querySelector('[data-testid="entry-form-create-tag-definition-input"]');
         const definition = definitionInput ? definitionInput.value.trim() : '';
         const newTag = await api.createTagInGroup(examContext, tagName, groupId, definition);
-        const newDescription = newTag.description || definition || '';
+        const newDescription = newTag.description || '';
 
         // Add the new tag to our local hierarchy
         if (group.children) {
             group.children.push({
                 id: newTag.id,
                 name: tagName,
-                color: group.color,
+                color: newTag.color || group.color,
                 is_group: false,
                 description: newDescription || null,
                 usage_count: 0
@@ -2047,7 +2537,7 @@ async function createTagInline(tagName) {
         EntryState.formData.tags.push({
             id: newTag.id,
             name: tagName,
-            color: group.color || '#6B7280',
+            color: newTag.color || group.color || '#6B7280',
             description: newDescription
         });
         
@@ -2201,26 +2691,102 @@ function removeTag(id) {
 }
 
 // =========================================================================
-// Error Type Management (Manage modal: definitions + delete)
+// Error Type Management (Manage modal: definitions, remove, add, delete)
+//
+// #888: error types are one library per profile, and each exam lists the
+// ones it offers. getTagHierarchy reads THIS exam's list. So the modal has:
+//   - Remove from this exam: the everyday action. Deletes the list row only;
+//     entries keep the type and analytics still count it.
+//   - Delete for good: shown only when no other exam lists the type
+//     (other_exam_count === 0, decision 4b). Removes it from the library and
+//     so from every entry carrying it, in every exam (entry_count_all).
+//   - Add from your other exams: library types this exam does not offer.
+// Everything below is built from DOM nodes with textContent, and every
+// action reads its id from a data- attribute (#578: no name ever goes into
+// an onclick string).
 // =========================================================================
 
 // Original definition text per tag id, captured at render time for dirty checks
 let manageTagOriginals = {};
 
-// Tag pending deletion via the confirmation modal: { id, name, isGroup, usageCount }
+// Tag pending confirmation: { id, name, isGroup, mode: 'remove' | 'delete', ... }
 let pendingDeleteTag = null;
+
+function currentTagExamName() {
+    return EntryState.examContext?.exam_name || EntryState.session?.exam_name || '';
+}
+
+function manageEl(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+}
+
+function manageButton(className, text, testid, action, tagId) {
+    const button = manageEl('button', className, text);
+    button.type = 'button';
+    button.setAttribute('data-testid', testid);
+    button.dataset.manageAction = action;
+    button.dataset.tagId = String(tagId);
+    return button;
+}
+
+function manageSwatch(className, color) {
+    const swatch = manageEl('span', className);
+    swatch.style.background = color || '#6B7280';
+    return swatch;
+}
+
+function manageUsageLabel(count) {
+    return `${count} ${count === 1 ? 'entry' : 'entries'}`;
+}
 
 /**
  * Open the "Manage error types" modal with fresh live usage counts
  */
 async function openManageTagsModal() {
+    initManageTagsModal();
     await loadTagHierarchy();
     renderManageTagsModal();
     Modal.open('manage-tags-modal');
+    await refreshManageTagsAddSection();
 }
 
 function closeManageTagsModal() {
     Modal.close('manage-tags-modal');
+}
+
+/**
+ * The buttons a listed type or group carries: Remove from this exam always,
+ * and Delete for good only when no other exam lists it (#888 4b).
+ */
+function manageTagActions(node, isGroup) {
+    const actions = manageEl('span', 'manage-tag-actions');
+    actions.appendChild(manageButton(
+        'btn btn-sm btn-ghost manage-tag-remove', 'Remove from this exam',
+        `manage-tag-remove-${node.id}`, 'remove', node.id));
+
+    const others = node.other_exam_count || 0;
+    if (others > 0) {
+        actions.appendChild(manageEl(
+            'span', 'manage-tag-shared',
+            `Also on ${others} other ${others === 1 ? 'exam' : 'exams'}`));
+        actions.lastChild.setAttribute('data-testid', `manage-tag-shared-${node.id}`);
+        return actions;
+    }
+
+    const del = manageButton('manage-tag-delete', '🗑️',
+                             `manage-tag-delete-${node.id}`, 'delete', node.id);
+    del.setAttribute('aria-label', `Delete "${node.name}" for good`);
+    if (isGroup && (node.library_child_count || 0) > 0) {
+        del.disabled = true;
+        del.title = 'Delete its types for good first';
+    } else {
+        del.title = 'Delete for good';
+    }
+    actions.appendChild(del);
+    return actions;
 }
 
 /**
@@ -2231,58 +2797,146 @@ function renderManageTagsModal() {
     if (!container) return;
 
     manageTagOriginals = {};
+    container.replaceChildren();
 
     const hierarchy = EntryState.tagHierarchy || [];
     if (hierarchy.length === 0) {
-        container.innerHTML = '<p class="form-help">No error types yet. Defaults are re-seeded the next time the picker loads.</p>';
+        container.appendChild(manageEl('p', 'form-help',
+            'This exam offers no error types yet. The defaults are offered again the next time the picker loads.'));
         return;
     }
 
-    const usageLabel = (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`;
+    for (const group of hierarchy) {
+        const groupEl = manageEl('div', 'manage-tag-group');
+        const header = manageEl('div', 'manage-tag-group-header');
+        if (group.description) header.title = group.description;
+        header.appendChild(manageSwatch('tag-group-color', group.color));
+        header.appendChild(manageEl('span', 'manage-tag-group-name', group.name));
+        const usage = manageEl('span', 'manage-tag-usage', manageUsageLabel(group.usage_count || 0));
+        usage.setAttribute('data-testid', `manage-tag-usage-${group.id}`);
+        header.appendChild(usage);
+        header.appendChild(manageTagActions(group, true));
+        groupEl.appendChild(header);
 
-    container.innerHTML = hierarchy.map(group => {
-        const children = group.children || [];
-        const groupCount = group.usage_count || 0;
-        const groupEmpty = children.length === 0;
+        const rows = manageEl('div', 'manage-tag-rows');
+        for (const tag of (group.children || [])) {
+            manageTagOriginals[tag.id] = tag.description || '';
+            const row = manageEl('div', 'manage-tag-row');
+            row.dataset.tagId = String(tag.id);
 
-        return `
-        <div class="manage-tag-group">
-            <div class="manage-tag-group-header" ${group.description ? `title="${WimiEscape.html(group.description)}"` : ''}>
-                <span class="tag-group-color" style="background: ${WimiEscape.attr(group.color || '#6B7280')}"></span>
-                <span class="manage-tag-group-name">${WimiEscape.html(group.name)}</span>
-                <span class="manage-tag-usage" data-testid="manage-tag-usage-${group.id}">${usageLabel(groupCount)}</span>
-                <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${group.id}"
-                        ${groupEmpty ? 'title="Delete this empty group"' : 'disabled title="Delete or move its types first"'}
-                        onclick="confirmDeleteTag(${group.id})">🗑️</button>
-            </div>
-            <div class="manage-tag-rows">
-                ${children.map(tag => {
-                    const count = tag.usage_count || 0;
-                    manageTagOriginals[tag.id] = tag.description || '';
-                    return `
-                <div class="manage-tag-row" data-tag-id="${tag.id}">
-                    <div class="manage-tag-row-main">
-                        <span class="tag-option-color" style="background: ${WimiEscape.attr(tag.color || group.color || '#6B7280')}"></span>
-                        <span class="manage-tag-name">${WimiEscape.html(tag.name)}</span>
-                        <span class="manage-tag-usage" data-testid="manage-tag-usage-${tag.id}">${usageLabel(count)}</span>
-                        <button type="button" class="manage-tag-delete" data-testid="manage-tag-delete-${tag.id}"
-                                title="Delete this error type"
-                                onclick="confirmDeleteTag(${tag.id})">🗑️</button>
-                    </div>
-                    <div class="manage-tag-def">
-                        <textarea class="manage-tag-def-input" rows="2"
-                                  placeholder="Definition (optional) — shown as a tooltip in the picker"
-                                  data-testid="manage-tag-def-${tag.id}"
-                                  oninput="onTagDefinitionInput(${tag.id})">${WimiEscape.html(tag.description || '')}</textarea>
-                        <button type="button" class="btn btn-sm btn-primary manage-tag-save"
-                                data-testid="manage-tag-save-${tag.id}" hidden
-                                onclick="saveTagDefinition(${tag.id})">Save</button>
-                    </div>
-                </div>`;
-                }).join('')}
-            </div>
-        </div>`;
-    }).join('');
+            const main = manageEl('div', 'manage-tag-row-main');
+            main.appendChild(manageSwatch('tag-option-color', tag.color || group.color));
+            main.appendChild(manageEl('span', 'manage-tag-name', tag.name));
+            const tagUsage = manageEl('span', 'manage-tag-usage', manageUsageLabel(tag.usage_count || 0));
+            tagUsage.setAttribute('data-testid', `manage-tag-usage-${tag.id}`);
+            main.appendChild(tagUsage);
+            main.appendChild(manageTagActions(tag, false));
+            row.appendChild(main);
+
+            const def = manageEl('div', 'manage-tag-def');
+            const textarea = manageEl('textarea', 'manage-tag-def-input');
+            textarea.rows = 2;
+            textarea.placeholder = 'Definition (optional), shown as a tooltip in the picker. Shared by every exam that offers this type.';
+            textarea.setAttribute('data-testid', `manage-tag-def-${tag.id}`);
+            textarea.value = tag.description || '';
+            textarea.dataset.tagId = String(tag.id);
+            textarea.addEventListener('input', () => onTagDefinitionInput(tag.id));
+            def.appendChild(textarea);
+            const save = manageButton('btn btn-sm btn-primary manage-tag-save', 'Save',
+                                      `manage-tag-save-${tag.id}`, 'save', tag.id);
+            save.hidden = true;
+            def.appendChild(save);
+            row.appendChild(def);
+
+            rows.appendChild(row);
+        }
+        groupEl.appendChild(rows);
+        container.appendChild(groupEl);
+    }
+}
+
+/**
+ * Fill "Add from your other exams" with the library types this exam does
+ * not offer. Hidden when there are none.
+ */
+async function refreshManageTagsAddSection() {
+    const section = document.getElementById('manage-tags-add');
+    const list = document.getElementById('manage-tags-add-list');
+    if (!section || !list) return;
+
+    let tree = [];
+    try {
+        tree = (await api.getTagsNotOnExam(currentTagExamName())) || [];
+    } catch (error) {
+        console.error('Error loading error types from other exams:', error);
+        tree = [];
+    }
+
+    list.replaceChildren();
+    section.hidden = tree.length === 0;
+
+    const meta = (node) => {
+        const exams = node.exam_count || 0;
+        const where = exams === 0 ? 'On no exam'
+            : `On ${exams} other ${exams === 1 ? 'exam' : 'exams'}`;
+        return `${where} · ${manageUsageLabel(node.entry_count_all || 0)}`;
+    };
+
+    const typeRow = (node, fallbackColor) => {
+        const row = manageEl('div', 'manage-tag-add-row');
+        row.appendChild(manageSwatch('tag-option-color', node.color || fallbackColor));
+        row.appendChild(manageEl('span', 'manage-tag-name', node.name));
+        row.appendChild(manageEl('span', 'manage-tag-add-meta', meta(node)));
+        row.appendChild(manageButton('btn btn-sm btn-secondary manage-tag-add',
+                                     'Add', `manage-tag-add-${node.id}`, 'add', node.id));
+        return row;
+    };
+
+    for (const node of tree) {
+        if (!node.is_group) {
+            list.appendChild(typeRow(node, null));
+            continue;
+        }
+        const groupEl = manageEl('div', 'manage-tag-add-group');
+        const header = manageEl('div', 'manage-tag-add-group-header');
+        header.appendChild(manageSwatch('tag-group-color', node.color));
+        header.appendChild(manageEl('span', 'manage-tag-group-name', node.name));
+        if (!node.listed) {
+            header.appendChild(manageButton('btn btn-sm btn-ghost manage-tag-add',
+                                            'Add the whole group',
+                                            `manage-tag-add-${node.id}`, 'add', node.id));
+        }
+        groupEl.appendChild(header);
+        for (const child of (node.children || [])) {
+            groupEl.appendChild(typeRow(child, node.color));
+        }
+        list.appendChild(groupEl);
+    }
+}
+
+/**
+ * One delegated listener for every action in the modal, so no id or name is
+ * ever written into an attribute as code.
+ */
+function onManageTagsClick(event) {
+    const button = event.target.closest('[data-manage-action]');
+    if (!button || button.disabled) return;
+    const tagId = parseInt(button.dataset.tagId, 10);
+    if (!Number.isFinite(tagId)) return;
+    switch (button.dataset.manageAction) {
+        case 'remove': confirmRemoveTagFromExam(tagId); break;
+        case 'delete': confirmDeleteTag(tagId); break;
+        case 'save': saveTagDefinition(tagId); break;
+        case 'add': addTagFromOtherExam(tagId); break;
+    }
+}
+
+function initManageTagsModal() {
+    const modal = document.getElementById('manage-tags-modal');
+    if (modal && !modal.dataset.manageWired) {
+        modal.dataset.manageWired = '1';
+        modal.addEventListener('click', onManageTagsClick);
+    }
 }
 
 /**
@@ -2349,35 +3003,78 @@ async function saveTagDefinition(tagId) {
 }
 
 /**
- * Open the delete confirmation modal, filling in the live usage line
+ * Fill and open the confirmation modal for one of the two destructive-ish
+ * actions. Remove is styled as the ordinary action; Delete for good as the
+ * dangerous one.
+ */
+function openTagConfirmModal({ title, question, detail, confirmLabel, danger }) {
+    const iconEl = document.getElementById('delete-tag-modal-icon');
+    if (iconEl) iconEl.hidden = !danger;
+    const titleEl = document.getElementById('delete-tag-modal-title');
+    if (titleEl) titleEl.textContent = title;
+    const nameEl = document.getElementById('delete-tag-modal-name');
+    if (nameEl) nameEl.textContent = question;
+    const usageEl = document.getElementById('delete-tag-modal-usage');
+    if (usageEl) usageEl.textContent = detail;
+    const confirmBtn = document.getElementById('delete-tag-confirm');
+    if (confirmBtn) {
+        confirmBtn.textContent = confirmLabel;
+        confirmBtn.classList.toggle('btn-danger', danger);
+        confirmBtn.classList.toggle('btn-primary', !danger);
+    }
+    Modal.open('delete-tag-modal');
+}
+
+/**
+ * Remove from this exam: the everyday action. Entries keep the type.
+ */
+function confirmRemoveTagFromExam(tagId) {
+    const found = findTagNodeById(tagId);
+    if (!found) return;
+    const count = found.node.usage_count || 0;
+    pendingDeleteTag = { id: tagId, name: found.node.name, isGroup: found.isGroup, mode: 'remove' };
+
+    const keeps = count > 0
+        ? `${manageUsageLabel(count)} on this exam ${count === 1 ? 'carries it and keeps' : 'carry it and keep'} it, and analytics still count it.`
+        : 'No entry on this exam carries it.';
+    openTagConfirmModal({
+        title: 'Remove from this exam?',
+        question: found.isGroup
+            ? `Stop offering the group "${found.node.name}" and its types on this exam?`
+            : `Stop offering "${found.node.name}" on this exam?`,
+        detail: `${keeps} It stays in your other exams, and you can add it back from "Add from your other exams".`,
+        confirmLabel: 'Remove from this exam',
+        danger: false,
+    });
+}
+
+/**
+ * Delete for good: only reachable when no other exam lists the type (4b).
  */
 function confirmDeleteTag(tagId) {
     const found = findTagNodeById(tagId);
     if (!found) return;
 
-    const count = found.node.usage_count || 0;
+    const count = found.node.entry_count_all || 0;
     pendingDeleteTag = {
         id: tagId,
         name: found.node.name,
         isGroup: found.isGroup,
-        usageCount: count
+        usageCount: count,
+        mode: 'delete'
     };
 
-    const nameEl = document.getElementById('delete-tag-modal-name');
-    if (nameEl) {
-        nameEl.textContent = found.isGroup
-            ? `Delete the group "${found.node.name}"?`
-            : `Delete "${found.node.name}"?`;
-    }
-
-    const usageEl = document.getElementById('delete-tag-modal-usage');
-    if (usageEl) {
-        usageEl.textContent = count > 0
-            ? `Used by ${count} ${count === 1 ? 'entry' : 'entries'}. Deleting removes this tag from those entries and from analytics. This cannot be undone.`
-            : 'Not used by any entries. This cannot be undone.';
-    }
-
-    Modal.open('delete-tag-modal');
+    openTagConfirmModal({
+        title: 'Delete for good?',
+        question: found.isGroup
+            ? `Delete the group "${found.node.name}" for good?`
+            : `Delete "${found.node.name}" for good?`,
+        detail: count > 0
+            ? `This removes it from ${manageUsageLabel(count)} in every exam, and from analytics. This cannot be undone.`
+            : 'No entry in any exam carries it. This cannot be undone.',
+        confirmLabel: 'Delete for good',
+        danger: true,
+    });
 }
 
 /**
@@ -2396,51 +3093,77 @@ function cancelDeleteTag() {
     closeDeleteTagModal();
 }
 
+async function refreshAfterTagChange() {
+    // The picker and the modal both redraw from getTagHierarchy.
+    await loadTagHierarchy();
+    renderManageTagsModal();
+    await refreshManageTagsAddSection();
+}
+
 /**
- * Hard-delete the pending tag/group, then refresh chips, picker, and modal
+ * Carry out the pending Remove from this exam, or Delete for good
  */
 async function executeDeleteTag() {
     if (!pendingDeleteTag) return;
-    const { id, name, isGroup } = pendingDeleteTag;
+    const { id, name, isGroup, mode } = pendingDeleteTag;
 
     const confirmBtn = document.getElementById('delete-tag-confirm');
     if (confirmBtn) confirmBtn.disabled = true;
 
     try {
-        const result = await api.deleteTag(id);
-        const affected = (result && result.affected_entries) || 0;
-
-        if (isGroup) {
-            Toast.success('Group Deleted', `Removed "${name}"`);
+        if (mode === 'remove') {
+            const result = await api.removeTagFromExam(currentTagExamName(), id);
+            const kept = (result && result.entries_keeping) || 0;
+            Toast.success('Removed from This Exam',
+                `"${name}" is no longer offered here; ${manageUsageLabel(kept)} keep it.`);
         } else {
-            Toast.success('Error Type Deleted', `Removed "${name}" (untagged ${affected} ${affected === 1 ? 'entry' : 'entries'})`);
-        }
-
-        // Prune from the current selection if present
-        const index = EntryState.formData.tags.findIndex(t => t.id === id);
-        if (index > -1) {
-            EntryState.formData.tags.splice(index, 1);
-            renderTagChips();
-            markDirty();
+            const result = await api.deleteTag(id, currentTagExamName());
+            const affected = (result && result.affected_entries) || 0;
+            if (isGroup) {
+                Toast.success('Group Deleted', `Deleted "${name}" for good`);
+            } else {
+                Toast.success('Error Type Deleted',
+                    `Deleted "${name}" for good (untagged ${manageUsageLabel(affected)})`);
+            }
+            // Prune from the current selection: the type no longer exists
+            const index = EntryState.formData.tags.findIndex(t => t.id === id);
+            if (index > -1) {
+                EntryState.formData.tags.splice(index, 1);
+                renderTagChips();
+                markDirty();
+            }
         }
 
         pendingDeleteTag = null;
         closeDeleteTagModal();
-
-        // Refresh hierarchy (re-renders browse-all + reindexes Fuse) and the modal in place
-        await loadTagHierarchy();
-        renderManageTagsModal();
+        await refreshAfterTagChange();
     } catch (error) {
-        // e.g. stale UI: group became non-empty — bridge returns a user-facing message
-        console.error('Error deleting tag:', error);
-        Toast.error('Delete Failed', error.message || 'Could not delete this error type.');
+        // e.g. stale UI: another exam started offering it, or a group gained
+        // a type. The bridge returns a sentence; show it.
+        console.error('Error changing tag:', error);
+        Toast.error(mode === 'remove' ? 'Remove Failed' : 'Delete Failed',
+                    error.message || 'Could not change this error type.');
         pendingDeleteTag = null;
         closeDeleteTagModal();
-        await loadTagHierarchy();
-        renderManageTagsModal();
+        await refreshAfterTagChange();
     } finally {
         if (confirmBtn) confirmBtn.disabled = false;
     }
+}
+
+/**
+ * Add from your other exams: offer a library type (or group) on this exam
+ */
+async function addTagFromOtherExam(tagId) {
+    try {
+        const result = await api.addTagToExam(currentTagExamName(), tagId);
+        Toast.success('Error Type Added',
+            `"${(result && result.name) || 'Error type'}" is now offered on this exam`);
+    } catch (error) {
+        console.error('Error adding tag to exam:', error);
+        Toast.error('Add Failed', error.message || 'Could not add this error type.');
+    }
+    await refreshAfterTagChange();
 }
 
 // =========================================================================
@@ -2837,10 +3560,24 @@ async function saveEntryAndNext() {
         
         // Count completed entries (non-draft entries)
         const completedCount = EntryState.entries.filter(e => !e.is_draft).length;
-        const allEntriesComplete = completedCount >= totalEntries;
-        
-        // Check if this is the last entry AND all entries are complete
-        if (isLastEntry || allEntriesComplete) {
+        // A session is Complete only when no slot is unfinished (#714): a
+        // draft is a mistake still to finish (#12), and the last slot is not
+        // the end of the work while an earlier one is a draft.
+        const unfinished = firstUnfinishedSlot(totalEntries);
+
+        if (unfinished === -1 && EntryState.completionShown) {
+            // #879: already complete, or already celebrated in this visit.
+            // Save and move on; opening the dialog on every press trapped a
+            // student reviewing a finished session, with Done as the only
+            // way out.
+            if (isLastEntry) {
+                Toast.success('Entry Saved', 'This is the last entry of the session.');
+            } else {
+                Toast.success('Entry Saved', 'Moving to next entry...');
+                await navigateToNextEntry();
+            }
+        } else if (unfinished === -1) {
+            EntryState.completionShown = true;
             // Update session status to completed
             try {
                 await api.updateReviewSession(EntryState.sessionId, {
@@ -2853,7 +3590,16 @@ async function saveEntryAndNext() {
             
             Toast.success('Session Complete!', 'All entries have been saved.');
             showSessionComplete();
+        } else if (isLastEntry) {
+            // A draft again: finishing it is a new completion worth showing.
+            EntryState.completionShown = false;
+            const left = unfinishedSlotCount(totalEntries);
+            Toast.info('Entries still to finish',
+                `${left} entr${left === 1 ? 'y is' : 'ies are'} not finished yet. `
+                + 'Opening the first one.');
+            await navigateToEntry(unfinished);
         } else {
+            EntryState.completionShown = false;
             Toast.success('Entry Saved', 'Moving to next entry...');
             // Move to next entry
             await navigateToNextEntry();
@@ -3043,6 +3789,28 @@ async function navigateToEntry(index) {
     } finally {
         EntryState.isNavigating = false;
     }
+}
+
+/**
+ * The first slot whose entry is a draft or does not exist yet, or -1 when
+ * every slot holds a finished entry (#714). The same "first unfinished"
+ * reading Continue uses on load. entry_order is 1-indexed.
+ */
+function firstUnfinishedSlot(totalEntries) {
+    for (let i = 0; i < totalEntries; i++) {
+        const entry = (EntryState.entries || []).find(e => e.entry_order === i + 1);
+        if (!entry || entry.is_draft) return i;
+    }
+    return -1;
+}
+
+function unfinishedSlotCount(totalEntries) {
+    let n = 0;
+    for (let i = 0; i < totalEntries; i++) {
+        const entry = (EntryState.entries || []).find(e => e.entry_order === i + 1);
+        if (!entry || entry.is_draft) n += 1;
+    }
+    return n;
 }
 
 async function navigateToNextEntry() {
@@ -3385,12 +4153,16 @@ function showSessionComplete() {
         // status here so other entry points to the modal (and any
         // session that arrived here without going through saveEntry's
         // last-entry branch) leave the session in a coherent state.
-        try {
-            await api.updateReviewSession(EntryState.sessionId, {
-                session_status: 'completed',
-            });
-        } catch (updateError) {
-            console.warn('Could not update session status:', updateError);
+        // Only when nothing is unfinished (#714): the modal is reached from
+        // a complete session, and this must not complete one that is not.
+        if (firstUnfinishedSlot(getEntrySlotCount()) === -1) {
+            try {
+                await api.updateReviewSession(EntryState.sessionId, {
+                    session_status: 'completed',
+                });
+            } catch (updateError) {
+                console.warn('Could not update session status:', updateError);
+            }
         }
         // Stay on page so the user can review their entries.
     };
@@ -4089,6 +4861,36 @@ function editNoteSubjects(tempId) {
     const noteEntry = EntryState.noteEditors.find(ne => ne.tempId === tempId);
     if (!noteEntry) return;
 
+    const noteIndex = EntryState.noteEditors.indexOf(noteEntry) + 1;
+    openNoteSubjectChooser({
+        title: `Note ${noteIndex} \u2014 Assign Subjects`,
+        currentIds: noteEntry.linkedSubjectIds || []
+    }).then((ids) => {
+        if (ids === null) return;
+        noteEntry.linkedSubjectIds = ids;
+        renderNoteSubjectChips(tempId, noteEntry.linkedSubjectIds);
+        markDirty();
+    });
+}
+
+/**
+ * The subject-choosing modal the note cards use, as a function any caller
+ * can await (#848 Wave 2a). The Quick note dialog (`quick_note.js`) reaches it
+ * through its `chooseSubjects` option rather than owning a copy, so the two
+ * cannot drift.
+ *
+ * Tick boxes for the entry's own subjects, a search over every subject in the
+ * exam underneath. Resolves to the chosen ids on Save and to `null` on Cancel
+ * or a backdrop click, so a caller can tell "nothing chosen" from "chose
+ * nothing".
+ *
+ * @param {{title?: string, currentIds?: number[]}} options
+ * @returns {Promise<number[]|null>}
+ */
+function openNoteSubjectChooser(options = {}) {
+    const currentLinkedIds = Array.isArray(options.currentIds) ? options.currentIds : [];
+    const dialogTitle = options.title || 'Assign Subjects';
+
     const entrySubjects = [
         ...EntryState.formData.primarySubjects,
         ...EntryState.formData.secondarySubjects
@@ -4096,7 +4898,6 @@ function editNoteSubjects(tempId) {
     const entrySubjectIds = entrySubjects.map(s => s.id);
 
     // Separate linked IDs into entry subjects vs search-added subjects
-    const currentLinkedIds = noteEntry.linkedSubjectIds || [];
     const additionalLinkedIds = currentLinkedIds.filter(id => !entrySubjectIds.includes(id));
 
     // Build additional subject objects from full hierarchy
@@ -4123,8 +4924,7 @@ function editNoteSubjects(tempId) {
     const title = document.createElement('h2');
     title.className = 'modal-title';
     title.id = 'note-subject-modal-title';
-    const noteIndex = EntryState.noteEditors.indexOf(noteEntry) + 1;
-    title.textContent = `Note ${noteIndex} — Assign Subjects`;
+    title.textContent = dialogTitle;
     modal.appendChild(title);
 
     // The dialog semantics go on the SURFACE, never on the backdrop --
@@ -4193,6 +4993,8 @@ function editNoteSubjects(tempId) {
     saveBtn.type = 'button';
     saveBtn.className = 'btn btn-primary';
     saveBtn.textContent = 'Save';
+    saveBtn.dataset.testid = 'note-subject-modal-save';
+    cancelBtn.dataset.testid = 'note-subject-modal-cancel';
 
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
@@ -4200,6 +5002,9 @@ function editNoteSubjects(tempId) {
 
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
+
+    let settle;
+    const result = new Promise((resolve) => { settle = resolve; });
 
     // Initialize search widget
     const widget = new SubjectSearchSelect(widgetContainer, {
@@ -4214,10 +5019,10 @@ function editNoteSubjects(tempId) {
 
     // Close on backdrop click
     backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) closeNoteSubjectModal();
+        if (e.target === backdrop) closeNoteSubjectModal(null);
     });
 
-    cancelBtn.addEventListener('click', closeNoteSubjectModal);
+    cancelBtn.addEventListener('click', () => closeNoteSubjectModal(null));
 
     saveBtn.addEventListener('click', () => {
         // Collect checked entry subjects
@@ -4228,18 +5033,17 @@ function editNoteSubjects(tempId) {
         const searchIds = widget.getSelectedIds();
 
         // Merge (dedup)
-        noteEntry.linkedSubjectIds = [...new Set([...checkedIds, ...searchIds])];
-
-        renderNoteSubjectChips(tempId, noteEntry.linkedSubjectIds);
-        markDirty();
-        closeNoteSubjectModal();
+        closeNoteSubjectModal([...new Set([...checkedIds, ...searchIds])]);
     });
 
-    function closeNoteSubjectModal() {
+    function closeNoteSubjectModal(outcome) {
         widget.destroy();
         backdrop.classList.remove('active');
         backdrop.remove();
+        settle(outcome);
     }
+
+    return result;
 }
 
 function deleteNote(tempId) {
@@ -4248,21 +5052,25 @@ function deleteNote(tempId) {
 
     const noteEntry = EntryState.noteEditors[idx];
 
-    // Resolve attachment_count tracked on the noteEditor (mirrored from
-    // the serializer at load time and refreshed after picker attach).
-    // Default to 1 if missing / not yet persisted.
-    const attachmentCount = (noteEntry.id && typeof noteEntry.attachmentCount === 'number')
-        ? noteEntry.attachmentCount
-        : 1;
-
-    // Single-attachment (or unpersisted) → simple confirm + hard-delete path.
-    if (attachmentCount <= 1) {
+    // An UNSAVED card (no id) has nothing to keep: a plain confirm and the
+    // card goes. Nothing is in the database yet.
+    if (!noteEntry.id) {
         if (!confirm('Delete this note?')) return;
         _deleteNoteHardDelete(tempId);
         return;
     }
 
-    // Many-to-many: open modal with detach-vs-delete-everywhere choice.
+    // Resolve attachment_count tracked on the noteEditor (mirrored from
+    // the serializer at load time and refreshed after picker attach).
+    // Default to 1 if missing.
+    const attachmentCount = typeof noteEntry.attachmentCount === 'number'
+        ? noteEntry.attachmentCount
+        : 1;
+
+    // A saved note opens the modal in both cases (#848 decision 4, owner
+    // 2026-11-04: "offer detach on every note"). On this entry only it is
+    // the three-way choice -- Keep as a note on its own, Delete, Cancel; on
+    // several entries it is Detach from this entry / Delete everywhere.
     _showNoteDeleteModal(tempId, noteEntry.id, attachmentCount);
 }
 
@@ -4284,12 +5092,19 @@ function _detachNoteFromCurrentEntry(tempId, noteId) {
     _removeNoteCardFromUi(tempId);
 }
 
-function _removeNoteCardFromUi(tempId) {
+function _removeNoteCardFromUi(tempId, options = {}) {
     const idx = EntryState.noteEditors.findIndex(ne => ne.tempId === tempId);
     if (idx === -1) return;
     const noteEntry = EntryState.noteEditors[idx];
 
-    if (noteEntry.editor) noteEntry.editor.destroy();
+    if (noteEntry.editor) {
+        // TinyMCE's teardown fires a change event of its own, which reached
+        // onChange -> markDirty() -- measured: a card dropped with
+        // markDirty: false still left the form dirty. The teardown is not an
+        // edit; whether this removal dirties the form is decided below.
+        noteEntry.editor.onChange = null;
+        noteEntry.editor.destroy();
+    }
     EntryState.noteEditors.splice(idx, 1);
 
     const card = document.querySelector(`.note-card[data-temp-id="${tempId}"]`);
@@ -4300,7 +5115,10 @@ function _removeNoteCardFromUi(tempId) {
     EntryState.formData.notesList = (EntryState.formData.notesList || [])
         .filter(n => n.tempId !== tempId);
 
-    markDirty();
+    // A card removed because its row was deleted elsewhere (the Quick note
+    // dialog's Your notes, #848) leaves the entry exactly as it was, so that
+    // caller passes markDirty: false rather than raising the leave guard.
+    if (options.markDirty !== false) markDirty();
     // Re-poll candidates so the "+ Add existing" notes button reflects
     // that this note is now available to re-attach.
     scheduleRefreshAttachCandidates();
@@ -4323,11 +5141,36 @@ function _showNoteDeleteModal(tempId, noteId, attachmentCount) {
         return;
     }
 
-    message.textContent = `This note is attached to ${attachmentCount} entries. Choose how to remove it from this entry.`;
-    detail.innerHTML = `
-        <strong>Detach</strong>: keeps the note (still appears on the other ${attachmentCount - 1} entr${attachmentCount - 1 === 1 ? 'y' : 'ies'}).<br>
-        <strong>Delete everywhere</strong>: removes the note from all ${attachmentCount} entries.
-    `;
+    // One modal, two cases, relabelled by textContent so the three testids
+    // (`note-delete-modal-detach`, `-delete-everywhere`, `-cancel`) keep
+    // meaning "keep it off this entry", "remove it for good" and "do
+    // nothing" in both. Built from nodes (#548).
+    const single = attachmentCount <= 1;
+    const others = attachmentCount - 1;
+    const line = (strong, rest) => {
+        const row = document.createElement('div');
+        const b = document.createElement('strong');
+        b.textContent = strong;
+        row.append(b, document.createTextNode(rest));
+        return row;
+    };
+    detail.replaceChildren();
+    if (single) {
+        message.textContent = 'This note is on this entry only.';
+        detail.append(
+            line('Keep as a note on its own', ': takes it off this entry and keeps it, '
+                + 'with its subjects, under Your notes in Quick note.'),
+            line('Delete', ': removes it for good. There is no undo.'));
+        detachBtn.textContent = 'Keep as a note on its own';
+        deleteBtn.textContent = 'Delete';
+    } else {
+        message.textContent = `This note is attached to ${attachmentCount} entries. Choose how to remove it from this entry.`;
+        detail.append(
+            line('Detach', `: keeps the note (still appears on the other ${others} entr${others === 1 ? 'y' : 'ies'}).`),
+            line('Delete everywhere', `: removes the note from all ${attachmentCount} entries.`));
+        detachBtn.textContent = 'Detach from this entry';
+        deleteBtn.textContent = 'Delete everywhere';
+    }
 
     Modal.open('note-delete-modal');
 
@@ -4339,14 +5182,24 @@ function _showNoteDeleteModal(tempId, noteId, attachmentCount) {
     const onDetach = () => {
         cleanup();
         Modal.close('note-delete-modal');
+        // detachNoteFromEntry frees the note when it removes the note's
+        // last attachment, whichever entry the origin names (PR #864 round
+        // 2) -- a pre-m036 profile can hold a single-entry note whose origin
+        // is a different entry it was detached from by the old Detach. So on
+        // a single-entry note this is "Keep as a note on its own" exactly,
+        // and the toast's "Your notes" is true of every such note.
         _detachNoteFromCurrentEntry(tempId, noteId);
-        Toast.info('Detached', 'Note detached from this entry. It is still available on other entries.');
+        if (single) {
+            Toast.success('Kept as a note on its own', 'Find it under Your notes in Quick note.');
+        } else {
+            Toast.info('Detached', 'Note detached from this entry. It is still available on other entries.');
+        }
     };
     const onDelete = () => {
         cleanup();
         Modal.close('note-delete-modal');
         _deleteNoteHardDelete(tempId);
-        Toast.success('Deleted', `Note removed from all ${attachmentCount} entries.`);
+        Toast.success('Deleted', single ? 'Note deleted.' : `Note removed from all ${attachmentCount} entries.`);
     };
     const onCancel = () => {
         cleanup();
@@ -4658,6 +5511,12 @@ async function initializeEntryPage() {
         
         // Load session data
         EntryState.session = await api.getReviewSession(EntryState.sessionId);
+        // #879: a session that is already complete when the form opens (the
+        // Review button, or editing a finished session's entry) has had its
+        // completion moment. The dialog is shown once per visit, when the
+        // session reaches complete here, never on every Save & Next.
+        EntryState.completionShown = !!EntryState.session
+            && EntryState.session.session_status === 'completed';
         
         if (!EntryState.session) {
             Toast.error('Session Not Found', 'The session could not be loaded.');
@@ -4729,7 +5588,10 @@ async function initializeEntryPage() {
         
         // Load all subjects for fuzzy search (Stage 4)
         await loadAllSubjectsForFuzzySearch();
-        
+
+        // Whether the exam has an axis, for Quick Add's parent rule (#856)
+        await loadExamUsesDimensions();
+
         // Initialize tag fuzzy search index (Stage 4)
         if (typeof fuzzySearch !== 'undefined' && EntryState.tagHierarchy) {
             fuzzySearch.initTagIndex(EntryState.tagHierarchy);
@@ -4744,6 +5606,7 @@ async function initializeEntryPage() {
         initFormInputHandlers();
         initMediaUpload();
         initAddEntries();
+        initQuickNote();
         await initSessionTimer();
         setupTimerHotkeys();
 
@@ -4928,6 +5791,109 @@ async function initQuestionBankButton() {
     window.addEventListener('focus', resync);
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) resync();
+    });
+}
+
+// =========================================================================
+// Quick note (#848 Wave 2a): a note on no entry, from the header or Ctrl+Shift+N
+// =========================================================================
+
+const QUICK_NOTE_KEY = 'N';
+
+/** Is this keydown the Quick note chord, Ctrl+Shift+N? Alt and Meta excluded. */
+function isQuickNoteChord(key, mods) {
+    return !!mods.ctrlKey && !!mods.shiftKey && !mods.altKey && !mods.metaKey
+        && typeof key === 'string' && key.toUpperCase() === QUICK_NOTE_KEY;
+}
+
+/**
+ * The one way the dialog opens, reached by the header button, the document
+ * keydown and the chord forwarded from inside a rich text editor. Nothing
+ * here touches the entry: a free note is not part of it, so no markDirty()
+ * and no formData write anywhere on this path.
+ */
+function openQuickNote() {
+    if (typeof QuickNote === 'undefined') return false;
+    // Not while the form is still gated (#114) -- its button is inert too --
+    // and never over a dialog that is already open.
+    if (!EntryState.isFormReady) return false;
+    if (window.ModalDialog && window.ModalDialog.openSurfaces().length > 0) return false;
+    QuickNote.open({
+        subjects: EntryState.subjects || [],
+        chooseSubjects: (currentIds) => openNoteSubjectChooser({
+            title: 'Quick note \u2014 Assign Subjects',
+            currentIds: currentIds
+        }),
+        onSaved: (note) => {
+            // A free note attached through + Add existing is also a card on
+            // this form, and syncEntryNotes() rewrites every card from the
+            // card's own content on the next save -- so a Your notes edit
+            // that the card did not take would be undone by the autosave.
+            syncNoteCardFromQuickNote(note);
+            // A tagged note is offered by + Add existing straight away.
+            scheduleRefreshAttachCandidates();
+        },
+        onDeleted: (noteId) => {
+            // The row is gone; a card still carrying its id would make every
+            // later save's updateEntryNote fail and leave the form dirty.
+            dropNoteCardForDeletedNote(noteId);
+            scheduleRefreshAttachCandidates();
+        },
+        notify: (title, text, kind) => Toast.show(kind || 'success', title, text)
+    });
+    return true;
+}
+
+/**
+ * A note edited under Your notes that is also a card here: redraw the card
+ * from what the dialog saved, so the entry's next save writes the new text
+ * and tags back rather than the stale ones. Nothing is marked dirty -- the
+ * row already holds exactly this, and the entry itself did not change.
+ */
+function syncNoteCardFromQuickNote(note) {
+    if (!note || !note.id) return;
+    const ne = EntryState.noteEditors.find(e => e.id === note.id);
+    if (!ne) return;
+    if (ne.editor) ne.editor.setContent(note.content_html || '');
+    ne.linkedSubjectIds = Array.isArray(note.linked_subject_ids) ? [...note.linked_subject_ids] : [];
+    renderNoteSubjectChips(ne.tempId, ne.linkedSubjectIds);
+    const listed = (EntryState.formData.notesList || []).find(n => n && n.id === note.id);
+    if (listed) {
+        listed.content_html = note.content_html || '';
+        listed.linked_subject_ids = [...ne.linkedSubjectIds];
+    }
+}
+
+/** A note deleted under Your notes that is also a card here: the card goes, and the form stays as clean as it was. */
+function dropNoteCardForDeletedNote(noteId) {
+    if (!noteId) return;
+    const ne = EntryState.noteEditors.find(e => e.id === noteId);
+    if (!ne) return;
+    _removeNoteCardFromUi(ne.tempId, { markDirty: false });
+}
+
+function initQuickNote() {
+    const btn = document.getElementById('btn-quick-note');
+    if (btn) btn.addEventListener('click', () => openQuickNote());
+
+    // From anywhere on the page, fields included. This is deliberately NOT
+    // part of setupTimerHotkeys(): that handler skips INPUT, TEXTAREA and
+    // contentEditable on purpose, which is right for a timer and wrong for
+    // this -- the moment a student wants a note is mid-sentence.
+    document.addEventListener('keydown', (e) => {
+        if (!isQuickNoteChord(e.key, e)) return;
+        e.preventDefault();
+        openQuickNote();
+    });
+
+    // A keydown inside a TinyMCE iframe never reaches this document, so
+    // rich_editor.js re-emits Ctrl/Meta+Shift chords as this event on the
+    // parent document; preventDefault() here cancels the original press.
+    document.addEventListener('wimi:editor-shortcut', (e) => {
+        const d = e.detail || {};
+        if (!isQuickNoteChord(d.key, d)) return;
+        e.preventDefault();
+        openQuickNote();
     });
 }
 
@@ -5586,6 +6552,7 @@ function stopSessionTimer() {
 
 window.selectSubject = selectSubject;
 window.removeSubject = removeSubject;
+window.openQuickAddSubject = openQuickAddSubject;
 window.toggleTag = toggleTag;
 window.removeTag = removeTag;
 window.selectTagFromDropdown = selectTagFromDropdown;
@@ -5595,6 +6562,7 @@ window.navigateToEntry = navigateToEntry;
 window.dismissKeyboardHint = dismissKeyboardHint;
 window.startNewRound = startNewRound;
 window.cancelNewRound = cancelNewRound;
+window.openQuickNote = openQuickNote;
 
 // =========================================================================
 // Page Initialization

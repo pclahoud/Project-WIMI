@@ -6,6 +6,50 @@
  */
 
 class EntryBrowser {
+    /**
+     * Every filter, in its "not filtering" state.
+     *
+     * The #898 fields, each wired into all six places (this state,
+     * parseUrlParams, filterParams, clearAllFilters, the chips and
+     * removeFilter) -- a field missed in one of them is a half-working
+     * filter:
+     *
+     * - difficultyLevels: rated one of these (1-5);
+     * - timeMin (inclusive) / timeMax (exclusive): seconds, either implying
+     *   a recorded time; numbers, because the card's median can end in .5;
+     * - missingAny: 'difficulty' and/or 'time', matching an entry missing
+     *   EITHER of those named;
+     * - tagMode: how several tagIds combine, 'any' or 'all';
+     * - untagged: carries no error type, exclusive with tagIds;
+     * - countedSubjectId / countedParentId: the subject deep dive's own
+     *   counting population (primary-only), which the difficulty and time
+     *   card links through. Not the Subject filter, which finds secondary
+     *   tags too.
+     */
+    static emptyFilters() {
+        return {
+            searchQuery: '',
+            fieldFilters: {},
+            subjectIds: [],
+            includeChildSubjects: false,
+            subjectMode: 'or',
+            tagIds: [],
+            tagMode: 'any',
+            untagged: false,
+            difficultyLevels: [],
+            timeMin: null,
+            timeMax: null,
+            missingAny: [],
+            countedSubjectId: null,
+            countedParentId: null,
+            dateFrom: null,
+            dateTo: null,
+            sessionId: null,
+            sortBy: 'date_desc',
+            isDraft: null
+        };
+    }
+
     constructor() {
         // State
         this.examContextId = null;
@@ -15,20 +59,9 @@ class EntryBrowser {
         this.currentPage = 1;
         this.perPage = 20;
         
-        // Filter state
-        this.filters = {
-            searchQuery: '',
-            fieldFilters: {},
-            subjectIds: [],
-            includeChildSubjects: false,
-            subjectMode: 'or',
-            tagIds: [],
-            dateFrom: null,
-            dateTo: null,
-            sessionId: null,
-            sortBy: 'date_desc',
-            isDraft: null
-        };
+        // Filter state. emptyFilters() is the one definition of "no
+        // filter", used here and by clearAllFilters().
+        this.filters = EntryBrowser.emptyFilters();
 
         // The Date preset last APPLIED (#521). The highlighted preset in the
         // dropdown is only a pending choice; this is what is in force, and
@@ -214,6 +247,44 @@ class EntryBrowser {
         if (params.get('session')) {
             this.filters.sessionId = parseInt(params.get('session'));
         }
+
+        // #898, the keys the difficulty and time card links with
+        // (difficulty_time_links.js builds them). A malformed value is
+        // dropped rather than guessed at.
+        const intList = (text) => (text || '').split(',')
+            .map(x => parseInt(x, 10)).filter(n => Number.isInteger(n));
+        const seconds = (text) => {
+            if (text === null || text.trim() === '') return null;
+            const n = parseFloat(text);
+            return Number.isFinite(n) && n >= 0 ? n : null;
+        };
+        if (params.get('tags')) {
+            this.filters.tagIds = intList(params.get('tags'));
+        }
+        if (params.get('tag_mode') === 'all') {
+            this.filters.tagMode = 'all';
+        }
+        if (['1', 'true'].includes(params.get('untagged'))) {
+            // Exclusive with picked types, as the request is.
+            this.filters.untagged = true;
+            this.filters.tagIds = [];
+        }
+        if (params.get('difficulty')) {
+            this.filters.difficultyLevels =
+                intList(params.get('difficulty')).filter(d => d >= 1 && d <= 5);
+        }
+        this.filters.timeMin = seconds(params.get('time_min'));
+        this.filters.timeMax = seconds(params.get('time_max'));
+        if (params.get('missing')) {
+            this.filters.missingAny = params.get('missing').split(',')
+                .filter(w => w === 'difficulty' || w === 'time');
+        }
+        const counted = parseInt(params.get('counted_subject'), 10);
+        if (Number.isInteger(counted)) {
+            this.filters.countedSubjectId = counted;
+            const parent = parseInt(params.get('counted_parent'), 10);
+            this.filters.countedParentId = Number.isInteger(parent) ? parent : null;
+        }
     }
     
     cacheElements() {
@@ -232,24 +303,38 @@ class EntryBrowser {
             subjectFilterBtn: document.getElementById('subjectFilterBtn'),
             tagFilterBtn: document.getElementById('tagFilterBtn'),
             dateFilterBtn: document.getElementById('dateFilterBtn'),
+            difficultyFilterBtn: document.getElementById('difficultyFilterBtn'),
+            timeFilterBtn: document.getElementById('timeFilterBtn'),
             sessionFilterBtn: document.getElementById('sessionFilterBtn'),
             
             // Filter values
             subjectFilterValue: document.getElementById('subjectFilterValue'),
             tagFilterValue: document.getElementById('tagFilterValue'),
             dateFilterValue: document.getElementById('dateFilterValue'),
+            difficultyFilterValue: document.getElementById('difficultyFilterValue'),
+            timeFilterValue: document.getElementById('timeFilterValue'),
             sessionFilterValue: document.getElementById('sessionFilterValue'),
             
             // Dropdowns
             subjectDropdown: document.getElementById('subjectDropdown'),
             tagDropdown: document.getElementById('tagDropdown'),
             dateDropdown: document.getElementById('dateDropdown'),
+            difficultyDropdown: document.getElementById('difficultyDropdown'),
+            timeDropdown: document.getElementById('timeDropdown'),
             sessionDropdown: document.getElementById('sessionDropdown'),
             
             // Dropdown content
             subjectList: document.getElementById('subjectList'),
             tagList: document.getElementById('tagList'),
             sessionList: document.getElementById('sessionList'),
+            difficultyList: document.getElementById('difficultyList'),
+
+            // #898 controls
+            missingDifficulty: document.getElementById('missingDifficulty'),
+            missingTime: document.getElementById('missingTime'),
+            timeMin: document.getElementById('timeMin'),
+            timeMax: document.getElementById('timeMax'),
+            untaggedOnly: document.getElementById('untaggedOnly'),
 
             // Dropdown search inputs
             subjectSearch: document.getElementById('subjectSearch'),
@@ -308,6 +393,8 @@ class EntryBrowser {
         this.setupDropdown('tag');
         this.setupDropdown('date');
         this.setupDropdown('session');
+        this.setupDropdown('difficulty');
+        this.setupDropdown('time');
 
         // Subject dropdown search
         if (this.elements.subjectSearch) {
@@ -331,7 +418,9 @@ class EntryBrowser {
                 { value: 'date_desc', label: 'Date (Newest)' },
                 { value: 'date_asc', label: 'Date (Oldest)' },
                 { value: 'difficulty_desc', label: 'Difficulty (High→Low)' },
-                { value: 'difficulty_asc', label: 'Difficulty (Low→High)' }
+                { value: 'difficulty_asc', label: 'Difficulty (Low→High)' },
+                { value: 'time_desc', label: 'Time spent (Longest)' },
+                { value: 'time_asc', label: 'Time spent (Shortest)' }
             ],
             value: this.filters.sortBy,
             onChange: (value) => {
@@ -406,6 +495,58 @@ class EntryBrowser {
             this.applyTagFilter();
         });
         
+        // No error type is exclusive with the types (#898): ticking one
+        // side unticks the other, so the panel never shows a pair the
+        // request would refuse.
+        this.elements.untaggedOnly?.addEventListener('change', (e) => {
+            if (e.target.checked) this.clearTagSelection({ keepUntagged: true });
+        });
+        this.elements.tagList?.addEventListener('change', (e) => {
+            if (e.target.matches('input[type="checkbox"]') && e.target.checked
+                    && this.elements.untaggedOnly) {
+                this.elements.untaggedOnly.checked = false;
+            }
+        });
+
+        // Difficulty and time spent (#898). "Not rated" and the five levels
+        // exclude each other, as do "No time recorded" and the two bounds.
+        document.getElementById('clearDifficulty')?.addEventListener('click', () => {
+            this.clearDifficultySelection();
+        });
+        document.getElementById('applyDifficulty')?.addEventListener('click', () => {
+            this.applyDifficultyFilter();
+        });
+        this.elements.missingDifficulty?.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.elements.difficultyList.querySelectorAll('input[type="checkbox"]')
+                    .forEach(cb => { cb.checked = false; });
+            }
+        });
+        this.elements.difficultyList?.addEventListener('change', (e) => {
+            if (e.target.checked && this.elements.missingDifficulty) {
+                this.elements.missingDifficulty.checked = false;
+            }
+        });
+        document.getElementById('clearTime')?.addEventListener('click', () => {
+            this.clearTimeInputs();
+        });
+        document.getElementById('applyTime')?.addEventListener('click', () => {
+            this.applyTimeFilter();
+        });
+        this.elements.missingTime?.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.elements.timeMin.value = '';
+                this.elements.timeMax.value = '';
+            }
+        });
+        [this.elements.timeMin, this.elements.timeMax].forEach(input => {
+            input?.addEventListener('input', () => {
+                if (input.value !== '' && this.elements.missingTime) {
+                    this.elements.missingTime.checked = false;
+                }
+            });
+        });
+
         // Date filter controls
         document.querySelectorAll('.date-preset').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -438,6 +579,11 @@ class EntryBrowser {
                 if (name === 'date') {
                     this.syncDateControlsToApplied();
                 }
+                // #521's rule for the #898 panels: open on what is in
+                // force, never on an abandoned, unapplied choice.
+                if (name === 'difficulty' || name === 'time') {
+                    this.syncFilterControls();
+                }
                 filterGroup.classList.add('open');
                 this.startTour();
             }
@@ -464,6 +610,12 @@ class EntryBrowser {
                 this.elements.examBadge.style.display = 'none';
             }
             
+            // The #898 panels need no bridge data: draw them now, on the
+            // state parseUrlParams() read, so a link from the difficulty and
+            // time card opens with its filters visible as well as applied.
+            this.renderDifficultyList();
+            this.syncFilterControls();
+
             // Load filter data
             await Promise.all([
                 this.loadSubjects(),
@@ -564,6 +716,7 @@ class EntryBrowser {
         try {
             this.tags = await api.getTagsForFilter(this.examContextId);
             this.renderTagList();
+            this.syncFilterControls();
         } catch (error) {
             console.error('Failed to load tags:', error);
         }
@@ -594,6 +747,77 @@ class EntryBrowser {
         }
     }
     
+    /**
+     * The filters in force, as the request parameters that carry them.
+     *
+     * #702: loadEntries() and showEmpty() each used to decide on their own
+     * what counted as a filter, and showEmpty()'s hand-kept list missed three:
+     * a prefix-only search (notes:warfarin leaves searchQuery empty and puts
+     * everything in fieldFilters), a custom range with only a To date, and
+     * "finished entries only" (isDraft === false, which is falsy). Each of
+     * those, matching nothing, told the student "No entries yet" on an exam
+     * full of entries. Both now read this one function, so a filter the
+     * request sends is a filter the empty state counts.
+     */
+    filterParams() {
+        const params = {};
+        if (this.filters.searchQuery) {
+            params.search_query = this.filters.searchQuery;
+        }
+        if (this.filters.fieldFilters && Object.keys(this.filters.fieldFilters).length > 0) {
+            params.field_filters = this.filters.fieldFilters;
+        }
+        if (this.filters.subjectIds.length > 0) {
+            params.subject_ids = this.filters.subjectIds;
+            params.include_child_subjects = this.filters.includeChildSubjects;
+            if (this.filters.subjectMode === 'and') {
+                params.subject_mode = 'and';
+            }
+        }
+        if (this.filters.tagIds.length > 0) {
+            params.tag_ids = this.filters.tagIds;
+            // 'any' is the default and is not sent, so a page with no tag
+            // filter sends no tag key at all (the #702 negative control).
+            if (this.filters.tagMode === 'all') {
+                params.tag_mode = 'all';
+            }
+        }
+        if (this.filters.untagged) {
+            params.untagged = true;
+        }
+        if (this.filters.difficultyLevels.length > 0) {
+            params.difficulty_levels = this.filters.difficultyLevels;
+        }
+        if (this.filters.timeMin !== null) {
+            params.time_min_seconds = this.filters.timeMin;
+        }
+        if (this.filters.timeMax !== null) {
+            params.time_max_seconds = this.filters.timeMax;
+        }
+        if (this.filters.missingAny.length > 0) {
+            params.missing_any = this.filters.missingAny;
+        }
+        if (this.filters.countedSubjectId !== null) {
+            params.counted_subject_id = this.filters.countedSubjectId;
+            if (this.filters.countedParentId !== null) {
+                params.counted_parent_id = this.filters.countedParentId;
+            }
+        }
+        if (this.filters.dateFrom) {
+            params.date_from = this.filters.dateFrom;
+        }
+        if (this.filters.dateTo) {
+            params.date_to = this.filters.dateTo;
+        }
+        if (this.filters.sessionId) {
+            params.session_id = this.filters.sessionId;
+        }
+        if (this.filters.isDraft !== null) {
+            params.is_draft = this.filters.isDraft;
+        }
+        return params;
+    }
+
     async loadEntries(append = false) {
         try {
             if (!append) {
@@ -606,38 +830,12 @@ class EntryBrowser {
                 sort_by: this.filters.sortBy
             };
             
-            // Add filters
+            // Add filters. The exam is scope, not a filter; everything else
+            // comes from filterParams(), which showEmpty() reads too (#702).
             if (this.examContextId) {
                 params.exam_context_id = this.examContextId;
             }
-            if (this.filters.searchQuery) {
-                params.search_query = this.filters.searchQuery;
-            }
-            if (this.filters.fieldFilters && Object.keys(this.filters.fieldFilters).length > 0) {
-                params.field_filters = this.filters.fieldFilters;
-            }
-            if (this.filters.subjectIds.length > 0) {
-                params.subject_ids = this.filters.subjectIds;
-                params.include_child_subjects = this.filters.includeChildSubjects;
-                if (this.filters.subjectMode === 'and') {
-                    params.subject_mode = 'and';
-                }
-            }
-            if (this.filters.tagIds.length > 0) {
-                params.tag_ids = this.filters.tagIds;
-            }
-            if (this.filters.dateFrom) {
-                params.date_from = this.filters.dateFrom;
-            }
-            if (this.filters.dateTo) {
-                params.date_to = this.filters.dateTo;
-            }
-            if (this.filters.sessionId) {
-                params.session_id = this.filters.sessionId;
-            }
-            if (this.filters.isDraft !== null) {
-                params.is_draft = this.filters.isDraft;
-            }
+            Object.assign(params, this.filterParams());
             
             const result = await api.getEntriesPaginated(params);
             
@@ -1179,16 +1377,67 @@ class EntryBrowser {
         });
     }
 
+    /**
+     * The error-type list: the exam's groups, any types it lists outside a
+     * group, and -- from getTagsForFilter since #898 -- a last group of
+     * types its entries still carry that it no longer lists. Removing a type
+     * from an exam decides only what can be added to an entry (#888), so
+     * those entries still count on the analytics, and the filter has to be
+     * able to find them.
+     */
     renderTagList() {
         const container = this.elements.tagList;
         container.innerHTML = '';
+
+        const makeItem = (tag, meta) => {
+            const item = document.createElement('label');
+            item.className = 'tag-item';
+            item.setAttribute('data-testid', `browser-tag-item-${tag.id}`);
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = tag.id;
+            checkbox.checked = this.filters.tagIds.includes(tag.id);
+            checkbox.setAttribute('data-testid', `browser-tag-checkbox-${tag.id}`);
+
+            const dot = document.createElement('span');
+            dot.className = 'tag-color-dot';
+            if (tag.color) dot.style.backgroundColor = tag.color;
+
+            const tagName = document.createElement('span');
+            tagName.className = 'tag-name';
+            tagName.textContent = tag.name;
+
+            item.appendChild(checkbox);
+            item.appendChild(dot);
+            item.appendChild(tagName);
+            if (meta) {
+                const note = document.createElement('span');
+                note.className = 'tag-item-meta';
+                note.textContent = meta;
+                item.appendChild(note);
+            }
+            return item;
+        };
+
+        const ungrouped = this.tags.filter(node => !node.is_group);
+        if (ungrouped.length) {
+            const looseDiv = document.createElement('div');
+            looseDiv.className = 'tag-group';
+            looseDiv.setAttribute('data-testid', 'browser-tag-group-ungrouped');
+            ungrouped.forEach(tag => looseDiv.appendChild(makeItem(tag)));
+            container.appendChild(looseDiv);
+        }
 
         this.tags.forEach(group => {
             if (!group.is_group) return;
 
             const groupDiv = document.createElement('div');
             groupDiv.className = 'tag-group';
-            if (group.id != null) {
+            if (group.not_listed_group) {
+                groupDiv.classList.add('tag-group-not-listed');
+                groupDiv.setAttribute('data-testid', 'browser-tag-group-not-listed');
+            } else if (group.id != null) {
                 groupDiv.setAttribute('data-testid', `browser-tag-group-${group.id}`);
             }
 
@@ -1197,7 +1446,7 @@ class EntryBrowser {
 
             const colorDot = document.createElement('span');
             colorDot.className = 'tag-group-color';
-            colorDot.style.backgroundColor = group.color;
+            if (group.color) colorDot.style.backgroundColor = group.color;
 
             const name = document.createElement('span');
             name.textContent = group.name;
@@ -1206,34 +1455,47 @@ class EntryBrowser {
             header.appendChild(name);
             groupDiv.appendChild(header);
 
+            if (group.not_listed_group) {
+                const hint = document.createElement('p');
+                hint.className = 'tag-group-hint';
+                hint.textContent = 'Removed from this exam\'s list, still on some of its entries.';
+                groupDiv.appendChild(hint);
+            }
+
             if (group.children) {
                 group.children.forEach(tag => {
-                    const item = document.createElement('label');
-                    item.className = 'tag-item';
-                    item.setAttribute('data-testid', `browser-tag-item-${tag.id}`);
-
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.value = tag.id;
-                    checkbox.checked = this.filters.tagIds.includes(tag.id);
-                    checkbox.setAttribute('data-testid', `browser-tag-checkbox-${tag.id}`);
-
-                    const dot = document.createElement('span');
-                    dot.className = 'tag-color-dot';
-                    dot.style.backgroundColor = tag.color;
-
-                    const tagName = document.createElement('span');
-                    tagName.className = 'tag-name';
-                    tagName.textContent = tag.name;
-
-                    item.appendChild(checkbox);
-                    item.appendChild(dot);
-                    item.appendChild(tagName);
-                    groupDiv.appendChild(item);
+                    const meta = group.not_listed_group && tag.group_name
+                        ? tag.group_name : '';
+                    groupDiv.appendChild(makeItem(tag, meta));
                 });
             }
 
             container.appendChild(groupDiv);
+        });
+    }
+
+    /** The difficulty panel's five levels, in WimiDifficulty's words (#46). */
+    renderDifficultyList() {
+        const container = this.elements.difficultyList;
+        if (!container) return;
+        container.innerHTML = '';
+        window.WimiDifficulty.LEVELS.forEach(level => {
+            const item = document.createElement('label');
+            item.className = 'filter-check-item';
+            item.setAttribute('data-testid', `browser-difficulty-item-${level.value}`);
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = level.value;
+            checkbox.checked = this.filters.difficultyLevels.includes(level.value);
+            checkbox.setAttribute('data-testid', `browser-difficulty-checkbox-${level.value}`);
+
+            const name = document.createElement('span');
+            name.textContent = level.label;
+
+            item.appendChild(checkbox);
+            item.appendChild(name);
+            container.appendChild(item);
         });
     }
     
@@ -1382,21 +1644,172 @@ class EntryBrowser {
         });
     }
     
+    /**
+     * Put the ticked types, the match mode and No error type in force.
+     *
+     * #898: this used to rebuild tagIds from the ticked boxes alone, so a
+     * type that arrived in the URL with no box in the list -- one no longer
+     * on the exam's list, before getTagsForFilter offered those -- was
+     * silently dropped by Apply, and the page went on filtering by fewer
+     * types than the link asked for. A picked type the list does not draw
+     * is now kept; its chip's cross is the way to take it off.
+     */
     applyTagFilter() {
-        const checkboxes = this.elements.tagList.querySelectorAll('input[type="checkbox"]:checked');
-        this.filters.tagIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
-        
-        const count = this.filters.tagIds.length;
-        this.elements.tagFilterValue.textContent = count === 0 ? 'All' : `${count} selected`;
-        
+        const boxes = Array.from(this.elements.tagList.querySelectorAll('input[type="checkbox"]'));
+        const drawn = new Set(boxes.map(cb => parseInt(cb.value, 10)));
+        const ticked = boxes.filter(cb => cb.checked).map(cb => parseInt(cb.value, 10));
+        const undrawn = this.filters.tagIds.filter(id => !drawn.has(id));
+
+        this.filters.untagged = !!this.elements.untaggedOnly?.checked;
+        this.filters.tagIds = this.filters.untagged
+            ? []
+            : [...new Set([...ticked, ...undrawn])];
+        const mode = document.querySelector('input[name="tagMatchMode"]:checked');
+        this.filters.tagMode = mode && mode.value === 'all' ? 'all' : 'any';
+
+        this.syncFilterControls();
         this.closeAllDropdowns();
         this.resetAndLoad();
     }
-    
-    clearTagSelection() {
+
+    clearTagSelection({ keepUntagged = false } = {}) {
         this.elements.tagList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             cb.checked = false;
         });
+        if (!keepUntagged && this.elements.untaggedOnly) {
+            this.elements.untaggedOnly.checked = false;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Difficulty and time spent (#898)
+    // ---------------------------------------------------------------
+
+    applyDifficultyFilter() {
+        const ticked = this.elements.difficultyList
+            .querySelectorAll('input[type="checkbox"]:checked');
+        this.filters.difficultyLevels = Array.from(ticked)
+            .map(cb => parseInt(cb.value, 10)).sort((a, b) => a - b);
+        this.setMissing('difficulty', !!this.elements.missingDifficulty?.checked);
+        this.syncFilterControls();
+        this.closeAllDropdowns();
+        this.resetAndLoad();
+    }
+
+    applyTimeFilter() {
+        const read = (input) => {
+            if (!input || input.value.trim() === '') return null;
+            const n = parseFloat(input.value);
+            return Number.isFinite(n) && n >= 0 ? n : null;
+        };
+        this.filters.timeMin = read(this.elements.timeMin);
+        this.filters.timeMax = read(this.elements.timeMax);
+        this.setMissing('time', !!this.elements.missingTime?.checked);
+        this.syncFilterControls();
+        this.closeAllDropdowns();
+        this.resetAndLoad();
+    }
+
+    /** Add or take away one word of missingAny, keeping the other. */
+    setMissing(what, on) {
+        const rest = this.filters.missingAny.filter(w => w !== what);
+        this.filters.missingAny = on ? [...rest, what] : rest;
+    }
+
+    clearDifficultySelection() {
+        this.elements.difficultyList?.querySelectorAll('input[type="checkbox"]')
+            .forEach(cb => { cb.checked = false; });
+        if (this.elements.missingDifficulty) this.elements.missingDifficulty.checked = false;
+    }
+
+    clearTimeInputs() {
+        if (this.elements.timeMin) this.elements.timeMin.value = '';
+        if (this.elements.timeMax) this.elements.timeMax.value = '';
+        if (this.elements.missingTime) this.elements.missingTime.checked = false;
+    }
+
+    /**
+     * Make the #898 controls and the three button labels say what is in
+     * force: called after the URL is read, after every Apply, after a chip's
+     * cross and after Clear all, and when the difficulty or time panel opens.
+     */
+    syncFilterControls() {
+        const f = this.filters;
+        const el = this.elements || {};
+
+        if (el.tagFilterValue) {
+            const n = f.tagIds.length;
+            el.tagFilterValue.textContent = f.untagged ? 'None'
+                : n === 0 ? 'All'
+                : (n > 1 && f.tagMode === 'all') ? `${n} selected, all`
+                : `${n} selected`;
+        }
+        document.querySelectorAll('input[name="tagMatchMode"]').forEach(radio => {
+            radio.checked = radio.value === f.tagMode;
+        });
+        if (el.untaggedOnly) el.untaggedOnly.checked = f.untagged;
+        if (f.untagged && el.tagList) {
+            this.clearTagSelection({ keepUntagged: true });
+        }
+
+        if (el.difficultyList) {
+            el.difficultyList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = f.difficultyLevels.includes(parseInt(cb.value, 10));
+            });
+        }
+        const noRating = f.missingAny.includes('difficulty');
+        const noTime = f.missingAny.includes('time');
+        if (el.missingDifficulty) el.missingDifficulty.checked = noRating;
+        if (el.difficultyFilterValue) {
+            const n = f.difficultyLevels.length;
+            el.difficultyFilterValue.textContent = n
+                ? `${n} selected`
+                : noRating ? 'Not rated' : 'All';
+        }
+
+        if (el.timeMin) el.timeMin.value = f.timeMin === null ? '' : String(f.timeMin);
+        if (el.timeMax) el.timeMax.value = f.timeMax === null ? '' : String(f.timeMax);
+        if (el.missingTime) el.missingTime.checked = noTime;
+        if (el.timeFilterValue) {
+            const hasRange = f.timeMin !== null || f.timeMax !== null;
+            el.timeFilterValue.textContent = hasRange
+                ? window.WimiDifficultyTimeLinks.timeRangeLabel(f.timeMin, f.timeMax)
+                : noTime ? 'None recorded' : 'All';
+        }
+    }
+
+    /** Find a node by id in a {children}-tree (error types or subjects). */
+    findInTree(nodes, id) {
+        for (const node of nodes || []) {
+            if (node.id === id) return node;
+            const found = this.findInTree(node.children, id);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    /** "Error type: Rushed", "Error types: A or B", "Error types: A and B". */
+    tagChipLabel() {
+        const names = this.filters.tagIds.map(id => {
+            const node = this.findInTree(this.tags, id);
+            return node ? node.name : `error type ${id}`;
+        });
+        if (names.length === 1) return `Error type: ${names[0]}`;
+        const joiner = this.filters.tagMode === 'all' ? ' and ' : ' or ';
+        return `Error types: ${names.join(joiner)}`;
+    }
+
+    /** "Counted under: Shared", with ", as part of <parent>" for a context. */
+    countedChipLabel() {
+        const name = (id) => {
+            const node = this.findInTree(this.subjects, id);
+            return node ? node.name : `subject ${id}`;
+        };
+        let label = `Counted under: ${name(this.filters.countedSubjectId)}`;
+        if (this.filters.countedParentId !== null) {
+            label += `, as part of ${name(this.filters.countedParentId)}`;
+        }
+        return label;
     }
     
     /**
@@ -1483,18 +1896,7 @@ class EntryBrowser {
     }
     
     clearAllFilters() {
-        this.filters = {
-            searchQuery: '',
-            fieldFilters: {},
-            subjectIds: [],
-            includeChildSubjects: false,
-            tagIds: [],
-            dateFrom: null,
-            dateTo: null,
-            sessionId: null,
-            sortBy: 'date_desc',
-            isDraft: null
-        };
+        this.filters = EntryBrowser.emptyFilters();
         
         // Reset UI
         this.elements.searchInput.value = '';
@@ -1511,7 +1913,10 @@ class EntryBrowser {
         this.clearSubjectSelection();
         this.clearTagSelection();
         this.clearSessionSelection();
-        
+        this.clearDifficultySelection();
+        this.clearTimeInputs();
+        this.syncFilterControls();
+
         this.resetDateControls();
 
         this.resetAndLoad();
@@ -1536,7 +1941,28 @@ class EntryBrowser {
             chips.push({ label: subjectLabel, type: 'subject' });
         }
         if (this.filters.tagIds.length > 0) {
-            chips.push({ label: `${this.filters.tagIds.length} tag(s)`, type: 'tag' });
+            chips.push({ label: this.tagChipLabel(), type: 'tag' });
+        }
+        if (this.filters.untagged) {
+            chips.push({ label: 'No error type', type: 'untagged' });
+        }
+        if (this.filters.difficultyLevels.length > 0) {
+            const words = [...this.filters.difficultyLevels].sort((a, b) => a - b)
+                .map(d => window.WimiDifficulty.labelFor(d) || String(d));
+            chips.push({ label: `Difficulty: ${words.join(', ')}`, type: 'difficulty' });
+        }
+        if (this.filters.timeMin !== null || this.filters.timeMax !== null) {
+            const range = window.WimiDifficultyTimeLinks.timeRangeLabel(
+                this.filters.timeMin, this.filters.timeMax);
+            chips.push({ label: `Time: ${range}`, type: 'time' });
+        }
+        if (this.filters.missingAny.length > 0) {
+            const missing = ['difficulty', 'time']
+                .filter(w => this.filters.missingAny.includes(w));
+            chips.push({ label: `Missing ${missing.join(' or ')}`, type: 'missing' });
+        }
+        if (this.filters.countedSubjectId !== null) {
+            chips.push({ label: this.countedChipLabel(), type: 'counted' });
         }
         if (this.filters.dateFrom || this.filters.dateTo) {
             chips.push({ label: 'Date range', type: 'date' });
@@ -1593,8 +2019,32 @@ class EntryBrowser {
                 break;
             case 'tag':
                 this.filters.tagIds = [];
-                this.elements.tagFilterValue.textContent = 'All';
+                this.filters.tagMode = 'any';
                 this.clearTagSelection();
+                this.syncFilterControls();
+                break;
+            case 'untagged':
+                this.filters.untagged = false;
+                this.syncFilterControls();
+                break;
+            case 'difficulty':
+                this.filters.difficultyLevels = [];
+                this.clearDifficultySelection();
+                this.syncFilterControls();
+                break;
+            case 'time':
+                this.filters.timeMin = null;
+                this.filters.timeMax = null;
+                this.clearTimeInputs();
+                this.syncFilterControls();
+                break;
+            case 'missing':
+                this.filters.missingAny = [];
+                this.syncFilterControls();
+                break;
+            case 'counted':
+                this.filters.countedSubjectId = null;
+                this.filters.countedParentId = null;
                 break;
             case 'date':
                 this.resetDateControls();
@@ -1670,12 +2120,8 @@ class EntryBrowser {
         this.elements.paginationArea.style.display = 'none';
         
         // Update empty state message based on filters
-        const hasFilters = this.filters.searchQuery || 
-                          this.filters.subjectIds.length > 0 ||
-                          this.filters.tagIds.length > 0 ||
-                          this.filters.dateFrom ||
-                          this.filters.sessionId ||
-                          this.filters.isDraft;
+        // #702: whatever loadEntries() sent as a filter counts here.
+        const hasFilters = Object.keys(this.filterParams()).length > 0;
         
         document.getElementById('emptyTitle').textContent = hasFilters 
             ? 'No entries match your filters'

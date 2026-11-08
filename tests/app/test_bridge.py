@@ -306,7 +306,63 @@ class TestExamContextBridge:
         
         assert data['exam_description'] == "Updated description"
         assert data['precision'] == 2
-    
+
+    def test_update_exam_context_settings_renames_and_clears_the_date(
+            self, bridge_with_exam: DatabaseBridge):
+        """#718: the wizard sends exam_name, and '' for a cleared date.
+
+        Both were dropped before: no layer took a name, and '' became None,
+        which the domain reads as "not supplied".
+        """
+        exam_id = assert_success(bridge_with_exam.getAllExamContexts(True))[0]['id']
+
+        data = assert_success(bridge_with_exam.updateExamContextSettings(
+            exam_id, json.dumps({"exam_name": "Renamed Exam", "exam_date": ""})))
+
+        assert data['exam_name'] == "Renamed Exam"
+        assert data['exam_date'] is None
+        stored = assert_success(bridge_with_exam.getAllExamContexts(True))[0]
+        assert (stored['exam_name'], stored['exam_date']) == ("Renamed Exam", None)
+
+    def test_a_refused_rename_is_a_failure_carrying_the_sentence(
+            self, bridge_with_exam: DatabaseBridge):
+        """#718, #240: a taken name is success=false with a sentence."""
+        bridge_with_exam.createExamContext("Other Exam", "", "", "", "", "")
+        exams = assert_success(bridge_with_exam.getAllExamContexts(True))
+        exam_id = next(e['id'] for e in exams if e['exam_name'] == "Test Exam")
+
+        payload = json.loads(bridge_with_exam.updateExamContextSettings(
+            exam_id, json.dumps({"exam_name": "Other Exam"})))
+
+        assert payload['success'] is False
+        assert payload['error'].startswith('Another exam is already called "Other Exam"')
+
+    def test_save_exam_edit_is_all_or_nothing_and_says_what_failed(
+            self, bridge_with_exam: DatabaseBridge):
+        """#874: one slot, one transaction, and a failure names its part.
+
+        The wizard used to send the settings, the length and each axis
+        separately, and swallow every failure after the first.
+        """
+        exam_id = assert_success(bridge_with_exam.getAllExamContexts(True))[0]['id']
+        bad = {"settings": {"exam_name": "Renamed", "exam_description": "after"},
+               "length": {"kind": "range", "min": 300, "max": 100, "typical": 200},
+               "dimensions": None}
+
+        payload = json.loads(bridge_with_exam.saveExamEdit(exam_id, json.dumps(bad)))
+
+        assert payload['success'] is False
+        assert payload['error'].startswith(
+            "Nothing was saved. The exam's length could not be saved"), payload['error']
+        stored = assert_success(bridge_with_exam.getAllExamContexts(True))[0]
+        assert (stored['exam_name'], stored['exam_description']) == (
+            "Test Exam", "Test description"), "a refused edit still saved its details"
+
+        good = dict(bad, length={"kind": "fixed", "min": "280", "max": 280,
+                                 "typical": 280, "note": ""})
+        data = assert_success(bridge_with_exam.saveExamEdit(exam_id, json.dumps(good)))
+        assert data['exam_name'] == "Renamed"
+
     def test_delete_exam_context(self, bridge_with_exam: DatabaseBridge):
         """Test soft-deleting exam context"""
         all_response = bridge_with_exam.getAllExamContexts(True)
@@ -455,7 +511,33 @@ class TestSubjectNodeBridge:
         data = assert_success(response)
         
         assert data['name'] == "Updated Name"
-    
+
+    @pytest.mark.parametrize("empty", ["", "   ", None])
+    def test_update_subject_node_refuses_an_empty_name(
+            self, bridge_with_exam: DatabaseBridge, empty):
+        """#737: an empty name is never written, whichever page sends it."""
+        exam_id = assert_success(bridge_with_exam.getAllExamContexts(True))[0]['id']
+        node_id = assert_success(bridge_with_exam.createSubjectNode(json.dumps({
+            "exam_context_id": exam_id, "name": "Cardiology",
+            "level_type": "System", "parent_id": None})))['id']
+
+        payload = json.loads(bridge_with_exam.updateSubjectNode(
+            node_id, json.dumps({"name": empty})))
+
+        assert payload['success'] is False
+        assert payload['error'] == 'A subject needs a name, so the old name was kept.'
+        stored = bridge_with_exam.user_db.get_subject_node(node_id)
+        assert stored.name == "Cardiology"
+
+    def test_update_subject_node_saves_a_name_trimmed(self, bridge_with_exam: DatabaseBridge):
+        exam_id = assert_success(bridge_with_exam.getAllExamContexts(True))[0]['id']
+        node_id = assert_success(bridge_with_exam.createSubjectNode(json.dumps({
+            "exam_context_id": exam_id, "name": "Cardiology",
+            "level_type": "System", "parent_id": None})))['id']
+        data = assert_success(bridge_with_exam.updateSubjectNode(
+            node_id, json.dumps({"name": "  Electrophysiology  "})))
+        assert data['name'] == "Electrophysiology"
+
     def test_delete_subject_node(self, bridge_with_exam: DatabaseBridge):
         """Test deleting (archiving) a subject node"""
         all_response = bridge_with_exam.getAllExamContexts(True)

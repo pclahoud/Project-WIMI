@@ -12,6 +12,14 @@
          Per-page CSS links are the rule here, not the exception — the
          classes below render as browser defaults without this line. -->
     <link rel="stylesheet" href="../css/subject_relations.css">
+    <!-- #848 Wave 2b: the Quick note dialog (quick_note.js) and the rich
+         text editor inside it. Per-page links, as on the entry form. -->
+    <link rel="stylesheet" href="../lib/katex/katex.min.css">
+    <link rel="stylesheet" href="../css/rich_editor.css">
+    <link rel="stylesheet" href="../css/quick_note.css">
+    <!-- #898 Wave 4: the difficulty and time card, shared with the
+         dashboard. Its tip's .card-info-* rules are in styles.css. -->
+    <link rel="stylesheet" href="../css/difficulty_time.css">
 </head>
 <body>
     <div class="page-container">
@@ -47,8 +55,23 @@
                      2026-10-10), to the exam's own subject tree. -->
                 <a class="exam-label" id="examLabel" href="#"
                    data-testid="deep-dive-exam-label">Loading...</a>
+                <!-- #848 Wave 2b: a note on its own, or onto one of this
+                     subject's entries, from the page a student reads
+                     between sessions. The same dialog as the entry form's
+                     (quick_note.js); Ctrl+Shift+N opens it here too. -->
+                <button type="button" class="btn btn-sm btn-outline quick-note-btn" id="btn-quick-note"
+                        title="A note on its own, or onto one of your entries (Ctrl+Shift+N)"
+                        data-testid="deep-dive-quick-note-button">
+                    Quick note
+                </button>
             </div>
         </header>
+
+        <!-- What the Quick note dialog reports when it saves. A live region
+             that is never hidden: writing its text is a change to a node
+             already in the accessibility tree (#127's rule). -->
+        <p class="deep-dive-notice" id="deepDiveNotice" role="status"
+           data-testid="deep-dive-notice"></p>
 
         <!-- Subject Info & Trend -->
         <section class="info-trend-section">
@@ -127,6 +150,19 @@
                 </div>
             </div>
         </section>
+
+        <!-- Difficulty and Time Spent (#898 Wave 4). The dashboard's card,
+             scoped to this subject: the same mistakes the Total Mistakes
+             figure above counts (primary only, this subject and beneath,
+             under the parent context chosen in Subject Info), so the two
+             numbers agree and move together. It sits directly under
+             Statistics for that reason -- the card's total is the figure
+             beside Avg Difficulty -- and before the timeline, which is
+             about when rather than how. subject_deep_dive.js draws the
+             heading, tip and card into it, or a sentence saying why not
+             when the page has no exam. -->
+        <section class="dt-section" id="difficultyTimeSection"
+                 data-testid="deep-dive-difficulty-time-section"></section>
 
         <!-- Mistakes Over Time -->
         <section class="timeline-section">
@@ -237,6 +273,17 @@
     <script src="../js/subject_relations.js"></script>
     <script src="../js/text_preview.js"></script>
     <script src="../js/local_date.js"></script>
+    <!-- #848 Wave 2b: the Quick note dialog, in the order the entry form
+         loads its pieces: KaTeX, TinyMCE, the RichEditor wrapper, then the
+         module itself, all before the page script that opens it. -->
+    <script src="../lib/katex/katex.min.js"></script>
+    <script src="../lib/tinymce/tinymce.min.js"></script>
+    <script src="../js/rich_editor.js"></script>
+    <script src="../js/quick_note.js"></script>
+    <!-- #898 Wave 4: the difficulty and time card (D3 is loaded above). -->
+    <script src="../js/difficulty.js"></script>
+    <script src="../js/difficulty_time_links.js"></script>
+    <script src="../js/difficulty_time_card.js"></script>
     <script src="../js/subject_deep_dive.js"></script>
 </body>
 </html>

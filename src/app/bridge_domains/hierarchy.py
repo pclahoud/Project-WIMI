@@ -239,8 +239,15 @@ class HierarchyBridgeMixin:
             params = []
 
             if 'name' in updates:
+                # #737: never write an empty name, whichever page sends it.
+                # subject_nodes.name is NOT NULL, and SQLite takes '' happily.
+                name = str(updates['name'] or '').strip()
+                if not name:
+                    return serialize_response(
+                        False, error='A subject needs a name, so the old name'
+                                     ' was kept.')
                 update_fields.append('name = ?')
-                params.append(updates['name'])
+                params.append(name)
             if 'sort_order' in updates:
                 update_fields.append('sort_order = ?')
                 params.append(updates['sort_order'])
@@ -681,6 +688,9 @@ class HierarchyBridgeMixin:
             'axis_count': plan['axis_count'],
             'declares_no_dimensions': plan['declares_no_dimensions'],
             'dimensionless_subject_count': plan['dimensionless_subject_count'],
+            # #605 Wave 2: what the first-axis prompt lists, or None. Small
+            # already (one row per top-level subject), so passed whole.
+            'first_axis_offer': plan.get('first_axis_offer'),
             'counts': plan['counts'],
             'entries_affected': plan['entries_affected'],
             'dimensions_added': plan['dimensions_added'],
@@ -788,6 +798,54 @@ class HierarchyBridgeMixin:
             preview returned, plus ``imported_count`` (unchanged from the
             pre-merge contract: file nodes applied) and ``warnings``.
         """
+        return self._import_subject_hierarchy(exam_context_id, hierarchy_json)
+
+    @pyqtSlot(int, str, str, result=str)
+    @instrumented_slot
+    def importSubjectHierarchyWithChoice(
+        self, exam_context_id: int, hierarchy_json: str, choice_json: str
+    ) -> str:
+        """Import a whole-exam file and act on the first-axis answer (#605 Wave 2).
+
+        ``importSubjectHierarchy`` with one more argument: the student's
+        answer to *"Move your existing subjects into an axis?"*, asked when
+        the file gives an exam its first axis while it already has subjects.
+        ``choice_json`` is ``null`` / empty (nothing was asked),
+        ``{"action": "aside"}`` or ``{"action": "move", "assignments":
+        [{"subject_id": int, "axis": file_index | null}]}``.
+
+        **The answer travels here and never inside the file.** A file must
+        not be able to carry a student's answer, so ``_read_import_request``
+        reads no such key and a choice written into the JSON is ignored --
+        a test pins that. The two-argument slot is unchanged; this is a new
+        name rather than a second arity because QWebChannel's arity
+        resolution is the thing #15 had to document, not something to lean
+        on twice.
+
+        A choice on a single-tree file is refused: such a file never creates
+        an axis, so there is nothing for it to answer.
+        """
+        try:
+            choice = json.loads(choice_json) if choice_json else None
+        except (TypeError, ValueError):
+            return serialize_response(
+                False, error='Nothing was saved. The choice about your '
+                             'existing subjects could not be read.')
+        if choice is not None and not isinstance(choice, dict):
+            return serialize_response(
+                False, error='Nothing was saved. The choice about your '
+                             'existing subjects could not be read.')
+        return self._import_subject_hierarchy(
+            exam_context_id, hierarchy_json, existing_subjects=choice)
+
+    def _import_subject_hierarchy(
+        self,
+        exam_context_id: int,
+        hierarchy_json: str,
+        existing_subjects: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """The shared body of both import slots. ``existing_subjects`` only
+        ever comes from ``importSubjectHierarchyWithChoice``'s own argument."""
         if not self.user_db:
             return serialize_response(False, error='No user database connected')
 
@@ -799,7 +857,8 @@ class HierarchyBridgeMixin:
 
             if request['declares_dimensions']:
                 result = self.user_db.apply_whole_exam_import(
-                    exam_context_id, request['dimensions']
+                    exam_context_id, request['dimensions'],
+                    existing_subjects=existing_subjects,
                 )
                 payload = self._whole_exam_preview_payload(
                     result, request['file_exam_name']
@@ -817,8 +876,16 @@ class HierarchyBridgeMixin:
                     'delete_batch_ids': result['delete_batch_ids'],
                     'axis_results': result['axis_results'],
                     'warnings': result['warnings'],
+                    'moved_existing': result.get('moved_existing'),
                 })
                 return serialize_response(True, data=payload)
+
+            if existing_subjects is not None:
+                return serialize_response(
+                    False, error='Nothing was saved. This file describes one '
+                                 'tree, so it cannot give the exam its first '
+                                 'axis and there is no choice to make about '
+                                 'existing subjects.')
 
             result = self.user_db.apply_subject_import(
                 exam_context_id,

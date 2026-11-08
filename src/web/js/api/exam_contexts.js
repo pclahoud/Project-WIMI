@@ -33,6 +33,18 @@
         return api._callBridge('updateExamContextSettings', examContextId, JSON.stringify(settings));
     };
 
+    /**
+     * Save the exam wizard's edit mode as one transaction (#874).
+     * payload: {settings, length: {kind, min, max, typical, note} | null,
+     *           dimensions: [{id, name, description, is_required,
+     *           allow_multiple}] | null}, the axes in their final order.
+     * Throws with a sentence naming the part that could not be saved; in
+     * that case nothing was saved.
+     */
+    api.saveExamEdit = async function(examContextId, payload) {
+        return api._callBridge('saveExamEdit', examContextId, JSON.stringify(payload));
+    };
+
     api.deleteExamContext = async function(examContextId) {
         return api._callBridge('deleteExamContext', examContextId);
     };

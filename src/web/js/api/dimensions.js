@@ -54,6 +54,14 @@
         return api._callBridge('getSubjectsOutsideAnyAxis', examContextId);
     };
 
+    // The subjects an exam already has, for the first-axis prompt (#605).
+    // Answers on an exam with no axis yet, which getSubjectsOutsideAnyAxis
+    // deliberately does not. Returns {has_active_axis, subject_count, roots}.
+    api.getExistingSubjectsForFirstAxis = async function(examContextId) {
+        if (!examContextId) throw new Error('examContextId is required');
+        return api._callBridge('getExistingSubjectsForFirstAxis', examContextId);
+    };
+
     // Move those subjects, with their subtrees, into an axis (#605). The
     // whole subtree travels because cross-dimensional edges are a Non-Goal.
     api.moveSubjectsIntoAxis = async function(subjectIds, dimensionId) {

@@ -23,6 +23,18 @@ class SubjectDeepDive {
         // (decision 5) exactly as it narrows everything else here.
         this.relationsPanel = null;
 
+        // #898 Wave 4 -- the difficulty and time card. One instance for the
+        // page's life (its heading, tip and tabs are drawn once); each
+        // parent-context change only reloads it with the new scope.
+        this.difficultyTimeCard = null;
+
+        // #848 Wave 2b — the Quick note dialog. The exam's subjects are read
+        // once, the first time the dialog opens, and kept: they name the
+        // dialog's chips and fill the subject chooser.
+        this.quickNoteSubjects = null;
+        this.quickNoteOpening = false;
+        this.noticeTimer = null;
+
         this.init();
     }
 
@@ -78,6 +90,8 @@ class SubjectDeepDive {
             this.showError('No subject specified');
             return;
         }
+
+        this.initQuickNote();
 
         // Load exam name for display (read-only)
         await this.loadExamLabel();
@@ -206,6 +220,7 @@ class SubjectDeepDive {
             this.renderInfoAndTrend();
             this.renderMultiParentSelector();
             this.renderStats();
+            this.renderDifficultyTime();
             this.renderTimeline();
             this.renderChildSubjects();
             this.renderMistakeTypes();
@@ -508,6 +523,65 @@ class SubjectDeepDive {
     /**
      * Render statistics cards
      */
+    /**
+     * #898 Wave 4 -- the difficulty and time card, for this subject.
+     *
+     * Scoped exactly as the Statistics figure beside it: the exam, this
+     * subject, and the parent context chosen in Subject Info. The backend
+     * counts through `_deep_dive_counted_entries_sql`, which copies
+     * `get_subject_deep_dive`'s own population (primary only, this
+     * subject's subtree, the parent context's lenient rule), and a parity
+     * test holds the two together -- so the card's total is the Total
+     * Mistakes number, and a context change moves both. Its links carry
+     * `counted_subject` / `counted_parent`, so a quadrant lands the entry
+     * browser on the same count rather than on the finding rule's wider set.
+     *
+     * Called from loadSubjectData, which the parent selector re-runs, so a
+     * context change reloads the card with the new scope. The median stays
+     * exam-wide (the plan's default), which the tip says.
+     *
+     * With no exam the card cannot place anything -- fast and slow are
+     * measured against a median over one exam -- so it is not drawn, and a
+     * sentence says why rather than leaving a blank.
+     */
+    renderDifficultyTime() {
+        const mount = document.getElementById('difficultyTimeSection');
+        if (!mount || typeof DifficultyTimeCard === 'undefined') return;
+
+        if (!this.examContextId) {
+            this.difficultyTimeCard = null;
+            mount.replaceChildren();
+            const note = document.createElement('p');
+            note.className = 'dt-no-exam';
+            note.setAttribute('data-testid', 'deep-dive-difficulty-time-no-exam');
+            note.textContent =
+                'Difficulty and time spent is not shown: this page was opened without an ' +
+                'exam, and fast and slow are measured against your median time on one exam. ' +
+                'Open this subject from the analytics dashboard with an exam chosen to see it.';
+            mount.appendChild(note);
+            return;
+        }
+
+        if (!this.difficultyTimeCard) {
+            this.difficultyTimeCard = new DifficultyTimeCard({
+                mount,
+                scope: {},
+                testid: 'deep-dive-difficulty-time',
+                tipTestid: 'deep-dive-info-difficulty-time',
+                tip: SubjectDeepDive.DIFFICULTY_TIME_TIP,
+                subtitle: 'Your mistakes whose main subject is this one or a subject ' +
+                    'beneath it, sorted by how hard you rated each question and how ' +
+                    'long you spent on it.',
+                emptyScope: 'this subject',
+            });
+        }
+        this.difficultyTimeCard.load({
+            examContextId: this.examContextId,
+            subjectId: this.subjectId,
+            primaryParentId: this.activeParentId,
+        });
+    }
+
     renderStats() {
         document.getElementById('totalMistakes').textContent = this.subjectData.total_mistakes || 0;
         document.getElementById('percentageOfAll').textContent =
@@ -708,11 +782,14 @@ class SubjectDeepDive {
      * Entries row's third line — classed `recent-entry-note`, rendering a
      * reflection, falling back to the literal string "No notes".
      *
-     * The row behaviour is copied from `renderRecentEntries`, not invented:
-     * same `entryNavContext` clearing, same URL shape, same Enter/Space
-     * handling. #464 established that a row announced as a button has to go
-     * somewhere; two lists on one page behaving differently would be worse
-     * than either behaviour alone.
+     * A row for a note with an origin copies `renderRecentEntries`, not
+     * invented: same `entryNavContext` clearing, same URL shape, same
+     * Enter/Space handling. #464 established that a row announced as a
+     * button has to go somewhere. A note on no entry (#848) has no entry to
+     * open, so its row opens the Quick note dialog on it instead (Wave 2b).
+     * That makes two behaviours on one list, which is honest only because
+     * every row's meta line names its own: "Entry #N · Opens the entry", or
+     * "Note on its own · Opens in Quick note".
      */
     renderSubjectNotes() {
         const container = document.getElementById('subjectNotesList');
@@ -738,8 +815,16 @@ class SubjectDeepDive {
             const item = document.createElement('div');
             item.className = 'subject-note-item';
             item.setAttribute('data-testid', `deep-dive-subject-note-${note.note_id}`);
+            // Every row is a button again (#848 Wave 2b). #464 settled that a
+            // row announced as a button has to go somewhere, and now each one
+            // does: a note with an origin opens that entry, and a note on no
+            // entry -- which arrives with NO `entry_id` key, absent rather
+            // than null, the convention this payload's `dimension_id` uses --
+            // opens the Quick note dialog on itself for editing. Wave 0 drew
+            // that second kind as text because it had nowhere to go yet.
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', '0');
+            const onEntry = ('entry_id' in note);
 
             // Stored rich text, reduced to its words through the same inert
             // path the entry browser's card and the row above use (#525,
@@ -756,21 +841,51 @@ class SubjectDeepDive {
                 ? when.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                 : '';
 
-            [
-                ['subject-note-date', dateStr],
-                ['subject-note-body', body],
-            ].forEach(([className, text]) => {
-                const cell = document.createElement('div');
-                cell.className = className;
-                cell.textContent = text;
-                item.appendChild(cell);
-            });
-
-            const activate = () => {
-                try { sessionStorage.removeItem('entryNavContext'); } catch (e) { /* storage unavailable */ }
-                const exam = this.examContextId ? `&exam=${this.examContextId}` : '';
-                window.location.href = `entry_detail.html?id=${note.entry_id}${exam}`;
+            const cell = (className, text) => {
+                const node = document.createElement(text === undefined ? 'div' : 'span');
+                node.className = className;
+                if (text !== undefined) node.textContent = text;
+                return node;
             };
+            const dateCell = document.createElement('div');
+            dateCell.className = 'subject-note-date';
+            dateCell.textContent = dateStr;
+            const main = cell('subject-note-main');
+            const bodyCell = document.createElement('div');
+            bodyCell.className = 'subject-note-body';
+            bodyCell.textContent = body;
+
+            // The meta line names what the row opens (the mockup's "Opens
+            // ..." label). Two behaviours on one list are honest only because
+            // each row says which it has.
+            const meta = cell('subject-note-meta');
+            // Not under the row's own `deep-dive-subject-note-` prefix, which
+            // scenarios use to count the rows.
+            meta.setAttribute('data-testid', `deep-dive-note-meta-${note.note_id}`);
+            let activate;
+            if (onEntry) {
+                meta.appendChild(cell('subject-note-tag', `Entry #${note.entry_id}`));
+                // The origin's own attachment is one of the count; the rest
+                // are the other entries the note is on.
+                const others = Math.max(0, (Number(note.attachment_count) || 0) - 1);
+                if (others > 0) {
+                    meta.appendChild(cell('subject-note-others',
+                        `and ${others} other${others === 1 ? '' : 's'}`));
+                }
+                meta.appendChild(cell('subject-note-opens', 'Opens the entry'));
+                activate = () => {
+                    try { sessionStorage.removeItem('entryNavContext'); } catch (e) { /* storage unavailable */ }
+                    const exam = this.examContextId ? `&exam=${this.examContextId}` : '';
+                    window.location.href = `entry_detail.html?id=${note.entry_id}${exam}`;
+                };
+            } else {
+                meta.appendChild(cell('subject-note-tag subject-note-tag-free', 'Note on its own'));
+                meta.appendChild(cell('subject-note-opens', 'Opens in Quick note'));
+                activate = () => { this.openQuickNote({ editNoteId: note.note_id }); };
+            }
+            main.append(bodyCell, meta);
+            item.append(dateCell, main);
+
             item.addEventListener('click', activate);
             item.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -780,6 +895,262 @@ class SubjectDeepDive {
             });
 
             container.appendChild(item);
+        });
+    }
+
+    // =====================================================================
+    // Quick note (#848 Wave 2b): the entry form's dialog, on this page
+    // =====================================================================
+
+    /**
+     * The header button and Ctrl+Shift+N. The shortcut that opens the dialog
+     * here is the document keydown. The `wimi:editor-shortcut` listener is the
+     * entry form's second route (the chord rich_editor.js re-emits from inside
+     * a TinyMCE iframe, whose keydowns never reach this document), but the
+     * only rich editor on this page is the Quick note dialog's own, so on the
+     * deep dive that route only arrives while the dialog is open: the press is
+     * swallowed and `openQuickNote()` refuses it, as it refuses while any
+     * dialog is open.
+     */
+    initQuickNote() {
+        const btn = document.getElementById('btn-quick-note');
+        if (btn) btn.addEventListener('click', () => this.openQuickNote());
+        const isChord = (key, mods) => !!mods.ctrlKey && !!mods.shiftKey
+            && !mods.altKey && !mods.metaKey
+            && typeof key === 'string' && key.toUpperCase() === 'N';
+        document.addEventListener('keydown', (e) => {
+            if (!isChord(e.key, e)) return;
+            e.preventDefault();
+            this.openQuickNote();
+        });
+        document.addEventListener('wimi:editor-shortcut', (e) => {
+            const d = e.detail || {};
+            if (!isChord(d.key, d)) return;
+            e.preventDefault();
+            this.openQuickNote();
+        });
+    }
+
+    /** The exam's subjects, read once. Never throws: a failed read is an empty list. */
+    async loadQuickNoteSubjects() {
+        if (this.quickNoteSubjects) return this.quickNoteSubjects;
+        let list = [];
+        if (this.examContextId) {
+            try {
+                const read = await api.getAllSubjectsForExam(this.examContextId);
+                list = Array.isArray(read) ? read : [];
+            } catch (err) {
+                console.error('Quick note: could not read the exam subjects', err);
+            }
+        }
+        // This page's own subject names its chip even if the read missed it.
+        if (this.subjectId && !list.some(s => s && s.id === this.subjectId)) {
+            const name = this.subjectData && this.subjectData.subject_name;
+            if (name) list = [{ id: this.subjectId, name, path: name }, ...list];
+        }
+        this.quickNoteSubjects = list;
+        return list;
+    }
+
+    /**
+     * Open the dialog: on a new note pre-tagged with this subject, or -- from
+     * a "Note on its own" row -- on that note for editing, which is the state
+     * Your notes' Edit sets (quick_note.js `edit`). The note is read fresh by
+     * id rather than from this page's payload, which carries no tags.
+     */
+    async openQuickNote({ editNoteId = null } = {}) {
+        if (typeof QuickNote === 'undefined' || QuickNote.isOpen()) return false;
+        if (window.ModalDialog && window.ModalDialog.openSurfaces().length > 0) return false;
+        if (this.quickNoteOpening) return false;
+        this.quickNoteOpening = true;
+        try {
+            const subjects = await this.loadQuickNoteSubjects();
+            let edit = null;
+            if (editNoteId !== null) {
+                try {
+                    edit = await api.getNote(editNoteId);
+                } catch (err) {
+                    this.notify('Could not open the note',
+                        err && err.message ? err.message : String(err), 'error');
+                    return false;
+                }
+            }
+            const subjectName = (this.subjectData && this.subjectData.subject_name) || '';
+            QuickNote.open({
+                subjects,
+                subjectIds: this.subjectId ? [this.subjectId] : [],
+                entryChoice: (this.examContextId && this.subjectId)
+                    ? { examContextId: this.examContextId, subjectId: this.subjectId, subjectName }
+                    : null,
+                edit,
+                chooseSubjects: (currentIds) => this.chooseNoteSubjects(subjects, currentIds),
+                // The page re-reads its payload, so a note saved or edited
+                // with this subject's tag is listed below straight away.
+                onSaved: () => { this.loadSubjectData({ skipParentEdges: true }); },
+                onDeleted: () => { this.loadSubjectData({ skipParentEdges: true }); },
+                notify: (title, text, kind) => this.notify(title, text, kind),
+            });
+            return true;
+        } finally {
+            this.quickNoteOpening = false;
+        }
+    }
+
+    /** The dialog's notify, in this page's voice: one live line under the header. */
+    notify(title, text, kind) {
+        const box = document.getElementById('deepDiveNotice');
+        if (!box) return;
+        if (this.noticeTimer) clearTimeout(this.noticeTimer);
+        box.textContent = [title, text].filter(Boolean).join('. ').replace(/\.\./g, '.');
+        box.classList.add('deep-dive-notice-shown');
+        box.classList.toggle('deep-dive-notice-error', kind === 'error');
+        this.noticeTimer = setTimeout(() => {
+            box.textContent = '';
+            box.classList.remove('deep-dive-notice-shown', 'deep-dive-notice-error');
+        }, 8000);
+    }
+
+    /**
+     * The subject chooser the dialog's Subjects… button opens on this page.
+     *
+     * The entry form's chooser (`openNoteSubjectChooser`) lives in
+     * question_entry.js and is built around that entry's own subjects and
+     * the form's search widget, so it is not a shared module; this is the
+     * smallest chooser over the exam's subject list: a search, a list of
+     * checkboxes with each subject's path, Save and Cancel. Resolves to the
+     * ticked ids on Save and to `null` on Cancel, Escape or a backdrop
+     * click, which is the contract `QuickNote.open`'s `chooseSubjects` asks.
+     */
+    chooseNoteSubjects(subjects, currentIds) {
+        const all = Array.isArray(subjects) ? subjects.filter(s => s && Number.isInteger(s.id)) : [];
+        const chosen = new Set(Array.isArray(currentIds) ? currentIds : []);
+        const opener = document.activeElement;
+        const SHOW = 50;
+
+        return new Promise((resolve) => {
+            const old = document.getElementById('deep-dive-subject-chooser');
+            if (old) old.remove();
+
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop qn-chooser-backdrop active';
+            backdrop.id = 'deep-dive-subject-chooser';
+            const surface = document.createElement('div');
+            surface.className = 'modal qn-chooser';
+            surface.setAttribute('data-modal-surface', '');
+            surface.setAttribute('role', 'dialog');
+            surface.setAttribute('aria-modal', 'true');
+            surface.setAttribute('aria-labelledby', 'deep-dive-subject-chooser-title');
+            surface.setAttribute('data-testid', 'deep-dive-subject-chooser');
+
+            const title = document.createElement('h2');
+            title.className = 'modal-title qn-title';
+            title.id = 'deep-dive-subject-chooser-title';
+            title.textContent = 'Quick note — Assign Subjects';
+            const hint = document.createElement('p');
+            hint.className = 'qn-hint';
+            hint.textContent = 'Tick the subjects this note is about. Search to find any subject in this exam.';
+            const searchLabel = document.createElement('label');
+            searchLabel.className = 'qn-visually-hidden';
+            searchLabel.htmlFor = 'deep-dive-subject-chooser-search';
+            searchLabel.textContent = 'Search subjects';
+            const search = document.createElement('input');
+            search.type = 'search';
+            search.id = 'deep-dive-subject-chooser-search';
+            search.className = 'qn-pick-search';
+            search.placeholder = 'Search subjects…';
+            search.setAttribute('data-testid', 'deep-dive-subject-chooser-search');
+            const list = document.createElement('div');
+            list.className = 'qn-chooser-list';
+            list.setAttribute('role', 'group');
+            list.setAttribute('aria-labelledby', title.id);
+            list.setAttribute('data-testid', 'deep-dive-subject-chooser-list');
+            const more = document.createElement('p');
+            more.className = 'qn-hint';
+            more.setAttribute('role', 'status');
+            const actions = document.createElement('div');
+            actions.className = 'qn-chooser-actions';
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'btn btn-secondary';
+            cancel.textContent = 'Cancel';
+            cancel.setAttribute('data-testid', 'deep-dive-subject-chooser-cancel');
+            const save = document.createElement('button');
+            save.type = 'button';
+            save.className = 'btn btn-primary';
+            save.textContent = 'Save';
+            save.setAttribute('data-testid', 'deep-dive-subject-chooser-save');
+            actions.append(cancel, save);
+            surface.append(title, hint, searchLabel, search, list, more, actions);
+            backdrop.appendChild(surface);
+
+            const option = (s) => {
+                const label = document.createElement('label');
+                label.className = 'qn-chooser-option';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = String(s.id);
+                cb.checked = chosen.has(s.id);
+                cb.setAttribute('data-testid', `deep-dive-subject-chooser-option-${s.id}`);
+                cb.addEventListener('change', () => {
+                    if (cb.checked) chosen.add(s.id); else chosen.delete(s.id);
+                });
+                const name = document.createElement('span');
+                name.textContent = s.name || `Subject #${s.id}`;
+                label.append(cb, name);
+                if (s.path && s.path !== s.name) {
+                    const path = document.createElement('span');
+                    path.className = 'qn-chooser-path';
+                    path.textContent = s.path;
+                    label.appendChild(path);
+                }
+                return label;
+            };
+            const render = () => {
+                const q = search.value.trim().toLowerCase();
+                // The ticked subjects always stay in view, so one can be
+                // unticked whatever the search says.
+                const ticked = all.filter(s => chosen.has(s.id));
+                const rest = all.filter(s => !chosen.has(s.id) && (!q
+                    || String(s.name || '').toLowerCase().includes(q)
+                    || String(s.path || '').toLowerCase().includes(q)));
+                list.replaceChildren(...ticked.map(option), ...rest.slice(0, SHOW).map(option));
+                more.textContent = rest.length > SHOW
+                    ? `Showing ${SHOW} of ${rest.length} subjects. Type to narrow them.`
+                    : (all.length === 0 ? 'This exam has no subjects to tag.' : '');
+            };
+            search.addEventListener('input', render);
+
+            const finish = (result) => {
+                document.removeEventListener('keydown', onKey);
+                backdrop.remove();
+                // Back to the Subjects… button inside the Quick note dialog,
+                // before modal_dialog.js restores focus to an invoker behind it.
+                if (opener && document.contains(opener) && typeof opener.focus === 'function') {
+                    try { opener.focus(); } catch (err) { /* nothing to restore to */ }
+                }
+                resolve(result);
+            };
+            const onKey = (e) => {
+                if (e.key !== 'Escape' || e.defaultPrevented) return;
+                if (window.ModalDialog && window.ModalDialog.topmost() !== surface) return;
+                e.preventDefault();
+                finish(null);
+            };
+            cancel.addEventListener('click', () => finish(null));
+            save.addEventListener('click', () => {
+                // In the list's order, so the chips read as the list did. A
+                // tag the list does not hold (a subject archived since the
+                // note was tagged) is kept rather than dropped unseen.
+                const listed = all.filter(s => chosen.has(s.id)).map(s => s.id);
+                const unlisted = [...chosen].filter(id => !listed.includes(id));
+                finish([...listed, ...unlisted]);
+            });
+            backdrop.addEventListener('click', (e) => { if (e.target === backdrop) finish(null); });
+            document.addEventListener('keydown', onKey);
+
+            render();
+            document.body.appendChild(backdrop);
+            search.focus();
         });
     }
 
@@ -1007,6 +1378,17 @@ class SubjectDeepDive {
         `;
     }
 }
+
+/**
+ * The deep dive's tip for the difficulty and time card, word for word from
+ * docs/planning/DIFFICULTY_TIME_CARD_PLAN.md ("Tip text"), chosen under the
+ * owner's delegation on #898 (comment 12219).
+ * test_difficulty_time_card_on_the_deep_dive.py pins it.
+ */
+SubjectDeepDive.DIFFICULTY_TIME_TIP =
+    'The same four groups, for mistakes whose main subject is this one or a ' +
+    'subject beneath it. Fast and slow use your median for the whole exam, so ' +
+    'they mean the same here as on the dashboard.';
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

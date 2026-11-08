@@ -8,6 +8,20 @@
         return api._callBridge('addEntryNote', entryId, JSON.stringify(noteData || {}));
     };
 
+    // A note on no entry (#848). Same payload shape as addEntryNote's
+    // noteData, so one builder serves both kinds of note.
+    api.addNote = async function(noteData) {
+        return api._callBridge('addNote', JSON.stringify(noteData || {}));
+    };
+
+    api.getNote = async function(noteId) {
+        return api._callBridge('getNote', noteId);
+    };
+
+    api.listFreeNotes = async function(limit) {
+        return api._callBridge('listFreeNotes', limit || 50);
+    };
+
     api.getEntryNotes = async function(entryId) {
         return api._callBridge('getEntryNotes', entryId);
     };

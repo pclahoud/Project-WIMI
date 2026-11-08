@@ -125,7 +125,7 @@ class TestGetExamAnalyticsConfig:
         assert config['chart_visibility']['subject_sunburst'] is True
         assert config['chart_visibility']['tag_chart'] is True
         assert config['chart_visibility']['weight_analysis'] is True
-        assert len(config['chart_visibility']) == 12
+        assert len(config['chart_visibility']) == 13
 
     def test_get_config_nonexistent_exam_raises(self, db):
         """Getting config for nonexistent exam should raise."""

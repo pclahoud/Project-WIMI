@@ -120,10 +120,15 @@ class SerializerMixin:
         that build EntryNote objects without going through that helper
         (e.g. ``add_entry_note`` returning a freshly-inserted row) will
         not have it, so we default to 1 (the originating attachment).
+
+        ``question_entry_id`` is **absent, not null, for a free note** (#848:
+        a note on no entry, m036). Same convention as
+        ``path_omitted_ancestors`` (#301) and the deep dive's
+        ``dimension_id`` (#314): a key a page tests with ``in`` or ``??``
+        rather than one it has to compare against ``null``.
         """
-        return {
+        data = {
             'id': note.id,
-            'question_entry_id': note.question_entry_id,
             'content_html': note.content_html,
             'content_json': note.content_json,
             'sort_order': note.sort_order,
@@ -134,6 +139,9 @@ class SerializerMixin:
             'created_at': note.created_at.isoformat() if note.created_at else None,
             'updated_at': note.updated_at.isoformat() if note.updated_at else None
         }
+        if note.question_entry_id is not None:
+            data['question_entry_id'] = note.question_entry_id
+        return data
 
     def _serialize_entry_media(self, media) -> dict:
         """Serialize an EntryMedia object to a dictionary with URLs."""

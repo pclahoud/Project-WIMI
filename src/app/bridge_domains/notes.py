@@ -47,6 +47,122 @@ class NoteBridgeMixin:
             )
             return serialize_response(False, error=f'Failed to add note: {e}')
 
+    @pyqtSlot(str, result=str)
+    @instrumented_slot
+    def addNote(self, note_json: str) -> str:
+        """
+        Add a note that belongs to no entry -- a *free note* (#848, m036).
+
+        ``addEntryNote`` is typed ``int`` for its entry and cannot carry a
+        NULL origin, which is why this slot exists. Its one argument takes
+        the SAME dict shape as ``addEntryNote``'s ``content_json`` --
+        ``{content_html, content_json, linked_subject_ids}`` -- so a page
+        builds one payload for either kind of note and one serializer
+        branch covers both. A subject tag is optional (decision 3).
+
+        Args:
+            note_json: JSON string with {content_html, content_json, linked_subject_ids}
+
+        Returns:
+            JSON response with the created note. ``question_entry_id`` is
+            absent from it, as it is for every free note.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            try:
+                data = json.loads(note_json) if note_json else {}
+            except json.JSONDecodeError as e:
+                return serialize_response(False, error=f'Invalid JSON: {e}')
+            if not isinstance(data, dict):
+                return serialize_response(False, error='note payload must be a JSON object')
+            tags = data.get('linked_subject_ids')
+            if tags is not None and (
+                not isinstance(tags, list)
+                or any(isinstance(t, bool) or not isinstance(t, int) for t in tags)
+            ):
+                # Stored as JSON (m036's CHECK accepts any JSON), a scalar
+                # would be offered in the picker as a one-element tag list by
+                # json_each while every payload reader got a number. Refuse
+                # before any write (PR #863's review).
+                return serialize_response(
+                    False, error='linked_subject_ids must be a list of subject ids')
+
+            note = self.user_db.add_free_note(
+                content_html=data.get('content_html'),
+                content_json=data.get('content_json'),
+                linked_subject_ids=data.get('linked_subject_ids')
+            )
+            return serialize_response(True, data=self._serialize_entry_note(note))
+        except Exception as e:
+            self._log_error(
+                f'Error adding free note: {e}',
+                {
+                    'note_json_len': len(note_json) if note_json else 0,
+                    'note_json_preview': note_json[:200] if note_json else '',
+                },
+            )
+            return serialize_response(False, error=f'Failed to add note: {e}')
+
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
+    def getNote(self, note_id: int) -> str:
+        """
+        Read one note by id, entry note or free (#848).
+
+        A missing note is ``success=false`` with ``Note <id> not found`` --
+        never ``success=true`` with no data, which a page could not tell
+        from a call that worked (#240).
+
+        Args:
+            note_id: Note ID
+
+        Returns:
+            JSON response with the note
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            note = self.user_db.get_entry_note(note_id)
+            if note is None:
+                return serialize_response(False, error=f'Note {note_id} not found')
+            return serialize_response(True, data=self._serialize_entry_note(note))
+        except Exception as e:
+            self._log_error(
+                f'Error getting note: {e}',
+                {'note_id': note_id},
+            )
+            return serialize_response(False, error=f'Failed to get note: {e}')
+
+    @pyqtSlot(int, result=str)
+    @instrumented_slot
+    def listFreeNotes(self, limit: int = 50) -> str:
+        """
+        The notes on no entry, newest first (#848 decision 3's *Your notes*).
+
+        Args:
+            limit: Maximum results (``<= 0`` means the default of 50)
+
+        Returns:
+            JSON response with a list of notes; an empty list is
+            ``success=true`` with ``data=[]``.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        try:
+            notes = self.user_db.list_free_notes(limit=limit if limit > 0 else 50)
+            data = [self._serialize_entry_note(n) for n in notes]
+            return serialize_response(True, data=data)
+        except Exception as e:
+            self._log_error(
+                f'Error listing free notes: {e}',
+                {'limit': limit},
+            )
+            return serialize_response(False, error=f'Failed to list free notes: {e}')
+
     @pyqtSlot(int, result=str)
     @instrumented_slot
     def getEntryNotes(self, entry_id: int) -> str:

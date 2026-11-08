@@ -226,6 +226,23 @@ class WimiTestSession:
             # vs. "title doesn't contain WIMI") preserved by the wrapper.
             self._browser, self._tab = open_session(port)
 
+            # 4b. Treat the page as focused, whether or not its window is.
+            # On native macOS the WIMI window is not the key window during
+            # a run -- the terminal that launched pytest is -- so
+            # ``document.hasFocus()`` is false, and Chromium matches CSS
+            # ``:focus`` only in a focused document. Every tooltip that
+            # opens on keyboard focus therefore never opened, and the
+            # scenarios asserting it failed with ``focused: True,
+            # shown: False``: the element HAD focus, the selector did not
+            # match. Offscreen windows are always focused, which is why
+            # Linux never saw it. Measured on a MacBook Pro M1, macOS
+            # 26.5.1, master e63edf3: three focus scenario files 0/3 each
+            # without this call and green with it. The setting belongs to
+            # the target, so it survives every goto; the scenario
+            # ``test_harness_page_is_focused`` checks that across a
+            # navigation.
+            self._tab.Emulation.setFocusEmulationEnabled(enabled=True)
+
             # 5. WIMI-aware page wrapper. ``Path(__file__)`` is
             # ``<repo>/wimi_test/session.py`` so ``parent.parent`` is the
             # repo root holding ``src/web/html/`` etc.

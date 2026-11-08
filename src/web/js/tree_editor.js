@@ -247,31 +247,11 @@ async function initializeTreeEditor() {
         // Load hierarchy levels
         await loadHierarchyLevels();
 
-        // Check if exam uses dimensions
-        await checkDimensionSupport();
-
-        if (TreeState.usesDimensions) {
-            // Load dimensions and show selector
-            await loadDimensions();
-            renderDimensionSelector();
-
-            // Select first dimension by default
-            if (TreeState.dimensions.length > 0) {
-                await selectDimension(TreeState.dimensions[0].id);
-            } else {
-                // An exam flagged as dimensioned with no active dimension
-                // reaches NEITHER load path, so nothing here would ever clear
-                // the loading state the page now ships visible (#121). It
-                // used to land on #tree-empty by default, which was wrong for
-                // a different reason. renderTree() on an empty tree is the
-                // honest answer: there is nothing to draw.
-                showLoading(false);
-                renderTree();
-            }
-        } else {
-            // Simple exam - load hierarchy normally
-            await loadHierarchy();
-        }
+        // Work out whether the exam uses axes and draw the matching view.
+        // The same function runs again after any in-page write that can
+        // change the exam's active axes (#899), so the startup path and the
+        // after-write path cannot drift apart.
+        await applyDimensionMode();
 
         // Setup event listeners
         setupEventListeners();
@@ -288,6 +268,123 @@ async function initializeTreeEditor() {
         // the try.
         markTreeEditorReady();
         startTreeTour();
+    }
+}
+
+/**
+ * Work out whether the exam uses axes, and draw the view that matches (#899).
+ *
+ * This is the ONE place the tree editor decides between the axis view
+ * (tabs, one axis's tree at a time, `loadDimensionHierarchy`) and the plain
+ * view (`loadHierarchy`, which has no axis filter). Startup calls it, and so
+ * does `refreshDimensionModeAfterWrite` after a write that can change the
+ * exam's active axes.
+ *
+ * `exam_uses_dimensions` is DERIVED from the count of active axes, so a
+ * write that adds the first axis flips the exam the instant it commits.
+ * Before #899 only startup asked, so a whole-exam import or an axis Restore
+ * left the page in the plain view: both trees drawn mixed together, no tabs,
+ * and Add Subject creating subjects outside every axis until a reload.
+ *
+ * In axis mode the target axis is `preferDimensionId` if it is active, else
+ * the axis that was selected before the call if it survived, else the first.
+ * The whole dimension cache is cleared first, because an import can rewrite
+ * any axis's tree, not only the one on screen.
+ *
+ * Callers own their errors: startup runs it inside the init chain's `try`,
+ * so the page gate's single `finally` release still covers it, and a write
+ * path goes through `refreshDimensionModeAfterWrite`, which never throws.
+ *
+ * @param {{preferDimensionId?: number|null}} [opts]
+ */
+async function applyDimensionMode({ preferDimensionId } = {}) {
+    const previousDimensionId = TreeState.currentDimensionId;
+    const wasDimensioned = TreeState.usesDimensions;
+
+    await checkDimensionSupport();
+
+    // Every cached axis tree may be stale after a write that changed the
+    // axes, and a fresh load starts empty anyway.
+    TreeState.dimensionHierarchies = {};
+
+    if (TreeState.usesDimensions) {
+        await loadDimensions();
+
+        const isActive = id => id !== null && id !== undefined
+            && TreeState.dimensions.some(d => d.id === id);
+        let target = null;
+        if (isActive(preferDimensionId)) {
+            target = preferDimensionId;
+        } else if (isActive(previousDimensionId)) {
+            target = previousDimensionId;
+        } else if (TreeState.dimensions.length > 0) {
+            target = TreeState.dimensions[0].id;
+        }
+
+        // The tabs read `currentDimensionId` to mark the active one, so it is
+        // set before they are drawn; selectDimension() sets it again.
+        TreeState.currentDimensionId = target;
+        TreeState.currentDimension =
+            TreeState.dimensions.find(d => d.id === target) || null;
+        renderDimensionSelector();
+
+        if (target !== null) {
+            await selectDimension(target);
+        } else {
+            // An exam flagged as dimensioned with no active dimension
+            // reaches NEITHER load path, so nothing here would ever clear
+            // the loading state the page now ships visible (#121). It
+            // used to land on #tree-empty by default, which was wrong for
+            // a different reason. renderTree() on an empty tree is the
+            // honest answer: there is nothing to draw.
+            showLoading(false);
+            renderTree();
+        }
+        return;
+    }
+
+    // Plain exam. Clear whatever an earlier axis view left behind, so
+    // nothing below (Add Subject, single-tree import) sends a dimension_id
+    // for an axis the exam no longer has.
+    TreeState.dimensions = [];
+    TreeState.currentDimensionId = null;
+    TreeState.currentDimension = null;
+    if (wasDimensioned) TreeState.selectedNodeId = null;
+    renderDimensionSelector();   // hides the tabs and Export all
+    document.getElementById('dimension-info')?.classList.add('hidden');
+    document.getElementById('tree-empty-dimension-hint')?.classList.add('hidden');
+    await loadHierarchy();
+}
+
+/**
+ * Re-derive the axis mode after a write has committed (#899).
+ *
+ * **Any in-page action that creates, restores or archives an axis must call
+ * this** instead of `loadHierarchy()`. Today that is a whole-exam import
+ * (`executeImport` in import_export.js, and the fallback `handleImportFile`)
+ * and Restore on an archived axis (`restoreArchivedBatch`). #605 Wave 2 will
+ * call it with `preferDimensionId` so the page lands on the axis the
+ * student's subjects were just moved into.
+ *
+ * It never throws. The write it follows has already committed, so an error
+ * here must not read as the write failing; the student is told to reload,
+ * which runs the same mode logic from scratch.
+ *
+ * @param {{preferDimensionId?: number|null}} [opts]
+ */
+async function refreshDimensionModeAfterWrite(opts = {}) {
+    try {
+        await applyDimensionMode(opts);
+        return true;
+    } catch (error) {
+        console.error('Could not refresh the tree after the change:', error);
+        try {
+            Toast.error('Saved, but the tree did not refresh',
+                        'Reload the page to see the change.');
+        } catch (toastError) {
+            console.error(toastError);
+        }
+        return false;
     }
 }
 
@@ -850,9 +947,14 @@ async function loadDimensionHierarchy(dimensionId) {
         // too; not awaited, because a supplementary panel must not make a
         // slow read look like a slow tree.
         //
-        // The Archived panel (#37) has this same gap and is NOT fixed here
-        // -- filed separately rather than folded into an unrelated issue.
+        // The Archived panel (#37) had this same gap (#745): on a dimensioned
+        // exam it stayed hidden at its markup default until a write happened
+        // to call loadHierarchy, so a deletion made last week was invisible
+        // on today's first load. Same place, same reasons. loadHierarchy keeps
+        // its own two calls: they refresh the panel after a write on a plain
+        // exam, and the refresh is idempotent.
         refreshUnassignedPanel();
+        refreshArchivedPanel();
     }
 }
 
@@ -974,7 +1076,10 @@ function renderNode(node, level) {
     // Weight display with range if available
     let weightDisplay = `${weight.toFixed(1)}%`;
     if (hasAbsoluteWeight && node.exam_weight_high && node.exam_weight_low !== node.exam_weight_high) {
-        weightDisplay = `${node.exam_weight_low}–${node.exam_weight_high}%`;
+        // Escaped, not trusted as numbers: on the dimensioned path these are
+        // raw row values, and a REAL column on an installed profile can hold
+        // text that #593's structural check does not look at (#548).
+        weightDisplay = `${WimiEscape.html(String(node.exam_weight_low))}–${WimiEscape.html(String(node.exam_weight_high))}%`;
     } else if (hasRelativeWeight) {
         weightDisplay = `${weight.toFixed(1)}% (rel)`;
     }
@@ -2004,9 +2109,17 @@ async function switchPrimaryParentTo(childId, newParentId) {
  */
 const _parentRowOriginalHtml = new Map();
 
-function confirmRemoveParentEdge(childId, edgeId, parentId) {
+async function confirmRemoveParentEdge(childId, edgeId, parentId) {
     const row = document.querySelector(`.parent-row[data-edge-id="${edgeId}"]`);
     if (!row) return;
+    // #738: ask where the entries filed under this parent go. Read first,
+    // so the question is in the confirmation the student answers.
+    let impact = null;
+    try {
+        impact = await api.getRemoveParentImpact(edgeId);
+    } catch (error) {
+        console.warn('Could not read what removing this parent moves:', error);
+    }
     _parentRowOriginalHtml.set(edgeId, row.innerHTML);
     row.classList.add('confirming');
     row.innerHTML = `
@@ -2024,6 +2137,39 @@ function confirmRemoveParentEdge(childId, edgeId, parentId) {
             </button>
         </div>
     `;
+    _describeRemoveParentImpact(row, impact, parentId);
+}
+
+/**
+ * #738 (owner, 2026-11-06: ask each time). When entries are filed under the
+ * parent being removed, say how many and let the student choose which
+ * remaining parent takes them, primary preselected. Built from nodes: a
+ * parent's name is the student's own text (#548).
+ */
+function _describeRemoveParentImpact(row, impact, parentId) {
+    const pinned = impact ? impact.pinned_entries : 0;
+    if (!pinned) return;
+    const text = row.querySelector('.parent-row-confirm-text');
+    const remaining = impact.remaining_parents || [];
+    const n = `${pinned} entr${pinned === 1 ? 'y is' : 'ies are'}`;
+    if (!remaining.length) {
+        text.textContent = `Remove this parent? ${n} filed under it and will have `
+            + 'no parent context, because the subject has no other parent.';
+        return;
+    }
+    text.textContent = `Remove this parent? ${n} filed under it. `
+        + `Move ${pinned === 1 ? 'it' : 'them'} to:`;
+    const select = document.createElement('select');
+    select.className = 'parent-row-move-target';
+    select.dataset.testid = `tree-parent-remove-target-${parentId}`;
+    select.setAttribute('aria-label', 'Parent the entries move to');
+    remaining.forEach(r => {
+        const option = document.createElement('option');
+        option.value = String(r.parent_id);
+        option.textContent = r.is_primary ? `${r.parent_name} (primary)` : r.parent_name;
+        select.appendChild(option);
+    });
+    text.after(select);
 }
 
 /** Restore a parent row's original HTML after a cancelled remove. */
@@ -2038,7 +2184,13 @@ function restoreParentRow(edgeId) {
 
 async function performRemoveParentEdge(childId, edgeId) {
     try {
-        await api.removeParent(edgeId);
+        const row = document.querySelector(`.parent-row[data-edge-id="${edgeId}"]`);
+        const target = row && row.querySelector('.parent-row-move-target');
+        if (target) {
+            await api.removeParentMovingEntries(edgeId, parseInt(target.value, 10));
+        } else {
+            await api.removeParent(edgeId);
+        }
         TreeState.parentsCache.delete(childId);
         await loadParentsForCurrentNode(childId);
         await refreshHierarchyAndKeepSelection();
@@ -2497,10 +2649,28 @@ function startInlineEdit(nodeId) {
     input.className = 'tree-node-name-input';
     input.value = node.name;
     
-    input.onblur = () => finishInlineEdit(nodeId, input.value);
+    // #727: one rename ends exactly once, by whichever of Enter, Escape or
+    // blur comes first. Both endings call renderTree(), which removes this
+    // input while it has focus, and removing a focused element fires its
+    // blur. Without the latch, Escape re-rendered, the blur arrived, and the
+    // blur handler SAVED the typed name the student had just cancelled.
+    // Enter's re-render fired the same blur and re-entered finishInlineEdit;
+    // only its "name already matches" check kept that from writing twice.
+    let settled = false;
+    const settle = (end) => {
+        if (settled) return;
+        settled = true;
+        input.onblur = null;
+        end();
+    };
+    input.onblur = () => settle(() => finishInlineEdit(nodeId, input.value));
     input.onkeydown = (e) => {
-        if (e.key === 'Enter') finishInlineEdit(nodeId, input.value);
-        if (e.key === 'Escape') cancelInlineEdit(nodeId);
+        if (e.key === 'Enter') {
+            settle(() => finishInlineEdit(nodeId, input.value));
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            settle(() => cancelInlineEdit(nodeId));
+        }
     };
     
     nameEl.replaceWith(input);
@@ -3185,15 +3355,19 @@ async function restoreArchivedBatch(batchId, kind) {
             Toast.info('Where it went', note.message);
         });
 
-        if (TreeState.usesDimensions && TreeState.currentDimensionId) {
-            invalidateDimensionCache(TreeState.currentDimensionId);
+        if (kind === 'dimension') {
+            // A dimension restore changes which axes exist, and restoring an
+            // exam's only axis flips it from plain to axis mode (#899). So the
+            // mode is re-derived, not just the tree redrawn: loading the
+            // dimension list alone left `usesDimensions` false and the plain,
+            // unfiltered tree on screen. The selected axis stays selected.
+            await refreshDimensionModeAfterWrite();
+        } else {
+            if (TreeState.usesDimensions && TreeState.currentDimensionId) {
+                invalidateDimensionCache(TreeState.currentDimensionId);
+            }
+            await loadHierarchy();
         }
-        // A dimension restore changes which dimensions exist, so the selector
-        // has to be rebuilt rather than just the tree redrawn.
-        if (kind === 'dimension' && typeof loadDimensions === 'function') {
-            await loadDimensions();
-        }
-        await loadHierarchy();
         reapplySearchIfActive();
     } catch (error) {
         // Every refusal from the planner is a sentence the student can act on
@@ -3297,10 +3471,43 @@ function renderUnassignedList(subjects) {
             : `with ${subject.subtree_count - 1} underneath`;
         row.appendChild(meta);
 
+        // #903: top-level subjects that share a subject move together, so
+        // the row says so BEFORE the press -- a move that silently took a
+        // second row with it would be its own surprise.
+        const movesWith = subject.moves_with || [];
+        if (movesWith.length) {
+            const link = document.createElement('span');
+            link.className = 'unassigned-row-link';
+            link.setAttribute('data-testid',
+                `tree-unassigned-link-${subject.subject_id}`);
+            link.textContent =
+                `Moves with ${joinSubjectNames(movesWith.map(m => m.name))}, ` +
+                'because they share subjects.';
+            row.appendChild(link);
+        }
+
+        // #903: a subject linked to subjects already in an axis can only
+        // go into that axis, or the shared subject would sit across two.
+        const linkedAxes = (subject.linked_axes || [])
+            .filter(a => axes.some(axis => axis.id === a.axis_id));
+        if (linkedAxes.length) {
+            const bound = document.createElement('span');
+            bound.className = 'unassigned-row-link';
+            bound.setAttribute('data-testid',
+                `tree-unassigned-bound-${subject.subject_id}`);
+            bound.textContent = linkedAxes.length === 1
+                ? `Can only go into ${linkedAxes[0].name}, where subjects it shares already are.`
+                : `Shares subjects with ${joinSubjectNames(linkedAxes.map(a => a.name))}, ` +
+                  'so it cannot go into any one axis.';
+            row.appendChild(bound);
+        }
+
         const actions = document.createElement('span');
         actions.className = 'unassigned-row-actions';
 
-        if (!axes.length) {
+        if (linkedAxes.length > 1) {
+            // #174: every axis would be refused, so offer no press.
+        } else if (!axes.length) {
             // Reachable: every axis archived while subjects sit outside.
             // #174 -- do not offer a press when there is nothing to press.
             const none = document.createElement('span');
@@ -3319,6 +3526,9 @@ function renderUnassignedList(subjects) {
                 option.textContent = axis.name;
                 select.appendChild(option);
             });
+            if (linkedAxes.length === 1) {
+                select.value = String(linkedAxes[0].axis_id);
+            }
             actions.appendChild(select);
 
             const button = document.createElement('button');
@@ -3338,6 +3548,11 @@ function renderUnassignedList(subjects) {
     });
 }
 
+function joinSubjectNames(names) {
+    if (names.length <= 1) return names.join('');
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 async function moveUnassignedSubjectInto(subjectId, dimensionId) {
     if (UNASSIGNED_PANEL_STATE.busy) return;
     UNASSIGNED_PANEL_STATE.busy = subjectId;
@@ -3352,11 +3567,13 @@ async function moveUnassignedSubjectInto(subjectId, dimensionId) {
         // redrew. A write that succeeds and a page that does not update is
         // the worst shape this handler can take, so the reload belongs after
         // nothing that can throw.
+        const linked = ((result && result.linked_subjects) || []).map(s => s.name);
         Toast.success(
             'Moved',
-            moved === 1
-                ? `1 subject moved into ${axisName}.`
-                : `${moved} subjects moved into ${axisName}.`);
+            (moved === 1
+                ? `1 subject moved into ${axisName}`
+                : `${moved} subjects moved into ${axisName}`) +
+            (linked.length ? `, with ${joinSubjectNames(linked)}.` : '.'));
 
         // The dimensional cache holds pre-move weights and membership for
         // the axis that just gained a tree. Invalidate BEFORE reloading or
@@ -3567,13 +3784,21 @@ async function handleImportFile(event) {
             parts.length ? parts.join(', ') : 'No changes — already matches this file'
         );
 
-        // Invalidate dimension cache before reload
-        if (TreeState.usesDimensions && TreeState.currentDimensionId) {
-            invalidateDimensionCache(TreeState.currentDimensionId);
-        }
+        if (Array.isArray(data.dimensions)) {
+            // A whole-exam file can add, rename or archive axes, and can give
+            // a plain exam its first one, so the mode is re-derived (#899).
+            // Unreachable while getImportRootNodes refuses a file with no
+            // root_nodes, but this path must not regress if that changes.
+            await refreshDimensionModeAfterWrite();
+        } else {
+            // Invalidate dimension cache before reload
+            if (TreeState.usesDimensions && TreeState.currentDimensionId) {
+                invalidateDimensionCache(TreeState.currentDimensionId);
+            }
 
-        // Reload
-        await loadHierarchy();
+            // Reload
+            await loadHierarchy();
+        }
         
     } catch (error) {
         Toast.error('Import Failed', error.message);
@@ -3622,42 +3847,44 @@ function applyTreeSearch(query) {
         TreeState.preSearchExpandedNodes = new Set(TreeState.expandedNodes);
     }
 
-    // Walk flatNodes to find matches. Match against both the node name and
-    // any aliases shipped on the payload (hierarchy.py builds aliasesString
-    // from get_aliases_for_exam so a single substring check covers all of
-    // a subject's aliases).
-    TreeState.flatNodes.forEach((node, id) => {
-        const nameMatch = node.name.toLowerCase().includes(lowerQuery);
-        const aliasMatch = !nameMatch && (node.aliasesString || '').toLowerCase().includes(lowerQuery);
-        if (nameMatch || aliasMatch) {
-            matchIds.add(id);
-            visibleIds.add(id);
-            // Walk up parent chain to keep ancestors visible
-            let cur = node._parent;
-            while (cur) {
-                visibleIds.add(cur.id);
-                cur = cur._parent;
+    // Match against both the node name and any aliases shipped on the
+    // payload (hierarchy.py builds aliasesString from get_aliases_for_exam
+    // so a single substring check covers all of a subject's aliases).
+    const isMatch = (node) =>
+        node.name.toLowerCase().includes(lowerQuery)
+        || (node.aliasesString || '').toLowerCase().includes(lowerQuery);
+
+    // #850: walk EVERY appearance in the nested tree, never flatNodes. A
+    // subject with two parents is two objects in TreeState.rootNodes, and
+    // flatNodes keeps only the last one visited, so climbing its `_parent`
+    // kept exactly one ancestor chain visible -- whichever root sorted
+    // last -- and renderNodes filtered the other appearance out at the
+    // root. Measured: a subject under Respiratory (primary) and Injury to
+    // structures (also here) searched to one row under Injury alone, with
+    // both edges intact. A node is visible when it matches or anything
+    // beneath it is visible, which marks the ancestors of every
+    // appearance and needs no per-appearance parent record.
+    const walk = (nodes) => {
+        let anyVisible = false;
+        for (const node of nodes || []) {
+            const matched = isMatch(node);
+            const childVisible = walk(node.children);
+            if (matched) matchIds.add(node.id);
+            if (matched || childVisible) {
+                visibleIds.add(node.id);
+                anyVisible = true;
             }
+            // Expand whatever leads to a visible descendant: every
+            // ancestor of a match, and a match whose own children match.
+            if (childVisible) TreeState.expandedNodes.add(node.id);
         }
-    });
+        return anyVisible;
+    };
+    walk(TreeState.rootNodes);
 
     TreeState.searchQuery = query;
     TreeState.searchMatchIds = matchIds;
     TreeState.searchVisibleIds = visibleIds;
-
-    // Expand ancestors of matches so they are visible
-    visibleIds.forEach(id => {
-        if (!matchIds.has(id)) {
-            TreeState.expandedNodes.add(id);
-        }
-    });
-    // Also expand match nodes that have visible children
-    matchIds.forEach(id => {
-        const node = TreeState.flatNodes.get(id);
-        if (node && node.children && node.children.some(c => visibleIds.has(c.id))) {
-            TreeState.expandedNodes.add(id);
-        }
-    });
 
     renderTree();
 
@@ -3791,10 +4018,21 @@ function setupEventListeners() {
     // Details panel
     document.getElementById('edit-name').onchange = async (e) => {
         if (TreeState.selectedNodeId) {
+            // #737: the inline rename's rule, here too. Clearing the box
+            // keeps the old name (chapter 10: "an empty name is never
+            // saved"), and the name is saved trimmed. This field used to send
+            // whatever was in it, and the bridge wrote it, so an emptied field
+            // saved a nameless subject and toasted "Name saved".
+            const node = TreeState.flatNodes.get(TreeState.selectedNodeId);
+            const name = e.target.value.trim();
+            if (!name) {
+                if (node) e.target.value = node.name;
+                return;
+            }
             try {
-                await api.updateSubjectNode(TreeState.selectedNodeId, { name: e.target.value });
-                const node = TreeState.flatNodes.get(TreeState.selectedNodeId);
-                if (node) node.name = e.target.value;
+                await api.updateSubjectNode(TreeState.selectedNodeId, { name });
+                if (node) node.name = name;
+                e.target.value = name;
                 reapplySearchIfActive();
                 renderTree();
                 Toast.success('Updated', 'Name saved');

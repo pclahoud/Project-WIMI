@@ -69,15 +69,17 @@ Some exams classify the same question several independent ways at once: which or
 ## When you need them
 
 You choose between **Simple Exam** and **Multi-Dimensional Exam** on the
-wizard's first step, and only the second one offers dimensions. It is worth a
-minute's thought, because the wizard is where axes are made and there is no
-control for them anywhere else — not in Settings, not in the tree editor. You
-are not stuck with the first answer, though: reopening the exam in the wizard
-through **Edit** returns you to the same step, where an axis can be added or
-removed. The other route is importing a file that declares the whole exam's
-axes, which
+wizard's first step, and only the second one offers dimensions. There is no
+control for axes in Settings or in the tree editor, but the first answer is not
+final. Reopening an exam through **Edit** takes you to its
+**Exam Information** step: an exam with axes goes on from there to **Define
+Dimensions**, where an axis can be added or removed, and a Simple exam offers
+**Add dimensions to this exam**, which the section *Adding axes to an exam that
+already has subjects* below covers. The other route is importing a file that
+declares the whole exam's axes, which
 [Building your subject tree from a published outline](help_outline_to_tree.html)
-covers.
+covers. Only the other direction is closed: an exam with axes cannot go back to
+Simple.
 
 The signal that you need several axes is in the exam's own published blueprint.
 If it gives you one table of content areas with percentages, you want a simple
@@ -114,7 +116,85 @@ follows from.
 
 - **Parent and child never cross axes.** A subject's parents are always in its own dimension. There is no way to file a System subject under a Task, and sharing a subject between two parents, which the chapter [Subjects that live in more than one place](help_shared_subjects.html) is about, happens inside one axis.
 - **The same name in two axes is two subjects.** If you have Cardiovascular on the System axis and Cardiovascular on some other axis, those are two unrelated rows with two sets of entries. Nothing links them, and renaming or deleting one does not touch the other.
-- **A subject that existed before its exam had axes belongs to none of them.** That happens if you filled in a tree and then imported a file that created the axes. Those earlier subjects are not moved into an axis, because nothing says which one they would belong to. They still work and they still carry their entries; they are simply outside every per-axis view, and an import preview counts them and says so rather than touching them.
+- **A subject can be outside every axis.** That happens when an exam that already had subjects gains its first axis and you choose to keep them aside, or when they date from before WIMI asked. They still work and they still carry their entries, but the tree editor does not draw them in any axis's tree. It lists them under **Subjects not in any axis**, where you can move each one in; the next section covers that and the question WIMI asks when the first axis arrives.
+
+## Adding axes to an exam that already has subjects
+
+An exam you started as Simple can be given axes later, with its subjects
+already in it. What needs deciding is where those subjects go, and WIMI asks you
+rather than guessing.
+
+### From the wizard
+
+Open the exam with **Edit**. On the **Exam Information** step a Simple exam
+shows **Add dimensions to this exam**. Press it and a Define Dimensions step is
+added after this one, where you name the axes. Nothing is saved until you press
+**Save Changes**, and **Keep it Simple** undoes the choice until then.
+
+When you save, and the exam already has subjects, a dialog asks **Move your
+existing subjects into an axis?** It explains that once an exam has axes the
+tree editor shows one axis at a time, so subjects outside every axis are not
+drawn there.
+
+- **One row per top-level subject**, saying whether it moves on its own or with how many subjects underneath. Everything beneath a subject moves with it.
+- **An axis for each row.** Every row starts on the first axis. When you are adding more than one axis, each row has its own choice of axis; with one axis there is nothing to choose.
+- **Linked rows.** Two top-level subjects that share a subject underneath must go into the same axis, because a subject cannot sit in two. Their rows say *Shares subjects with …, so they go into the same axis*, and changing one changes the other.
+- **Show more.** The first six rows are listed, and **Show N more** opens the rest. Rows you never open still move, into the first axis.
+
+Then one of three answers:
+
+- **Move them into …**, named after the axis, or **Move them** when the rows point at different axes. The move happens in the same save as the new axes, so either both are saved or neither is.
+- **Keep them aside** leaves every subject exactly as it is, outside the axes. It applies to all of them; there is no keeping one subject aside here. The success screen then says where they are listed and offers **Open the tree editor**.
+- **Go back** saves nothing and returns you to the wizard. Escape and a click outside the dialog do the same.
+
+After a move, the success screen says how many subjects went into which axis.
+
+### From a whole-exam import
+
+Importing a file that declares the exam's axes is the other way an exam gets its
+first axis, described in
+[Building your subject tree from a published outline](help_outline_to_tree.html).
+If the exam already has subjects outside every axis, pressing **Import** in the
+preview asks the same question, with the file's axes to choose from. It adds
+that the import itself never changes these subjects: moving them is a separate
+step that happens only if you choose it.
+
+Two notes can appear on a row, because the file brings subjects of its own:
+
+- *The file already contains this subject, so it stays outside the axes.* The file carries the same subject, with the same id, in every axis it declares. Moving yours in would put two copies of it in one axis, so this one stays outside whatever you choose.
+- *The file also has a subject called … in …* Only the name matches, so they may be two different subjects. Yours still moves if you choose to; the note is there so two subjects with one name in that axis do not surprise you later.
+
+**Go back** imports nothing and leaves the preview open. After a move the tree
+editor opens on the axis that received the most subjects, and a notification
+says what moved; after **Keep them aside** it says where they are listed.
+
+If WIMI cannot read which subjects the exam already has, it does not import and
+quietly keep them aside for you. It imports nothing, leaves the preview open and
+says *Nothing was imported*, so you can try again.
+
+### Subjects not in any axis
+
+Any subject still outside every axis, kept aside or left from before, is listed
+in the tree editor under **Subjects not in any axis**. The panel is collapsed,
+and it is hidden altogether when there is nothing in it. Each top-level subject
+has a row with an axis to choose and **Move in**, and everything beneath it moves
+too, stopping at any subject that is already in an axis.
+
+- **Shared subjects move together.** If two top-level subjects share a subject underneath, moving one moves both into the axis you chose. The row says *Moves with …, because they share subjects* before you press anything, and the notification names what came along.
+- **Some rows can only go one way.** If a subject is linked to subjects already in an axis, it can only go into that axis, and the row says *Can only go into …* and starts on it. If it is linked into two different axes, no single axis can take it, and the row says so and offers no button.
+- **A refused move moves nothing**, and says why in a sentence: which subject would end up across two axes and which axis can take it, or that a subject in the target axis already carries the same import id.
+
+This panel is the way in for one subject at a time, whenever you decide.
+
+## An exam with axes stays multi-dimensional
+
+The change goes one way. Once an exam has axes it cannot be made Simple again:
+the wizard does not offer Simple when you edit it, and the note beside **Add
+dimensions to this exam** says so before you press it. If a save were ever to ask
+for the switch, WIMI refuses with *Nothing was saved. This exam has dimensions,
+and an exam with dimensions can't be switched back to Simple.* rather than
+reporting a success that did not happen. You can still add, rename and remove
+axes on the exam's **Define Dimensions** step.
 
 ## Tagging one question on several axes
 

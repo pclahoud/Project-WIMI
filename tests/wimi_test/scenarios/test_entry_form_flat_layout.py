@@ -63,6 +63,13 @@ _ALWAYS_VISIBLE_FIELDS: list[str] = [
     "explanation-editor",
     "media-upload-container",
     "btn-add-note",
+]
+
+# Removed on purpose (#856, owner 2026-11-04): the "+ Add New Subject" button
+# is gone because each subject dropdown ends in its own creation row. A
+# field that must be ABSENT, asserted beside the ones that must be visible, so
+# a sweep that "restores" the button is caught here.
+_REMOVED_FIELDS: list[str] = [
     "btn-quick-add-subject",
 ]
 
@@ -172,6 +179,16 @@ def test_every_field_is_visible_without_clicking(
         f"These fields are missing or have a zero rect on load: {hidden}. "
         "Every field must be visible without a click -- that is the whole "
         "point of the flat layout."
+    )
+
+    removed_ids = ",".join(f"'{f}'" for f in _REMOVED_FIELDS)
+    resurrected = wimi_page.eval_js(
+        f"[{removed_ids}].filter(id => document.getElementById(id) !== null)"
+    )
+    assert resurrected == [], (
+        f"These elements were removed and are back: {resurrected}. "
+        "#856 replaced the + Add New Subject button with a creation row in "
+        "each subject dropdown; do not restore it."
     )
 
 

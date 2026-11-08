@@ -177,6 +177,11 @@ _KEYS: dict[str, tuple[int, str | None]] = {
     "End": (35, None),
     "PageUp": (33, None),
     "PageDown": (34, None),
+    # A letter, for type-ahead on a closed <select>: the one keyboard way to
+    # change a closed select's value that behaves the same on every platform.
+    # ArrowDown does not -- on macOS Blink opens the popup instead
+    # (LayoutTheme::PopsMenuByArrowKey), so the value never moves.
+    "t": (84, "t"),
 }
 
 

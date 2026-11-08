@@ -139,4 +139,4 @@ def test_registry_has_v35_and_keeps_the_gaps():
     for skipped in (8, 11, 12, 13, 14, 29):
         assert skipped not in versions
     assert {m.version: m.name for m in MIGRATIONS}[35] == "anki_relevance"
-    assert max(versions) == 35
+    # The ``max(versions)`` line moved to test_user_036_nullable_note_origin.py.

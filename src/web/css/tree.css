@@ -671,6 +671,17 @@ mark.tree-search-highlight {
     color: var(--text-primary);
 }
 
+/* #738: where the entries filed under a removed parent go. */
+.parent-row-move-target {
+    max-width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
 /* Add-parent picker (inline, expands below the list) */
 .parents-add-area {
     display: flex;
@@ -2258,6 +2269,15 @@ mark.tree-search-highlight {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* "Moves with X" / "Can only go into Y" (#903): its own line under the row,
+   said before the press rather than discovered after it. */
+.unassigned-row-link {
+    order: 10;
+    flex-basis: 100%;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
 }
 
 .unassigned-empty {

@@ -27,7 +27,9 @@ from pathlib import Path
 
 import pytest
 
-from tests._web_sinks import ROOT, first_party_js, sinks_in
+from tests._web_sinks import (
+    BUCKETS, FLAGGED, LITERAL, NEEDS_HUMAN, ROOT, all_sinks, first_party_js,
+    reconcile, sinks_in)
 
 WEB_HTML = ROOT / 'src' / 'web' / 'html'
 
@@ -77,6 +79,74 @@ def test_the_finder_ignores_comparisons_and_comments() -> None:
               "// el.innerHTML = `${x}`;\n"
               "el.textContent = `${x}`;\n")
     assert sinks_in(ROOT / 'probe.js', source) == []
+
+
+# ------------------------------------------------- the denominator (#588)
+
+#: #588's shape: the interpolation is on the `+=` line and the sink reads a
+#: bare variable, so `interpolates` -- the filter that sized stage 3b -- says
+#: False. The bucket must not.
+BUILT_ABOVE_THE_SINK = '''        let html = '';
+        html += `<div class="row">${node.name}</div>`;
+        el.innerHTML = html;
+'''
+
+
+@pytest.mark.unit
+def test_the_old_filter_cannot_see_a_variable_built_above_the_sink() -> None:
+    """The control for #588: this is the blind spot the bucket exists for."""
+    [sink] = sinks_in(ROOT / 'probe.js', BUILT_ABOVE_THE_SINK)
+    assert sink.expression == 'html'
+    assert sink.interpolates is False
+    assert sink.bucket == NEEDS_HUMAN, (
+        'a sink built from a variable was bucketed as '
+        f'{sink.bucket!r}; it has to be read, and a reconciliation that '
+        'calls it safe undercounts the review surface exactly as 113 did')
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('rhs, bucket', [
+    # visible interpolation
+    ('`<b>${name}</b>`', FLAGGED),
+    ("'<b>' + name + '</b>'", FLAGGED),
+    # nothing but literals
+    ("''", LITERAL),
+    ("'<p>Loading…</p>'", LITERAL),
+    ('"<p>Loading</p>"', LITERAL),
+    ('`\n  <div class="empty">No rows</div>\n`', LITERAL),
+    ("'<li>' +\n    '<b>x</b>' + '</li>'", LITERAL),
+    # anything the classifier cannot prove falls here, never to literal
+    ('html', NEEDS_HUMAN),
+    ('renderRows(rows)', NEEDS_HUMAN),
+    ("rows.map(renderRow).join('')", NEEDS_HUMAN),
+    ("html || '<em>None</em>'", NEEDS_HUMAN),
+    ("busy ? '&#x25B6;' : '&#x23F8;'", NEEDS_HUMAN),
+    ('this._markup()', NEEDS_HUMAN),
+], ids=lambda v: v if v in BUCKETS else None)
+def test_each_shape_lands_in_one_bucket(rhs: str, bucket: str) -> None:
+    [sink] = sinks_in(ROOT / 'probe.js', f'el.innerHTML = {rhs};\n')
+    assert sink.bucket == bucket, (rhs, sink.expression)
+
+
+@pytest.mark.unit
+def test_the_buckets_partition_the_tree() -> None:
+    """#212's rule for a sweep: the buckets must sum to every sink found."""
+    sinks = all_sinks()
+    buckets = reconcile(sinks)
+    assert set(buckets) == set(BUCKETS)
+    assert sum(len(v) for v in buckets.values()) == len(sinks)
+    seen = [id(s) for v in buckets.values() for s in v]
+    assert len(seen) == len(set(seen)) == len(sinks)
+    # A classifier that put everything in one bucket would still partition;
+    # the real tree has members in all three, so an empty one is a regression.
+    assert all(buckets[b] for b in BUCKETS), {b: len(v) for b, v in buckets.items()}
+
+
+@pytest.mark.unit
+def test_the_real_tree_has_sinks_the_old_filter_misses() -> None:
+    """The blind spot is not hypothetical: it is non-empty on this tree."""
+    missed = [s for s in all_sinks() if not s.interpolates and s.bucket == NEEDS_HUMAN]
+    assert missed, 'no bare-variable sinks found; check the finder before believing it'
 
 
 # --------------------------------------------------------------- the link

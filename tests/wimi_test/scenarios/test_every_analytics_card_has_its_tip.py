@@ -4,7 +4,9 @@ Owner, 2026-10-14: *"would it be possible to add hover tip buttons to each
 diagram"*; the text below was shown and approved (*"this is good"*), with the
 four count cards at the top left out (*"no need"*). Study Recommendations'
 first sentence follows #824's fix, as recorded on #825, and the weight card's
-states the over-representation rule, as the owner asked on #827.
+states the over-representation rule, as the owner asked on #827. The
+difficulty and time card's is #898's, chosen under the owner's delegation
+(comment 12219) and copied from the plan word for word.
 
 This pins the approved words, so changing one is a visible edit here. Each
 tip is opened the way a keyboard user opens it -- focus -- and must show its
@@ -35,6 +37,7 @@ TIPS = {
     'analytics-info-study-activity': "One square per day for 16 weeks, darker for more entries. The darkest square is your busiest day in this view, not a fixed number. The streaks count all time; Active Days counts only the 16 weeks shown.",
     'analytics-info-goal': "The only card that counts finished entries only. It shows how many drafts are still to finish.",
     'analytics-info-difficulty': "How you rated the questions you got wrong. Entries you didn't rate are left out. Many mistakes on easy questions usually points to something other than missing knowledge.",
+    'analytics-info-difficulty-time': "Each mistake is placed by how hard you rated the question and how long you spent on it. Hard means rated 4 or 5, easy means 1 or 2. Fast means under your median time for this exam, which moves as you log more. Mistakes rated 3 sit in the middle, in no quadrant, and mistakes with no rating or no time are counted as not placed, so none is dropped. A mistake with two error types counts under both.",
     'analytics-info-insights': "Up to five things WIMI noticed, warnings first. Each one names a subject or number you can check on another card.",
     'analytics-info-interaction': "Pairs from your first two dimensions whose mistakes differ from what each dimension's own totals predict. Expected is arithmetic, not a target. The severity word is only the size of the gap, so a pair with one entry can read High.",
     'analytics-info-banks': "Entries per question bank, dated by the day you typed them, over about the last six months. Trend compares counts, not rates, so doing fewer questions from a bank reads as Better.",

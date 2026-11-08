@@ -88,15 +88,13 @@ class EntriesMixin:
         """, (review_session_id,))
         entry_order = row['next_order']
 
-        # Determine if this is a draft
-        is_draft = not (reflection and explanation and (primary_subject_ids and len(primary_subject_ids) > 0))
-        missing_fields = []
-        if not reflection:
-            missing_fields.append('reflection')
-        if not explanation:
-            missing_fields.append('explanation')
-        if not primary_subject_ids:
-            missing_fields.append('primary_subjects')
+        # Determine if this is a draft: the same definition the update path
+        # uses (#462), not a subset of it.
+        from ..models import missing_required_fields
+        missing_fields = missing_required_fields(
+            user_answer, correct_answer, reflection, explanation,
+            has_primary_subject=bool(primary_subject_ids))
+        is_draft = bool(missing_fields)
 
         try:
             with self.transaction():
@@ -407,9 +405,25 @@ class EntriesMixin:
                 entry_id
             ))
 
-            # Update session entries_completed if draft status changed
+            # Update session entries_completed if draft status changed, in
+            # both directions (#462): an entry that stops being complete comes
+            # back off the count, as delete_question_entry already does.
             if was_draft and not is_now_draft:
                 self.increment_session_entries_completed(entry.review_session_id)
+            elif not was_draft and is_now_draft:
+                self.execute("""
+                    UPDATE review_sessions
+                    SET entries_completed = MAX(0, entries_completed - 1)
+                    WHERE id = ?
+                """, (entry.review_session_id,))
+                # A session is completed only while every entry in it is
+                # finished (#714): one that now has a draft is back in
+                # progress, so its card offers Continue to that draft.
+                self.execute("""
+                    UPDATE review_sessions
+                    SET session_status = 'in_progress', completed_at = NULL
+                    WHERE id = ? AND session_status = 'completed'
+                """, (entry.review_session_id,))
 
         # Graph dual-write for subject mapping changes (after SQLite commit)
         if primary_subject_ids is not None or secondary_subject_ids is not None:
@@ -455,6 +469,12 @@ class EntriesMixin:
             raise QuestionEntryNotFoundError(f"Question entry {entry_id} not found")
 
         with self.transaction():
+            # #848 decision 2, BEFORE the row goes: a note first written on
+            # this entry is freed if another entry still holds it and deleted
+            # if this was its only attachment. The column's own ON DELETE SET
+            # NULL (m036) would leave the second kind as an unreachable orphan.
+            released = self.release_notes_from_entries([entry_id])
+
             # Delete will cascade to mappings, tags, media via FK constraints
             self.execute("DELETE FROM question_entries WHERE id = ?", (entry_id,))
 
@@ -472,6 +492,11 @@ class EntriesMixin:
                 "MATCH (e:Entry {sqlite_id: $eid}) DETACH DELETE e",
                 {"eid": entry_id}
             )
+            for note_id in released['deleted_note_ids']:
+                self._graph_execute(
+                    "MATCH (n:Note {sqlite_id: $nid}) DETACH DELETE n",
+                    {"nid": note_id}
+                )
         self._dual_write_graph("delete_question_entry", _graph_write)
 
         return True
@@ -550,7 +575,15 @@ class EntriesMixin:
         page: int = 1,
         per_page: int = 20,
         field_filters: Optional[Dict[str, str]] = None,
-        subject_mode: str = 'or'
+        subject_mode: str = 'or',
+        difficulty_levels: Optional[List[int]] = None,
+        time_min_seconds: Optional[float] = None,
+        time_max_seconds: Optional[float] = None,
+        missing_any: Optional[List[str]] = None,
+        tag_mode: str = 'any',
+        untagged: bool = False,
+        counted_subject_id: Optional[int] = None,
+        counted_parent_id: Optional[int] = None,
     ) -> Tuple[List['QuestionEntry'], int]:
         """
         Get paginated entries with comprehensive filtering.
@@ -570,13 +603,80 @@ class EntriesMixin:
             per_page: Items per page
             field_filters: Dict of field-specific filters, e.g. {'user_answer': 'ACE', 'subject': 'cardiology'}
             subject_mode: 'or' (entry matches any subject) or 'and' (entry matches all subjects)
+            difficulty_levels: Rated one of these (integers 1-5). (#898)
+            time_min_seconds: Time spent at least this (inclusive). Implies
+                timed. A number: the card's median can end in .5. (#898)
+            time_max_seconds: Time spent under this (exclusive). Implies
+                timed. (#898)
+            missing_any: Any of ``'difficulty'``, ``'time'``: the entry is
+                missing at least one of those named. (#898)
+            tag_mode: ``'any'`` (default, the old behaviour) matches an entry
+                carrying one of ``tag_ids``; ``'all'`` one carrying every one.
+            untagged: Only entries carrying no error type. Exclusive with
+                ``tag_ids``. (#898)
+            counted_subject_id: Only the entries the subject deep dive counts
+                for this subject (primary-only, its subtree reading). (#898)
+            counted_parent_id: The deep dive's parent context for
+                ``counted_subject_id``.
+
+        **The #898 filters land on exactly what the difficulty and time card
+        counts.** *Rated* and *timed* are read here as
+        ``analytics_advanced._dt_is_rated`` / ``_dt_is_timed`` read them in
+        Python: rated is an integer 1-5 (``typeof = 'integer'``, so a REAL
+        4.0 is not rated there and is not rated here), timed is a number
+        above 0 (a stored 0 is not timed). *No error type* ignores group
+        rows exactly as the card's ``tags_by_entry`` does. The counted
+        subject reuses ``_deep_dive_counted_entries_sql`` rather than a copy,
+        so it cannot drift from the card's deep-dive scope.
+        ``tests/database/test_entry_browser_lands_on_the_card.py`` holds the
+        browser's totals to the card's counts for every bucket.
+
+        Raises:
+            ValidationError: a malformed #898 filter (difficulty outside
+                1-5, a non-numeric time, an unknown ``missing_any`` value or
+                ``tag_mode``, ``untagged`` with ``tag_ids``, or a parent
+                context without a counted subject).
 
         Returns:
             Tuple of (entries list, total count)
         """
         from ..models import QuestionEntry
+        from ..exceptions import ValidationError
 
         self._ensure_phase4_schema()
+
+        # ---- #898 arguments, validated before any SQL is built
+        if tag_mode not in ('any', 'all'):
+            raise ValidationError(
+                f"tag_mode must be 'any' or 'all', not {tag_mode!r}")
+        levels: List[int] = []
+        for level in (difficulty_levels or []):
+            if (isinstance(level, bool) or not isinstance(level, int)
+                    or not 1 <= level <= 5):
+                raise ValidationError(
+                    f"difficulty_levels must be integers 1-5, not {level!r}")
+            if level not in levels:
+                levels.append(level)
+        for name, bound in (('time_min_seconds', time_min_seconds),
+                            ('time_max_seconds', time_max_seconds)):
+            if bound is not None and (
+                    isinstance(bound, bool)
+                    or not isinstance(bound, (int, float))
+                    or bound != bound):
+                raise ValidationError(f"{name} must be a number, not {bound!r}")
+        missing: List[str] = []
+        for what in (missing_any or []):
+            if what not in ('difficulty', 'time'):
+                raise ValidationError(
+                    f"missing_any takes 'difficulty' and 'time', not {what!r}")
+            if what not in missing:
+                missing.append(what)
+        untagged = bool(untagged)
+        if untagged and tag_ids:
+            raise ValidationError(
+                "No error type cannot be combined with picked error types")
+        if counted_parent_id is not None and counted_subject_id is None:
+            raise ValidationError("a parent context needs a counted subject")
 
         # Build WHERE conditions
         conditions = ["rs.user_id = ?"]
@@ -650,8 +750,18 @@ class EntriesMixin:
                 """)
                 params.extend(scope_params)
 
-        # Tag filter
-        if tag_ids:
+        # Tag filter. 'any' is the original behaviour; 'all' (#898) needs one
+        # membership test per type, ANDed.
+        if tag_ids and tag_mode == 'all':
+            for tag_id in dict.fromkeys(tag_ids):
+                conditions.append("""
+                    qe.id IN (
+                        SELECT question_entry_id FROM entry_tags
+                        WHERE tag_id = ?
+                    )
+                """)
+                params.append(tag_id)
+        elif tag_ids:
             placeholders = ','.join(['?'] * len(tag_ids))
             conditions.append(f"""
                 qe.id IN (
@@ -661,6 +771,58 @@ class EntriesMixin:
                 )
             """)
             params.extend(tag_ids)
+
+        # No error type (#898): carries no type. Group rows are not types,
+        # and an entry_tags row naming no tags row is not one either, which
+        # is how the card's tags_by_entry reads it (an inner JOIN on tags,
+        # IFNULL(is_group, 0) = 0).
+        if untagged:
+            conditions.append("""
+                NOT EXISTS (
+                    SELECT 1 FROM entry_tags et
+                    JOIN tags t ON t.id = et.tag_id
+                    WHERE et.question_entry_id = qe.id
+                      AND IFNULL(t.is_group, 0) = 0
+                )
+            """)
+
+        # Difficulty and time (#898). RATED and TIMED mirror _dt_is_rated and
+        # _dt_is_timed in analytics_advanced.py; see the docstring.
+        rated_sql = ("(typeof(qe.perceived_difficulty) = 'integer' "
+                     "AND qe.perceived_difficulty BETWEEN 1 AND 5)")
+        timed_sql = ("(typeof(qe.time_spent_seconds) IN ('integer', 'real') "
+                     "AND qe.time_spent_seconds > 0)")
+        if levels:
+            marks = ','.join('?' * len(levels))
+            conditions.append(
+                f"(typeof(qe.perceived_difficulty) = 'integer' "
+                f"AND qe.perceived_difficulty IN ({marks}))")
+            params.extend(levels)
+        if time_min_seconds is not None or time_max_seconds is not None:
+            conditions.append(timed_sql)
+        if time_min_seconds is not None:
+            conditions.append("qe.time_spent_seconds >= ?")
+            params.append(time_min_seconds)
+        if time_max_seconds is not None:
+            conditions.append("qe.time_spent_seconds < ?")
+            params.append(time_max_seconds)
+        if missing:
+            unmet = []
+            if 'difficulty' in missing:
+                unmet.append(f"NOT {rated_sql}")
+            if 'time' in missing:
+                unmet.append(f"NOT {timed_sql}")
+            conditions.append('(' + ' OR '.join(unmet) + ')')
+
+        # Counted under a subject (#898): the deep dive's own counting
+        # population, from the one helper the card uses. Its SELECT returns
+        # two columns, hence the outer SELECT id.
+        if counted_subject_id is not None:
+            counted_sql, counted_params = self._deep_dive_counted_entries_sql(
+                counted_subject_id, counted_parent_id)
+            conditions.append(
+                f"qe.id IN (SELECT id FROM ({counted_sql}))")
+            params.extend(counted_params)
 
         # Date filter
         if date_from:
@@ -753,6 +915,12 @@ class EntriesMixin:
             'date_asc': 'rs.date_encountered ASC, qe.created_at ASC',
             'difficulty_desc': 'qe.perceived_difficulty DESC NULLS LAST, qe.created_at DESC',
             'difficulty_asc': 'qe.perceived_difficulty ASC NULLS LAST, qe.created_at DESC',
+            # #898. A stored 0 is "no time" (it reads blank everywhere), so
+            # it sorts with the NULLs rather than as the shortest time.
+            'time_desc': ('CASE WHEN qe.time_spent_seconds > 0 THEN 0 ELSE 1 END, '
+                          'qe.time_spent_seconds DESC, qe.created_at DESC'),
+            'time_asc': ('CASE WHEN qe.time_spent_seconds > 0 THEN 0 ELSE 1 END, '
+                         'qe.time_spent_seconds ASC, qe.created_at DESC'),
             'subject_asc': 'qe.created_at DESC'  # Will be improved with subject join
         }
         order_clause = sort_mapping.get(sort_by, sort_mapping['date_desc'])

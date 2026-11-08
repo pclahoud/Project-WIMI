@@ -52,6 +52,7 @@ const CHART_SELECTORS = {
     'streak_stats': '#streakStats',
     'weekly_goal': '.goal-section',
     'difficulty_distribution': '.difficulty-section',
+    'difficulty_time': '.dt-section',
     'patterns_insights': '.insights-section',
     'cross_dimension_heatmap': '#crossDimensionSection',
     'study_recommendations': '#recommendationsSection',
@@ -67,7 +68,7 @@ const CHART_SELECTORS = {
 // two must change together.
 const PREFERENCE_CHART_GROUPS = {
     show_performance_trends: ['activity_chart', 'streak_stats'],
-    show_mistake_patterns: ['tag_chart', 'patterns_insights', 'difficulty_distribution'],
+    show_mistake_patterns: ['tag_chart', 'patterns_insights', 'difficulty_distribution', 'difficulty_time'],
     show_subject_breakdown: ['subject_sunburst', 'cross_dimension_heatmap', 'weight_analysis'],
     show_time_analytics: ['activity_heatmap', 'weekly_goal']
 };
@@ -1118,6 +1119,7 @@ class AnalyticsDashboard {
             this.loadActivityHeatmap(),
             this.loadGoalWidget(),
             this.loadDifficultyDistribution(),
+            this.loadDifficultyTime(),
             this.loadInsights(),
             this.loadWeightAnalysis(),
             this.loadSourceComparison()
@@ -1918,6 +1920,20 @@ class AnalyticsDashboard {
         } catch (error) {
             console.error('Error loading difficulty distribution:', error);
         }
+    }
+
+    /**
+     * Load the difficulty and time card (#898) for the selected exam. One
+     * component instance for the page's life, so its frame (heading, tip,
+     * tabs) is drawn once and each reload only redraws the panel.
+     */
+    async loadDifficultyTime() {
+        const mount = document.getElementById('difficultyTimeSection');
+        if (!mount || typeof DifficultyTimeCard === 'undefined') return;
+        if (!this.difficultyTimeCard) {
+            this.difficultyTimeCard = new DifficultyTimeCard({ mount, scope: {} });
+        }
+        await this.difficultyTimeCard.load({ examContextId: this.currentExamFilter });
     }
 
     /**

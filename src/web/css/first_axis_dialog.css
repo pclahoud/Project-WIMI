@@ -1,0 +1,131 @@
+/*
+ * The first-axis prompt (#605): "Move your existing subjects into an axis?"
+ *
+ * Its own stylesheet because the dialog is shared: the exam wizard loads it
+ * and so does the tree editor's whole-exam import (Wave 2), and the two pages style
+ * their modals from different sheets (wizard.css's `.modal` centres its text
+ * and caps its width at 25rem, which a list of subjects cannot live in).
+ * Every page that loads first_axis_dialog.js links this file too.
+ */
+
+.first-axis-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    padding: var(--space-md);
+}
+
+.first-axis-dialog {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    width: 100%;
+    max-width: 38rem;
+    max-height: 90vh;
+    /* A column: the body scrolls, the answers do not (#922). The surface
+       itself must not scroll, or focusing the primary button on open
+       scrolls the title out of view. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    text-align: left;
+}
+
+.first-axis-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-xl) var(--space-xl) 0;
+}
+
+.first-axis-title {
+    font-size: var(--font-size-xl);
+    margin: 0 0 var(--space-md);
+}
+
+.first-axis-text {
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-md);
+    line-height: 1.5;
+}
+
+.first-axis-list {
+    margin: var(--space-md) 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.first-axis-rows,
+.first-axis-more-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* `display: block` on the list would beat the `hidden` attribute. */
+.first-axis-more-rows[hidden] {
+    display: none;
+}
+
+.first-axis-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs) var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-top: 1px solid var(--border-light);
+}
+
+.first-axis-rows > .first-axis-row:first-child {
+    border-top: none;
+}
+
+.first-axis-row-select[hidden] {
+    display: none;
+}
+
+.first-axis-row-name {
+    font-weight: 600;
+}
+
+.first-axis-row-meta {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.first-axis-row-select {
+    margin-left: auto;
+    min-height: 24px;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.first-axis-row-note {
+    flex-basis: 100%;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+.first-axis-more {
+    margin: 0 0 var(--space-md);
+}
+
+.first-axis-actions {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-xl) var(--space-xl);
+    border-top: 1px solid var(--border-light);
+}

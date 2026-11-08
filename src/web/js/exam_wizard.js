@@ -32,6 +32,17 @@ class ExamWizard {
         this.isEditMode = false;
         this.editExamId = null;
 
+        // Did the exam being edited have axes when it was opened? true, false,
+        // or null when that could not be read (loadExistingExam's fallback).
+        // ONE field, read by three things that must agree: #444's Add
+        // dimensions control (shown only on false), #605's first-axis prompt
+        // (asked only on false) and #900's refusal to save an exam with axes
+        // as Simple (only on true). null does none of them: an exam whose axes
+        // could not be read is neither offered a first axis -- the list sent
+        // would archive any axis it has -- nor refused, and it is saved with
+        // `dimensions: null`, which leaves its axes alone.
+        this.loadedWithAxes = null;
+
         // Template system properties
         this.templates = [];           // All loaded templates
         this.filteredTemplates = [];   // Templates filtered by exam type and search
@@ -193,9 +204,13 @@ class ExamWizard {
                     }));
                     console.log('📊 Loaded dimensions:', this.data.dimensions);
                 }
+                this.loadedWithAxes = !!uses_dimensions;
             } catch (dimError) {
                 console.warn('Could not check dimensions (may be legacy exam):', dimError);
                 this.data.examType = 'simple';
+                // Unknown, not "none": see the constructor. This keeps the
+                // save at `dimensions: null`, and never `[]` (#900).
+                this.loadedWithAxes = null;
             }
             
             // Populate hierarchy levels if available
@@ -228,9 +243,11 @@ class ExamWizard {
             // Update form fields
             this.populateFormFields();
 
-            // In edit mode, skip type selection and template selection (can't change exam type)
-            // Step 1 = type, Step 2 = template, Step 3 = info
+            // In edit mode, skip type selection and template selection.
+            // Step 1 = type, Step 2 = template, Step 3 = info. A Simple exam
+            // gains dimensions from a control on the info step instead (#444).
             this.currentStep = 3;
+            this.updateAddDimensionsOffer();
             this.updateUI();
 
             console.log('Loaded existing exam data:', this.data);
@@ -357,6 +374,22 @@ class ExamWizard {
 
         document.getElementById('btn-dismiss-error').addEventListener('click', () => {
             document.getElementById('error-modal').classList.add('hidden');
+        });
+
+        // #605 decision 5: after Keep them aside, the success screen offers
+        // the place those subjects are listed.
+        document.getElementById('btn-open-tree-editor')?.addEventListener('click', () => {
+            window.location.href = `../tree_editor.html?exam_id=${encodeURIComponent(this.editExamId)}`;
+        });
+
+        // #444: give a Simple exam dimensions, from the info step.
+        document.getElementById('btn-add-dimensions')?.addEventListener('click', () => {
+            this.selectExamType('multi_dimensional');
+            document.getElementById('btn-keep-simple')?.focus();
+        });
+        document.getElementById('btn-keep-simple')?.addEventListener('click', () => {
+            this.selectExamType('simple');
+            document.getElementById('btn-add-dimensions')?.focus();
         });
 
         // Template reset button
@@ -548,6 +581,20 @@ class ExamWizard {
     }
     
     selectExamType(type) {
+        // #900, option C: an exam with axes cannot be switched back to
+        // Simple. Nothing a student can click reaches this in edit mode, and
+        // updateExam() refuses the save regardless; this keeps the wizard from
+        // drawing a state it would then refuse.
+        if (type === 'simple' && this.isEditMode && this.loadedWithAxes === true) {
+            return;
+        }
+        // Back to Simple before saving (#444's Keep it Simple): the axes
+        // drafted on this visit were never saved, and an exam that loaded with
+        // no axes has no saved one, so the list goes with the choice.
+        if (type === 'simple' && this.isEditMode && this.loadedWithAxes === false) {
+            this.data.dimensions = [];
+        }
+
         // Update data
         this.data.examType = type;
         
@@ -562,8 +609,26 @@ class ExamWizard {
         
         // Update progress bar to reflect new step count
         this.updateProgressBar();
-        
+        this.updateAddDimensionsOffer();
+
         console.log(`📋 Exam type selected: ${type}`);
+    }
+
+    /**
+     * #444: the info step's Add dimensions control. Present only when editing
+     * an exam that loaded with no axes -- absent on an exam with axes (it
+     * cannot go back to Simple, #900) and on one whose axes could not be read.
+     * Once pressed it says what happens next and offers the way back, which
+     * is safe until Save because nothing has been written.
+     */
+    updateAddDimensionsOffer() {
+        const offer = document.getElementById('add-dimensions-offer');
+        if (!offer) return;
+        const offered = this.isEditMode && this.loadedWithAxes === false;
+        offer.classList.toggle('hidden', !offered);
+        const chosen = this.data.examType === 'multi_dimensional';
+        document.getElementById('btn-add-dimensions')?.classList.toggle('hidden', chosen);
+        document.getElementById('add-dimensions-added')?.classList.toggle('hidden', !chosen);
     }
     
     setupLearnMoreModals() {
@@ -1121,6 +1186,16 @@ class ExamWizard {
     // =========================================================================
     
     addDimension() {
+        // The step opens with one empty card already drawn (renderDimensions
+        // seeds it), so pressing Add Dimension on arrival used to leave a
+        // second blank card and an alert on Next: "Please enter a name for
+        // Dimension 2" (#605 Wave 0). An unsaved card with no name is already
+        // the card Add Dimension would make, so the press goes there instead.
+        const blank = this.data.dimensions.findIndex(d => !d.dbId && !(d.name || '').trim());
+        if (blank !== -1) {
+            document.querySelectorAll('.dimension-name')[blank]?.focus();
+            return;
+        }
         const newDimension = {
             id: Date.now(), // Temporary ID for UI purposes
             name: '',
@@ -2088,21 +2163,46 @@ class ExamWizard {
     }
     
     async createExam() {
-        // Show loading state
         const btnCreate = document.getElementById('btn-create');
         const btnText = btnCreate.querySelector('.btn-text');
         const btnLoading = btnCreate.querySelector('.btn-loading');
-        
+
+        // #605: ask about the exam's existing subjects BEFORE the button goes
+        // into its loading state, so Go back leaves the page exactly as it
+        // was, with nothing saved and nothing to undo.
+        let existingSubjects = null;
+        if (this.isEditMode) {
+            if (btnCreate.disabled) return;
+            btnCreate.disabled = true;
+            let answer;
+            try {
+                answer = await this.askAboutExistingSubjects();
+            } catch (error) {
+                // Nothing has been saved; say so rather than failing silently.
+                console.error('Could not ask about the existing subjects:', error);
+                document.getElementById('error-message').textContent =
+                    `Nothing was saved. ${error.message || 'The question about your existing subjects could not be shown.'}`;
+                document.getElementById('error-modal').classList.remove('hidden');
+                return;
+            } finally {
+                btnCreate.disabled = false;
+            }
+            if (answer === null) return;  // Go back
+            existingSubjects = answer.choice;
+        }
+
+        // Show loading state
         btnCreate.disabled = true;
         btnText.classList.add('hidden');
         btnLoading.classList.remove('hidden');
-        
+        this.resetSuccessExtras();
+
         try {
             let result;
-            
+
             if (this.isEditMode) {
                 // Update existing exam
-                result = await this.updateExam();
+                result = await this.updateExam(existingSubjects);
             } else {
                 // Create new exam
                 result = await this.createNewExam();
@@ -2111,10 +2211,15 @@ class ExamWizard {
             console.log(`✅ Exam ${this.isEditMode ? 'updated' : 'created'}:`, result);
             
             // Show success modal with appropriate message
+            // #718: name the exam the database now holds, not the field. The
+            // field is what the student typed; the result is what was saved.
+            const savedName = (this.isEditMode && result && result.exam_name)
+                || this.data.examName;
             const successMessage = this.isEditMode
-                ? `"${this.data.examName}" has been updated successfully.`
+                ? `"${savedName}" has been updated successfully.`
                 : `"${this.data.examName}" has been created and is ready to use.`;
             document.getElementById('success-message').textContent = successMessage;
+            if (this.isEditMode) this.showExistingSubjectsOutcome(result);
             document.getElementById('success-modal').classList.remove('hidden');
             
         } catch (error) {
@@ -2133,6 +2238,91 @@ class ExamWizard {
         }
     }
     
+    /**
+     * The axes as the save will send them: final order, the order the
+     * first-axis prompt's `axis` indexes point into.
+     */
+    orderedDimensions() {
+        return [...this.data.dimensions].sort((a, b) => a.displayOrder - b.displayOrder);
+    }
+
+    /**
+     * #605: ask what happens to the subjects the exam already has when this
+     * save gives it its first axis. Resolves `{choice}` -- `null` when no
+     * question applies, or the dialog's answer -- or `null` for Go back.
+     *
+     * Asked only in edit mode, on an exam that loaded with no axes
+     * (loadedWithAxes === false, never null), being saved as multi-
+     * dimensional with at least one named axis, holding at least one subject.
+     * If the preview read fails it asks anyway, without the list, and every
+     * subject takes the first axis (#486's rule: a failed read does not skip
+     * a question).
+     */
+    async askAboutExistingSubjects() {
+        if (!this.isEditMode || this.loadedWithAxes !== false
+                || this.data.examType !== 'multi_dimensional') {
+            return { choice: null };
+        }
+        const axes = this.orderedDimensions()
+            .map((dim, index) => ({ index, name: (dim.name || '').trim() }))
+            .filter(axis => axis.name);
+        if (!axes.length || typeof FirstAxisDialog === 'undefined') {
+            return { choice: null };
+        }
+
+        let preview = null;
+        try {
+            preview = await api.getExistingSubjectsForFirstAxis(this.editExamId);
+        } catch (error) {
+            console.warn('Could not read the existing subjects:', error);
+        }
+        // Gained an axis since this page opened: ask nothing, and let the
+        // save refuse with the sentence that says so (first_axis below).
+        if (preview && preview.has_active_axis) return { choice: null };
+        if (preview && !preview.subject_count) return { choice: null };
+
+        const choice = await FirstAxisDialog.ask({
+            subjects: preview ? preview.roots : null,
+            subjectCount: preview ? preview.subject_count : null,
+            axes,
+            context: 'wizard'
+        });
+        return choice === null ? null : { choice };
+    }
+
+    resetSuccessExtras() {
+        document.getElementById('success-existing-subjects')?.classList.add('hidden');
+        document.getElementById('btn-open-tree-editor')?.classList.add('hidden');
+    }
+
+    /**
+     * #605: the success screen says what happened to the subjects the exam
+     * already had. After Keep them aside it says where they are and offers to
+     * go there (decision 5); after a move it says how many went where, and
+     * there is nothing to go and fix.
+     */
+    showExistingSubjectsOutcome(result) {
+        const outcome = result && result.moved_existing;
+        const detail = document.getElementById('success-existing-subjects');
+        const openTree = document.getElementById('btn-open-tree-editor');
+        if (!outcome || !detail) return;
+        let text = '';
+        if (outcome.action === 'aside') {
+            text = 'Your existing subjects are listed under Subjects not in any '
+                + 'axis in the tree editor.';
+            openTree?.classList.remove('hidden');
+        } else if (outcome.action === 'move' && outcome.moved > 0) {
+            const word = outcome.moved === 1 ? 'subject' : 'subjects';
+            const into = (outcome.by_axis || []).filter(a => a.moved > 0);
+            text = into.length === 1
+                ? `${outcome.moved} ${word} moved into ${into[0].name}.`
+                : `${outcome.moved} ${word} moved into your axes.`;
+        }
+        if (!text) return;
+        detail.textContent = text;
+        detail.classList.remove('hidden');
+    }
+
     async createNewExam() {
         // Prepare weight rules
         const weightRules = {
@@ -2212,9 +2402,27 @@ class ExamWizard {
         return examResult;
     }
     
-    async updateExam() {
-        // Prepare settings object for update
+    async updateExam(existingSubjects = null) {
+        // #900, option C: an exam that loaded with axes cannot be saved as
+        // Simple. A Simple save sends `dimensions: null`, which leaves every
+        // axis in place, so without this the wizard would report "updated
+        // successfully" over a type change that did not happen (#240). Never
+        // send `[]` instead: that archives every axis and every subject tree.
+        // createExam() shows the sentence in the error modal.
+        if (this.loadedWithAxes === true && this.data.examType !== 'multi_dimensional') {
+            throw new Error("Nothing was saved. This exam has dimensions, and an "
+                + "exam with dimensions can't be switched back to Simple.");
+        }
+        // #874: ONE call, ONE transaction. The settings, the length and the
+        // dimension sync used to be three independent saves, and only the
+        // first could fail the save: the length and every axis caught their
+        // own errors and logged them, so the success modal showed over a
+        // part that had not been saved. saveExamEdit writes them all or
+        // nothing, and a failure throws a sentence naming the part, which
+        // createExam() shows in the error modal.
+        // #718: exam_name is sent, and an empty exam_date is a clear.
         const settings = {
+            exam_name: this.data.examName,
             exam_description: this.data.examDescription,
             exam_date: this.data.examDate,
             color_hex: this.data.examColor || null,
@@ -2223,120 +2431,43 @@ class ExamWizard {
             precision: this.data.weightSettings.precision,
             balancing_algorithm: this.data.weightSettings.balancingAlgorithm
         };
-        
-        // Update exam context via API
-        const examResult = await api.updateExamContextSettings(this.editExamId, settings);
+        const length = {
+            kind: this.data.examLength.kind,
+            min: this.data.examLength.min,
+            max: this.data.examLength.max,
+            typical: this.data.examLength.typical,
+            note: this.data.examLength.note
+        };
+        const ordered = this.data.examType === 'multi_dimensional'
+            ? this.orderedDimensions()
+            : null;
+        const dimensions = ordered && ordered.map(dim => ({
+            id: dim.dbId || null,
+            name: dim.name,
+            description: dim.description || '',
+            is_required: dim.isRequired,
+            allow_multiple: dim.allowMultiple
+        }));
 
-        // Stage 4 — persist the length triple in edit mode too.
-        try {
-            await api.updateExamLength({
-                examContextId: this.editExamId,
-                kind: this.data.examLength.kind,
-                min: this.data.examLength.min,
-                max: this.data.examLength.max,
-                typical: this.data.examLength.typical,
-                note: this.data.examLength.note
-            });
-        } catch (lengthError) {
-            console.warn('Failed to persist exam length:', lengthError);
+        // #605: the answer about existing subjects travels in the same call,
+        // so the move runs in the same transaction as the axes it fills.
+        // `first_axis` tells the server this page saw no axis when it opened;
+        // if one exists now, the save is refused rather than archiving an
+        // axis this page never drew.
+        const firstAxis = this.loadedWithAxes === false && ordered !== null;
+        const result = await api.saveExamEdit(this.editExamId, {
+            settings, length, dimensions,
+            existing_subjects: existingSubjects,
+            first_axis: firstAxis
+        });
+
+        // New axes now have ids; keep the local list in step with them.
+        if (ordered && result && Array.isArray(result.dimension_ids)) {
+            ordered.forEach((dim, i) => { dim.dbId = result.dimension_ids[i]; });
         }
-
-        // Handle dimension updates for multi-dimensional exams
-        if (this.data.examType === 'multi_dimensional') {
-            await this.syncDimensions();
-        }
-
-        return examResult;
+        return result;
     }
-    
-    /**
-     * Synchronize dimensions between UI state and database.
-     * Handles creating new dimensions, updating existing ones, and deleting removed ones.
-     */
-    async syncDimensions() {
-        console.log('🔄 Syncing dimensions...');
-        
-        // Get existing dimensions from database
-        const existingDimensions = await api.getDimensions(this.editExamId);
-        const existingIds = new Set(existingDimensions.map(d => d.id));
-        
-        // Track IDs of dimensions still in UI
-        const uiDimensionIds = new Set();
-        
-        for (const dim of this.data.dimensions) {
-            if (dim.dbId && existingIds.has(dim.dbId)) {
-                // Update existing dimension
-                uiDimensionIds.add(dim.dbId);
-                try {
-                    await api.updateDimension(dim.dbId, {
-                        name: dim.name,
-                        description: dim.description || '',
-                        display_order: dim.displayOrder,
-                        is_required: dim.isRequired,
-                        allow_multiple: dim.allowMultiple
-                    });
-                    console.log(`  ✓ Updated dimension: ${dim.name}`);
-                } catch (error) {
-                    console.error(`  ⚠️ Failed to update dimension "${dim.name}":`, error);
-                }
-            } else {
-                // Create new dimension
-                try {
-                    const createdDim = await api.createDimension({
-                        examContextId: this.editExamId,
-                        name: dim.name,
-                        displayOrder: dim.displayOrder,
-                        isRequired: dim.isRequired,
-                        allowMultiple: dim.allowMultiple,
-                        description: dim.description || ''
-                    });
-                    dim.dbId = createdDim.id;  // Update local reference
-                    uiDimensionIds.add(createdDim.id);
-                    console.log(`  ✓ Created dimension: ${dim.name} (ID: ${createdDim.id})`);
-                } catch (error) {
-                    console.error(`  ⚠️ Failed to create dimension "${dim.name}":`, error);
-                }
-            }
-        }
-        
-        // Delete dimensions that were removed from UI
-        for (const existing of existingDimensions) {
-            if (!uiDimensionIds.has(existing.id)) {
-                try {
-                    await api.deleteDimension(existing.id);
-                    console.log(`  ✓ Deleted dimension: ${existing.name}`);
-                } catch (error) {
-                    console.error(`  ⚠️ Failed to delete dimension "${existing.name}":`, error);
-                }
-            }
-        }
-        
-        // Reorder dimensions based on current displayOrder
-        const orderedIds = this.data.dimensions
-            .filter(d => d.dbId)
-            .sort((a, b) => a.displayOrder - b.displayOrder)
-            .map(d => d.dbId);
-        
-        if (orderedIds.length > 1) {
-            try {
-                await api.reorderDimensions(this.editExamId, orderedIds);
-                console.log(`  ✓ Reordered ${orderedIds.length} dimensions`);
-            } catch (error) {
-                // Tell the student (#211). This used to be console.error only,
-                // so a reorder that failed outright looked exactly like one
-                // that worked: Save closed the wizard, and the old order came
-                // back on the next load with nothing said.
-                console.error('  ⚠️ Failed to reorder dimensions:', error);
-                alert(
-                    'Your dimensions were saved, but their order was not changed.\n\n'
-                    + `${error.message}\n\n`
-                    + 'Everything else on this exam saved normally.'
-                );
-            }
-        }
-        
-        console.log('🔄 Dimension sync complete');
-    }
+
 }
 
 

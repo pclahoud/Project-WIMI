@@ -841,9 +841,13 @@ class QuestionTopicAssignment:
 
 @dataclass
 class Tag:
-    """Tag for categorization (Phase 1)"""
+    """Tag for categorization (Phase 1)
+
+    ``exam_context`` is NULL on every row since m038 (#888): error types are
+    one library per profile, and an exam's list is ``exam_error_types``.
+    """
     id: int
-    exam_context: str
+    exam_context: Optional[str]
     tag_name: str
     tag_category: str  # 'mistake_type', 'study_method', 'content_type', 'difficulty', 'strategy', 'personal', 'other'
     color_hex: str
@@ -860,7 +864,7 @@ class Tag:
             return None
         return cls(
             id=row['id'],
-            exam_context=row['exam_context'],
+            exam_context=row.get('exam_context'),
             tag_name=row['tag_name'],
             tag_category=row.get('tag_category', 'other'),
             color_hex=row.get('color_hex', '#2196F3'),
@@ -1344,6 +1348,34 @@ class TimerRound:
         }
 
 
+def missing_required_fields(user_answer, correct_answer, reflection, explanation,
+                            has_primary_subject: Optional[bool] = None) -> List[str]:
+    """What an entry still lacks before it is complete: THE one definition (#462).
+
+    An entry is complete when it has a user answer, a correct answer, a
+    reflection, an explanation and at least one primary subject. That is
+    what the entry form's required markers and ``validateForm()`` tell the
+    student. ``create_question_entry`` once restated a subset inline, with no
+    answers, so an entry written reflections-first was stored complete on its
+    first autosave and became a draft on its next.
+
+    ``has_primary_subject=None`` leaves the subject out of the list, for
+    callers that check it themselves; ``False`` adds ``'primary_subjects'``.
+    """
+    missing = []
+    if not user_answer:
+        missing.append('user_answer')
+    if not correct_answer:
+        missing.append('correct_answer')
+    if not reflection:
+        missing.append('reflection')
+    if not explanation:
+        missing.append('explanation')
+    if has_primary_subject is False:
+        missing.append('primary_subjects')
+    return missing
+
+
 @dataclass
 class QuestionEntry:
     """
@@ -1421,18 +1453,14 @@ class QuestionEntry:
         )
     
     def get_missing_required_fields(self) -> List[str]:
-        """Get list of missing required fields"""
-        missing = []
-        if not self.user_answer:
-            missing.append('user_answer')
-        if not self.correct_answer:
-            missing.append('correct_answer')
-        if not self.reflection:
-            missing.append('reflection')
-        if not self.explanation:
-            missing.append('explanation')
-        # At least one primary subject required (checked separately)
-        return missing
+        """Get list of missing required fields.
+
+        The primary subject is checked separately, because it lives in
+        ``entry_subject_mappings`` and not on this row. Both write paths
+        go through ``missing_required_fields`` below (#462).
+        """
+        return missing_required_fields(
+            self.user_answer, self.correct_answer, self.reflection, self.explanation)
     
     @property
     def can_complete(self) -> bool:
@@ -1550,14 +1578,20 @@ class EntryMedia:
 @dataclass
 class EntryNote:
     """
-    A discrete note attached to a question entry - Phase 9.
+    A discrete note - Phase 9, generalised by #848.
 
-    Each entry can have multiple notes, each optionally linked to specific
-    subjects via linked_subject_ids (JSON array like [12, 45]).
-    NULL linked_subject_ids means "general" (not subject-specific).
+    ``question_entry_id`` is the entry the note was first written on, or
+    ``None`` for a note on its own (a *free note*, m036): one written outside
+    any entry, or one whose originating entry was deleted or detached while
+    the note stayed attached elsewhere. Which entries a note is attached to is
+    the ``entry_note_attachments`` junction's business, not this column's.
+
+    Each note is optionally linked to specific subjects via linked_subject_ids
+    (JSON array like [12, 45]). NULL linked_subject_ids means "general" (not
+    subject-specific).
     """
     id: int
-    question_entry_id: int
+    question_entry_id: Optional[int]
     content_html: Optional[str]
     content_json: Optional[str]
     sort_order: int
@@ -1581,6 +1615,7 @@ class EntryNote:
 
         return cls(
             id=row['id'],
+            # None passes through: a free note has no origin (#848).
             question_entry_id=row['question_entry_id'],
             content_html=row.get('content_html'),
             content_json=row.get('content_json'),
@@ -1597,10 +1632,14 @@ class EntryNote:
         return not self.linked_subject_ids
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization"""
-        return {
+        """Convert to dictionary for JSON serialization.
+
+        ``question_entry_id`` is absent, not null, for a free note -- the
+        same rule as ``_serialize_entry_note`` (#848), so the two shapes a
+        page can receive a note in agree.
+        """
+        data = {
             'id': self.id,
-            'question_entry_id': self.question_entry_id,
             'content_html': self.content_html,
             'content_json': self.content_json,
             'sort_order': self.sort_order,
@@ -1610,6 +1649,9 @@ class EntryNote:
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+        if self.question_entry_id is not None:
+            data['question_entry_id'] = self.question_entry_id
+        return data
 
 
 # ==================== Phase 7 Models: Multidimensional Hierarchical Database ====================

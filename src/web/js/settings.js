@@ -115,6 +115,7 @@ class SettingsPage {
             { key: 'streak_stats', label: 'Streak Statistics', dimensionOnly: false },
             { key: 'weekly_goal', label: 'Weekly Goal', dimensionOnly: false },
             { key: 'difficulty_distribution', label: 'Difficulty Distribution', dimensionOnly: false },
+            { key: 'difficulty_time', label: 'Difficulty and Time Spent', dimensionOnly: false },
             { key: 'patterns_insights', label: 'Patterns & Insights', dimensionOnly: false },
             { key: 'cross_dimension_heatmap', label: 'Cross-Dimension Heatmap', dimensionOnly: true },
             { key: 'study_recommendations', label: 'Study Recommendations', dimensionOnly: true },
@@ -2857,7 +2858,7 @@ class SettingsPage {
         rows.push(`<strong>${WimiEscape.html(side.device_name || 'Unknown computer')}</strong>`
             + (side.is_local ? ' <em>(this computer\u2019s copy)</em>' : ''));
         if (side.entries !== null && side.entries !== undefined) {
-            rows.push(`${side.entries} entries`);
+            rows.push(`${WimiEscape.html(String(side.entries))} entries`);
         }
         // The date range is what separates "a month of work" from "a stale
         // copy" -- two copies can have identical counts.

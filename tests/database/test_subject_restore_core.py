@@ -721,3 +721,69 @@ def test_restoring_twice_is_refused_rather_than_silently_doing_nothing(
     assert plan['blocked'][0]['code'] == 'nothing_to_restore'
     with pytest.raises(SubjectRestoreError):
         user_db.restore_subject_delete_batch(batch)
+
+
+# ---------------------------------------------------------------------------
+# #728: every skip reason reaches the summary, not only skipped subjects
+# ---------------------------------------------------------------------------
+#
+# #37 settled that a partial restore must never read as complete. The planner
+# recorded five kinds of skip, but the summary only counted skipped SUBJECTS,
+# so each case below restored every subject, skipped something else, and
+# reported a clean "Restored N subjects." Each test builds its skip the way
+# the planner tests above do and then reads the summary the panel shows.
+
+
+def test_a_promoted_child_not_re_attached_is_reported(user_db, exam):
+    parent = _node(user_db, exam, 'Parent')
+    _node(user_db, exam, 'Child', parent_id=parent)
+    batch = user_db.delete_subject_subtree(parent, promote_children=True)['batch_id']
+
+    summary = user_db.restore_subject_delete_batch(batch)['summary']
+
+    assert summary.startswith('Restored 1 subject.'), summary
+    assert '1 link to a parent was not put back because it was promoted to the' \
+        ' top level' in summary, (
+        f"#728: the promoted child's link was skipped silently: {summary!r}")
+
+
+def test_a_link_re_created_since_is_reported(user_db, exam):
+    parent = _node(user_db, exam, 'Parent')
+    shared = _node(user_db, exam, 'Shared', parent_id=parent)
+    other = _node(user_db, exam, 'Other')
+    user_db.add_edge(parent_id=other, child_id=shared)
+    batch = user_db.delete_subject_subtree(parent)['batch_id']
+    user_db.add_edge(parent_id=parent, child_id=shared)
+
+    summary = user_db.restore_subject_delete_batch(batch)['summary']
+
+    assert ('1 link to a parent was not put back because that link has since'
+            ' been re-created by hand') in summary, (
+        f"#728: the re-created link was skipped silently: {summary!r}")
+
+
+def test_a_parent_context_chosen_since_is_reported(user_db, exam):
+    p1 = _node(user_db, exam, 'Chain A')
+    shared = _node(user_db, exam, 'Shared', parent_id=p1)
+    p2 = _node(user_db, exam, 'Chain B')
+    user_db.add_edge(parent_id=p2, child_id=shared)
+    mapping = _entry_on(user_db, exam, shared, primary_parent_id=p1)
+    batch = user_db.delete_subject_subtree(p1)['batch_id']
+    user_db.execute(
+        'UPDATE entry_subject_mappings SET primary_parent_id = ? WHERE id = ?',
+        (p2, mapping))
+    user_db.conn.commit()
+
+    summary = user_db.restore_subject_delete_batch(batch)['summary']
+
+    assert ("1 entry's parent context was not restored because the entry has"
+            " been given a parent context since") in summary, (
+        f"#728: the entry pin was skipped silently: {summary!r}")
+
+
+def test_a_restore_with_no_skips_still_reads_as_one_sentence(user_db, exam):
+    """The control: nothing skipped, nothing added to the message."""
+    parent = _node(user_db, exam, 'Parent')
+    _node(user_db, exam, 'Child', parent_id=parent)
+    batch = user_db.delete_subject_subtree(parent)['batch_id']
+    assert user_db.restore_subject_delete_batch(batch)['summary'] == 'Restored 2 subjects.'

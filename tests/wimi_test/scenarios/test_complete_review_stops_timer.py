@@ -1,294 +1,142 @@
-"""Regression: timer keeps running after the Complete Review button.
+"""Review Entries stops the study timer, and completes the session only when
+nothing in it is unfinished.
 
-Bug source: ``docs/bugs/bugs.md`` (second entry,
-``# Bug Report: Question Review Timer does not stop when user selects
-the complete review button``).
+The bug (``docs/bugs/bugs.md``, *Question Review Timer does not stop when
+user selects the complete review button*): the session-complete modal's
+``#complete-review`` handler closed the modal and left the timer running.
+It now calls ``autoSuspendTimerForNavigation()`` and marks the session
+``completed`` -- but only while no entry slot is unfinished (#714,
+``firstUnfinishedSlot(getEntrySlotCount()) === -1`` in ``showSessionComplete``).
 
-Reproduced verbatim from ``bugs.md`` lines 21-38:
+**Why this file was flaky, and why it is two tests now (#917).** It used to
+seed a one-slot session with NO saved entry, open the modal straight after
+``goto`` and assert the session became ``completed``. Once the page has
+loaded the session that slot is unfinished, so #714 correctly leaves the
+session ``in_progress``: measured 5 failures in 5 runs with a wait for the
+form. It passed only when the click beat the page's own load, while
+``EntryState.session`` was still empty and the slot count read 0 -- about
+8 runs in 10. So the test asserted the behaviour #714 forbids, and passed
+by racing the load. Both tests now wait for the form, and the session's
+state is chosen on purpose: one finished entry (completes) and one
+unfinished slot (the timer stops, the session stays open).
 
-    When the user gets to the last question to review and selects the
-    'Complete Review' button, the study timer still runs.
-    ...
-    The study session that is running when the user selects the
-    'Complete Review' button should be stopped and marked as complete.
-    ...
-    The study session timer that was previously running prior to
-    selecting the 'Complete Review' button is still running.
-
-Why the bug exists in code
---------------------------
-
-In ``src/web/js/question_entry.js`` around line 2272, the session
-complete modal wires two click handlers:
-
-* ``#complete-done`` (Done) calls ``await
-  autoSuspendTimerForNavigation()`` before navigating away — timer
-  stops correctly.
-* ``#complete-review`` (Review Entries) only closes the modal and
-  ``// Stay on page for review`` — **no timer stop**.
-
-Returning to the page later still shows the previous session's timer
-running, exactly as the report describes. A correct fix calls
-``autoSuspendTimerForNavigation()`` (or an equivalent terminal-stop
-helper) inside the ``#complete-review`` handler too, and marks the
-review session as complete in the DB.
-
-How this test verifies a fix
-----------------------------
-
-1. Seed a review session with one entry remaining and an active timer
-   (timer state seeded directly through the DB so the test does not
-   have to walk a multi-question flow).
-2. Open the entry form, fill the last entry, and trigger the
-   Complete Review button.
-3. After the click, assert two things:
-   * **DOM check:** the ``#session-timer`` element is hidden
-     (``display: none``) or is in a paused/expired CSS state.
-   * **DB check:** the active timer round on the review session has a
-     non-NULL ``ended_at`` timestamp (or the review session itself is
-     marked completed via :func:`assert_session_completed`).
-
-Either signal alone could be a false-positive in isolation (a CSS class
-flip without a real DB stop is just cosmetic; a DB write without a UI
-update is the inverse). Pairing them keeps the assertion honest across
-plausible fixes.
-
-Markers / fixtures
-------------------
-
-* ``@pytest.mark.slow`` — spawns a real WIMI subprocess.
-* ``@pytest.mark.regression`` — registered in ``pytest.ini`` so
-  collection emits no warning. Reserved for bug-report regression
-  scenarios.
-* Fixtures: ``wimi_session``, ``wimi_page``, ``test_user``. We seed
-  the review session and timer round directly because no named seeder
-  produces a "one entry remaining + active timer" fixture yet.
+**The timer half had never been tested either.** The seeded session had no
+``session_duration_minutes``, so ``initSessionTimer()`` returned before any
+round was running and "the timer is stopped" was true from the start:
+deleting ``autoSuspendTimerForNavigation()`` from the handler left the old
+test green. The seed now sets a duration, each test first asserts a round
+is running on the page, and the check reads the paused round in the page's
+state and in ``session_timer_rounds``.
 """
-
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 import pytest
 
+from _helpers.w114_form_ready import wait_for_form_ready
 from wimi_test.db.assertions import assert_session_completed
 from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
+FULL = dict(user_answer="a", correct_answer="b", reflection="<p>R</p>",
+            explanation="<p>E</p>")
+
+def _assert_round_paused(page: WimiPage, db: Any, round_id: int) -> None:
+    """The press paused the running round: in the page's state and in the
+    database (autoSuspendTimerForNavigation -> pauseRoundTimer). Polled,
+    because the bridge write is asynchronous (#84)."""
+    for _ in range(50):
+        if page.eval_js("EntryState.timerPaused === true") \
+                and db.get_timer_round(round_id).timer_paused_at:
+            return
+        page.wait_for_timeout(100)
+    raise AssertionError(
+        "the timer was not stopped: page timerPaused="
+        f"{page.eval_js('EntryState.timerPaused')}, round timer_paused_at="
+        f"{db.get_timer_round(round_id).timer_paused_at!r}")
 
 
-def _wait_for(
-    wimi_page: WimiPage,
-    js_expression: str,
-    *,
-    timeout_ms: int = 5000,
-    poll_step_ms: int = 100,
-) -> Any:
-    """Poll ``js_expression`` until it returns something truthy.
+def _seed(db: Any, name: str, *, finished: bool) -> tuple[int, int]:
+    """A one-slot session with a running timer round; the slot holds a
+    finished entry, or nothing at all."""
+    exam = db.create_exam_context(exam_name=f"{name} Exam", exam_description="")
+    session = db.create_review_session(
+        exam_context_id=exam.id, total_questions=1, total_incorrect=1,
+        session_name=f"{name} session", date_encountered=date.today(),
+        # Without a duration initSessionTimer() returns at once, so no round
+        # is running on the page and a timer assertion can only pass. The
+        # old version of this file had exactly that gap (#917).
+        session_duration_minutes=30)
+    if finished:
+        subj = db.create_subject_node(exam_context=exam.exam_name,
+                                      name=f"{name} Cardiology", level_type="System")
+        entry = db.create_question_entry(review_session_id=session.id,
+                                         primary_subject_ids=[subj.id], **FULL)
+        assert not entry.is_draft, "the seeded entry must be finished"
+    rnd = db.create_timer_round(session_id=session.id, duration_minutes=30)
+    db.conn.commit()
+    return session.id, rnd.id
 
-    Returns the last value seen rather than raising, so the caller's own
-    assertion still reports what it actually found. This replaces a fixed
-    ``wait_for_timeout`` that was "enough on an idle box" and a race under
-    load -- the #84 shape.
-    """
-    elapsed = 0
-    last: Any = None
-    while elapsed < timeout_ms:
-        last = wimi_page.eval_js(js_expression)
-        if last:
-            return last
-        wimi_page.wait_for_timeout(poll_step_ms)
-        elapsed += poll_step_ms
-    return last
+
+def _press_review_entries(page: WimiPage, session_id: int) -> None:
+    page.goto("entry-form", query={"session_id": session_id})
+    # The whole point of #917: act on the LOADED page, never ahead of it.
+    wait_for_form_ready(page)
+    assert page.eval_js("getEntrySlotCount()") == 1, "the session did not load"
+    # Positive control: a round is running on the page before the press, so
+    # a passing timer assertion below means the press stopped it.
+    running = page.eval_js("!!EntryState.activeRound && !EntryState.timerPaused"
+                           " && !EntryState.timerExpired")
+    assert running, "no running timer round on the page before the press"
+    # showSessionComplete() is the state a save of the last entry reaches;
+    # the modal's fade is forced off so the button is in place at once.
+    page.eval_js("""(() => {
+        showSessionComplete();
+        const m = document.getElementById('complete-modal');
+        m.style.transition = 'none'; m.style.opacity = '1';
+        m.style.visibility = 'visible';
+    })()""")
+    # A JS click: the handler under test is the one showSessionComplete()
+    # just bound, and QtWebEngine drops the CDP click on this forced modal.
+    page.eval_js("document.getElementById('complete-review').click()")
 
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_complete_review_button_stops_active_timer(
-    wimi_session: WimiTestSession,
-    wimi_page: WimiPage,
+def test_review_entries_stops_the_timer_and_completes_a_finished_session(
+    wimi_session: WimiTestSession, wimi_page: WimiPage,
 ) -> None:
-    """The Complete Review button must stop the active study timer.
-
-    Arrange
-    -------
-    Create an exam, a review session, and a single not-yet-saved entry
-    slot. Mark the session timer as active so the entry form renders
-    the timer chrome on load.
-
-    Act
-    ---
-    Navigate to the entry form for that session, fill in the answer
-    fields for the final entry, save it (which surfaces the
-    ``#complete-modal``), then click the Complete Review button.
-
-    Assert
-    ------
-    1. ``#session-timer`` is no longer visibly running — either
-       ``display: none`` or carries the ``timer-paused`` /
-       ``timer-expired`` class.
-    2. The review session's active timer round has been finalised in the
-       DB (use :func:`assert_session_completed` once the helper supports
-       per-round finalisation; until then assert via direct DB query
-       and a clear failure message).
-    """
-    # ---- Arrange -----------------------------------------------------
     db = wimi_session.user.db
-    db._ensure_phase2_schema()
-    db._ensure_phase4_schema()
+    session_id, round_id = _seed(db, "W917 done", finished=True)
 
-    # One exam, one review session with a 1-entry budget so the very
-    # next save triggers the session-complete modal.
-    exam = db.create_exam_context(
-        exam_name="Bug Repro: Complete Review Timer",
-        exam_description="Regression for bugs.md timer-not-stopping bug",
-    )
+    _press_review_entries(wimi_page, session_id)
 
-    # ``create_review_session`` expects ``date.today()`` not isoformat()
-    # — see project memory note ("create_review_session needs date object").
-    from datetime import date
+    _assert_round_paused(wimi_page, db, round_id)
+    # The status write is the handler's last await; wait for it to land.
+    for _ in range(50):
+        if db.get_review_session(session_id).session_status == "completed":
+            break
+        wimi_page.wait_for_timeout(100)
+    assert_session_completed(db, session_id)
 
-    review_session = db.create_review_session(
-        exam_context_id=exam.id,
-        total_questions=1,
-        total_incorrect=1,
-        session_name="Bug repro: complete-review timer stop",
-        date_encountered=date.today(),
-    )
 
-    # The form's "is the timer rendering?" check looks at the session
-    # timer round table (``session_timer_rounds``). Seed an active round
-    # so the form mounts the timer chrome on load. ``create_timer_round``
-    # inserts a row whose ``ended_at`` starts NULL — i.e. "still running".
-    # A correct fix for the Complete Review handler flips ``ended_at`` to
-    # a non-NULL value via ``end_timer_round`` when the button is clicked.
-    if hasattr(db, "create_timer_round"):
-        db.create_timer_round(
-            session_id=review_session.id,
-            duration_minutes=30,
-        )
-    else:
-        # Defensive guard: the timer-round API name is the one we
-        # captured at scenario-write time. If it changes, the test
-        # fails loud and clear with a pointer to the audit doc.
-        pytest.skip(
-            "UserDatabase has no create_timer_round method; the timer "
-            "round API was renamed since this scenario was written. "
-            "Update the seed call to match the new name."
-        )
+@pytest.mark.slow
+@pytest.mark.regression
+def test_review_entries_stops_the_timer_but_leaves_an_unfinished_session_open(
+    wimi_session: WimiTestSession, wimi_page: WimiPage,
+) -> None:
+    """The control, and #714's rule: an unfinished slot keeps the session
+    open, while the timer still stops."""
+    db = wimi_session.user.db
+    session_id, round_id = _seed(db, "W917 open", finished=False)
 
-    # ---- Act ---------------------------------------------------------
-    # Navigate directly to the entry form for this session. The page-side
-    # JS in question_entry.js redirects to index.html if no session_id
-    # query param is present, so we must pass it explicitly.
-    wimi_page.goto("entry-form", query={"session_id": review_session.id})
+    _press_review_entries(wimi_page, session_id)
 
-    # Open the session-complete modal directly via the page's own helper.
-    # The full save-flow (fill required fields -> save -> wait for entry
-    # save -> wait for modal) requires walking subject selection,
-    # reflection, and other validated fields the bug under test doesn't
-    # care about. The bug is purely in the modal's #complete-review
-    # click handler, so we invoke ``showSessionComplete()`` (defined at
-    # question_entry.js:2267) to put the page in the same state a real
-    # save-of-the-last-entry would.
-    #
-    # The modal CSS in session.css applies a
-    # ``transition: opacity 150ms, visibility 150ms`` on ``.modal-backdrop``,
-    # so even after Modal.open adds the ``active`` class the modal is
-    # still ``visibility: hidden`` until the transition completes (and
-    # in the headless test environment the transition can be flaky).
-    # We force-end the transition immediately so the locator's hit-test
-    # sees the button as clickable on the first poll.
-    wimi_page.eval_js("""
-        (() => {
-            showSessionComplete();
-            const m = document.getElementById('complete-modal');
-            if (m) {
-                m.style.transition = 'none';
-                m.style.opacity = '1';
-                m.style.visibility = 'visible';
-            }
-        })()
-    """)
-
-    # Click "Review Entries" — this is the bug-triggering path.
-    # CDP-synthetic clicks via Input.dispatchMouseEvent reliably reach
-    # buttons rendered inline (verified by the section-toggle scenario)
-    # but in this case the button is inside a modal whose visibility we
-    # forced via inline styles, and QtWebEngine's CDP routing drops the
-    # ``click`` event for that path even when ``elementFromPoint`` hit-
-    # tests against the button. The bug under test is the handler logic
-    # itself ("Review Entries does not stop the timer / mark the session
-    # complete"), not the dispatch pathway, so we wait for the handler
-    # we just verified is bound, then dispatch a JS-direct ``.click()``
-    # which is sufficient to fire the bound ``onclick`` handler.
-    wimi_page.eval_js(
-        "document.getElementById('complete-review').click()"
-    )
-
-    # The async chain is ``autoSuspendTimerForNavigation()`` ->
-    # ``updateReviewSession`` -> bridge -> SQLite write -> commit. Poll
-    # for the timer to actually stop rather than guessing how long that
-    # takes (#84); a still-running timer polls out the full budget and
-    # fails the assertion below with its real state.
-    _wait_for(
-        wimi_page,
-        """
-        (() => {
-            const el = document.getElementById('session-timer');
-            if (!el) return false;
-            const cs = window.getComputedStyle(el);
-            const visible =
-                cs.display !== 'none' && cs.visibility !== 'hidden';
-            const running = visible
-                && !el.className.includes('timer-paused')
-                && !el.className.includes('timer-expired');
-            return !running;
-        })()
-        """,
-    )
-
-    # ---- Assert: DOM ------------------------------------------------
-    # Probe the timer element via eval_js because the assertion is
-    # multi-fact: visibility + class state. Returning a single dict
-    # keeps the assertion message rich.
-    timer_state: Any = wimi_page.eval_js(
-        """
-        (() => {
-            const el = document.getElementById('session-timer');
-            if (!el) return { present: false };
-            const cs = window.getComputedStyle(el);
-            return {
-                present: true,
-                display: cs.display,
-                classes: el.className,
-                visible: cs.display !== 'none' && cs.visibility !== 'hidden',
-            };
-        })()
-        """
-    )
-
-    assert timer_state["present"], (
-        "No #session-timer element on the page after Complete Review — "
-        "the page may have navigated away (which is also a valid fix; "
-        "if so, update this assertion)."
-    )
-
-    timer_running = (
-        timer_state["visible"]
-        and "timer-paused" not in timer_state["classes"]
-        and "timer-expired" not in timer_state["classes"]
-    )
-    assert not timer_running, (
-        "Session timer is still running after Complete Review was "
-        "clicked — this is the regression from bugs.md "
-        "('Question Review Timer does not stop when user selects the "
-        f"complete review button'). state={timer_state!r}"
-    )
-
-    # ---- Assert: DB --------------------------------------------------
-    # Per the bug report's "Expected behaviour": the review session
-    # itself should be marked completed. assert_session_completed raises
-    # on failure with a useful message. We pass the session id we seeded
-    # at Arrange time.
-    assert_session_completed(db, review_session.id)
+    _assert_round_paused(wimi_page, db, round_id)
+    # Give a wrong completion every chance to land before asserting it did not.
+    wimi_page.wait_for_timeout(1500)
+    status = db.get_review_session(session_id).session_status
+    assert status == "in_progress", (
+        f"a session with an unfinished slot was marked {status!r} (#714)")

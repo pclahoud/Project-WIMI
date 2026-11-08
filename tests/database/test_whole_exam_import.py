@@ -791,3 +791,332 @@ def test_a_declared_flag_is_applied(user_db, exam):
     row = user_db.get_exam_dimensions(exam.id)[0]
     assert bool(row['is_required']) is False
     assert bool(row['allow_multiple']) is True
+
+
+# ============ the first-axis offer and Phase G (#605 Wave 2) ============
+#
+# The owner's decisions (Forgejo #605, comments 12206 and 12211): a whole-exam
+# import that gives an exam its first axis OFFERS to move the subjects already
+# there (decision 2); a subject whose import_id the file already holds keeps
+# its existing copy outside the axes (decision 7); a name-only match moves
+# anyway (decision 8). The import itself still never touches those subjects:
+# the two dimensionless tests above call apply without a choice and are
+# unchanged.
+
+def _legacy_tree(user_db, exam):
+    """Cardio > AFib, and Renal: a plain exam's subjects, outside every axis."""
+    cardio = _subject(user_db, exam, 'Cardio')
+    afib = _subject(user_db, exam, 'AFib', None, cardio.id)
+    renal = _subject(user_db, exam, 'Renal')
+    user_db.conn.commit()
+    return cardio.id, afib.id, renal.id
+
+
+def _set_import_id(user_db, subject_id, import_id):
+    user_db.execute("UPDATE subject_nodes SET import_id = ? WHERE id = ?",
+                    (import_id, subject_id))
+    user_db.conn.commit()
+
+
+def _dimension_of(user_db, subject_id):
+    return user_db.fetchone(
+        "SELECT dimension_id FROM subject_nodes WHERE id = ?",
+        (subject_id,))['dimension_id']
+
+
+def _two_axes():
+    return [
+        _axis('System', _node('Cardiovascular', id='s1'), display_order=1),
+        _axis('Task', _node('Diagnosis', id='t1'), display_order=2),
+    ]
+
+
+def test_the_offer_lists_the_declared_axes_and_the_subjects_outside(
+        user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+
+    offer = plan['first_axis_offer']
+    assert offer['axes'] == [{'index': 0, 'name': 'System'},
+                             {'index': 1, 'name': 'Task'}]
+    assert offer['subject_count'] == 3
+    assert [r['subject_id'] for r in offer['roots']] == [cardio, renal]
+    assert all(r['import_id_clash_axes'] == [] for r in offer['roots'])
+    assert all(r['name_clash_axes'] == [] for r in offer['roots'])
+
+
+def test_the_offer_follows_final_order_not_file_order(user_db, exam):
+    """`index` is the file_index; the list is in the order the axes end up."""
+    _legacy_tree(user_db, exam)
+    plan = user_db.plan_whole_exam_import(exam.id, [
+        _axis('Task', _node('Diagnosis'), display_order=2),
+        _axis('System', _node('Cardiovascular'), display_order=1),
+    ])
+    assert plan['first_axis_offer']['axes'] == [
+        {'index': 1, 'name': 'System'}, {'index': 0, 'name': 'Task'}]
+
+
+def test_no_offer_when_the_exam_already_has_an_axis(user_db, exam):
+    _legacy_tree(user_db, exam)
+    _dimension(user_db, exam, 'Existing', 1)
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+    assert plan['first_axis_offer'] is None
+
+
+def test_no_offer_when_no_subject_sits_outside_every_axis(user_db, exam):
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+    assert plan['first_axis_offer'] is None
+
+
+def test_no_offer_for_a_file_that_declares_no_axes(user_db, exam):
+    """`"dimensions": []` creates no axis, so there is nothing to move into."""
+    _legacy_tree(user_db, exam)
+    plan = user_db.plan_whole_exam_import(exam.id, [])
+    assert plan['first_axis_offer'] is None
+
+
+def test_the_note_keeps_its_words_and_adds_the_choice_when_offered(
+        user_db, exam):
+    _legacy_tree(user_db, exam)
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+    note = [w for w in plan['warnings'] if 'not in any dimension' in w]
+    assert len(note) == 1
+    assert 'unless you choose to move them' in note[0]
+
+
+def test_a_move_puts_each_tree_in_its_chosen_axis_and_leaves_counts_alone(
+        user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    without = user_db.plan_whole_exam_import(exam.id, _two_axes())['counts']
+
+    result = user_db.apply_whole_exam_import(
+        exam.id, _two_axes(), existing_subjects={
+            'action': 'move', 'assignments': [
+                {'subject_id': cardio, 'axis': 0},
+                {'subject_id': renal, 'axis': 1}]})
+
+    system, task = result['created_dimension_ids']
+    assert _dimension_of(user_db, cardio) == system
+    assert _dimension_of(user_db, afib) == system
+    assert _dimension_of(user_db, renal) == task
+    assert result['counts'] == without
+    assert result['moved_existing'] == {
+        'action': 'move', 'moved': 3,
+        'by_axis': [{'axis_id': system, 'name': 'System', 'moved': 2},
+                    {'axis_id': task, 'name': 'Task', 'moved': 1}],
+        'kept_outside': []}
+    assert not any('not in any dimension' in w for w in result['warnings'])
+
+
+def test_an_unlisted_subject_takes_the_first_axis_in_final_order(user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    user_db.apply_whole_exam_import(exam.id, [
+        _axis('Task', _node('Diagnosis'), display_order=2),
+        _axis('System', _node('Cardiovascular'), display_order=1),
+    ], existing_subjects={'action': 'move', 'assignments': [
+        {'subject_id': renal, 'axis': 0}]})
+    names = {d['name']: d['id'] for d in user_db.get_exam_dimensions(exam.id)}
+    assert _dimension_of(user_db, cardio) == names['System']
+    assert _dimension_of(user_db, renal) == names['Task']
+
+
+def test_aside_leaves_every_subject_outside(user_db, exam):
+    _legacy_tree(user_db, exam)
+    result = user_db.apply_whole_exam_import(
+        exam.id, _two_axes(), existing_subjects={'action': 'aside'})
+    assert set(_subjects_in(user_db, None)) == {'Cardio', 'AFib', 'Renal'}
+    assert result['moved_existing']['action'] == 'aside'
+    assert result['moved_existing']['moved'] == 0
+    assert len(result['created_dimension_ids']) == 2
+
+
+def test_no_choice_reports_no_move_and_keeps_the_note(user_db, exam):
+    """Control: nothing asked is the pre-#605 import, note included."""
+    _legacy_tree(user_db, exam)
+    result = user_db.apply_whole_exam_import(exam.id, _two_axes())
+    assert result['moved_existing'] is None
+    assert set(_subjects_in(user_db, None)) == {'Cardio', 'AFib', 'Renal'}
+    assert any('not in any dimension' in w for w in result['warnings'])
+
+
+def test_an_import_id_clash_is_reported_on_the_root(user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    _set_import_id(user_db, afib, 's1')
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+    roots = {r['subject_id']: r for r in plan['first_axis_offer']['roots']}
+    assert roots[cardio]['import_id_clash_axes'] == [0]
+    assert roots[renal]['import_id_clash_axes'] == []
+
+
+def test_an_import_id_clash_is_refused_with_a_sentence_and_saves_nothing(
+        user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    _set_import_id(user_db, afib, 's1')
+
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(
+            exam.id, _two_axes(), existing_subjects={
+                'action': 'move', 'assignments': [
+                    {'subject_id': cardio, 'axis': 0},
+                    {'subject_id': renal, 'axis': 0}]})
+
+    assert str(exc.value).startswith('Nothing was saved.')
+    assert 'AFib' in str(exc.value) and 'System' in str(exc.value)
+    assert user_db.get_exam_dimensions(exam.id) == []
+    assert set(_subjects_in(user_db, None)) == {'Cardio', 'AFib', 'Renal'}
+
+
+def test_the_same_tree_moves_into_the_axis_it_does_not_clash_with(
+        user_db, exam):
+    """Negative control for the refusal above: the clash is per axis."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    _set_import_id(user_db, afib, 's1')
+    result = user_db.apply_whole_exam_import(
+        exam.id, _two_axes(), existing_subjects={
+            'action': 'move', 'assignments': [
+                {'subject_id': cardio, 'axis': 1},
+                {'subject_id': renal, 'axis': 0}]})
+    system, task = result['created_dimension_ids']
+    assert _dimension_of(user_db, afib) == task
+
+
+def test_a_subject_clashing_on_every_axis_stays_outside(user_db, exam):
+    """Decision 7: the existing copy stays outside the axes."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    _set_import_id(user_db, afib, 'shared-id')
+    file = [
+        _axis('System', _node('Cardiovascular', id='shared-id'),
+              display_order=1),
+        _axis('Task', _node('Diagnosis', id='shared-id'), display_order=2),
+    ]
+    plan = user_db.plan_whole_exam_import(exam.id, file)
+    roots = {r['subject_id']: r for r in plan['first_axis_offer']['roots']}
+    assert roots[cardio]['import_id_clash_axes'] == [0, 1]
+
+    result = user_db.apply_whole_exam_import(
+        exam.id, file, existing_subjects={'action': 'move', 'assignments': [
+            {'subject_id': cardio, 'axis': None},
+            {'subject_id': renal, 'axis': 1}]})
+
+    assert set(_subjects_in(user_db, None)) == {'Cardio', 'AFib'}
+    assert result['moved_existing']['kept_outside'] == [
+        {'subject_id': cardio, 'name': 'Cardio'}]
+    assert result['moved_existing']['moved'] == 1
+
+
+def test_a_subject_that_could_move_cannot_be_kept_outside(user_db, exam):
+    """`axis: null` is only for a row whose every axis clashes."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(
+            exam.id, _two_axes(), existing_subjects={
+                'action': 'move', 'assignments': [
+                    {'subject_id': cardio, 'axis': None}]})
+    assert str(exc.value).startswith('Nothing was saved.')
+    assert 'Cardio' in str(exc.value)
+    assert user_db.get_exam_dimensions(exam.id) == []
+
+
+def test_a_clash_widens_to_every_root_sharing_a_subject(user_db, exam):
+    """Decision 6 meets decision 7: roots that must share an axis share its
+    clashes, or the dialog would offer an axis the server refuses as a split."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    user_db.add_edge(renal, afib)
+    user_db.conn.commit()
+    _set_import_id(user_db, cardio, 's1')
+
+    plan = user_db.plan_whole_exam_import(exam.id, _two_axes())
+    roots = {r['subject_id']: r for r in plan['first_axis_offer']['roots']}
+    assert roots[cardio]['group'] == roots[renal]['group']
+    assert roots[renal]['import_id_clash_axes'] == [0]
+
+
+def test_a_kept_outside_root_cannot_split_from_one_that_moves(user_db, exam):
+    """A shared subject would end up in an axis under a parent in none."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    user_db.add_edge(renal, afib)
+    user_db.conn.commit()
+    _set_import_id(user_db, cardio, 'shared-id')
+    file = [
+        _axis('System', _node('Cardiovascular', id='shared-id'),
+              display_order=1),
+        _axis('Task', _node('Diagnosis', id='shared-id'), display_order=2),
+    ]
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(
+            exam.id, file, existing_subjects={
+                'action': 'move', 'assignments': [
+                    {'subject_id': cardio, 'axis': None},
+                    {'subject_id': renal, 'axis': 0}]})
+    assert 'share subjects' in str(exc.value)
+    assert user_db.get_exam_dimensions(exam.id) == []
+
+
+def test_a_name_only_match_still_moves_and_is_noted(user_db, exam):
+    """Decision 8."""
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    file = [_axis('System', _node('Cardio'), display_order=1)]
+    plan = user_db.plan_whole_exam_import(exam.id, file)
+    roots = {r['subject_id']: r for r in plan['first_axis_offer']['roots']}
+    assert roots[cardio]['name_clash_axes'] == [0]
+    assert roots[renal]['name_clash_axes'] == []
+
+    result = user_db.apply_whole_exam_import(
+        exam.id, file, existing_subjects={'action': 'move', 'assignments': [
+            {'subject_id': cardio, 'axis': 0},
+            {'subject_id': renal, 'axis': 0}]})
+    system = result['created_dimension_ids'][0]
+    assert _dimension_of(user_db, cardio) == system
+    moved = user_db.fetchall(
+        "SELECT name FROM subject_nodes WHERE dimension_id = ? "
+        "AND status = 'active' ORDER BY name", (system,))
+    assert [r['name'] for r in moved] == ['AFib', 'Cardio', 'Cardio', 'Renal']
+
+
+@pytest.mark.parametrize('axis', [5, -1, True, '0', 1.0])
+def test_an_axis_reference_outside_the_file_is_refused(user_db, exam, axis):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(
+            exam.id, _two_axes(), existing_subjects={
+                'action': 'move', 'assignments': [
+                    {'subject_id': cardio, 'axis': axis}]})
+    assert str(exc.value).startswith('Nothing was saved.')
+    assert user_db.get_exam_dimensions(exam.id) == []
+
+
+@pytest.mark.parametrize('choice', [{'action': 'later'}, {}, 'move', ['aside']])
+def test_an_unreadable_choice_is_refused(user_db, exam, choice):
+    _legacy_tree(user_db, exam)
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(exam.id, _two_axes(),
+                                        existing_subjects=choice)
+    assert str(exc.value).startswith('Nothing was saved.')
+    assert user_db.get_exam_dimensions(exam.id) == []
+
+
+def test_a_stale_subject_is_refused_and_nothing_is_imported(user_db, exam):
+    cardio, afib, renal = _legacy_tree(user_db, exam)
+    with pytest.raises(ValidationError) as exc:
+        user_db.apply_whole_exam_import(
+            exam.id, _two_axes(), existing_subjects={
+                'action': 'move', 'assignments': [
+                    {'subject_id': afib, 'axis': 0}]})
+    assert 'no longer a top-level subject' in str(exc.value)
+    assert user_db.get_exam_dimensions(exam.id) == []
+    assert _subjects_in(user_db, None) == {
+        'Cardio': cardio, 'AFib': afib, 'Renal': renal}
+
+
+def test_any_answer_on_an_exam_that_gained_an_axis_is_refused(user_db, exam):
+    """The dialog was drawn for an exam with no axis; one has arrived since."""
+    _legacy_tree(user_db, exam)
+    _dimension(user_db, exam, 'Arrived', 1)
+    for choice in ({'action': 'aside'},
+                   {'action': 'move', 'assignments': []}):
+        with pytest.raises(ValidationError) as exc:
+            user_db.apply_whole_exam_import(exam.id, _two_axes(),
+                                            existing_subjects=choice)
+        assert 'gained an axis since this was opened' in str(exc.value)
+    assert _axis_names(user_db, exam) == ['Arrived']

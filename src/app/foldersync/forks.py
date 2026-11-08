@@ -143,6 +143,20 @@ class ForkReport:
         }
 
 
+def _count(value: Any) -> Optional[int]:
+    """A count from a manifest, or ``None`` when it is not one (#548).
+
+    ``stats`` is taken from the manifest as written, and a manifest is a file
+    in a folder somebody else can write to. ``row_counts`` is coerced to
+    ``int`` when parsed; ``stats`` is not, and it overrides ``row_counts``
+    here, so without this a string in ``stats["entries"]`` reached Settings'
+    fork panel as markup. An absent figure is honest; a guessed one is not.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
 def summarise_side(manifest: SyncManifest) -> SideSummary:
     """The cheap half: everything one manifest knows about its own side.
 
@@ -165,10 +179,10 @@ def summarise_side(manifest: SyncManifest) -> SideSummary:
         bytes=described["bytes"],
         blob_name=getattr(manifest, "blob_name", "") or "",
         sha256=getattr(manifest, "sha256", "") or "",
-        entries=stats.get("entries"),
-        sessions=stats.get("sessions"),
-        exam_contexts=stats.get("exam_contexts"),
-        subjects=stats.get("subjects"),
+        entries=_count(stats.get("entries")),
+        sessions=_count(stats.get("sessions")),
+        exam_contexts=_count(stats.get("exam_contexts")),
+        subjects=_count(stats.get("subjects")),
         encountered_first=stats.get("encountered_first"),
         encountered_last=stats.get("encountered_last"),
         logged_first=stats.get("logged_first"),

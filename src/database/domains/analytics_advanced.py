@@ -1,6 +1,7 @@
 """WIMI advanced analytics operations."""
 
 import json
+import math
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, timedelta
 from app_logging import ErrorCategory
@@ -30,6 +31,184 @@ from app_logging import ErrorCategory
 #: else was typed, anchored or computed by somebody, and is what the
 #: uncertainty band widens on.
 _VERIFIED_WEIGHT_SOURCES = frozenset({'official'})
+
+
+# ---------------------------------------------------------------------------
+# Difficulty and time spent (#898, owner 2026-11-07)
+#
+# ``docs/planning/DIFFICULTY_TIME_CARD_PLAN.md`` is the spec. Rated 4-5 is
+# hard, 1-2 easy, and 3 is a middle band in no quadrant. Fast and slow split
+# at the median time of every timed mistake on the exam, and only once there
+# are ``DT_MIN_TIMED`` of them.
+# ---------------------------------------------------------------------------
+
+DT_HARD = (4, 5)
+DT_EASY = (1, 2)
+DT_MIDDLE = 3
+DT_MIN_TIMED = 10
+DT_TOP_TYPES = 3
+
+_DT_QUADRANTS = ('hard_fast', 'hard_slow', 'easy_fast', 'easy_slow')
+
+
+def _dt_is_timed(t: Any) -> bool:
+    """Timed means more than 0 seconds. A 0 can be stored and reads blank."""
+    return (isinstance(t, (int, float)) and not isinstance(t, bool)
+            and t > 0)
+
+
+def _dt_is_rated(d: Any) -> bool:
+    """Rated means an integer 1-5. Anything else is treated as no rating."""
+    return isinstance(d, int) and not isinstance(d, bool) and 1 <= d <= 5
+
+
+def _dt_median(sorted_times: List[Any]) -> Any:
+    """Odd n: the middle value. Even n: the mean of the two middle values,
+    so a half second is possible. An integral result is returned as an int."""
+    n = len(sorted_times)
+    mid = n // 2
+    if n % 2:
+        value = sorted_times[mid]
+    else:
+        value = (sorted_times[mid - 1] + sorted_times[mid]) / 2
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+def _dt_bucket(d: Any, t: Any, median: Any) -> str:
+    """The one bucket an entry belongs to.
+
+    ``median`` is None while there are too few timed mistakes to split, and
+    then every rated 1/2/4/5 timed entry is ``unsplit``. Fast is ``t <
+    median``, so the median entry itself is slow.
+    """
+    if not _dt_is_rated(d) or not _dt_is_timed(t):
+        return 'not_placed'
+    if d == DT_MIDDLE:
+        return 'middle'
+    if median is None:
+        return 'unsplit'
+    speed = 'fast' if t < median else 'slow'
+    return ('hard_' if d in DT_HARD else 'easy_') + speed
+
+
+def _dt_chunks(ids: List[int], size: int = 500):
+    """Keep ``IN (...)`` under SQLite's host-parameter limit."""
+    for start in range(0, len(ids), size):
+        yield ids[start:start + size]
+
+
+def _dt_check_accounting(payload: Dict[str, Any]) -> None:
+    """Every mistake is in exactly one bucket, so none is dropped.
+
+    quadrants (or unsplit) + middle + not placed = total, and the per-entry
+    list agrees. Raised rather than ``assert``-ed so an optimised build still
+    checks it.
+    """
+    buckets = payload['buckets']
+    if payload['median']['available']:
+        placed_in_split = sum(buckets[name]['count'] for name in _DT_QUADRANTS)
+    else:
+        placed_in_split = payload['unsplit']['count']
+    summed = (placed_in_split + buckets['middle']['count']
+              + buckets['not_placed']['count'])
+    if summed != payload['total'] or len(payload['entries']) != payload['total']:
+        raise AssertionError(
+            f"difficulty/time accounting broken: buckets sum to {summed}, "
+            f"{len(payload['entries'])} entries listed, total "
+            f"{payload['total']}")
+
+
+#: Every place the card can link from: the four quadrants, the two
+#: fallback bands, and ``total`` for the card as a whole.
+DT_LINK_BUCKETS = ('total',) + _DT_QUADRANTS + ('unsplit', 'middle',
+                                                 'not_placed')
+
+
+def _dt_link_number(value: Any) -> str:
+    """A number as the URL carries it: ``94`` or ``94.5``, never ``94.0``.
+
+    JavaScript's ``String()`` writes the same text for both, which is what
+    keeps ``difficulty_time_links.js`` and this byte-identical.
+    """
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value)
+
+
+def dt_entry_browser_params(payload: Dict[str, Any],
+                            bucket: str) -> Dict[str, str]:
+    """The entry browser URL parameters that land on one bucket of the card.
+
+    A pure function of a :meth:`AdvancedAnalyticsMixin.get_difficulty_time_quadrants`
+    payload (#898 Wave 1). The browser's total for these parameters equals
+    the bucket's count -- its ``match.count`` when a type, several types or
+    *No error type* is picked -- and
+    ``tests/database/test_entry_browser_lands_on_the_card.py`` asserts that
+    for every bucket and picker state on both scopes.
+
+    **Wave 2 takes the JavaScript copy**, ``src/web/js/difficulty_time_links.js``
+    (``WimiDifficultyTimeLinks.paramsFor`` / ``urlFor``), which is this
+    function line for line; the regression scenario
+    ``test_entry_browser_filters_by_difficulty_and_time.py`` compares the two
+    on a real payload. Change both or neither.
+
+    * The exam is always ``exam``. On the deep dive the scope adds
+      ``counted_subject`` (and ``counted_parent``), the card's own counting
+      population, never the browser's finding-rule ``subject``.
+    * A quadrant is ``difficulty`` plus ``time_max`` (fast, exclusive) or
+      ``time_min`` (slow, inclusive) at the median itself, not its rounded
+      label, so the median entry lands on slow as the card puts it.
+    * ``middle`` and ``unsplit`` need *timed* without a bound: ``time_min=0``
+      is that, because either bound implies ``time_spent_seconds > 0``.
+    * ``not_placed`` is ``missing=difficulty,time``: no rating OR no time.
+    * The picker travels as ``tags`` (+ ``tag_mode=all`` when it matters)
+      or ``untagged=1``.
+
+    Raises:
+        ValueError: an unknown bucket, or a quadrant while the card has no
+            split.
+    """
+    if bucket not in DT_LINK_BUCKETS:
+        raise ValueError(f"unknown bucket {bucket!r}")
+    scope = payload['scope']
+    params: Dict[str, str] = {'exam': str(scope['exam_context_id'])}
+    if scope.get('subject_id') is not None:
+        params['counted_subject'] = str(scope['subject_id'])
+        if scope.get('primary_parent_id') is not None:
+            params['counted_parent'] = str(scope['primary_parent_id'])
+
+    if bucket in _DT_QUADRANTS:
+        median = payload['median']
+        if not median['available']:
+            raise ValueError(f"{bucket} has no split to link to")
+        levels = DT_HARD if bucket.startswith('hard_') else DT_EASY
+        params['difficulty'] = ','.join(str(d) for d in levels)
+        m = _dt_link_number(median['value_seconds'])
+        if bucket.endswith('_fast'):
+            params['time_max'] = m
+        else:
+            params['time_min'] = m
+    elif bucket == 'unsplit':
+        params['difficulty'] = ','.join(
+            str(d) for d in sorted(DT_EASY + DT_HARD))
+        params['time_min'] = '0'
+    elif bucket == 'middle':
+        params['difficulty'] = str(DT_MIDDLE)
+        params['time_min'] = '0'
+    elif bucket == 'not_placed':
+        params['missing'] = 'difficulty,time'
+
+    selection = payload.get('selection') or {}
+    picked = selection.get('tag_ids') or []
+    if selection.get('untagged'):
+        params['untagged'] = '1'
+    elif picked:
+        params['tags'] = ','.join(str(t) for t in picked)
+        if selection.get('match') == 'all' and len(picked) > 1:
+            params['tag_mode'] = 'all'
+    return params
 
 
 class AdvancedAnalyticsMixin:
@@ -73,7 +252,8 @@ class AdvancedAnalyticsMixin:
                 'dimension_id': int,     # #314, ABSENT when in no axis
                 'dimension_name': str,   # #314, ABSENT when in no axis
                 'notes': [{'note_id': int, 'entry_id': int,
-                           'content_html': str, 'updated_at': str}, ...],  # #465
+                           'content_html': str, 'updated_at': str,
+                           'attachment_count': int}, ...],  # #465, #848
                 'exam_weight': float,
                 'total_mistakes': int,  # Aggregated from all descendants
                 'direct_mistakes': int,  # Only directly tagged to this subject
@@ -652,15 +832,31 @@ class AdvancedAnalyticsMixin:
         # `json_each(linked_subject_ids)`, and had no caller anywhere. It is
         # reused rather than re-queried so the deep dive and the entry form's
         # "+ Add existing" picker cannot drift apart.
-        notes = [
-            {
+        #
+        # `entry_id` is ABSENT, not null, for a note on no entry (#848, m036:
+        # a note freed when its origin was deleted, or detached from it).
+        # Same convention as `dimension_id` on this payload (#314) and the
+        # serializer's `question_entry_id`: the page tests `'entry_id' in
+        # note` rather than comparing against null. A row with an origin opens
+        # the entry; a row without one opens the Quick note dialog on the note
+        # (#848 Wave 2b).
+        #
+        # `attachment_count` is how many entries hold the note through the
+        # m009 junction, computed by `get_notes_by_subjects` exactly as
+        # `list_free_notes` computes it (`_notes_with_attachment_count`). The
+        # row reads it to say "and 1 other" beside "Entry #N", so a note
+        # shared with other entries does not read as belonging to one.
+        notes = []
+        for n in self.get_notes_by_subjects([subject_id], limit=20):
+            note = {
                 'note_id': n.id,
-                'entry_id': n.question_entry_id,
                 'content_html': n.content_html,
                 'updated_at': n.updated_at,
+                'attachment_count': int(getattr(n, 'attachment_count', 0) or 0),
             }
-            for n in self.get_notes_by_subjects([subject_id], limit=20)
-        ]
+            if n.question_entry_id is not None:
+                note['entry_id'] = n.question_entry_id
+            notes.append(note)
         payload['notes'] = notes
 
         return payload
@@ -703,6 +899,358 @@ class AdvancedAnalyticsMixin:
                 names.get(nid, f'#{nid}') for nid in candidate),
             'node_ids': list(candidate),
         }
+
+    # =============================================================================
+    # DIFFICULTY AND TIME SPENT (#898)
+    # =============================================================================
+
+    def _deep_dive_counted_entries_sql(
+        self, subject_id: int, primary_parent_id: Optional[int] = None
+    ) -> 'tuple[str, list]':
+        """The entries behind :meth:`get_subject_deep_dive`'s ``total_mistakes``.
+
+        Returns ``(sql, params)`` for a statement selecting ``qe.id`` and
+        ``rs.exam_context_id``, ending in a WHERE clause the caller may extend
+        with ``AND ...``. It already carries ``rs.user_id = ?`` and
+        ``esm.mapping_type = 'primary'``.
+
+        **A copy, not a refactor (#898).** ``get_subject_deep_dive`` builds the
+        same scope inline: the permissive subtree reading with no parent
+        context, the lenient parent-context reading with one, and
+        primary-only because that page *totals* mistakes (#13). The page is
+        deliberately not rewritten onto this helper; instead
+        ``test_difficulty_time_quadrants.py``'s parity tests compare this
+        population with the page's own ``total_mistakes``, with and without
+        a parent context. If the page's scope changes, change this with it,
+        or those tests fail.
+        """
+        descend = """
+                    SELECT id FROM subject_nodes WHERE id = ? AND status = 'active'
+                    UNION
+                    SELECT sn.id FROM subject_nodes sn
+                    JOIN subject_edges se ON se.child_id = sn.id
+                    JOIN {name} d ON se.parent_id = d.id
+                    WHERE sn.status = 'active'
+        """
+        if primary_parent_id is None:
+            cte = ("WITH RECURSIVE descendants AS ("
+                   + descend.format(name='descendants') + ")")
+            params: list = [subject_id]
+            scope = (
+                "(esm.subject_node_id IN (SELECT id FROM descendants) "
+                "OR (esm.primary_parent_id IS NOT NULL "
+                "AND esm.primary_parent_id IN (SELECT id FROM descendants)))"
+            )
+        else:
+            cte = ("WITH RECURSIVE descendants AS ("
+                   + descend.format(name='descendants') + "), "
+                   "parent_context_descendants AS ("
+                   + descend.format(name='parent_context_descendants') + ")")
+            params = [subject_id, primary_parent_id]
+            scope = (
+                "("
+                "(esm.primary_parent_id IS NULL "
+                "AND esm.subject_node_id IN (SELECT id FROM descendants))"
+                " OR "
+                "(esm.primary_parent_id IS NOT NULL "
+                "AND esm.primary_parent_id IN "
+                "(SELECT id FROM parent_context_descendants))"
+                ")"
+            )
+        sql = f"""
+            {cte}
+            SELECT DISTINCT qe.id AS id, rs.exam_context_id AS exam_context_id
+            FROM question_entries qe
+            JOIN review_sessions rs ON qe.review_session_id = rs.id
+            JOIN entry_subject_mappings esm ON qe.id = esm.question_entry_id
+            WHERE rs.user_id = ? AND {scope} AND esm.mapping_type = 'primary'
+        """
+        params.append(self.user_id)
+        return sql, params
+
+    def get_difficulty_time_quadrants(
+        self,
+        exam_context_id: int,
+        subject_id: Optional[int] = None,
+        primary_parent_id: Optional[int] = None,
+        tag_ids: Optional[List[int]] = None,
+        untagged: bool = False,
+        match: str = 'any',
+    ) -> Dict[str, Any]:
+        """Every mistake in scope, placed by its rating and its time spent.
+
+        The rules are ``docs/planning/DIFFICULTY_TIME_CARD_PLAN.md``'s *Data
+        rules*, decided on #898:
+
+        * **Scope.** No ``subject_id``: every mistake in the exam's sessions
+          for this user, drafts included (#12), no dimension filter. With
+          one: exactly the population behind ``get_subject_deep_dive``'s
+          ``total_mistakes`` (see :meth:`_deep_dive_counted_entries_sql`).
+        * **Timed** means ``time_spent_seconds > 0``: a 0 can be stored and is
+          shown blank everywhere. **Rated** means an integer 1-5.
+        * **The median** is over every timed mistake of the *exam*, whatever
+          the rating, the subject or the picker, so *fast* means the same on
+          both pages. Fast is ``t < m``, slow ``t >= m``, so the median
+          entry is slow. Under ``DT_MIN_TIMED`` timed mistakes there is no
+          split: the four quadrants are ``None`` and ``unsplit`` holds the
+          rated 1/2/4/5 timed mistakes instead.
+        * **Buckets** are exclusive and exhaustive: the four quadrants (or
+          ``unsplit``), ``middle`` (rated 3 and timed) and ``not_placed`` (no
+          rating, or not timed). ``placed`` counts the quadrants (or
+          ``unsplit``) only, so it is the mockup's "92 of 133 placed" and the
+          denominator of each quadrant's share; the middle band is neither
+          placed nor not placed. The
+          sum is checked before returning; a mistake that falls through is
+          an ``AssertionError``, never a quietly smaller card.
+        * **Error types** count distinct entries per type per bucket, so they
+          overlap. ``match='any'`` matches an entry carrying one of
+          ``tag_ids``, ``'all'`` one carrying every one, and ``untagged``
+          one carrying none (exclusive with ``tag_ids``). The ``types`` list
+          is every type carried by a mistake in scope, flagged
+          ``listed_on_exam``: removing a type from the exam's list decides
+          only what can be added to an entry (#888), so it still counts.
+
+        Raises:
+            ValidationError: no such exam, ``untagged`` with ``tag_ids``,
+                ``match`` other than ``'any'``/``'all'``, a parent context
+                with no subject, no such subject, or a ``tag_ids`` value that
+                is not an integer id.
+        """
+        from ..exceptions import ValidationError
+
+        # ---------------------------------------------------- arguments
+        if match not in ('any', 'all'):
+            raise ValidationError(
+                f"match must be 'any' or 'all', not {match!r}")
+        picked: List[int] = []
+        for tag_id in (tag_ids or []):
+            if isinstance(tag_id, bool) or not isinstance(tag_id, int):
+                raise ValidationError(
+                    f"tag_ids must be integer error-type ids, not {tag_id!r}")
+            if tag_id not in picked:
+                picked.append(tag_id)
+        untagged = bool(untagged)
+        if untagged and picked:
+            raise ValidationError(
+                "No error type cannot be combined with picked error types")
+        if primary_parent_id is not None and subject_id is None:
+            raise ValidationError(
+                "a parent context needs a subject")
+        if not exam_context_id or not self.fetchone(
+                "SELECT id FROM exam_contexts WHERE id = ?",
+                (exam_context_id,)):
+            raise ValidationError(
+                f"no exam with id {exam_context_id!r}")
+        if subject_id is not None and not self.fetchone(
+                "SELECT id FROM subject_nodes WHERE id = ?", (subject_id,)):
+            raise ValidationError(f"no subject with id {subject_id!r}")
+
+        # ---------------------------------------------- the exam's mistakes
+        # Read once: the median needs every one of them, whatever the scope.
+        rows = self.fetchall("""
+            SELECT qe.id, qe.perceived_difficulty AS d,
+                   qe.time_spent_seconds AS t, qe.is_draft,
+                   qe.question_id, rs.session_name
+            FROM question_entries qe
+            JOIN review_sessions rs ON qe.review_session_id = rs.id
+            WHERE rs.user_id = ? AND rs.exam_context_id = ?
+            ORDER BY qe.id
+        """, (self.user_id, exam_context_id))
+
+        timed_times = sorted(
+            r['t'] for r in rows if _dt_is_timed(r['t']))
+        timed_count = len(timed_times)
+        available = timed_count >= DT_MIN_TIMED
+        median_value = _dt_median(timed_times) if available else None
+        all_equal = timed_count > 0 and timed_times[0] == timed_times[-1]
+
+        # ---------------------------------------------------------- scope
+        if subject_id is None:
+            in_scope = [r for r in rows]
+            counting = 'every_mistake'
+        else:
+            sql, params = self._deep_dive_counted_entries_sql(
+                subject_id, primary_parent_id)
+            sql += " AND rs.exam_context_id = ?"
+            params.append(exam_context_id)
+            counted = {r['id'] for r in self.fetchall(sql, tuple(params))}
+            in_scope = [r for r in rows if r['id'] in counted]
+            counting = 'primary_subject_subtree'
+        scope_ids = [r['id'] for r in in_scope]
+
+        # ------------------------------------------- types and subjects
+        tags_by_entry: Dict[int, List[int]] = {i: [] for i in scope_ids}
+        type_info: Dict[int, Dict[str, Any]] = {}
+        subjects_by_entry: Dict[int, List[Dict[str, Any]]] = {
+            i: [] for i in scope_ids}
+        for chunk in _dt_chunks(scope_ids):
+            marks = ','.join('?' * len(chunk))
+            for row in self.fetchall(f"""
+                SELECT et.question_entry_id AS entry_id, t.id AS tag_id,
+                       t.tag_name, t.description, t.parent_id AS group_id,
+                       g.tag_name AS group_name,
+                       EXISTS (SELECT 1 FROM exam_error_types x
+                               WHERE x.exam_context_id = ?
+                                 AND x.tag_id = t.id) AS listed
+                FROM entry_tags et
+                JOIN tags t ON t.id = et.tag_id
+                LEFT JOIN tags g ON g.id = t.parent_id
+                WHERE et.question_entry_id IN ({marks})
+                  AND IFNULL(t.is_group, 0) = 0
+            """, (exam_context_id, *chunk)):
+                carried = tags_by_entry[row['entry_id']]
+                if row['tag_id'] not in carried:
+                    carried.append(row['tag_id'])
+                type_info.setdefault(row['tag_id'], {
+                    'tag_id': row['tag_id'],
+                    'name': row['tag_name'],
+                    'description': row['description'],
+                    'group_id': row['group_id'],
+                    'group_name': row['group_name'],
+                    'listed_on_exam': bool(row['listed']),
+                })
+            for row in self.fetchall(f"""
+                SELECT esm.question_entry_id AS entry_id, sn.id, sn.name
+                FROM entry_subject_mappings esm
+                JOIN subject_nodes sn ON sn.id = esm.subject_node_id
+                WHERE esm.question_entry_id IN ({marks})
+                  AND esm.mapping_type = 'primary'
+                ORDER BY sn.name, sn.id
+            """, tuple(chunk)):
+                subjects_by_entry[row['entry_id']].append(
+                    {'id': row['id'], 'name': row['name']})
+
+        # -------------------------------------------------- per entry
+        selecting = bool(picked) or untagged
+        entries: List[Dict[str, Any]] = []
+        for r in in_scope:
+            carried = tags_by_entry[r['id']]
+            hits = [t for t in picked if t in carried]
+            if untagged:
+                matches: Optional[bool] = not carried
+            elif picked:
+                matches = (bool(hits) if match == 'any'
+                           else len(hits) == len(picked))
+            else:
+                matches = None
+            entries.append({
+                'id': r['id'],
+                'd': r['d'],
+                't': r['t'],
+                'bucket': _dt_bucket(r['d'], r['t'], median_value),
+                'is_draft': bool(r['is_draft']),
+                'session_name': r['session_name'],
+                'question_id': r['question_id'],
+                'subjects': subjects_by_entry[r['id']],
+                'tag_ids': sorted(carried),
+                'matches': matches,
+                'picked_hits': hits,
+            })
+
+        # -------------------------------------------------- per bucket
+        def summarise(name: str) -> Dict[str, Any]:
+            members = [e for e in entries if e['bucket'] == name]
+            type_counts: Dict[int, int] = {}
+            for e in members:
+                for t in e['tag_ids']:
+                    type_counts[t] = type_counts.get(t, 0) + 1
+            ranked = sorted(
+                type_counts.items(),
+                key=lambda kv: (-kv[1], type_info[kv[0]]['name'], kv[0]))
+            summary: Dict[str, Any] = {
+                'count': len(members),
+                'untagged': sum(1 for e in members if not e['tag_ids']),
+                'top_types': [
+                    {'tag_id': t, 'name': type_info[t]['name'], 'count': n}
+                    for t, n in ranked[:DT_TOP_TYPES]],
+                'more_types': max(0, len(ranked) - DT_TOP_TYPES),
+                'match': None,
+            }
+            if selecting:
+                summary['match'] = {
+                    'count': sum(1 for e in members if e['matches']),
+                    'per_type': [
+                        {'tag_id': t,
+                         'count': sum(1 for e in members
+                                      if t in e['picked_hits'])}
+                        for t in picked],
+                }
+            return summary
+
+        buckets: Dict[str, Any] = {}
+        for name in _DT_QUADRANTS:
+            buckets[name] = summarise(name) if available else None
+        buckets['middle'] = summarise('middle')
+        buckets['not_placed'] = summarise('not_placed')
+        unsplit = None if available else summarise('unsplit')
+
+        not_placed_detail = {'no_rating_no_time': 0, 'no_rating_only': 0,
+                             'no_time_only': 0}
+        for e in entries:
+            if e['bucket'] != 'not_placed':
+                continue
+            rated, timed = _dt_is_rated(e['d']), _dt_is_timed(e['t'])
+            if not rated and not timed:
+                not_placed_detail['no_rating_no_time'] += 1
+            elif not rated:
+                not_placed_detail['no_rating_only'] += 1
+            else:
+                not_placed_detail['no_time_only'] += 1
+
+        # ---------------------------------------------------------- types
+        type_totals: Dict[int, int] = {}
+        for e in entries:
+            for t in e['tag_ids']:
+                type_totals[t] = type_totals.get(t, 0) + 1
+        types = sorted(
+            ({**type_info[t], 'count': n} for t, n in type_totals.items()),
+            key=lambda ty: (-ty['count'], ty['name'], ty['tag_id']))
+
+        # ----------------------------------------------------------- axis
+        drawn = sorted(e['t'] for e in entries if e['bucket'] != 'not_placed')
+        if drawn:
+            p95 = drawn[math.ceil(0.95 * len(drawn)) - 1]
+            x_max = max(60, math.ceil(p95 / 60) * 60)
+            clipped = sum(1 for t in drawn if t > x_max)
+        else:
+            x_max, clipped = None, 0
+
+        total = len(entries)
+        payload = {
+            'scope': {
+                'exam_context_id': exam_context_id,
+                'subject_id': subject_id,
+                'primary_parent_id': primary_parent_id,
+                'counting': counting,
+            },
+            'total': total,
+            'placed': (sum(buckets[name]['count'] for name in _DT_QUADRANTS)
+                       if available else unsplit['count']),
+            'unsplit': unsplit,
+            'median': {
+                'population': 'exam_timed_mistakes',
+                'timed_count': timed_count,
+                'value_seconds': median_value,
+                'label_seconds': (math.ceil(median_value)
+                                  if median_value is not None else None),
+                'available': available,
+                'min_timed': DT_MIN_TIMED,
+                'all_equal': all_equal,
+            },
+            'buckets': buckets,
+            'not_placed_detail': not_placed_detail,
+            'selection': {
+                'tag_ids': picked,
+                'untagged': untagged,
+                'match': match,
+            },
+            'types': types,
+            'untagged_count': sum(1 for e in entries if not e['tag_ids']),
+            'entries': entries,
+            'axis': {'x_max_seconds': x_max, 'clipped_count': clipped},
+        }
+        _dt_check_accounting(payload)
+        return payload
 
     # =============================================================================
     # STAGE 7: HEATMAP & STREAK TRACKING METHODS

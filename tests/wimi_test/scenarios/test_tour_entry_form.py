@@ -123,6 +123,7 @@ def _editor_then_save(page: WimiPage) -> bool:
 # section order (#682 decision 3). The order is the manual's, because slides on
 # one anchor share a screen position; these openings pin it.
 BANK = "About: Show your question bank beside this form"
+QUICK_NOTE = "A note on its own, not part of this entry (Ctrl+Shift+N)"
 BANK_SLIDE_OPENINGS = [
     "This button puts a browser",
     "The named buttons in the pane's toolbar",
@@ -203,9 +204,12 @@ def test_the_released_form_then_a_tag_context_pill_each_show_their_steps(
         "document.querySelector('[data-testid=\"dictation-reflection-button\"]"
         " .dictation-btn-label').textContent")
     assert speak in ("Speak", "Download and speak"), speak
-    assert titles[:2] == ["About: Pause timer", "About: Add more entry slots"], titles
-    assert titles[2:7] == [BANK] * 5, titles
-    for panel, opening in zip(panels[2:7], BANK_SLIDE_OPENINGS):
+    # Quick note (#848) sits in the header between Add Entries and the
+    # question bank, and its tip is named by the button's title.
+    assert titles[:3] == ["About: Pause timer", "About: Add more entry slots",
+                          f"About: {QUICK_NOTE}"], titles
+    assert titles[3:8] == [BANK] * 5, titles
+    for panel, opening in zip(panels[3:8], BANK_SLIDE_OPENINGS):
         assert panel["text"].startswith(opening), (opening, panel["text"])
     clamped = [
         "About: Save status",
@@ -226,7 +230,7 @@ def test_the_released_form_then_a_tag_context_pill_each_show_their_steps(
         "About: Add existing images",
         "About: Delete",
     ]
-    assert titles[7:] == clamped, titles
+    assert titles[8:] == clamped, titles
 
     # The same form when the window was granted: Save & Next's footer is below
     # the reflection editor, so its tip comes after it. That one move is the
@@ -241,8 +245,8 @@ def test_the_released_form_then_a_tag_context_pill_each_show_their_steps(
     save, editor = "About: Complete required fields", "About: Why did you get this wrong?"
     expected_granted = [t for t in clamped if t != save]
     expected_granted.insert(expected_granted.index(editor) + 1, save)
-    assert granted_titles[7:] == expected_granted, granted_titles
-    assert granted_titles[:7] == titles[:7], granted_titles
+    assert granted_titles[8:] == expected_granted, granted_titles
+    assert granted_titles[:8] == titles[:8], granted_titles
 
     # The rule, stated over both walks so it cannot quietly become one band
     # walked twice: if a layout change ever put both viewports on one side of

@@ -169,6 +169,57 @@ class TestRemoveParent:
         assert parents == []
 
 
+class TestRemoveParentAsksWhereEntriesGo:
+    """#738: the impact read and the removal with a chosen destination."""
+
+    def _pinned(self, user_db, child, parent):
+        exam = user_db.create_exam_context(exam_name="B738", exam_description="")
+        session = user_db.create_review_session(exam_context_id=exam.id, session_name="S",
+                                                date_encountered=date.today(),
+                                                total_questions=2, total_incorrect=1)
+        entry = user_db.create_question_entry(review_session_id=session.id, user_answer="x",
+                                              correct_answer="y", primary_subject_ids=[child.id])
+        user_db.execute("UPDATE entry_subject_mappings SET primary_parent_id = ?"
+                        " WHERE question_entry_id = ?", (parent.id, entry.id))
+        user_db.conn.commit()
+        return entry.id
+
+    def test_impact_and_a_chosen_destination(self, bridge: DatabaseBridge, user_db: UserDatabase):
+        a, b, c, child = (_make_node(user_db, n) for n in ('A', 'B', 'C', 'Child'))
+        _add_edge(user_db, a.id, child.id, is_primary=True)
+        edge_b = _add_edge(user_db, b.id, child.id)
+        _add_edge(user_db, c.id, child.id)
+        entry_id = self._pinned(user_db, child, b)
+
+        impact = _ok(bridge.getRemoveParentImpact(edge_b.id))
+        assert impact['pinned_entries'] == 1
+        assert [r['parent_id'] for r in impact['remaining_parents']] == [a.id, c.id]
+
+        assert _ok(bridge.removeParentMovingEntries(edge_b.id, c.id)) == {'ok': True, 'moved': 1}
+        assert user_db.fetchone("SELECT primary_parent_id FROM entry_subject_mappings"
+                                " WHERE question_entry_id = ?", (entry_id,))['primary_parent_id'] == c.id
+
+    def test_a_refused_destination_is_a_sentence_and_removes_nothing(
+            self, bridge: DatabaseBridge, user_db: UserDatabase):
+        a, b, child = (_make_node(user_db, n) for n in ('A', 'B', 'Child'))
+        _add_edge(user_db, a.id, child.id, is_primary=True)
+        edge_b = _add_edge(user_db, b.id, child.id)
+        self._pinned(user_db, child, b)
+
+        error = _err(bridge.removeParentMovingEntries(edge_b.id, b.id))
+        assert 'other parents' in error
+        assert b.id in [p['parent_id'] for p in _ok(bridge.getParents(child.id))], (
+            "a refused removal must leave the edge")
+
+    def test_a_missing_edge_is_a_failure(self, bridge: DatabaseBridge):
+        assert 'not found' in _err(bridge.getRemoveParentImpact(999999))
+
+    def test_the_slots_need_a_user_db(self, master_db):
+        no_db = DatabaseBridge(master_db=master_db, user_db=None)
+        assert 'No user database' in _err(no_db.getRemoveParentImpact(1))
+        assert 'No user database' in _err(no_db.removeParentMovingEntries(1, 2))
+
+
 # ==================== setPrimaryParent ====================
 
 

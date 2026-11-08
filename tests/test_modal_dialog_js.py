@@ -336,6 +336,12 @@ def test_both_construction_styles_are_detected() -> None:
     dom_built = {           # found only by the coarse className rule
         "export_dialog.js": 1,
         "question_entry.js": 1,
+        "quick_note.js": 1,     # the Quick note dialog (#848 Wave 2a)
+        # The deep dive's subject chooser over that dialog (#848 Wave 2b).
+        "subject_deep_dive.js": 1,
+        # The first-axis prompt (#605 Wave 1), shared by the wizard and,
+        # from Wave 2, the tree editor's import.
+        "first_axis_dialog.js": 1,
     }
     # Built with createElement for the overlay and a template for the inside,
     # so the overlay is invisible to the parse and the className rule is what
@@ -365,7 +371,7 @@ def test_both_construction_styles_are_detected() -> None:
 
     total = sum(templated.values()) + sum(dom_built.values()) \
         + sum(mixed.values())
-    assert total == 13, f"the inventory no longer adds up to 13: {total}"
+    assert total == 16, f"the inventory no longer adds up to 16: {total}"
 
     marked = sum(
         (WEB_JS / name).read_text(encoding="utf-8").count(MARKER)
@@ -473,6 +479,27 @@ def test_the_js_checks_would_catch_each_mistake() -> None:
     assert surface.attrs.get("aria-modal") == "true"
     assert accessible_name_problem(surface, root) is None
     assert first_heading(surface).tag == "h2"
+
+
+def test_the_first_axis_dialog_is_swept() -> None:
+    """#605 Wave 1's module is reached by the rules above, not skipped by them.
+
+    It builds its overlay with ``className`` and marks its surface with
+    ``setAttribute``, so the two per-file rules are the ones that apply, and
+    both skip a file they cannot see. This pins that they see it, and that its
+    overlay class is one the stylesheet sweep derived -- a class missing from
+    ``OVERLAY_CLASSES`` would make the detector, and every check, skip it.
+    """
+    path = WEB_JS / "first_axis_dialog.js"
+    assert path in _js_modules(), "first_axis_dialog.js is not swept at all"
+    source = path.read_text(encoding="utf-8")
+    assert _writes_an_overlay_class(source) == ["first-axis-backdrop"], (
+        "the detector no longer sees first_axis_dialog.js's overlay, so "
+        "test_a_dom_built_overlay_marks_its_surface skips it")
+    assert builds_a_modal(path)
+    assert re.search(rf"""setAttribute\(\s*['"]{MARKER}['"]""", source), (
+        "the surface is no longer marked with setAttribute, so "
+        "test_a_surface_marked_in_code_is_also_a_named_dialog skips it")
 
 
 def test_the_helper_is_not_swept_as_a_modal() -> None:

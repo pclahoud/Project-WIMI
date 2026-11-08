@@ -178,6 +178,28 @@
                         <span class="dropdown-arrow">▼</span>
                     </button>
                     <div class="filter-dropdown" id="tagDropdown" data-testid="browser-tags-dropdown">
+                        <!-- #898. "Match" decides how several ticked types
+                             combine; "No error type" finds the mistakes that
+                             carry none, so they can be gone back to and
+                             filled in. It is exclusive with the types, as on
+                             the difficulty and time card. -->
+                        <div class="tag-filter-options">
+                            <fieldset class="tag-match-mode" data-testid="browser-tags-match">
+                                <legend>Match</legend>
+                                <label class="filter-check-item">
+                                    <input type="radio" name="tagMatchMode" value="any" checked data-testid="browser-tags-match-any">
+                                    <span>Any of these</span>
+                                </label>
+                                <label class="filter-check-item">
+                                    <input type="radio" name="tagMatchMode" value="all" data-testid="browser-tags-match-all">
+                                    <span>All of these</span>
+                                </label>
+                            </fieldset>
+                            <label class="filter-check-item">
+                                <input type="checkbox" id="untaggedOnly" data-testid="browser-tags-untagged">
+                                <span>No error type</span>
+                            </label>
+                        </div>
                         <div class="dropdown-content" id="tagList" data-testid="browser-tag-list">
                             <!-- Populated dynamically -->
                         </div>
@@ -185,6 +207,71 @@
                             <div class="dropdown-actions">
                                 <button class="btn-text" id="clearTags" data-testid="browser-tags-clear">Clear</button>
                                 <button class="btn-primary btn-sm" id="applyTags" data-testid="browser-tags-apply">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Difficulty Filter (#898). The five words come from
+                     WimiDifficulty, rendered by renderDifficultyList(). -->
+                <div class="filter-group">
+                    <button class="filter-dropdown-btn" id="difficultyFilterBtn" data-testid="browser-filter-difficulty">
+                        <span class="filter-label">Difficulty</span>
+                        <span class="filter-value" id="difficultyFilterValue">All</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="filter-dropdown" id="difficultyDropdown" data-testid="browser-difficulty-dropdown">
+                        <div class="dropdown-content" id="difficultyList" data-testid="browser-difficulty-list">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div class="filter-missing-row">
+                            <label class="filter-check-item">
+                                <input type="checkbox" id="missingDifficulty" data-testid="browser-difficulty-missing">
+                                <span>Not rated</span>
+                            </label>
+                        </div>
+                        <div class="dropdown-footer">
+                            <div class="dropdown-actions">
+                                <button class="btn-text" id="clearDifficulty" data-testid="browser-difficulty-clear">Clear</button>
+                                <button class="btn-primary btn-sm" id="applyDifficulty" data-testid="browser-difficulty-apply">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Time Spent Filter (#898). "At least" is inclusive and
+                     "Under" exclusive, so a fast/slow split at the same value
+                     puts every mistake on exactly one side. Either one
+                     implies a recorded time, i.e. more than 0 seconds. -->
+                <div class="filter-group">
+                    <button class="filter-dropdown-btn" id="timeFilterBtn" data-testid="browser-filter-time">
+                        <span class="filter-label">Time spent</span>
+                        <span class="filter-value" id="timeFilterValue">All</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="filter-dropdown" id="timeDropdown" data-testid="browser-time-dropdown">
+                        <div class="dropdown-content time-range-fields">
+                            <div class="time-input-group">
+                                <label for="timeMin">At least</label>
+                                <input type="number" id="timeMin" min="0" step="any" inputmode="decimal" data-testid="browser-time-min">
+                                <span class="time-unit">seconds</span>
+                            </div>
+                            <div class="time-input-group">
+                                <label for="timeMax">Under</label>
+                                <input type="number" id="timeMax" min="0" step="any" inputmode="decimal" data-testid="browser-time-max">
+                                <span class="time-unit">seconds</span>
+                            </div>
+                        </div>
+                        <div class="filter-missing-row">
+                            <label class="filter-check-item">
+                                <input type="checkbox" id="missingTime" data-testid="browser-time-missing">
+                                <span>No time recorded</span>
+                            </label>
+                        </div>
+                        <div class="dropdown-footer">
+                            <div class="dropdown-actions">
+                                <button class="btn-text" id="clearTime" data-testid="browser-time-clear">Clear</button>
+                                <button class="btn-primary btn-sm" id="applyTime" data-testid="browser-time-apply">Apply</button>
                             </div>
                         </div>
                     </div>
@@ -393,6 +480,8 @@
     <script src="../js/modal_dialog.js"></script>
     <script src="../js/export_dialog.js"></script>
     <script src="../js/difficulty.js"></script>
+    <!-- #898: the time chip's words, shared with the difficulty and time card. -->
+    <script src="../js/difficulty_time_links.js"></script>
     <script src="../js/text_preview.js"></script>
     <!-- The page gate's voice (#127). Before entry_browser.js, which calls
          PageGate.release() from EntryBrowser.markPageReady(). -->

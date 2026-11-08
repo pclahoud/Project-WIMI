@@ -250,6 +250,35 @@
     --border-light: var(--color-gray-200);
     --border-medium: var(--color-gray-300);
     --border-dark: var(--color-gray-400);
+
+    /* Difficulty and time card (#898, docs/planning/DIFFICULTY_TIME_CARD_PLAN.md
+       "Colours"). Orange for hard and blue for easy rather than the app's
+       green-to-red difficulty ramp: blue against orange survives the common
+       colour-vision deficiencies, and a red-green background would fight the
+       error-type colours on the scatter's dots. The middle band is
+       --bg-tertiary and the All-mode dots, rings and median line are
+       --text-primary, so neither has a token here.
+
+       Every value is repeated in the five other theme dictionaries in
+       themes.js, because a theme reaches only the names it lists, and
+       tests/test_difficulty_time_palette.py bars them on every theme: each
+       series colour, the non-match dot and the theme's text colours at 3:1
+       against both bands, --bg-tertiary and --bg-primary; body text at 4.5:1
+       on the two tints; the four series colours pairwise distinct.
+
+       Non-matching dots are SMALLER, not fainter: a faint grey cannot also
+       reach 3:1 (WCAG 1.4.11), so size carries the de-emphasis. */
+    --dt-band-hard: #ffedd5;
+    --dt-band-hard-border: #fdba74;
+    --dt-band-easy: #dbeafe;
+    --dt-band-easy-border: #93c5fd;
+    --dt-series-1: #6d28d9;   /* purple */
+    --dt-series-2: #0f766e;   /* teal */
+    --dt-series-3: #be185d;   /* pink */
+    --dt-series-4: #4d7c0f;   /* olive */
+    /* Every match, when five or more types are picked. */
+    --dt-series-many: var(--color-primary-text);
+    --dt-dot-nonmatch: #6b7280;
     
     /* Spacing */
     --space-xs: 0.25rem;    /* 4px */
@@ -1456,5 +1485,88 @@ input[type="radio"] {
 
 .archived-ancestors-note:hover .archived-ancestors-tooltip,
 .archived-ancestors-note:focus .archived-ancestors-tooltip {
+    display: block;
+}
+
+/* ===================================================================
+   A card's info tip: the italic "i" beside a heading and the tooltip
+   that opens on hover AND on keyboard focus (#6, #825).
+
+   Moved here from analytics.css in #898 Wave 4, because the subject
+   deep dive draws the difficulty and time card's tip and does not link
+   analytics.css -- the per-page CSS gotcha CLAUDE.md warns about would
+   have left a bare "i" there. styles.css is the one sheet every page
+   links. The `.section-title-row` that lays the heading beside it stays
+   in analytics.css; session_setup.html uses that class name for its own
+   row, so moving it here would add a margin there.
+   =================================================================== */
+
+/* Sunburst "why don't these add up?" affordance (issue #6). The centre
+ * is a count of distinct entries; the segments are per-parent rollups
+ * and a shared subject counts under each parent it routes through, so
+ * the segments deliberately sum to more than the centre. The tooltip
+ * text lives in the markup (not a CSS ::after) so it is readable. */
+.card-info-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin-left: 0.375rem;
+    /* Keeps the size-preset group flush right in the flex card-header. */
+    margin-right: auto;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: 0.6875rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
+    font-weight: var(--font-weight-bold, 700);
+    font-style: italic;
+    line-height: 1;
+    cursor: help;
+}
+
+.card-info-icon:hover,
+.card-info-icon:focus {
+    background: var(--color-primary-bg);
+    color: var(--color-primary-text);
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+/* #304: the `outline: none` above is what made this one of the audit's five
+   invisible focus stops -- it carries tabindex="0", so Tab lands here and
+   nothing is drawn. Kept as `:focus` for the tooltip (keyboard focus must
+   open it) with the ring on `:focus-visible` so a mouse hover draws none.
+   This rule must stay AFTER the one above: same specificity, so source
+   order decides which outline wins. */
+.card-info-icon:focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
+}
+
+.card-info-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 0.375rem);
+    left: 0;
+    width: 15rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-style: normal;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    z-index: 400;
+}
+
+.card-info-icon:hover .card-info-tooltip,
+.card-info-icon:focus .card-info-tooltip {
     display: block;
 }

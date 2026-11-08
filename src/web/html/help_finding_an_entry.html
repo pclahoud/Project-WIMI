@@ -182,13 +182,16 @@ text: Each filter panel does nothing until you press its Apply button.
   decided.
 -->
 
-**Subject**, **Tags**, **Date** and **Session** each open a small panel, and
-each needs its **Apply** button before anything happens. Ticking boxes and
+**Subject**, **Tags**, **Difficulty**, **Time spent**, **Date** and **Session**
+each open a small panel, and each needs its **Apply** button before anything
+happens. Ticking boxes and
 closing the panel changes nothing, which is on purpose — the subject tree in
 particular is something you click around in before you have decided.
 
 - **Subject** is your whole tree, as a tree, with expand arrows and a search box inside the panel. That inner search matches a subject's name *or* any alias you have given it, so searching `PE` finds pulmonary embolism if that is one of its aliases. Tick as many subjects as you like. The **Include child subjects** checkbox at the bottom is the important one and the next section is about it.
 - **Session** narrows to one sitting at a time, listing your fifty most recent sessions with the date and how many of their entries you have finished. It is the quickest way back to "that block I did on Tuesday".
+- **Difficulty** lists the five ratings, Very Easy to Very Hard, plus **Not rated** for entries you left without one. Tick several and you get any of them.
+- **Time spent** takes **At least** and **Under**, in seconds. At least includes the number you type and Under does not, so the same number in both splits your entries cleanly in two. Either one leaves out entries with no time recorded, and a time of 0 counts as none. **No time recorded** finds those instead. Tick it together with **Not rated** and you get entries missing either one.
 - **Drafts only** narrows the list to unfinished entries. There is no setting that hides drafts, and that is consistent with the rest of WIMI: a draft is a mistake you made, so it belongs in the list.
 
 Tags, Date and the sort order each have a rule worth knowing, so they get a
@@ -206,7 +209,18 @@ text: Ticking several error types finds entries carrying any one of them, not
 
 **Tags** lists your error types under their groups. Ticking several means *any*
 of them, so Misread Question plus Time Pressure gives you both piles rather than
-their overlap.
+their overlap. Set **Match** to **All of these** above the list when you want the
+overlap instead: only entries carrying every ticked type.
+
+- **No error type** finds the entries you have not tagged yet, so you can open them and fill the field in. It cannot be combined with a type, and ticking one unticks the other.
+- **No longer on this exam** is a group at the bottom of the list, holding types this exam's entries still carry after you took the type off the exam's list. Taking a type off an exam leaves it on the entries that carry it, so you can still filter by it.
+
+One more filter has no panel. **Counted under** appears only when you arrive from
+the difficulty and time card on a subject's deep dive, as a chip such as
+*Counted under: Hypertension, as part of Cardiovascular*. It narrows the list to
+the entries that card counted, which follow the counting rule rather than this
+page's finding rule, so the browser shows the card's number. Its cross removes it
+like any other chip.
 
 ### Date
 
@@ -234,13 +248,15 @@ text: The list opens in the order set under Settings, Entry Browser, which is
   orders.
 -->
 
-**Sort** offers Date newest or oldest and Difficulty high-to-low or low-to-high.
+**Sort** offers Date newest or oldest, Difficulty high-to-low or low-to-high, and
+Time spent longest or shortest.
 The list opens in the order chosen under Settings, Entry Browser, **Default Sort
 Field** and **Default Sort Direction**, which is newest first until you change
 it. Date order follows the session's **Date Encountered**, the same date a card
 shows. Difficulty is optional on the entry form, and an entry left blank goes to
 the end of the list in both difficulty orders rather than counting as the
-easiest or the hardest.
+easiest or the hardest, and an entry with no time spent goes to the end in both
+time orders.
 
 Whatever is in force appears as a row of chips under the filter bar, each with
 its own small cross, plus **Clear all**. If a count surprises you, read that row
@@ -355,11 +371,6 @@ subjects** on a high-level subject. If you tag everything on topics and then
 filter on a system, you have asked for entries carrying that system itself —
 and if none of your topics is shared, so none of them needed a Tag context,
 there may genuinely be none. Tick the box.
-
-The wording has two blind spots. A search made only of prefixes, such as `notes:warfarin` with nothing else in the box, and a custom
-date range with only a **To** date both read **No entries yet** when nothing
-matches, even on an exam full of entries. If you see that heading with chips
-showing under the filter bar, it is the filters, and the advice above applies.
 
 ## Where to go next
 

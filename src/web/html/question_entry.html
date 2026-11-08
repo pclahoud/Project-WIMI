@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="../css/rich_editor.css">
     <!-- #60. Per-page: the proposal classes exist nowhere else. -->
     <link rel="stylesheet" href="../css/relation_proposals.css">
+    <link rel="stylesheet" href="../css/quick_note.css">
     <link rel="stylesheet" href="../css/tour.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../js/escape.js"></script>
@@ -133,6 +134,14 @@
                 </div>
                 <button type="button" class="btn btn-sm btn-outline add-entries-btn" id="btn-add-entries" title="Add more entry slots" data-testid="entry-form-add-entries-button">
                     + Add Entries
+                </button>
+                <!-- #848 Wave 2a: a note on no entry. Opens the Quick note
+                     dialog (quick_note.js); Ctrl+Shift+N does the same from
+                     anywhere on the page, the rich text editors included. -->
+                <button type="button" class="btn btn-sm btn-outline quick-note-btn" id="btn-quick-note"
+                        title="A note on its own, not part of this entry (Ctrl+Shift+N)"
+                        data-testid="entry-form-quick-note-button">
+                    Quick note
                 </button>
                 <button type="button" class="btn btn-sm btn-outline" id="btn-question-bank"
                         title="Show your question bank beside this form"
@@ -279,11 +288,9 @@
                                         <input type="text" id="secondary-subject-search" class="subject-search"
                                                placeholder="Search related topics also tested..." autocomplete="off"
                                                data-testid="entry-form-subject-secondary-search">
-                                        <button type="button" class="btn btn-sm btn-ghost chip-field-action"
-                                                id="btn-quick-add-subject"
-                                                data-testid="entry-form-subject-add-quick-button">
-                                            + Add New Subject
-                                        </button>
+                                        <!-- No "+ Add New Subject" button (#856, owner 2026-11-04):
+                                             each dropdown ends in its own creation row, and the
+                                             empty state offers the same action. -->
                                     </div>
                                 </div>
                             </div>
@@ -474,10 +481,22 @@
                     <div class="form-group">
                         <label for="quick-add-name">Subject Name <span class="required">*</span></label>
                         <input type="text" id="quick-add-name" class="form-input" placeholder="e.g., Cardiology" data-testid="entry-form-quick-add-name-input">
+                        <!-- The duplicate guard (#856). Filled by
+                             showQuickAddDuplicateGuard() from DOM nodes when the
+                             typed name is an exact or near-exact match for a
+                             subject the exam already has; `hidden` otherwise.
+                             A prompt, never a refusal: a same name under another
+                             parent is legal data (#246). -->
+                        <div class="quick-add-guard" id="quick-add-guard" role="alert" hidden
+                             data-testid="entry-form-quick-add-guard"></div>
                     </div>
                     <div class="form-group">
-                        <label for="quick-add-parent-search">Parent Subject</label>
+                        <label for="quick-add-parent-search">Parent Subject <span class="required" id="quick-add-parent-required" hidden>*</span></label>
                         <div class="subject-search-container">
+                            <!-- The placeholder, the help line and the asterisk are
+                                 set by applyQuickAddParentRule(): on an exam with
+                                 axes the parent is required and Root is not
+                                 offered; on a plain exam Root stays (#856). -->
                             <input type="text" id="quick-add-parent-search"
                                    class="subject-search"
                                    placeholder="Search or leave empty for Root..."
@@ -486,6 +505,9 @@
                             <div class="subject-dropdown" id="quick-add-parent-dropdown"></div>
                         </div>
                         <input type="hidden" id="quick-add-parent" value="">
+                        <p class="form-help" id="quick-add-parent-help">Leave empty to create a top-level subject.</p>
+                        <p class="form-error" id="quick-add-parent-error" role="alert" hidden
+                           data-testid="entry-form-quick-add-parent-error"></p>
                     </div>
                     <div class="form-group">
                         <label for="quick-add-aliases">Aliases (Optional)</label>
@@ -554,11 +576,25 @@
              aria-modal="true" aria-labelledby="manage-tags-modal-title">
             <h2 class="modal-title" id="manage-tags-modal-title">Manage Error Types</h2>
             <p class="modal-message manage-tags-modal-sub">
-                Edit definitions or delete types. Definitions appear as hover tooltips in the picker.
+                These are the error types this exam offers. Your error types are shared
+                across your exams: a definition you edit here changes on every exam that
+                offers the type, and appears as a hover tooltip in the picker.
             </p>
             <div class="manage-tags-list" id="manage-tags-list" data-testid="manage-tags-list">
                 <!-- Tag groups and types rendered by renderManageTagsModal() -->
             </div>
+            <section class="manage-tags-add" id="manage-tags-add"
+                     data-testid="manage-tags-add" hidden
+                     aria-labelledby="manage-tags-add-title">
+                <h3 class="manage-tags-add-title" id="manage-tags-add-title">Add from your other exams</h3>
+                <p class="manage-tags-modal-sub">
+                    Error types you use elsewhere that this exam does not offer yet.
+                </p>
+                <div class="manage-tags-add-list" id="manage-tags-add-list"
+                     data-testid="manage-tags-add-list">
+                    <!-- Rendered by refreshManageTagsAddSection() -->
+                </div>
+            </section>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" id="manage-tags-close"
                         onclick="closeManageTagsModal()"
@@ -571,7 +607,7 @@
     <div class="modal-backdrop delete-tag-modal" id="delete-tag-modal" data-testid="delete-tag-modal">
         <div class="modal" data-modal-surface role="dialog" aria-modal="true"
              aria-labelledby="delete-tag-modal-title">
-            <div class="modal-icon">🗑️</div>
+            <div class="modal-icon" id="delete-tag-modal-icon">🗑️</div>
             <h2 class="modal-title" id="delete-tag-modal-title">Delete this error type?</h2>
             <p class="modal-message delete-tag-modal-name" id="delete-tag-modal-name"></p>
             <p class="modal-message" id="delete-tag-modal-usage" data-testid="delete-tag-modal-usage"></p>
@@ -693,6 +729,11 @@
          when a tag-context pill mounts. -->
     <script src="../js/tour_steps.js"></script>
     <script src="../js/tour.js"></script>
+    <!-- The Quick note dialog (#848 Wave 2a): a note on no entry, from the
+         header button or Ctrl+Shift+N. local_date.js is what it dates a
+         note's row with; both are per-page links. -->
+    <script src="../js/local_date.js"></script>
+    <script src="../js/quick_note.js"></script>
     <script src="../js/question_entry.js"></script>
 </body>
 </html>

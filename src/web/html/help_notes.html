@@ -64,7 +64,7 @@
 
 ## In short
 
-A note is a piece of writing that belongs to an entry but is not an answer to either of the entry's two questions. One entry can carry as many as you like, each one its own editor, and each can be tagged with the subjects it is about. The subject tag is what makes a note findable again: on a later entry about the same subject, WIMI offers you the notes you already wrote about it, and one note can sit on several entries at once rather than being copied.
+A note is a piece of writing that usually belongs to an entry but is not an answer to either of the entry's two questions. One entry can carry as many as you like, each one its own editor, and each can be tagged with the subjects it is about. The subject tag is what makes a note findable again: on a later entry about the same subject, WIMI offers you the notes you already wrote about it, and one note can sit on several entries at once rather than being copied. A note can also belong to no entry at all: Quick note, on the entry form and on a subject's deep dive, saves one on its own, and its Your notes tab lists them.
 
 ## What a note is for
 
@@ -103,6 +103,26 @@ an untouched card with no text and no subjects is not written to the database, s
 you can open one speculatively and change your mind.
 
 Each card's header carries three buttons: **Subjects**, **Clear** and **Delete**.
+
+## A note on its own
+
+<!-- tour
+page: entry-form
+anchor: entry-form-quick-note-button
+text: Quick note saves a note that belongs to no entry, for something worth
+  keeping that is not about this question. Ctrl+Shift+N opens it from anywhere
+  on the page, the two written fields included. Its second tab, Your notes,
+  lists every note on its own so you can edit it later.
+-->
+
+Sometimes the thing worth writing down is
+not about the entry in front of you. Press **Quick note** in the entry form's
+header, or **Ctrl+Shift+N** from anywhere on the page — inside either written
+field included — and a dialog opens on **New note**: the same editor, a
+**Subjects…** button, and **Save note**, which writes the note on its own the
+moment you press it, outside the entry's autosave. Its second tab, **Your
+notes**, lists every note on its own, newest first, with **Edit** and
+**Delete**, so an untagged one is always reachable from there.
 
 ## Attaching it to a subject
 
@@ -164,8 +184,27 @@ tag the subjects first, then look at what you already know.
 
 **On the subject's own page.** Open a subject's deep dive and there is a
 **Notes Tagged with This Subject** section. It lists every note whose subject
-tags include that subject, newest first, and pressing one opens the entry the
-note lives on.
+tags include that subject, newest first, and each row says what pressing it
+opens. A row marked **Entry #N** opens the entry the note was first written on,
+with *and 1 other* beside it when another entry holds the note too. A row marked
+**Note on its own** — a note written that way, or one whose entry was deleted
+while the note was still attached elsewhere, or that you detached from it —
+opens in **Quick note** for editing, since there is no entry to open. Such a
+note is also under **Your notes** in Quick note, and **+ Add existing** offers
+it on an entry whose primary subjects include one of its tags.
+
+**Quick note** is on the deep dive's header too, and **Ctrl+Shift+N** opens it
+there. A note started from this page is already tagged with the page's subject,
+which you can remove, and the dialog asks **Where does this note live?** **On
+its own** saves a note on no entry, as on the entry form. **On an entry** puts
+it on one of your entries instead: press **Choose an entry**, pick a session,
+then press **Use this entry** on the entry you mean — each one is previewed with
+your answer, the correct answer, and what you wrote about why you got it wrong
+and why the correct answer is correct, and drafts are marked **Draft**. The list
+starts with the entries tagged with this subject; tick **Show every entry in
+this exam** to choose from all of them. The back arrow returns you to the note
+as you left it, and **Save note** writes an ordinary note on that entry, the
+same as a note card would.
 
 That list is strict, and the strictness is the point: it shows notes you
 **tagged** with this subject, not every note that happens to sit on an entry
@@ -206,24 +245,25 @@ and the wrong words.
 <!-- tour
 page: entry-form
 anchor: entry-form-note-delete
-text: On a note only this entry uses, Delete removes it for good after one
-  question. On a note other entries share, you choose: Detach from this entry
-  keeps it on them, Delete everywhere removes it from all. Deleting the entry a
-  note was first written on deletes the note everywhere too.
+text: On a saved note only this entry uses, Delete offers a choice: Keep as a
+  note on its own takes it off this entry and keeps it under Your notes in
+  Quick note; Delete removes it for good. On a note other entries share,
+  Detach from this entry keeps it on them and Delete everywhere removes it
+  from all.
 -->
 
 **Delete** depends on whether the note is attached to anything else.
 
-- **On a note attached only to this entry**, it asks *"Delete this note?"* and deletes it. There is no undo and no archive.
-- **On a note attached to several entries**, it opens a dialog headed **Delete this note?** which tells you how many entries hold it and offers two different things: **Detach from this entry**, described as keeping the note so that it still appears on the other entries, and **Delete everywhere**, which removes it from all of them. Pick deliberately. Detaching leaves the note intact, so you can get it back through **+ Add existing** provided it is still tagged with a subject this entry carries; deleting everywhere cannot be undone at all.
+- **On a saved note attached only to this entry**, it opens a dialog headed **Delete this note?** saying *"This note is on this entry only."* and offering three things: **Keep as a note on its own**, which takes the note off this entry and keeps it, with its subjects, under **Your notes** in Quick note; **Delete**, which removes it for good — there is no undo and no archive; and **Cancel**. A card you have not saved yet asks *"Delete this note?"* and simply goes, because nothing is stored.
+- **On a note attached to several entries**, it opens the same dialog, which tells you how many entries hold it and offers two different things: **Detach from this entry**, described as keeping the note so that it still appears on the other entries, and **Delete everywhere**, which removes it from all of them. Pick deliberately. Detaching leaves the note intact, so you can get it back through **+ Add existing** provided it is still tagged with a subject this entry carries, or under **Your notes** if this was the entry it was first written on; deleting everywhere cannot be undone at all.
 
 One thing that follows from how notes are stored, and is worth knowing before you
-tidy anything: **a note belongs to the entry you first created it on.** Delete
-*that* entry and the note is deleted with it, off every other entry it was
-attached to. Detaching it from the others beforehand does not save it, because it
-is the original attachment that owns the note. In practice this only matters if
-you are in the habit of deleting entries; if a note has become genuinely useful
-across several questions, the entry it was born on is worth keeping.
+tidy anything: **deleting an entry deletes only the notes that nothing else
+holds.** Delete the entry a note was first written on and the note comes off that
+entry. If the note is also attached to other entries, it stays on every one of
+them, unchanged. If that entry was the only place it lived, the note is deleted
+with it, so a note you want to keep should be attached to another entry before
+the entry it was born on goes.
 
 ## What a note is not
 

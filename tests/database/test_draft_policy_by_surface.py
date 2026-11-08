@@ -374,3 +374,21 @@ def test_calendar_range_counts_drafts(seed):
         "SELECT DATE(date_encountered) AS d FROM review_sessions ORDER BY id LIMIT 1")["d"]
     payload = seed["db"].get_calendar_range(day, day, exam_context_id=seed["exam_id"])
     assert payload["entry_counts"] == [{"date": day, "count": 3}]
+
+
+@pytest.mark.database
+def test_difficulty_time_card_counts_drafts(seed):
+    """Surface: the difficulty and time card
+    (``get_difficulty_time_quadrants``, #898). The seed's entries carry no
+    time, so all three are *not placed* -- and still counted, since a card
+    whose buckets did not sum to every mistake would be the information gap
+    #12 is about. The deep-dive scope is checked too: DP Renal's two drafts."""
+    db = seed["db"]
+    payload = db.get_difficulty_time_quadrants(seed["exam_id"])
+    assert payload["total"] == 3
+    assert payload["buckets"]["not_placed"]["count"] == 3
+    assert sum(e["is_draft"] for e in payload["entries"]) == 2
+
+    renal = db.get_difficulty_time_quadrants(
+        seed["exam_id"], subject_id=seed["renal_id"])
+    assert renal["total"] == 2

@@ -273,51 +273,6 @@
     line-height: 1.3;
 }
 
-/* Sunburst "why don't these add up?" affordance (issue #6). The centre
- * is a count of distinct entries; the segments are per-parent rollups
- * and a shared subject counts under each parent it routes through, so
- * the segments deliberately sum to more than the centre. The tooltip
- * text lives in the markup (not a CSS ::after) so it is readable. */
-.card-info-icon {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.125rem;
-    height: 1.125rem;
-    margin-left: 0.375rem;
-    /* Keeps the size-preset group flush right in the flex card-header. */
-    margin-right: auto;
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-full);
-    background: var(--bg-tertiary);
-    color: var(--text-muted);
-    font-size: 0.6875rem;  /* #308: a glyph, not text -- exempt from the 12px floor */
-    font-weight: var(--font-weight-bold, 700);
-    font-style: italic;
-    line-height: 1;
-    cursor: help;
-}
-
-.card-info-icon:hover,
-.card-info-icon:focus {
-    background: var(--color-primary-bg);
-    color: var(--color-primary-text);
-    border-color: var(--color-primary);
-    outline: none;
-}
-
-/* #304: the `outline: none` above is what made this one of the audit's five
-   invisible focus stops -- it carries tabindex="0", so Tab lands here and
-   nothing is drawn. Kept as `:focus` for the tooltip (keyboard focus must
-   open it) with the ring on `:focus-visible` so a mouse hover draws none.
-   This rule must stay AFTER the one above: same specificity, so source
-   order decides which outline wins. */
-.card-info-icon:focus-visible {
-    outline: 2px solid var(--focus-ring-color);
-    outline-offset: 2px;
-}
-
 /* A heading with its tip beside it (#825). The row carries the heading's
    bottom margin so the heading itself sits on the icon's centre line. */
 .section-title-row {
@@ -332,30 +287,9 @@
     margin: 0;
 }
 
-.card-info-tooltip {
-    display: none;
-    position: absolute;
-    top: calc(100% + 0.375rem);
-    left: 0;
-    width: 15rem;
-    padding: 0.5rem 0.625rem;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-md);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    font-style: normal;
-    font-weight: 400;
-    line-height: 1.45;
-    text-align: left;
-    z-index: 400;
-}
-
-.card-info-icon:hover .card-info-tooltip,
-.card-info-icon:focus .card-info-tooltip {
-    display: block;
-}
+/* The .card-info-icon / .card-info-tooltip rules this file held until
+   #898 Wave 4 now live in styles.css: the subject deep dive draws the
+   difficulty and time card's tip too, and does not link this sheet. */
 
 .sunburst-breadcrumb {
     display: flex;
@@ -1439,204 +1373,13 @@
 }
 
 /* =============================================================================
-   TIME VS DIFFICULTY SECTION
+   INSIGHT ICON AND CONTENT, SECOND DECLARATION
+   These two rules sat in the old time-vs-difficulty section, which #898
+   Wave 0 deleted with time_difficulty.js. They are kept because they come
+   later than the Patterns & Insights rules above and so set what that card
+   paints today (the icon at --font-size-lg, not --font-size-2xl). Removing
+   them would be a visual change to a live card, not dead-code removal.
    ============================================================================= */
-
-.time-difficulty-section {
-    margin-top: var(--space-2xl);
-}
-
-.time-difficulty-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: var(--space-xl);
-}
-
-.time-difficulty-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-xl);
-}
-
-/* Time Bars Container */
-.time-bars-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-}
-
-.time-bars-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-}
-
-.time-bar-row {
-    display: grid;
-    grid-template-columns: 8.75rem 1fr 6.25rem;
-    gap: var(--space-sm);
-    align-items: center;
-    padding: var(--space-sm);
-    border-radius: var(--radius-md);
-    transition: background-color 0.2s ease;
-}
-
-.time-bar-row:hover {
-    background: var(--bg-secondary);
-}
-
-.time-bar-row.warning-bar {
-    background: var(--color-warning-bg);
-}
-
-.time-bar-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-}
-
-.difficulty-icon {
-    font-size: var(--font-size-xs);
-    color: var(--color-primary-text);
-    min-width: 2.1875rem;
-}
-
-.difficulty-name {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--text-primary);
-}
-
-.time-bar-graph {
-    position: relative;
-    height: 1.5rem;
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-}
-
-.time-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
-    border-radius: var(--radius-sm);
-    transition: width 0.3s ease;
-}
-
-.warning-bar .time-bar-fill {
-    background: linear-gradient(90deg, var(--color-warning), var(--color-error, #f97316));
-}
-
-.time-bar-value {
-    text-align: right;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-xs);
-}
-
-.time-bar-value.no-data {
-    color: var(--text-muted);
-    font-weight: var(--font-weight-normal);
-}
-
-.warning-icon {
-    font-size: var(--font-size-md);
-}
-
-.time-bars-footer {
-    margin-top: var(--space-md);
-    padding-top: var(--space-md);
-    border-top: 1px solid var(--border-color);
-    text-align: center;
-    color: var(--text-muted);
-}
-
-/* Correlation Container */
-.correlation-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-}
-
-.correlation-score {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--space-lg);
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary);
-}
-
-.correlation-score.correlation-good {
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success);
-}
-
-.correlation-score.correlation-moderate {
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning);
-}
-
-.correlation-score.correlation-weak,
-.correlation-score.correlation-bad {
-    background: var(--color-error-bg);
-    border: 1px solid var(--color-error);
-}
-
-.correlation-value {
-    font-size: 3rem;
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
-    line-height: 1;
-}
-
-.correlation-strength {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin-top: var(--space-xs);
-}
-
-.correlation-description {
-    padding: var(--space-md);
-    background: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-.correlation-insights {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-}
-
-.insight-item {
-    display: flex;
-    gap: var(--space-sm);
-    padding: var(--space-md);
-    border-radius: var(--radius-md);
-    border-left: 3px solid transparent;
-}
-
-.insight-item.insight-success {
-    background: var(--color-success-bg);
-    border-left-color: var(--color-success);
-}
-
-.insight-item.insight-warning {
-    background: var(--color-warning-bg);
-    border-left-color: var(--color-warning);
-}
-
-.insight-item.insight-info {
-    background: var(--bg-secondary);
-    border-left-color: var(--color-primary);
-}
 
 .insight-icon {
     font-size: var(--font-size-lg);
@@ -1645,43 +1388,6 @@
 
 .insight-content {
     flex: 1;
-}
-
-.insight-message {
-    font-weight: var(--font-weight-semibold);
-    color: var(--text-primary);
-    margin-bottom: var(--space-xs);
-}
-
-.insight-detail {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-}
-
-/* Responsive Layout */
-@media (max-width: 1024px) {
-    .time-difficulty-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .time-bar-row {
-        grid-template-columns: 7.5rem 1fr 5.625rem;
-    }
-}
-
-@media (max-width: 640px) {
-    .time-bar-row {
-        grid-template-columns: 6.25rem 1fr 5rem;
-        gap: var(--space-xs);
-    }
-
-    .difficulty-icon {
-        min-width: 1.875rem;
-    }
-
-    .correlation-value {
-        font-size: 2.25rem;
-    }
 }
 
 /* ============================================================================

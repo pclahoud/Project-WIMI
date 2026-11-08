@@ -4,6 +4,7 @@ import json
 from PyQt6.QtCore import pyqtSlot
 
 from app.bridge_test_instrumentation import instrumented_slot
+from database.exceptions import ValidationError
 
 from ..bridge_helpers import serialize_response
 
@@ -204,6 +205,51 @@ class AnalyticsBridgeMixin:
                 {'exam_context_id': exam_context_id},
             )
             return serialize_response(False, error=f'Failed to get difficulty distribution: {e}')
+
+    @pyqtSlot(str, result=str)
+    @instrumented_slot
+    def getDifficultyTimeQuadrants(self, params_json: str) -> str:
+        """
+        The difficulty and time card's data (#898).
+
+        Args:
+            params_json: JSON with ``exam_context_id`` (required) and optional
+                ``subject_id``, ``primary_parent_id``, ``tag_ids`` (list),
+                ``untagged`` (bool) and ``match`` (``'any'`` / ``'all'``).
+
+        Returns:
+            JSON response with the payload of
+            ``AdvancedAnalyticsMixin.get_difficulty_time_quadrants``. A request
+            the method refuses (no exam, *No error type* with picked types, an
+            unknown match mode) is ``success=false`` carrying its sentence.
+        """
+        if not self.user_db:
+            return serialize_response(False, error='No user database connected')
+
+        params = {}
+        try:
+            params = json.loads(params_json) or {}
+            if not isinstance(params, dict):
+                return serialize_response(
+                    False, error='parameters must be a JSON object')
+            payload = self.user_db.get_difficulty_time_quadrants(
+                params.get('exam_context_id'),
+                subject_id=params.get('subject_id'),
+                primary_parent_id=params.get('primary_parent_id'),
+                tag_ids=params.get('tag_ids') or [],
+                untagged=bool(params.get('untagged', False)),
+                match=params.get('match') or 'any',
+            )
+            return serialize_response(True, data=payload)
+        except ValidationError as e:
+            return serialize_response(False, error=str(e))
+        except Exception as e:
+            self._log_error(
+                f'Error getting difficulty and time quadrants: {e}',
+                {'params': params},
+            )
+            return serialize_response(
+                False, error=f'Failed to get difficulty and time quadrants: {e}')
 
     @pyqtSlot(str, result=str)
     @instrumented_slot

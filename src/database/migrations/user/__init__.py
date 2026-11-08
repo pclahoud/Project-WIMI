@@ -57,6 +57,9 @@ from . import m032_assessments
 from . import m033_planned_sessions
 from . import m034_anki
 from . import m035_anki_relevance
+from . import m036_nullable_note_origin
+from . import m037_exam_name_debris
+from . import m038_universal_error_types
 
 MIGRATIONS: list[Migration] = [
     build_migration(m001_baseline),
@@ -88,4 +91,7 @@ MIGRATIONS: list[Migration] = [
     build_migration(m033_planned_sessions),
     build_migration(m034_anki),
     build_migration(m035_anki_relevance),
+    build_migration(m036_nullable_note_origin),
+    build_migration(m037_exam_name_debris),
+    build_migration(m038_universal_error_types),
 ]

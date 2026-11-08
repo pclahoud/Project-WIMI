@@ -72,6 +72,17 @@ def test_each_wizard_step_shows_its_tour_step_naming_its_control(
     wimi_page.goto("exam-wizard")
     assert poll(wimi_page, READY, timeout_ms=30000)
     assert not wimi_page.eval_js(PANEL_OPEN), "the tour must be off until a scenario turns it on"
+    # This first document exists only to show the tour is off, and it must
+    # not run a tour after the switch below. In create mode the wizard calls
+    # startTour() a second time when its templates fetch resolves
+    # (exam_wizard.js init), and READY is true before that. When the fetch
+    # landed after the switch, this throwaway document showed step 1 and
+    # recorded it as seen, and the reloaded page then had no step 1 to show:
+    # "no tour step showed on step-1", with getTourState().seen already
+    # holding exam-wizard:wizard-step1-type-multi. Measured on #911's operator
+    # review (1 in 4 of the wizard/exam/dimension/axis selection), and
+    # reproduced on master's own code by forcing that late start.
+    wimi_page.eval_js("WimiTour.start = async () => 0; true")
     wimi_page.eval_js("window.api.setTourAutoStartForTest(true)", await_promise=True)
     wimi_page.eval_js("window.__previousDocument = true")
     wimi_page.goto("exam-wizard")

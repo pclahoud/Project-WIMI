@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="../../css/exam_type_selector.css">
     <link rel="stylesheet" href="../../css/dimension_editor.css">
     <link rel="stylesheet" href="../../css/tour.css">
+    <link rel="stylesheet" href="../../css/first_axis_dialog.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="../../js/escape.js"></script>
     <script src="../../js/api/_bridge.js"></script>
@@ -281,6 +282,38 @@
                             rows="2"
                             placeholder="Any additional notes..."
                         ></textarea>
+                    </div>
+
+                    <!-- #444: adding dimensions to an exam that already exists. In
+                         edit mode the wizard opens here, and Back stays disabled so
+                         the template step cannot reshape an existing exam; this is
+                         the one way to the Define Dimensions step from a Simple
+                         exam. Shown only in edit mode, on an exam that loaded with
+                         no axes. An exam with axes never sees it, because it cannot
+                         go back to Simple (#900). -->
+                    <div class="form-group add-dimensions-offer hidden" id="add-dimensions-offer"
+                         data-testid="wizard-add-dimensions-offer">
+                        <p class="form-help" id="add-dimensions-help">
+                            This exam is Simple: its subjects form one tree. Add
+                            dimensions to sort its questions in more than one way,
+                            as NBME and USMLE outlines do. A Define Dimensions step
+                            comes next, and nothing is saved until you press Save
+                            Changes. An exam with dimensions cannot be made Simple
+                            again.
+                        </p>
+                        <button type="button" class="btn btn-secondary" id="btn-add-dimensions"
+                                data-testid="wizard-add-dimensions-button"
+                                aria-describedby="add-dimensions-help">
+                            Add dimensions to this exam
+                        </button>
+                        <p class="form-help hidden" id="add-dimensions-added"
+                           data-testid="wizard-add-dimensions-added">
+                            Dimensions will be added. Press Next to define them.
+                            <button type="button" class="btn btn-text-only" id="btn-keep-simple"
+                                    data-testid="wizard-keep-simple-button">
+                                Keep it Simple
+                            </button>
+                        </p>
                     </div>
                 </div>
                 
@@ -665,7 +698,15 @@
                 <p class="modal-message" id="success-message">
                     Your exam context has been created and is ready to use.
                 </p>
+                <!-- #605: what happened to the subjects the exam already had,
+                     when its first axis arrived. -->
+                <p class="modal-message hidden" id="success-existing-subjects"
+                   data-testid="wizard-success-existing-subjects"></p>
                 <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary hidden" id="btn-open-tree-editor"
+                            data-testid="wizard-success-open-tree-editor-button">
+                        Open the tree editor
+                    </button>
                     <button type="button" class="btn btn-primary" id="btn-continue" data-testid="wizard-success-continue-button">
                         Continue to Dashboard
                     </button>
@@ -754,8 +795,9 @@
                     </ul>
                     
                     <div class="highlight-box">
-                        <strong>💡 Tip:</strong> If you're unsure, start with a Simple exam. 
-                        You can convert to Multi-Dimensional later if needed.
+                        <strong>💡 Tip:</strong> If you're unsure, start with a Simple exam.
+                        You can add dimensions later: edit the exam and press
+                        Add dimensions to this exam on its Exam Information step.
                     </div>
                 </div>
             </div>
@@ -812,6 +854,8 @@ Tags:
     </div>
     
     <script src="../../js/modal_dialog.js"></script>
+    <!-- The first-axis prompt (#605), after the helper that draws its boundary. -->
+    <script src="../../js/first_axis_dialog.js"></script>
     <!-- The first-run tour (#430): its generated steps, then the runner.
          exam_wizard.js starts it on load and again on every wizard step. -->
     <script src="../../js/tour_steps.js"></script>

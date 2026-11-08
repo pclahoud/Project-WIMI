@@ -264,6 +264,20 @@ class SubjectImportMixin:
                 else f'Level {level}'
             )
             low, high = self._import_weight_bounds(node_data)
+            # A bound that is not a number is imported as 0%, which is what
+            # the preview's warning says (#842). Normalised HERE, in the one
+            # record both the preview and the apply read, so the two cannot
+            # disagree (#67): the apply used to reach a bare float('11%')
+            # and roll the whole file back. The raw value is kept for the
+            # warning, which quotes the bound that is actually wrong.
+            weight_problem = None
+            bad = []
+            for raw in (low, high):
+                if _as_number(raw) is None and repr(raw) not in bad:
+                    bad.append(repr(raw))
+            if bad:
+                weight_problem = ', '.join(bad)
+                low = high = 0.0
 
             ref = len(records)
             records.append({
@@ -275,6 +289,7 @@ class SubjectImportMixin:
                 'level_type': node_data.get('level_type', level_name),
                 'weight_low': low,
                 'weight_high': high,
+                'weight_problem': weight_problem,
                 'sort_order': node_data.get('sort_order', position),
                 'aliases': self._normalise_import_aliases(node_data.get('aliases')),
                 # Filled in by the matcher.
@@ -925,14 +940,14 @@ class SubjectImportMixin:
         problems: List[str] = []
         for record in records:
             name = record['name']
-            low = _as_number(record['weight_low'])
-            high = _as_number(record['weight_high'])
-            if low is None or high is None:
+            if record.get('weight_problem'):
                 problems.append(
                     f'{subject(name)} has a weight that is not a number '
-                    f'({record["weight_low"]!r}); imported as 0%'
+                    f'({record["weight_problem"]}); imported as 0%'
                 )
                 continue
+            low = _as_number(record['weight_low'])
+            high = _as_number(record['weight_high'])
             if low > high:
                 problems.append(
                     f'{subject(name)} has a weight low of {low:g} above its '
@@ -1602,6 +1617,10 @@ class SubjectImportMixin:
         - ``dimensionless_subject_count`` -- active subjects in no
           dimension. Left alone; reported so that is visible rather than
           silent.
+        - ``first_axis_offer`` -- present only when this import would give
+          the exam its first axis while it already has subjects outside
+          every axis (#605 Wave 2, the owner's decision 2: offer the move).
+          ``None`` otherwise. See :meth:`_first_axis_offer`.
         - ``errors`` -- file defects that stop the import.
         - ``warnings`` -- every axis's weight warnings, each already naming
           its axis, plus a note when subjects sit outside every axis.
@@ -1796,14 +1815,29 @@ class SubjectImportMixin:
             (exam_name,),
         )
         dimensionless_subject_count = dimensionless['n'] if dimensionless else 0
+
+        # #605 Wave 2: when this file gives the exam its FIRST axis, the
+        # student is asked whether to move those subjects in. The import
+        # itself still never touches them -- `_import_scope` and
+        # `_apply_subject_plan` are unchanged -- and the move is a separate
+        # answer carried beside the file, never inside it.
+        first_axis_offer = None
+        if not declares_no_dimensions and not existing:
+            first_axis_offer = self._first_axis_offer(
+                exam_context_id, axes, final_order)
+
+        dimensionless_note = None
         if dimensionless_subject_count and not declares_no_dimensions:
-            warnings.append(
+            unless = (' unless you choose to move them into an axis'
+                      if first_axis_offer else '')
+            dimensionless_note = (
                 f'This exam has {dimensionless_subject_count} '
                 f'subject{"s" if dimensionless_subject_count != 1 else ""} '
                 f'that are not in any dimension. A whole-exam file describes '
                 f'the dimensions, so they are left exactly as they are -- '
-                f'neither updated nor removed.'
+                f'neither updated nor removed{unless}.'
             )
+            warnings.append(dimensionless_note)
 
         # `entries_affected` is DISTINCT across every axis, never the sum.
         # An entry tagged in both System and Task sits on a kept subject in
@@ -1860,6 +1894,8 @@ class SubjectImportMixin:
             'dimensions_kept_in_use': dimensions_kept_in_use,
             'final_order': final_order,
             'dimensionless_subject_count': dimensionless_subject_count,
+            'first_axis_offer': first_axis_offer,
+            'dimensionless_note': dimensionless_note,
             'entries_affected': entries_affected,
             'errors': errors,
             'warnings': warnings,
@@ -1881,10 +1917,77 @@ class SubjectImportMixin:
             },
         }
 
+    def _first_axis_offer(
+        self,
+        exam_context_id: int,
+        axes: List[Dict[str, Any]],
+        final_order: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """What the first-axis prompt lists on a whole-exam import (#605 Wave 2).
+
+        Asked only when the exam has no active axis, so every declared axis
+        is new and every surviving axis is a declared one. ``None`` when no
+        subject sits outside every axis: there is nothing to ask about.
+
+        ``axes`` is ``[{index, name}]`` in final order, ``index`` being the
+        axis's ``file_index`` -- the reference an assignment sends back, and
+        the key of each root's clash lists. The rest is
+        :meth:`get_existing_subjects_for_first_axis`, given every ``id`` and
+        every name the file declares per axis:
+
+        * ``import_id_clash_axes`` (decision 7): the axes where the import
+          will create a subject carrying an ``import_id`` this subtree
+          already holds. The existing copy cannot move there.
+        * ``name_clash_axes`` (decision 8): the axes whose file subjects
+          include this subject's name. It moves anyway; the dialog says so.
+
+        **An ``import_id`` clash is widened to the root's whole group.**
+        Roots that share a descendant must go into the same axis (decision
+        6), so an axis one member cannot enter is an axis none of them can.
+        Without the widening the dialog would offer a member an axis the
+        server then refuses as a split.
+        """
+        ids_by_axis = {
+            axis['file_index']: sorted({
+                r['import_id'] for r in axis['plan']['nodes']
+                if r.get('import_id')})
+            for axis in axes
+        }
+        names_by_axis = {
+            axis['file_index']: sorted({
+                r['name'] for r in axis['plan']['nodes'] if r.get('name')})
+            for axis in axes
+        }
+        preview = self.get_existing_subjects_for_first_axis(
+            exam_context_id,
+            incoming_import_ids_by_axis=ids_by_axis,
+            incoming_names_by_axis=names_by_axis,
+        )
+        if not preview['roots']:
+            return None
+
+        by_group: Dict[int, set] = {}
+        for root in preview['roots']:
+            by_group.setdefault(root['group'], set()).update(
+                root['import_id_clash_axes'])
+        order = [item['file_index'] for item in final_order
+                 if item['file_index'] is not None]
+        for root in preview['roots']:
+            clashes = by_group[root['group']]
+            root['import_id_clash_axes'] = [i for i in order if i in clashes]
+
+        return {
+            'axes': [{'index': item['file_index'], 'name': item['name']}
+                     for item in final_order if item['file_index'] is not None],
+            'subject_count': preview['subject_count'],
+            'roots': preview['roots'],
+        }
+
     def apply_whole_exam_import(
         self,
         exam_context_id: int,
         dimensions: List[Dict[str, Any]],
+        existing_subjects: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute :meth:`plan_whole_exam_import`'s plan.
 
@@ -1939,21 +2042,59 @@ class SubjectImportMixin:
         #211's park-and-assign. The plan already decided the order; this
         writes it.
 
+        **G. The student's answer to the first-axis prompt** (#605 Wave 2),
+        when one was given. ``existing_subjects`` is ``None`` (nothing was
+        asked: the import leaves every subject outside the axes exactly as
+        it always has), ``{"action": "aside"}``, or ``{"action": "move",
+        "assignments": [{"subject_id": int, "axis": file_index | None}]}``.
+        It reaches here from a bridge argument, **never from the file**: a
+        file must not be able to carry a student's answer. The move goes
+        through ``_move_existing_into_new_axes``, the wizard's helper, inside
+        this transaction, so a refusal rolls the whole import back. It runs
+        last because the axes have to exist, and because an ``import_id``
+        collision is only real once Phase D has written the file's subjects.
+        ``axis: None`` keeps a subject outside, and the helper accepts it
+        only where every axis collides on ``import_id`` (decision 7). Any
+        answer on an exam that already has an active axis is refused with
+        *"Nothing was saved. This exam gained an axis since this was opened.
+        Reload."*, the wizard's sentence.
+
         Returns the plan, plus ``created_dimension_ids``,
         ``updated_dimension_ids``, ``removed_dimension_ids``,
         ``dimension_delete_batch_ids``, the subject-level ``created_ids`` /
         ``updated_ids`` / ``removed_ids`` / ``delete_batch_ids`` pooled
         across axes, ``axis_results`` (the same figures per axis),
-        ``imported_count`` and ``warnings``.
+        ``imported_count``, ``warnings`` and ``moved_existing`` -- the
+        Phase G outcome, ``None`` when nothing was asked. It is reported
+        apart from ``counts`` on purpose: ``counts`` is what the file did,
+        and the file never moves these subjects.
         """
+        action = None
+        if existing_subjects is not None:
+            action = (existing_subjects.get('action')
+                      if isinstance(existing_subjects, dict) else None)
+            if action not in ('aside', 'move'):
+                raise ValidationError(
+                    'Nothing was saved. The choice about your existing '
+                    'subjects could not be read.')
+
         plan = self.plan_whole_exam_import(exam_context_id, dimensions)
         if plan['errors']:
             raise ValidationError('; '.join(plan['errors']))
+        if action is not None and plan['declares_no_dimensions']:
+            raise ValidationError(
+                'Nothing was saved. Existing subjects can only be moved into '
+                'an axis this import creates.')
 
         config = self.get_exam_context_config(exam_context_id)
         exam_name = config.exam_name
 
         warnings: List[str] = list(plan['warnings'])
+        # Once the student has answered the first-axis prompt, "left exactly
+        # as they are" is no longer the news: the answer is, and the page
+        # reports it from `moved_existing`.
+        if action is not None and plan.get('dimensionless_note') in warnings:
+            warnings.remove(plan['dimensionless_note'])
         created_dimension_ids: List[int] = []
         updated_dimension_ids: List[int] = []
         removed_dimension_ids: List[int] = []
@@ -1974,7 +2115,19 @@ class SubjectImportMixin:
             for axis in plan['axes'] if axis['dimension_id'] is not None
         }
 
+        moved_existing: Optional[Dict[str, Any]] = None
+
         with self.transaction():
+            if action is not None:
+                held = self.fetchone(
+                    "SELECT COUNT(*) AS n FROM exam_dimensions "
+                    "WHERE exam_id = ? AND status = 'active'",
+                    (exam_context_id,))
+                if held and held['n']:
+                    raise ValidationError(
+                        'Nothing was saved. This exam gained an axis since '
+                        'this was opened. Reload.')
+
             # Phase A -- park every name that is about to change.
             for axis in plan['axes']:
                 if 'name' in axis['changes']:
@@ -2076,6 +2229,19 @@ class SubjectImportMixin:
             if final_ids:
                 self.reorder_dimensions(exam_context_id, final_ids)
 
+            # Phase G -- the student's answer about subjects outside every
+            # axis (#605 Wave 2). Never read from the file.
+            if action == 'aside':
+                moved_existing = {'action': 'aside', 'moved': 0,
+                                  'by_axis': [], 'kept_outside': []}
+            elif action == 'move':
+                moved_existing = {
+                    'action': 'move',
+                    **self._apply_first_axis_choice(
+                        exam_context_id, plan, resolved,
+                        existing_subjects.get('assignments')),
+                }
+
         if self.error_logger:
             self.error_logger.info(
                 f"Whole-exam import into exam {exam_context_id}: "
@@ -2102,8 +2268,58 @@ class SubjectImportMixin:
             'delete_batch_ids': delete_batch_ids,
             'axis_results': axis_results,
             'warnings': warnings,
+            'moved_existing': moved_existing,
         })
         return result
+
+    def _apply_first_axis_choice(
+        self,
+        exam_context_id: int,
+        plan: Dict[str, Any],
+        resolved: Dict[int, int],
+        assignments: Any,
+    ) -> Dict[str, Any]:
+        """Phase G's move: file indexes to dimension ids, then the shared helper.
+
+        An ``axis`` must be the ``file_index`` of an axis this file declares
+        (a bool is not an index, though Python says it is an int), or
+        ``None`` for a subject kept outside (decision 7, checked by the
+        helper). The default for a subject the dialog did not list is the
+        first axis in final order, which is what its row defaulted to.
+        """
+        if assignments is not None and not isinstance(assignments, list):
+            raise ValidationError(
+                "Nothing was saved. The choice about your existing subjects "
+                "could not be read.")
+        declared = {axis['file_index'] for axis in plan['axes']}
+        translated: List[Dict[str, Any]] = []
+        for item in assignments or []:
+            if not isinstance(item, dict):
+                raise ValidationError(
+                    "Nothing was saved. A subject's choice of axis could not "
+                    "be read.")
+            axis = item.get('axis')
+            if axis is None:
+                axis_id = None
+            elif (isinstance(axis, bool) or not isinstance(axis, int)
+                    or axis not in declared):
+                raise ValidationError(
+                    "Nothing was saved. A subject was assigned to an axis "
+                    "that is not in this file.")
+            else:
+                axis_id = resolved[axis]
+            translated.append({'subject_id': item.get('subject_id'),
+                               'axis_id': axis_id})
+
+        first = next((item['file_index'] for item in plan['final_order']
+                      if item['file_index'] is not None), None)
+        if first is None:
+            raise ValidationError(
+                'Nothing was saved. Existing subjects can only be moved into '
+                'an axis this import creates.')
+        return self._move_existing_into_new_axes(
+            exam_context_id, translated, resolved[first],
+            allow_outside=True)
 
     def _write_dimension_import_id(self, dimension_id: int, import_id: str) -> None:
         """Set ``exam_dimensions.import_id`` (m025).

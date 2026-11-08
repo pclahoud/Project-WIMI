@@ -29,7 +29,16 @@ class BrowsingBridgeMixin:
                 - date_to: Optional ISO date string
                 - is_draft: Optional bool
                 - search_query: Optional string
-                - sort_by: Optional string ('date_desc', 'date_asc', 'difficulty_desc', 'difficulty_asc')
+                - sort_by: Optional string ('date_desc', 'date_asc', 'difficulty_desc',
+                  'difficulty_asc', 'time_desc', 'time_asc')
+                - difficulty_levels: Optional array of ints 1-5 (#898)
+                - time_min_seconds / time_max_seconds: Optional numbers,
+                  inclusive / exclusive; either implies timed (#898)
+                - missing_any: Optional array of 'difficulty', 'time' (#898)
+                - tag_mode: Optional 'any' (default) or 'all' (#898)
+                - untagged: Optional bool, exclusive with tag_ids (#898)
+                - counted_subject_id / counted_parent_id: Optional ints, the
+                  deep dive's counting population (#898)
                 - page: Optional int (default 1)
                 - per_page: Optional int (default 20)
 
@@ -64,7 +73,15 @@ class BrowsingBridgeMixin:
                 page=params.get('page', 1),
                 per_page=params.get('per_page', 20),
                 field_filters=params.get('field_filters'),
-                subject_mode=params.get('subject_mode', 'or')
+                subject_mode=params.get('subject_mode', 'or'),
+                difficulty_levels=params.get('difficulty_levels'),
+                time_min_seconds=params.get('time_min_seconds'),
+                time_max_seconds=params.get('time_max_seconds'),
+                missing_any=params.get('missing_any'),
+                tag_mode=params.get('tag_mode') or 'any',
+                untagged=bool(params.get('untagged', False)),
+                counted_subject_id=params.get('counted_subject_id'),
+                counted_parent_id=params.get('counted_parent_id'),
             )
 
             # Convert entries to dictionaries
@@ -392,6 +409,12 @@ class BrowsingBridgeMixin:
         """
         Get tags hierarchy for the tag filter dropdown.
 
+        The exam's list plus a ``not_listed_group`` of the types its entries
+        still carry that it no longer lists (#898), through
+        ``get_error_types_for_filter``. A filter offering only the list could
+        not find entries keeping a removed type, and Apply dropped one passed
+        in the URL.
+
         Args:
             exam_context_id: Exam context ID
 
@@ -402,13 +425,11 @@ class BrowsingBridgeMixin:
             return serialize_response(False, error='No user database connected')
 
         try:
-            # Get exam context name
             exam_config = self.user_db.get_exam_context_config(exam_context_id)
             if not exam_config:
                 return serialize_response(False, error='Exam context not found')
 
-            # Get tag hierarchy
-            hierarchy = self.user_db.get_tag_hierarchy(exam_config.exam_name)
+            hierarchy = self.user_db.get_error_types_for_filter(exam_context_id)
 
             return serialize_response(True, data=hierarchy)
 

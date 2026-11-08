@@ -346,7 +346,20 @@ window.WIMI_THEMES = {
             '--color-success-text': '#34d399',
             '--color-warning-text': '#fbbf24',
             '--color-error-text':   '#f87171',
-            '--color-info-text':    '#22d3ee'
+            '--color-info-text':    '#22d3ee',
+            // Difficulty and time card (#898); see styles.css.
+            // Dark bands and light marks: this theme's page is near-black, so
+            // the dots move LIGHTER to reach 3:1, as its text tokens do.
+            '--dt-band-hard': '#3a1c0b',
+            '--dt-band-hard-border': '#c2410c',
+            '--dt-band-easy': '#16233f',
+            '--dt-band-easy-border': '#3b82f6',
+            '--dt-series-1': '#a78bfa',
+            '--dt-series-2': '#5eead4',
+            '--dt-series-3': '#f472b6',
+            '--dt-series-4': '#bef264',
+            '--dt-series-many': 'var(--color-primary-text)',
+            '--dt-dot-nonmatch': '#9ca3af'
         }
     },
 
@@ -414,7 +427,19 @@ window.WIMI_THEMES = {
             // clears every slab here.
             '--color-success-text': '#0b815a',
             '--color-warning-text': '#9e6506',
-            '--color-info-text':    '#047c91'
+            '--color-info-text':    '#047c91',
+            // Difficulty and time card (#898); see styles.css.
+            // The :root values; they clear every bar on this theme's slabs.
+            '--dt-band-hard': '#ffedd5',
+            '--dt-band-hard-border': '#fdba74',
+            '--dt-band-easy': '#dbeafe',
+            '--dt-band-easy-border': '#93c5fd',
+            '--dt-series-1': '#6d28d9',
+            '--dt-series-2': '#0f766e',
+            '--dt-series-3': '#be185d',
+            '--dt-series-4': '#4d7c0f',
+            '--dt-series-many': 'var(--color-primary-text)',
+            '--dt-dot-nonmatch': '#6b7280'
         }
     },
 
@@ -504,7 +529,21 @@ window.WIMI_THEMES = {
             // through: #df1313 clears every slab here.
             '--color-success-text': '#047d58',
             '--color-warning-text': '#9f6607',
-            '--color-info-text':    '#047d92'
+            '--color-info-text':    '#047d92',
+            // Difficulty and time card (#898); see styles.css.
+            // The :root values except the easy band, one notch lighter: this
+            // theme's --color-primary-text #047955 is 4.45:1 on #dbeafe and
+            // 4.62:1 on #e2eefe.
+            '--dt-band-hard': '#ffedd5',
+            '--dt-band-hard-border': '#fdba74',
+            '--dt-band-easy': '#e2eefe',
+            '--dt-band-easy-border': '#93c5fd',
+            '--dt-series-1': '#6d28d9',
+            '--dt-series-2': '#0f766e',
+            '--dt-series-3': '#be185d',
+            '--dt-series-4': '#4d7c0f',
+            '--dt-series-many': 'var(--color-primary-text)',
+            '--dt-dot-nonmatch': '#6b7280'
         }
     },
 
@@ -579,7 +618,19 @@ window.WIMI_THEMES = {
             '--color-success-text': '#597442',
             '--color-warning-text': '#8d6618',
             '--color-error-text':   '#ab454f',
-            '--color-info-text':    '#357486'
+            '--color-info-text':    '#357486',
+            // Difficulty and time card (#898); see styles.css.
+            // The :root values; they clear every bar on this theme's slabs.
+            '--dt-band-hard': '#ffedd5',
+            '--dt-band-hard-border': '#fdba74',
+            '--dt-band-easy': '#dbeafe',
+            '--dt-band-easy-border': '#93c5fd',
+            '--dt-series-1': '#6d28d9',
+            '--dt-series-2': '#0f766e',
+            '--dt-series-3': '#be185d',
+            '--dt-series-4': '#4d7c0f',
+            '--dt-series-many': 'var(--color-primary-text)',
+            '--dt-dot-nonmatch': '#6b7280'
         }
     },
 
@@ -680,7 +731,19 @@ window.WIMI_THEMES = {
             '--color-success-text': '#00ff88',
             '--color-warning-text': '#ffcc00',
             '--color-error-text':   '#ff4444',
-            '--color-info-text':    '#00e5ff'
+            '--color-info-text':    '#00e5ff',
+            // Difficulty and time card (#898); see styles.css.
+            // As in Midnight: dark bands, light marks, on a black page.
+            '--dt-band-hard': '#3d1f00',
+            '--dt-band-hard-border': '#ff9a3c',
+            '--dt-band-easy': '#00224d',
+            '--dt-band-easy-border': '#66b0ff',
+            '--dt-series-1': '#a78bfa',
+            '--dt-series-2': '#5eead4',
+            '--dt-series-3': '#f472b6',
+            '--dt-series-4': '#bef264',
+            '--dt-series-many': 'var(--color-primary-text)',
+            '--dt-dot-nonmatch': '#a3a3a3'
         }
     }
 };

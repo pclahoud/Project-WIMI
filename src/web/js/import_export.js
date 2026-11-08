@@ -20,6 +20,9 @@ const ImportExportState = {
     validationErrors: [],
     validationWarnings: [],
     isProcessing: false,
+    // #605 Wave 2: true while the first-axis dialog is open over the
+    // preview, so a second confirm cannot start a second question.
+    askingFirstAxis: false,
     // Issue #67: the backend's plan for this file — what the import will
     // add, update, rename, remove and keep. Fetched when the preview
     // modal opens and produced by the same planner the import itself
@@ -1631,12 +1634,132 @@ function hideImportPreviewModal() {
 }
 
 /**
+ * The first-axis question for a whole-exam import (#605 Wave 2).
+ *
+ * Asked at confirm time, BEFORE the confirm button goes into its loading
+ * state, so Go back leaves the preview exactly as it was. The planner decides
+ * whether there is anything to ask (`first_axis_offer`: the file gives the
+ * exam its first axis while subjects sit outside every axis), so this page
+ * never re-derives it. When the preview's plan has not landed yet it is
+ * fetched again rather than skipped.
+ *
+ * **If the question cannot be built, nothing is imported.** The owner's
+ * decision is *ask each time, defaulting to moving them in*; importing
+ * without asking would quietly choose Keep them aside for the student. So a
+ * failed read (after the retry) or a missing dialog module throws, and
+ * `executeImport` shows the sentence and leaves the preview open -- the
+ * wizard's rule, never a silent fallback.
+ *
+ * Resolves to `{ask: false}` when there is nothing to ask, `{ask: true,
+ * choice: null}` for Go back, or `{ask: true, choice, offer}` with the
+ * dialog's answer.
+ */
+const FIRST_AXIS_UNREADABLE = 'Nothing was imported. WIMI could not check the '
+    + 'subjects this exam already has, so it could not ask where they go. '
+    + 'Try the import again.';
+
+async function askAboutExistingSubjectsForImport(pending, payload) {
+    if (!pending.isWholeExam) return { ask: false };
+    let plan = ImportExportState.mergePlan;
+    if (!plan) {
+        try {
+            plan = await api.previewSubjectHierarchyImport(
+                TreeState.examContextId, payload
+            );
+        } catch (error) {
+            console.error('Could not read the first-axis offer:', error);
+            throw new Error(FIRST_AXIS_UNREADABLE);
+        }
+    }
+    const offer = plan && plan.first_axis_offer;
+    if (!offer || !Array.isArray(offer.axes) || !offer.axes.length) {
+        return { ask: false };
+    }
+    if (typeof FirstAxisDialog === 'undefined') {
+        console.error('first_axis_dialog.js is not loaded; refusing to import without asking.');
+        throw new Error(FIRST_AXIS_UNREADABLE);
+    }
+    const choice = await FirstAxisDialog.ask({
+        subjects: offer.roots || [],
+        subjectCount: offer.subject_count,
+        axes: offer.axes,
+        context: 'import'
+    });
+    return { ask: true, choice, offer };
+}
+
+/**
+ * The axis a move most subjects went to, or the file's first axis in final
+ * order, as a dimension id -- what the tree should open on afterwards.
+ */
+function importLandingDimensionId(result) {
+    const moved = result && result.moved_existing;
+    const byAxis = (moved && moved.by_axis) || [];
+    let best = null;
+    byAxis.forEach(item => {
+        if (item.moved > 0 && (!best || item.moved > best.moved)) best = item;
+    });
+    if (best) return best.axis_id;
+    const first = ((result && result.final_order) || [])
+        .find(item => item.file_index !== null && item.file_index !== undefined);
+    if (!first) return null;
+    const axis = ((result && result.axis_results) || [])
+        .find(item => item.file_index === first.file_index);
+    return axis ? axis.dimension_id : null;
+}
+
+/**
+ * What the toast says about the first-axis answer, or null.
+ */
+function describeMovedExisting(moved) {
+    if (!moved) return null;
+    if (moved.action === 'aside' || !moved.moved) {
+        return {
+            title: 'Existing subjects kept aside',
+            message: 'They are listed under Subjects not in any axis in this '
+                + 'tree editor, where you can move each one in later.'
+        };
+    }
+    const n = moved.moved;
+    const noun = n === 1 ? '1 subject' : `${n} subjects`;
+    const axes = (moved.by_axis || []).filter(a => a.moved > 0);
+    const where = axes.length === 1 ? `into ${axes[0].name}` : 'into your axes';
+    let message = `${noun} moved ${where}.`;
+    const kept = moved.kept_outside || [];
+    if (kept.length) {
+        message += ` ${kept.length === 1 ? '1 subject stays' : `${kept.length} subjects stay`}`
+            + ' outside the axes, listed under Subjects not in any axis.';
+    }
+    return { title: 'Existing subjects moved', message };
+}
+
+/**
  * Execute the import
  */
 async function executeImport() {
     const pending = ImportExportState.pendingImport;
     if (!pending) return;
-    
+    if (ImportExportState.isProcessing || ImportExportState.askingFirstAxis) return;
+
+    // #605 Wave 2: ask before anything changes state, so Go back is a true
+    // no-op -- the preview stays open, the confirm button stays as it was,
+    // and nothing is imported.
+    let firstAxis = { ask: false };
+    const askPayload = buildImportPayload();
+    try {
+        ImportExportState.askingFirstAxis = true;
+        firstAxis = await askAboutExistingSubjectsForImport(pending, askPayload);
+    } catch (error) {
+        console.error('First-axis question failed:', error);
+        const message = String((error && error.message) || error);
+        Toast.error('Import Failed', message.startsWith('Nothing was imported.')
+            ? message : `Nothing was imported. ${message}`);
+        return;
+    } finally {
+        ImportExportState.askingFirstAxis = false;
+    }
+    if (firstAxis.ask && firstAxis.choice === null) return;   // Go back
+
     try {
         ImportExportState.isProcessing = true;
 
@@ -1650,9 +1773,13 @@ async function executeImport() {
         // Issue #67: the same bytes the preview was planned from.
         const payload = buildImportPayload();
 
-        const result = await api.importSubjectHierarchy(
-            TreeState.examContextId, payload
-        );
+        const result = firstAxis.ask
+            ? await api.importSubjectHierarchyWithChoice(
+                TreeState.examContextId, payload, firstAxis.choice
+            )
+            : await api.importSubjectHierarchy(
+                TreeState.examContextId, payload
+            );
 
         // Success — report what happened, not how many lines the file
         // had. "Added 2,211 subjects" after a re-import that changed
@@ -1670,15 +1797,37 @@ async function executeImport() {
         (result?.warnings || []).forEach(
             warning => Toast.error('Import warning', warning)
         );
+        const movedNote = describeMovedExisting(result && result.moved_existing);
+        if (movedNote) Toast.success(movedNote.title, movedNote.message);
 
-        // Invalidate dimension cache before reload
-        if (TreeState.usesDimensions && TreeState.currentDimensionId) {
-            invalidateDimensionCache(TreeState.currentDimensionId);
+        // Read before hideImportPreviewModal() clears pendingImport.
+        const wasWholeExam = !!pending.isWholeExam;
+
+        if (wasWholeExam) {
+            // A whole-exam file can add, rename or archive axes, and can give
+            // a plain exam its first one. Re-derive the mode instead of
+            // redrawing the current view (#899): `loadHierarchy()` alone kept
+            // the plain, unfiltered tree and stale tabs until a reload. It
+            // never throws, so the modal below still closes.
+            //
+            // After the first-axis answer, open on the axis most of the
+            // student's own subjects went to (or the file's first), so the
+            // moved trees are what they see (#605 Wave 2).
+            const landing = result && result.moved_existing
+                ? importLandingDimensionId(result) : null;
+            await refreshDimensionModeAfterWrite(
+                landing !== null ? { preferDimensionId: landing } : {}
+            );
+        } else {
+            // Invalidate dimension cache before reload
+            if (TreeState.usesDimensions && TreeState.currentDimensionId) {
+                invalidateDimensionCache(TreeState.currentDimensionId);
+            }
+
+            // Reload hierarchy
+            await loadHierarchy();
         }
 
-        // Reload hierarchy
-        await loadHierarchy();
-        
         // Close modal
         hideImportPreviewModal();
         

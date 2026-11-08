@@ -1778,9 +1778,11 @@ class TestNonAggregatingDimensionSurfaces:
     @staticmethod
     def _tagged(db, exam, session_id, order, node_id, mapping_type='primary',
                 ppid=None, tag_name="Knowledge Gap X"):
+        # #888: a type is one library row, listed on the exams that offer it.
         tag = db.fetchone(
-            "SELECT id FROM tags WHERE exam_context = ? AND tag_name = ?",
-            (exam.exam_name, tag_name))
+            "SELECT t.id FROM tags t JOIN exam_error_types l ON l.tag_id = t.id"
+            " WHERE l.exam_context_id = ? AND t.tag_name = ?",
+            (exam.id, tag_name))
         if tag is None:
             created = db.create_tag(exam_context=exam.exam_name,
                                     tag_name=tag_name,

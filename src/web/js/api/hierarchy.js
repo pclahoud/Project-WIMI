@@ -102,6 +102,27 @@
         return api._callBridge('importSubjectHierarchy', examContextId, hierarchyJson);
     };
 
+    /**
+     * Import a whole-exam file together with the student's answer to the
+     * first-axis prompt (#605 Wave 2). The answer travels as its own
+     * argument, never inside the file: a file must not carry a student's
+     * choice.
+     *
+     * @param {number} examContextId Exam to import into.
+     * @param {string} hierarchyJson The file, verbatim (the same bytes the
+     *   preview was planned from).
+     * @param {Object|null} choice `null` (nothing was asked),
+     *   `{action: 'aside'}`, or `{action: 'move', assignments:
+     *   [{subject_id, axis}]}` where `axis` is a declared axis's
+     *   `file_index`, or `null` for a subject kept outside.
+     */
+    api.importSubjectHierarchyWithChoice = async function(examContextId, hierarchyJson, choice) {
+        return api._callBridge(
+            'importSubjectHierarchyWithChoice', examContextId, hierarchyJson,
+            JSON.stringify(choice === undefined ? null : choice)
+        );
+    };
+
     api.exportSubjectHierarchy = async function(examContextId) {
         return api._callBridge('exportSubjectHierarchy', examContextId);
     };

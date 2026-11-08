@@ -123,8 +123,44 @@ worth having.
 - **Perceived Difficulty** is five dots, 1 to 5, hovering as Very Easy through Very Hard. It is *perceived* on purpose: it records how hard the question felt to you, not how hard the question bank says it was. The pair of "felt easy" and "got it wrong" is one of the more useful things you can record about yourself.
 - **Your Answer** and **Correct Answer** sit on one row because they are only ever read as a pair. Both are free text and both grow as you type, so a full option sentence is fine — you do not have to reduce them to letters.
 - **Time Spent** is a number plus a *minutes* or *seconds* picker. It is stored in seconds, so a round number of minutes reads back as minutes when you reopen the entry and anything else reads back as seconds. Do not agonise over it; it exists so that "I spent four minutes and still got it wrong" is distinguishable from "I spent twenty seconds".
-- **Primary Subject(s)** and **Secondary Subject(s)** are what the question was about. Type to search; the chips you pick are what every analytics screen later groups your mistakes by. The difference between the two, and why it matters a great deal, is the subject of [Why two screens can disagree about one subject](help_two_screens_one_subject.html) — in one line, primary is what the question *tests* and secondary is what it also *touches*. If the subject you need does not exist yet, **+ Add New Subject** creates it without leaving the page.
+- **Primary Subject(s)** and **Secondary Subject(s)** are what the question was about. Type to search; the chips you pick are what every analytics screen later groups your mistakes by. The difference between the two, and why it matters a great deal, is the subject of [Why two screens can disagree about one subject](help_two_screens_one_subject.html) — in one line, primary is what the question *tests* and secondary is what it also *touches*. If the subject you need does not exist yet, either search box offers to create it without leaving the page — see the next section.
 - **Tags** is the error-type field. It has its own chapter, [Error types: naming the mistake](help_error_types.html), because it is the field most worth getting right and the one most easily filled in badly.
+
+### A subject that does not exist yet
+
+Both subject boxes can create a subject as well as find one, and the way in is
+the search itself; there is no separate button.
+
+- **When nothing matches**, the dropdown says so by name — *No subject in
+  Step 2 CK matches 'pneumoth' by name or alias* — and offers one action,
+  **Add 'pneumoth' as a new subject**. Pressing it opens the **Quick Add
+  Subject** dialog with what you typed already in the name field, editable, so
+  a cut-short or misspelt query costs one correction.
+- **When something matches but not exactly**, the same offer sits as the last
+  row of the list: *Add 'Cardio' as a new subject…*. It disappears the moment
+  your query is the full name of a subject the exam already has, compared
+  without regard to case. The arrow keys reach the row like any other, and
+  Enter opens the dialog.
+- **The new subject lands in the box you were typing in.** Opened from the
+  Primary box it is selected as a primary subject; opened from the Secondary box
+  it is selected as a secondary one.
+- **The dialog checks for a duplicate before it creates.** If a subject of
+  that name already exists, or one a single letter away from it (for a name
+  of five characters or more), the dialog says where — *A subject named
+  'Pneumothorax' already exists under Respiratory › Disorders of the pleura* —
+  and offers **Select it instead** beside **Create anyway**. Neither is
+  refused: a real blueprint repeats a name across axes,
+  so a same-named subject under a different parent is legitimate data. More
+  often, though, the right answer to "I found it under Respiratory but this
+  question is about trauma" is a second parent on the existing subject, which
+  is done in the tree editor, and the dialog says so.
+- **On an exam with axes, the parent is required.** A subject inherits its axis
+  from its parent and from nothing else, so a parentless subject there would
+  belong to no axis and would vanish from the tree editor's view of every
+  axis. The dialog's parent field is marked required, *Root (Top Level)* is
+  not offered, and saving without a parent is refused with a sentence. On an
+  exam without axes *Root (Top Level)* stays, and a root created this way
+  starts at 0% weight — the weight panel is where weights are set.
 
 ## The two written fields
 
@@ -328,7 +364,10 @@ While something is missing, the footer shows **📝 Draft - missing required
 fields** and the **Save & Next** button is disabled and relabelled to say why —
 *Assign subjects to images* whenever an attached image has no subject, even if
 a required field is empty too, and *Complete required fields* otherwise. On the
-last slot of the session it reads **Complete Review** instead.
+last slot of the session it reads **Complete Review** instead. Pressing it
+completes the session only when no other entry is still a draft. If one is, WIMI
+says how many entries are not finished yet, opens the first of them, and leaves
+the session in progress.
 
 **A draft still counts as a mistake everywhere in the analytics.** You got the
 question wrong; an unfinished reflection does not un-happen that. The single
@@ -423,7 +462,9 @@ text: Logged counts an entry once it is finished, not when its slot is first
 
 **Logged** reads like *7/10*: finished entries against the session's
 *Questions Incorrect*. An entry is counted at the moment it stops being a draft,
-when its five required fields are all filled in, so the gap between the two
+when its five required fields are all filled in, and taken off again if you
+later empty one of them; a finished session that gains a draft that way is in
+progress again. So the gap between the two
 numbers is your drafts plus any slots you have not written yet. The percentage
 under the bar is the same figure, and it stops at 100% if you added entries
 beyond the count. A session set up with 0 incorrect has nothing to log, so its
@@ -442,7 +483,7 @@ text: Review opens the session in the ordinary entry form, not a read-only
 A finished session's card offers **Review** where an unfinished one offers
 **Continue**. Both open the same entry form, with the same autosave; there is no
 read-only view. The difference is only where they land: **Review** opens the
-session's first entry, and **Continue** its first unfinished one.
+session's first entry, and **Continue** its first unfinished one. Stepping through a finished session with **Save & Next** saves each entry and moves to the next; the *Session Complete* dialog appears only when a session becomes complete, not every time you pass through one that already is.
 
 ### Export IDs
 

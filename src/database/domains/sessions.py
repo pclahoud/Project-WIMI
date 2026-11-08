@@ -298,6 +298,19 @@ class SessionsMixin:
             raise ReviewSessionNotFoundError(f"Review session {session_id} not found")
 
         with self.transaction():
+            # #848 decision 2 for every entry of the session at once: a note
+            # attached only to entries of this session goes with it; a note
+            # also attached to an entry of another session survives with a
+            # NULL origin. This path bypasses delete_question_entry, so the
+            # rule has to be applied here as well.
+            entry_ids = [
+                row['id'] for row in self.fetchall(
+                    "SELECT id FROM question_entries WHERE review_session_id = ?",
+                    (session_id,)
+                )
+            ]
+            released = self.release_notes_from_entries(entry_ids)
+
             # Delete all entries (cascades to mappings, tags, media)
             self.execute(
                 "DELETE FROM question_entries WHERE review_session_id = ?",
@@ -315,5 +328,14 @@ class SessionsMixin:
                     f"Deleted review session {session_id}",
                     category=ErrorCategory.DATABASE
                 )
+
+        # Graph dual-write (after SQLite commit) for the notes the rule removed.
+        def _graph_write():
+            for note_id in released['deleted_note_ids']:
+                self._graph_execute(
+                    "MATCH (n:Note {sqlite_id: $nid}) DETACH DELETE n",
+                    {"nid": note_id}
+                )
+        self._dual_write_graph("delete_review_session", _graph_write)
 
         return True

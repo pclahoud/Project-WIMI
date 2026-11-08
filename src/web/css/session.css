@@ -543,9 +543,18 @@
    Toast Notifications (copied from landing.css)
    ========================================================================= */
 
+/* #932: on the entry form the container sits ABOVE the sticky footer, so a
+   toast never lands on Save & Next / Save Draft. The footer is sticky at
+   bottom: 0, so the band it occupies is its own height;
+   `trackFooterClearance()` in question_entry.js measures that height with a
+   ResizeObserver and publishes it as --entry-footer-clearance, so the lift
+   follows the footer when it wraps (the narrow media query stacks it) or its
+   contents change, instead of a number that drifts. The other page linking
+   this sheet, session_setup.html, has no such footer and never sets the
+   property, so the 0px fallback leaves its toasts where they were. */
 .toast-container {
     position: fixed;
-    bottom: var(--space-xl);
+    bottom: calc(var(--entry-footer-clearance, 0px) + var(--space-xl));
     right: var(--space-xl);
     z-index: var(--z-toast);
     display: flex;
@@ -564,7 +573,11 @@
     background-color: var(--bg-primary);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
-    pointer-events: auto;
+    /* #932: a toast is a message, not a control, so a press on one goes
+       through to whatever is beneath it. Before this, a toast sliding in over
+       Save & Next swallowed the student's next press: no save, no move, no
+       message. Only the close button takes the pointer back. */
+    pointer-events: none;
     transform: translateX(120%);
     opacity: 0;
     transition: transform var(--transition-normal), opacity var(--transition-normal);
@@ -603,6 +616,7 @@
     cursor: pointer;
     padding: 0;
     line-height: 1;
+    pointer-events: auto;
 }
 
 .toast-close:hover {

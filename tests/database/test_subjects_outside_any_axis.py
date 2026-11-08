@@ -143,6 +143,7 @@ def test_the_move_stops_at_a_subject_already_in_an_axis(user_db):
         exam_id=exam.id, name="Discipline", display_order=1)
     second = user_db.create_dimension(
         exam_id=exam.id, name="System", display_order=2)
+    assert first != second
 
     # Somebody has already filed the grandchild under `second`.
     user_db.execute(
@@ -150,7 +151,13 @@ def test_the_move_stops_at_a_subject_already_in_an_axis(user_db):
         (second, grandchild))
     user_db.conn.commit()
 
-    result = user_db.move_subjects_into_axis([root], first)
+    # Into `second`, the grandchild's own axis. This test moved the tree
+    # into `first` until #903, which left Arrhythmias (first) over Atrial
+    # fibrillation (second): an edge crossing two axes. That move is now
+    # refused with a sentence (test_panel_moves_keep_axes_whole.py), so the
+    # walk is tested on the move that is still allowed. The count still
+    # discriminates: a walk that did not stop would report 3.
+    result = user_db.move_subjects_into_axis([root], second)
 
     assert result['moved'] == 2, (
         f"the walk must stop at the subject already in an axis: {result!r}")
@@ -159,6 +166,13 @@ def test_the_move_stops_at_a_subject_already_in_an_axis(user_db):
     assert row['dimension_id'] == second, (
         "a subject deliberately filed under one axis was dragged into "
         "another by a move it was not part of")
+
+    untouched = user_db.move_subjects_into_axis([grandchild], first)
+    assert untouched['success'] and untouched['moved'] == 0, untouched
+    row = user_db.fetchone(
+        "SELECT dimension_id FROM subject_nodes WHERE id = ?", (grandchild,))
+    assert row['dimension_id'] == second, (
+        "a subject already in an axis was pulled out of it by a move")
 
 
 def test_an_archived_axis_is_refused_with_a_sentence(user_db):

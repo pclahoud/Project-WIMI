@@ -19,11 +19,12 @@ page where everything else works.
 
 The exemption list, and the test that keeps it honest
 -----------------------------------------------------
-`KNOWN_MISSING_SLOTS` carries #383's two names so this file can land green
+`KNOWN_MISSING_SLOTS` carried #383's two names so this file could land green
 without settling what to do about them (finish the feature or delete it — a
 product question). `test_every_exemption_is_still_broken` asserts each one is
-*still* absent, so the list cannot outlive the defect: fixing #383 makes that
-test fail and the entry gets deleted.
+*still* absent, so the list cannot outlive the defect. #898 Wave 0 settled
+#383 by deletion, so the set is empty today; the mechanism stays for the next
+known gap.
 
 That companion is not belt-and-braces. CLAUDE.md records the same trap in
 `pytest.xfail` form — an exemption reached only from inside a failing branch
@@ -48,12 +49,12 @@ INFRASTRUCTURE = {'_bridge.js', '_loader.js'}
 #: Slot names a wrapper calls that no `@pyqtSlot` provides. **#383.**
 #: Each entry is a live defect, not an approved exception, and
 #: `test_every_exemption_is_still_broken` is what stops it becoming one.
-KNOWN_MISSING_SLOTS = {
-    # analytics.js:132 and :139. Their only caller, time_difficulty.js, is
-    # loaded by no page, so nothing a student can press reaches them.
-    'getTimeVsDifficultyAnalysis',
-    'getTimeDistribution',
-}
+#:
+#: Empty since #898 Wave 0, which resolved #383's two entries
+#: (``getTimeVsDifficultyAnalysis``, ``getTimeDistribution``) by deleting the
+#: wrappers and ``time_difficulty.js``, their only caller. Keep the set and its
+#: companion test: the next known gap goes here with its issue number.
+KNOWN_MISSING_SLOTS: set[str] = set()
 
 _CALL = re.compile(r"_callBridge\(\s*'([A-Za-z_][A-Za-z0-9_]*)'")
 _DEFINE = re.compile(r"api\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?function")

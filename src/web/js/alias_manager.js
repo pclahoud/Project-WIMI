@@ -45,7 +45,7 @@ const AliasManager = {
                         <h2 class="modal-title" id="alias-manager-title">
                             <span class="modal-icon">🏷️</span>
                             Manage Aliases
-                        </h3>
+                        </h2>
                         <button class="modal-close" id="alias-modal-close" aria-label="Close">×</button>
                     </div>
 

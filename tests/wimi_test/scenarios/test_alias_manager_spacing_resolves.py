@@ -96,12 +96,12 @@ TREE_RULES = [
     ['.dimension-selector-help', 'color', 'color', 'var(--text-muted)'],
     ['.dimension-info-stats', 'color', 'color', 'var(--text-muted)'],
 ]
-# Both of analytics.css's.
-ANALYTICS_RULES = [
-    ['.time-bar-fill', 'background', 'backgroundImage',
-     'linear-gradient(90deg, var(--color-primary), var(--color-primary-light))'],
-    ['.warning-icon', 'font-size', 'fontSize', 'var(--font-size-md)'],
-]
+# analytics.css's two #81 rules, `.time-bar-fill` and the bare `.warning-icon`,
+# styled only the dead time-vs-difficulty component and went with it in #898
+# Wave 0 (PR #905). A deleted rule has nothing left to resolve, so the
+# dashboard is no longer swept here (#906). The `.warning-icon`s still drawn
+# by the alias manager and the import preview are styled by aliases.css and
+# import_export.css, which #81 never touched.
 
 # Resolve a value through the real cascade on a live probe in the same
 # document. Reading the declaration alone would report var(--spacing-md) as
@@ -271,10 +271,11 @@ def test_alias_manager_spacing_follows_the_space_scale(
 
 @pytest.mark.slow
 @pytest.mark.regression
-def test_tree_and_analytics_tokens_resolve(
+def test_tree_tokens_resolve(
     wimi_session: WimiTestSession, wimi_page: WimiPage,
 ) -> None:
-    """#81's other two files: the borders paint and the gradient draws."""
+    """#81's tree.css: the borders paint. (analytics.css's half went with
+    the component it styled; see the note after TREE_RULES.)"""
     # ---- Arrange -----------------------------------------------------
     db = wimi_session.user.db
     exam = db.create_exam_context(exam_name='Token Sweep Exam', exam_description='')
@@ -290,6 +291,3 @@ def test_tree_and_analytics_tokens_resolve(
     # at its initial `none`. The rows had no border at all.
     wimi_page.goto('tree-editor')
     _assert_sweep(wimi_page, TREE_RULES, 'the tree editor')
-
-    wimi_page.goto('analytics')
-    _assert_sweep(wimi_page, ANALYTICS_RULES, 'the analytics dashboard')

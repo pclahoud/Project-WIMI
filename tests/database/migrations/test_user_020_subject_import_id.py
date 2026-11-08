@@ -84,6 +84,10 @@ def test_apply_pending_adds_the_column_and_stamps_the_ledger(fresh_conn):
 
 def test_existing_subjects_are_left_without_an_id(fresh_conn):
     _runner_through_v19(fresh_conn).apply_pending()
+    # A real exam for the subject's name: since m037 (#884) a subject filed
+    # under a name no exam holds is debris, and the full chain removes it.
+    fresh_conn.execute(
+        "INSERT INTO exam_contexts (user_id, exam_name) VALUES (1, 'USMLE')")
     fresh_conn.execute(
         "INSERT INTO subject_nodes (exam_context, name, level_type) "
         "VALUES ('USMLE', 'Cardiovascular', 'System')"

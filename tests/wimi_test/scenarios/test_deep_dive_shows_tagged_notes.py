@@ -41,6 +41,7 @@ from wimi_test.page import WimiPage
 from wimi_test.session import WimiTestSession
 
 TAGGED_NOTE = "peaked T waves on the ECG"
+FREE_NOTE = "a note that no longer has an entry"
 UNTAGGED_NOTE = "scribble with no subject tag"
 REFLECTION = "I confused the potassium thresholds"
 
@@ -152,6 +153,88 @@ def test_the_notes_list_and_the_entries_list_are_both_drawn_and_distinct(
         f"{entries_heading[0]!r}")
     assert notes_heading[0] != entries_heading[0], (
         f"the two headings are identical: {headings!r}")
+
+
+@pytest.mark.slow
+@pytest.mark.regression
+def test_a_free_notes_row_opens_quick_note_while_an_entry_notes_row_navigates(
+    wimi_session: WimiTestSession,
+    wimi_page: WimiPage,
+) -> None:
+    """A tagged note on no entry (#848, m036) is listed, and its row is a
+    button again (#848 Wave 2b): pressing it opens the Quick note dialog on
+    the note and stays on this page. #464 settled that a row announced as a
+    button has to go somewhere; Wave 0 drew this row as text because there was
+    nowhere yet, and before that it navigated to
+    ``entry_detail.html?id=undefined``, an error page.
+
+    The entry note beside it is the control: pressing its row does navigate,
+    which proves the two rows are told apart by their data rather than both
+    doing one thing. ``test_deep_dive_free_note_row_opens_quick_note.py``
+    covers what the dialog holds once it is open.
+    """
+    db = wimi_session.user.db
+    exam_id, subject_id = _seed(db)
+    free_id = db.execute(
+        "INSERT INTO entry_notes (question_entry_id, content_html, "
+        "sort_order, linked_subject_ids) VALUES (NULL, ?, 0, ?)",
+        (f"<p>{FREE_NOTE}</p>", json.dumps([subject_id])),
+    ).lastrowid
+    db.conn.commit()
+    entry_note_id = db.fetchone(
+        "SELECT id FROM entry_notes WHERE content_html = ?",
+        (f"<p>{TAGGED_NOTE}</p>",))["id"]
+
+    wimi_page.goto("subject-deep-dive",
+                   query={"subject": subject_id, "exam": exam_id})
+
+    rows = _poll(
+        wimi_page,
+        lambda: wimi_page.eval_js(
+            "Object.fromEntries(Array.from(document.querySelectorAll("
+            "'[data-testid^=\"deep-dive-subject-note-\"]')).map(el => ["
+            "el.dataset.testid, {role: el.getAttribute('role'), "
+            "tabindex: el.getAttribute('tabindex'), "
+            "text: el.textContent.trim()}]))"),
+        lambda r: isinstance(r, dict) and len(r) >= 2,
+    )
+    assert rows and len(rows) >= 2, f"both rows must be drawn: {rows!r}"
+    free = rows[f"deep-dive-subject-note-{free_id}"]
+    on_entry = rows[f"deep-dive-subject-note-{entry_note_id}"]
+    assert FREE_NOTE in free["text"], free
+    assert free["role"] == "button" and free["tabindex"] == "0", (
+        f"a note with no entry opens in Quick note, so its row is a button: {free!r}")
+    assert on_entry["role"] == "button" and on_entry["tabindex"] == "0", (
+        f"the entry note's row is the control and must keep its role: {on_entry!r}")
+
+    # Pressing the free row opens the dialog and stays on this page.
+    wimi_page.locator(testid=f"deep-dive-subject-note-{free_id}").click()
+    opened = _poll(
+        wimi_page,
+        lambda: wimi_page.eval_js("!!window.QuickNote && QuickNote.isOpen()"),
+        lambda v: v is True,
+    )
+    assert opened is True, "pressing a free note's row should open the Quick note dialog"
+    where = wimi_page.eval_js("window.location.pathname")
+    assert "subject_deep_dive" in where, (
+        f"pressing a free note's row must not navigate; landed on {where!r}")
+    wimi_page.eval_js("(() => { QuickNote.close(); return true; })()")
+    closed = _poll(
+        wimi_page,
+        lambda: wimi_page.eval_js("window.ModalDialog.openSurfaces().length"),
+        lambda n: n == 0,
+    )
+    assert closed == 0, "the dialog should close before the control press"
+
+    # Positive control: the same press on the entry note's row navigates.
+    wimi_page.locator(testid=f"deep-dive-subject-note-{entry_note_id}").click()
+    where = _poll(
+        wimi_page,
+        lambda: wimi_page.eval_js("window.location.pathname"),
+        lambda p: isinstance(p, str) and "entry_detail" in p,
+    )
+    assert isinstance(where, str) and "entry_detail" in where, (
+        f"the entry note's row must still open the entry; stayed on {where!r}")
 
 
 @pytest.mark.slow

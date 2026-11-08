@@ -128,6 +128,7 @@ every screen that produces a **total** filters to the primary tag:
 - the **By Subject** sunburst and the dimension sunbursts on the analytics
   dashboard;
 - the **Subject vs Exam Weight Analysis** quadrants and recommendations;
+- the **Difficulty and Time Spent** card, on the dashboard and on the deep dive;
 - performance over time, source comparison, and the subject deep dive's own
   counts.
 
@@ -136,6 +137,18 @@ inflate its own total through tags that merely mention it. Note that **Primary
 Subject(s)** is plural: if a question really was equally about two things and you
 name both as primary, both are counted. That is you saying the question had two
 main subjects, which is a different claim from "it also touched on this".
+
+On a subject's deep dive, the difficulty and time card counts the mistakes whose
+primary subject is this subject or any subject beneath it, which is the same set
+the page's Total Mistakes figure counts, so the two always agree. It follows
+the page's **Show as part of** choice the same way the figures beside it do.
+Fast and slow still use your median for the whole exam, so a mistake is fast or
+slow on the deep dive for the same reason it is on the dashboard.
+
+Clicking a quadrant there opens the entry browser with a **Counted under** chip,
+which makes the browser use this counting rule for once instead of its usual
+finding rule. Without it the browser would add the entries that only mention the
+subject as also tested, and land on a bigger number than the card showed.
 
 ## Why finding uses all of them
 
@@ -231,7 +244,7 @@ What each one is for:
 One more thing that makes two screens look like they disagree, and the short
 answer is that they do not: an unfinished entry counts on every analytics
 surface in WIMI. It is in the sunburst, in Top subject, in the deep dive, in
-the weight quadrants. The exception is goals, which is a chapter of its own —
+the weight quadrants, in the difficulty and time card. The exception is goals, which is a chapter of its own —
 see *Goals, and why drafts do not count toward them*.
 
 ## A checklist for a number that looks wrong

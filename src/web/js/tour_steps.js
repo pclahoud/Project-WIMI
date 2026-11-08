@@ -37,7 +37,7 @@
  * `(window.WIMI_TOUR_STEPS || {})[page] || []`, and an empty array drawn as a tour is the
  * two-empty-boxes-and-a-gap mistake in another file.
  *
- * 116 step(s) across 9 page(s).
+ * 117 step(s) across 9 page(s).
  */
 window.WIMI_TOUR_STEPS = {
   "dashboard": [
@@ -118,7 +118,7 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "dashboard",
       "anchor": "exam-card-delete",
-      "text": "No archived subject is ever permanently removed. An exam is different: Delete Permanently, which appears only once the exam is suspended, takes its sessions and every entry with it and cannot be undone.",
+      "text": "No archived subject is removed on its own. An exam is different: Delete Permanently, which appears only once the exam is suspended, takes its sessions, every entry and its whole subject tree with it, and cannot be undone.",
       "chapter": "archive_and_restore",
       "chapter_title": "Archiving a subject, and getting it back",
       "section": "Permanent deletion does not exist",
@@ -201,11 +201,11 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "exam-wizard",
       "anchor": "wizard-review",
-      "text": "A new exam gets its own copy of the sixteen error types, seeded the first time you open its entry form. The copies are independent, so a definition you rewrite on one exam does not change it on another.",
+      "text": "Your error types are shared across your exams. A new exam offers the sixteen defaults the first time you open its entry form, and a type you create on one exam stays on that exam until you add it to another. A definition is shared, so rewriting it changes it everywhere.",
       "chapter": "error_types",
       "chapter_title": "Error types: naming the mistake",
-      "section": "Each exam has its own list",
-      "link": "help_error_types.html#each-exam-has-its-own-list"
+      "section": "Your error types are shared across your exams",
+      "link": "help_error_types.html#your-error-types-are-shared-across-your-exams"
     }
   ],
   "tree-editor": [
@@ -239,7 +239,7 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "tree-editor",
       "anchor": "tree-row-name",
-      "text": "Double-click a subject's name, or press F2 on it, to rename it in place. Enter saves the new name, and so does clicking anywhere else. Renaming one appearance renames the subject everywhere it appears.",
+      "text": "Double-click a subject's name, or press F2 on it, to rename it in place. Enter saves the new name, and so does clicking anywhere else. Escape cancels. Renaming one appearance renames the subject everywhere it appears.",
       "chapter": "subject_hierarchies",
       "chapter_title": "Your subject tree and its levels",
       "section": "Renaming a subject",
@@ -638,6 +638,15 @@ window.WIMI_TOUR_STEPS = {
     },
     {
       "page": "entry-form",
+      "anchor": "entry-form-quick-note-button",
+      "text": "Quick note saves a note that belongs to no entry, for something worth keeping that is not about this question. Ctrl+Shift+N opens it from anywhere on the page, the two written fields included. Its second tab, Your notes, lists every note on its own so you can edit it later.",
+      "chapter": "notes",
+      "chapter_title": "Notes",
+      "section": "A note on its own",
+      "link": "help_notes.html#a-note-on-its-own"
+    },
+    {
+      "page": "entry-form",
       "anchor": "entry-form-notes-block",
       "text": "A note is for the thing that will still be true on a question you have not seen yet. Tag it with a subject and a later entry with that subject as a primary subject offers it back through + Add existing, which is the only subject-level view of your notes.",
       "chapter": "notes",
@@ -648,7 +657,7 @@ window.WIMI_TOUR_STEPS = {
     {
       "page": "entry-form",
       "anchor": "entry-form-note-delete",
-      "text": "On a note only this entry uses, Delete removes it for good after one question. On a note other entries share, you choose: Detach from this entry keeps it on them, Delete everywhere removes it from all. Deleting the entry a note was first written on deletes the note everywhere too.",
+      "text": "On a saved note only this entry uses, Delete offers a choice: Keep as a note on its own takes it off this entry and keeps it under Your notes in Quick note; Delete removes it for good. On a note other entries share, Detach from this entry keeps it on them and Delete everywhere removes it from all.",
       "chapter": "notes",
       "chapter_title": "Notes",
       "section": "Clearing, editing and deleting",

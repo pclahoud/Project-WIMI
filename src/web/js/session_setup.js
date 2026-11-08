@@ -230,6 +230,12 @@ function renderPreviousSessionCard(session) {
         : 100;
     
     const isComplete = completionPercent >= 100 || session.session_status === 'completed';
+
+    // The three counts are INTEGER-affinity columns, and a column's affinity
+    // is not enforcement: an installed profile can carry text in them that
+    // passes their CHECKs (#593 checks structure, not values). Escaped as
+    // text, like every other value on the card (#548).
+    const count = (value) => WimiEscape.html(String(value ?? ''));
     
     // Determine status class and text based on both status field and completion percentage
     let statusClass, statusText;
@@ -262,15 +268,15 @@ function renderPreviousSessionCard(session) {
             <div class="prev-session-stats">
                 <div class="prev-session-stat">
                     <span class="prev-session-stat-label">Total</span>
-                    <span class="prev-session-stat-value">${session.total_questions}</span>
+                    <span class="prev-session-stat-value">${count(session.total_questions)}</span>
                 </div>
                 <div class="prev-session-stat">
                     <span class="prev-session-stat-label">Incorrect</span>
-                    <span class="prev-session-stat-value">${session.total_incorrect}</span>
+                    <span class="prev-session-stat-value">${count(session.total_incorrect)}</span>
                 </div>
                 <div class="prev-session-stat" data-tour-anchor="session-card-logged">
                     <span class="prev-session-stat-label">Logged</span>
-                    <span class="prev-session-stat-value">${session.entries_completed}/${session.total_incorrect}</span>
+                    <span class="prev-session-stat-value">${count(session.entries_completed)}/${count(session.total_incorrect)}</span>
                 </div>
             </div>
             

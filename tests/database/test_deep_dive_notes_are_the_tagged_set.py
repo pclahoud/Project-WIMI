@@ -184,3 +184,58 @@ def test_a_subject_with_no_tagged_notes_reports_an_empty_list(user_db):
     dive = user_db.get_subject_deep_dive(subject, exam_context_id=exam.id)
 
     assert dive["notes"] == [], f"expected [], got {dive['notes']!r}"
+
+
+def test_a_free_notes_row_carries_no_entry_id(user_db):
+    """A note on no entry (#848, m036) is collected like any tagged note, and
+    its ``entry_id`` is ABSENT rather than null -- the convention the
+    serializer's ``question_entry_id`` and this payload's ``dimension_id``
+    already use, so the page can test ``'entry_id' in note``. The entry note
+    beside it is the positive control: its key is present and names the entry.
+
+    A free note is reachable today from two shipped actions: deleting the
+    origin of a note still attached elsewhere, and *Detach from this entry*
+    on the origin. The deep-dive row that reads this key is Wave 2's.
+    """
+    exam = _exam(user_db)
+    subject = _subject(user_db, exam, "Hyperkalemia")
+    entry = _entry_on(user_db, exam, subject)
+    _note(user_db, entry, "on an entry", tagged_with=[subject])
+    _note(user_db, None, "on no entry", tagged_with=[subject])
+
+    dive = user_db.get_subject_deep_dive(subject, exam_context_id=exam.id)
+    by_text = {n["content_html"]: n for n in dive["notes"]}
+
+    assert "<p>on no entry</p>" in by_text, (
+        f"a tagged free note must be collected: {dive['notes']!r}")
+    assert "entry_id" not in by_text["<p>on no entry</p>"], (
+        f"absent, not null: {by_text['<p>on no entry</p>']!r}")
+    assert by_text["<p>on an entry</p>"]["entry_id"] == entry
+
+
+def test_each_note_carries_how_many_entries_hold_it(user_db):
+    """#848 Wave 2b: the row says "Entry #N and 1 other" for a shared note.
+
+    ``attachment_count`` is the junction count, attached the way
+    ``list_free_notes`` attaches it (``_notes_with_attachment_count``). Three
+    notes make the three cases: one written on an entry and attached to a
+    second (2), one written on an entry only (1), and a free note on nothing
+    (0). The 1 is the control that the figure is a count and not a flag: a key
+    reading ``True`` or a constant would fail one of the other two.
+    """
+    exam = _exam(user_db)
+    subject = _subject(user_db, exam, "Pneumothorax")
+    first = _entry_on(user_db, exam, subject)
+    second = _entry_on(user_db, exam, subject)
+    shared = user_db.add_entry_note(
+        first, content_html="<p>shared</p>", linked_subject_ids=[subject])
+    assert user_db.attach_existing_note_to_entry(shared.id, second)
+    user_db.add_entry_note(
+        first, content_html="<p>single</p>", linked_subject_ids=[subject])
+    _note(user_db, None, "free", tagged_with=[subject])
+
+    dive = user_db.get_subject_deep_dive(subject, exam_context_id=exam.id)
+    counts = {n["content_html"]: n.get("attachment_count") for n in dive["notes"]}
+
+    assert counts == {"<p>shared</p>": 2, "<p>single</p>": 1, "<p>free</p>": 0}, (
+        f"each row must carry the number of entries holding its note: {counts!r}")

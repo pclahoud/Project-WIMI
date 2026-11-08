@@ -355,6 +355,103 @@ questions is ordinary. Mistakes clustered on *easy* questions is the finding —
 that is not a knowledge problem, and the reasons you wrote on those entries will
 say what it is instead.
 
+## Difficulty and time spent
+
+This card puts each mistake on two scales at once: how hard you rated the
+question, and how long you spent on it. It has two tabs, **Quadrants** and
+**Every entry**, and both count the same mistakes.
+
+### The four quadrants
+
+- **Hard** means you rated the question 4 or 5. **Easy** means 1 or 2.
+- **Fast** means under your median time for this exam. **Slow** means your median or more, so a mistake that took exactly the median counts as slow.
+- The median is taken over every mistake on the exam that has a time spent, whatever subject or error type it carries, so fast means the same thing everywhere the card appears.
+- The median moves as you log more. A mistake that read as fast last month can read as slow today without anything about it changing.
+
+The column headings give the split in words, for example *under 1 min 35 s*
+and *1 min 35 s or more*. When the median falls between two whole seconds the
+heading rounds it up, so every whole-second time lands on the side the heading
+says. If you type times in whole minutes, a lot of mistakes will sit exactly on
+the median, and all of them go slow; the *or more* is what explains that.
+
+The four labels are plain on purpose: Hard and fast, Hard and slow, Easy and
+fast, Easy and slow. None of them is a verdict. Easy and fast is often the
+interesting one, because a quick wrong answer to a question you found easy is
+rarely a gap in what you know.
+
+### Before there is a median
+
+The split needs at least **10 mistakes with a time spent** on the exam. Below
+that the card draws no quadrants. It shows one block holding the mistakes rated
+1, 2, 4 or 5 that have a time, and a sentence saying how many timed mistakes the
+exam has so far. If every timed mistake took the same time, nothing can be
+under the median, so both fast cards are empty and the card says why.
+
+### What is not in a quadrant
+
+Nothing is dropped. Every mistake on the exam is in exactly one of these places,
+and the footer accounts for all of them:
+
+- **Rated 3** mistakes with a time sit in the middle band, neither hard nor easy, so they are in no quadrant.
+- **Not placed** mistakes have no difficulty rating, or no time spent, or neither. A time of 0 counts as no time.
+- The accounting line reads, for example, *9 of 14 mistakes placed*. **Placed means the four quadrants only**: the Rated 3 line is neither placed nor not placed, so it is the gap between the two numbers.
+
+Each quadrant's percentage is its share of the placed mistakes, and the Rated 3
+and Not placed lines each have their own **Show** link. Drafts are counted like
+every other mistake, as they are everywhere on this page.
+
+### Error types on the card
+
+With nothing picked, each quadrant lists its three commonest error types. The
+counts overlap: a mistake tagged with two error types counts under both, so a
+quadrant's type counts can add up to more than its total.
+
+The button above the tabs, reading **All error types** until you change it,
+opens a list headed **Error types to highlight**. It lists every type carried by
+at least one of these mistakes, under its group, with a count. A type the exam no
+longer offers is still listed, marked *No longer on this exam*, because the
+mistakes that carry it still count. Picking changes the card as you go; **Done**
+or Escape closes the list.
+
+- **One type** picked turns each quadrant into a count such as *12 of 40*: 12 of that quadrant's 40 mistakes carry the type.
+- **Several types** bring a **Match** switch. *Any* is the default and gives each quadrant one row per picked type plus a large number for mistakes carrying any of them, and those rows overlap. *All* gives each quadrant one number: mistakes carrying every picked type.
+- **No error type** sits at the top of the list, apart from the types. It finds the mistakes you have not tagged yet, so you can open them and fill the field in. It cannot be combined with a type.
+
+With a type picked, the Rated 3 and Not placed lines and the accounting line
+count only what matches, so every number on the tab answers the same question.
+
+### The Every entry tab
+
+One dot per mistake that has both a rating and a time, on three background
+bands: orange for hard, a neutral middle band for rated 3, and blue for easy.
+Time runs left to right, and a dashed line marks your median. Mistakes rated
+the same are spread a little up and down so fewer hide behind each other, and
+times typed in whole minutes line up in columns. A mistake that took far longer
+than the rest is drawn at the right edge, and a sentence under the chart says
+how many are.
+
+- With nothing picked, every dot is the same colour.
+- With types picked, each of the first four picked types gets its own colour. Pick a fifth and every match turns one colour.
+- Dots that do not match are drawn **smaller, not fainter**, in grey, so they stay easy to see while the matches stand out.
+- Under Match any, a dot carrying two or more of the picked types gets a ring, in the colour of the first type it carries.
+
+Hover over a dot to see its session, question, subjects, difficulty, time and
+error types; click it to open that entry. The dots cannot be reached with the
+keyboard. **The Quadrants tab is the keyboard route** to the same mistakes, a
+quadrant at a time, and the chart says so under itself.
+
+### Clicking through
+
+Every quadrant, and the Rated 3 and Not placed lines, opens the entry browser
+on exactly the mistakes it counted, with whatever error types you picked
+carried along. The browser sets its new Difficulty, Time spent and error-type
+filters for you, so the number of entries it shows is the number on the card. A
+quadrant with nothing in it is not a link.
+
+The same card is on each subject's deep dive, counting only that subject's
+mistakes; [Why two screens can disagree about one subject](help_two_screens_one_subject.html)
+says which ones.
+
 ## Patterns and insights
 
 Up to five short cards, each one a sentence WIMI noticed. They are warnings
@@ -571,7 +668,7 @@ text: Every card on this page except Weekly Goal includes your unfinished
 
 One rule covers the whole page bar one card. **Apart from the weekly goal, no
 card on the analytics dashboard leaves out your drafts** — not the sunburst, not Top subject, not the heatmaps, not the
-difficulty spread, not the weight quadrant. A draft exists because you got a
+difficulty spread, not the difficulty and time card, not the weight quadrant. A draft exists because you got a
 question wrong, and an unfinished reflection does not un-happen the mistake.
 
 The weekly goal is that one exception, and it says so in its own card: it

@@ -603,6 +603,107 @@
     color: var(--text-primary);
 }
 
+/* #898: the error-type panel's Match and No error type options, the
+   difficulty and time panels. Tokens only; every text size is at or above
+   the 12px floor (#308). */
+.tag-filter-options {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.tag-match-mode {
+    border: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+}
+
+.tag-match-mode legend {
+    float: left;
+    padding: 0;
+    margin-right: 0.25rem;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.filter-check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.filter-check-item:hover {
+    background: var(--bg-secondary);
+}
+
+.tag-match-mode .filter-check-item {
+    padding: 0.25rem 0.375rem;
+}
+
+.filter-missing-row {
+    padding: 0.25rem 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.tag-item-meta {
+    margin-left: 0.5rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.tag-group-hint {
+    margin: 0 0.5rem 0.25rem;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.time-range-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+}
+
+.time-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.time-input-group label {
+    width: 4.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.time-input-group input[type="number"] {
+    flex: 1;
+    min-width: 0;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.time-unit {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
 /* Date Presets */
 .date-presets {
     display: flex;

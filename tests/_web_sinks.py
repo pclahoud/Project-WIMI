@@ -9,6 +9,24 @@ nested ``${...}`` and comments tracked -- and reports what it interpolates.
 It is an instrument for the sweep and for ``tests/test_web_escaping.py``, not a
 judge: whether an interpolation is a defect depends on whether a student can
 put text in it, which no scanner can know.
+
+**``interpolates`` is not the review surface, and quoting it as one is #588.**
+A sink whose right-hand side is a bare variable (``el.innerHTML = html``), a
+call (``renderRow(x)``) or a ``.join('')`` carries no ``${...}`` and no
+top-level ``+``, so ``interpolates`` is False -- while the interpolation sits on
+the lines that built ``html``. So every sink is put in exactly one of three
+``Sink.bucket`` s, and ``reconcile()`` reports all three with their sum:
+
+* ``flagged`` -- ``interpolates``: the value is visible in the expression;
+* ``literal`` -- nothing but string and template literals, so nothing can carry
+  a value. Proven by stripping the literals and finding no identifier left;
+* ``needs a human`` -- everything else. Not a defect count: the reader has to
+  follow the variable or the call to where its markup is built.
+
+The third bucket is where anything the classifier cannot prove falls, so a
+shape it does not understand comes out loud (more to read) rather than quiet.
+No dataflow is attempted: following ``html`` back through its ``+=`` lines is a
+parse, and a parse that desynchronises fails open.
 """
 from __future__ import annotations
 
@@ -20,6 +38,11 @@ from typing import List
 ROOT = Path(__file__).resolve().parent.parent
 WEB_JS = ROOT / 'src' / 'web' / 'js'
 VENDORED = ('lib',)
+
+FLAGGED = 'flagged'
+LITERAL = 'literal'
+NEEDS_HUMAN = 'needs a human'
+BUCKETS = (FLAGGED, LITERAL, NEEDS_HUMAN)
 
 #: `x.innerHTML = …`, `x.innerHTML += …`, `x.outerHTML = …`, and
 #: `x.insertAdjacentHTML(pos, …)`. Not `==`/`===` (a comparison).
@@ -40,6 +63,15 @@ class Sink:
     @property
     def interpolates(self) -> bool:
         return bool(self.interpolations) or self.concatenates
+
+    @property
+    def bucket(self) -> str:
+        """``FLAGGED``, ``LITERAL`` or ``NEEDS_HUMAN`` -- exactly one (#588)."""
+        if self.interpolates:
+            return FLAGGED
+        if not _has_code(self.expression):
+            return LITERAL
+        return NEEDS_HUMAN
 
     def where(self) -> str:
         return f'{self.path.relative_to(ROOT)}:{self.line}'
@@ -131,10 +163,19 @@ def _read_expression(text: str, start: int, *, call: bool) -> tuple[str, List[st
     return expr, [s.strip() for s in interps], concat and _concat_joins_code(expr)
 
 
+#: A string literal, or a template literal with no `$` in it. A template that
+#: holds a `$` is left in place, so its text counts as code: unproven, not safe.
+_LITERAL = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`[^`$]*`")
+
+
+def _has_code(expr: str) -> bool:
+    """Does any identifier survive once every literal is stripped?"""
+    return bool(re.search(r'[A-Za-z_$]', _LITERAL.sub('', expr)))
+
+
 def _concat_joins_code(expr: str) -> bool:
     """`'a' + 'b'` is a literal; `'<b>' + name` is an interpolation."""
-    stripped = re.sub(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`[^`$]*`", '', expr)
-    return bool(re.search(r'[A-Za-z_$]', stripped))
+    return _has_code(expr)
 
 
 def sinks_in(path: Path, text: str | None = None) -> List[Sink]:
@@ -171,6 +212,29 @@ def all_sinks() -> List[Sink]:
     for p in first_party_js():
         out.extend(sinks_in(p))
     return out
+
+
+def reconcile(sinks: List[Sink] | None = None) -> dict[str, List[Sink]]:
+    """Every sink under its bucket. The three lists always sum to the total."""
+    sinks = all_sinks() if sinks is None else sinks
+    out: dict[str, List[Sink]] = {b: [] for b in BUCKETS}
+    for s in sinks:
+        out[s.bucket].append(s)
+    return out
+
+
+def _report() -> str:
+    sinks = all_sinks()
+    buckets = reconcile(sinks)
+    lines = [f'{len(sinks)} sinks = ' + ' + '.join(
+        f'{len(buckets[b])} {b}' for b in BUCKETS)]
+    for s in buckets[NEEDS_HUMAN]:
+        lines.append(f'  {s.where()}  {" ".join(s.expression.split())[:80]}')
+    return '\n'.join(lines)
+
+
+if __name__ == '__main__':
+    print(_report())
 
 
 #: A local escaping helper: `function escapeX(`, `escapeX(x) {` (a method),

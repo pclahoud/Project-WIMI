@@ -112,7 +112,8 @@ class WimiTab:
     responsible for that.
 
     Attribute delegation: :attr:`Page`, :attr:`Runtime`, :attr:`Network`,
-    :attr:`DOM`, :attr:`Input`, :attr:`Accessibility` and :attr:`Target`
+    :attr:`DOM`, :attr:`Input`, :attr:`Accessibility`, :attr:`Emulation`
+    and :attr:`Target`
     are pass-throughs to the underlying pychrome ``GenericAttr`` proxy
     objects, so callers can write ``wt.Runtime.evaluate(...)`` exactly as
     they would on a raw :class:`pychrome.Tab`.
@@ -175,6 +176,15 @@ class WimiTab:
         been measured, so do not rely on it either way.
         """
         return self._tab.Accessibility
+
+    @property
+    def Emulation(self) -> Any:
+        """The pychrome ``Emulation`` domain proxy.
+
+        Used for one call, ``setFocusEmulationEnabled`` -- see the session's
+        attach step for why every scenario needs it on native macOS.
+        """
+        return self._tab.Emulation
 
     @property
     def Target(self) -> Any:

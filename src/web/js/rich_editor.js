@@ -322,6 +322,42 @@ class RichEditor {
                     }
                 });
 
+                // Forward Ctrl/Meta+Shift chords to the parent document (#848).
+                // A keydown inside the editing iframe never reaches the page's
+                // own listeners, so a page-level shortcut would work everywhere
+                // except where the student is typing. This file knows no
+                // shortcut by name: it re-emits the chord as a cancelable
+                // `wimi:editor-shortcut` CustomEvent on `document`, carrying the
+                // key and modifiers, and a page listener that calls
+                // preventDefault() on it cancels the original press. Plain keys
+                // and Ctrl-only chords (TinyMCE's own Ctrl+B and friends) are
+                // not forwarded; Escape is, so a dialog holding one of these
+                // editors can close from inside it, unless TinyMCE already
+                // used the press for a menu of its own.
+                editor.on('keydown', (e) => {
+                    if (typeof e.key !== 'string') return;
+                    const isEscape = e.key === 'Escape'
+                        && !(typeof e.isDefaultPrevented === 'function' && e.isDefaultPrevented());
+                    const isChord = (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.length === 1;
+                    if (!isEscape && !isChord) return;
+                    const forwarded = new CustomEvent('wimi:editor-shortcut', {
+                        bubbles: false,
+                        cancelable: true,
+                        detail: {
+                            key: e.key,
+                            code: e.code,
+                            ctrlKey: !!e.ctrlKey,
+                            shiftKey: !!e.shiftKey,
+                            altKey: !!e.altKey,
+                            metaKey: !!e.metaKey
+                        }
+                    });
+                    if (!document.dispatchEvent(forwarded)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                });
+
                 // When editor is ready
                 editor.on('init', () => {
                     console.log('[RichEditor] TinyMCE init event fired, editor is ready');

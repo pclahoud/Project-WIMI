@@ -78,6 +78,10 @@ def test_fills_null_descriptions_for_known_names(fresh_conn):
 def test_backfill_applies_via_runner(fresh_conn):
     """The registry path (apply_pending) performs the same backfill."""
     _runner_through_v9(fresh_conn).apply_pending()
+    # A real exam for the tag's name: since m037 (#884) a tag filed under a
+    # name no exam holds is debris, and the full chain removes it.
+    fresh_conn.execute(
+        "INSERT INTO exam_contexts (user_id, exam_name) VALUES (1, 'TESTEXAM')")
     gap_id = _insert_tag(fresh_conn, "Second-Guessing")
 
     _full_runner(fresh_conn).apply_pending()

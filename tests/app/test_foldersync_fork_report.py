@@ -13,6 +13,7 @@ student the two copies agree when nobody checked.
 """
 from __future__ import annotations
 
+import dataclasses
 import sqlite3
 import zipfile
 from datetime import date, timedelta
@@ -142,6 +143,29 @@ def test_counts_come_from_the_shipped_snapshot(two_sides):
     assert summary.entries == 40
     assert summary.subjects == 3
     assert summary.sessions == 1
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [
+    pytest.param("<img src=x onerror=window.__x=1>", id="markup"),
+    pytest.param("40", id="numeric-string"),
+    pytest.param(4.0, id="float"),
+    pytest.param(True, id="bool"),
+])
+def test_a_count_that_is_not_an_integer_is_absent(two_sides, value):
+    """#548: ``stats`` comes off a file in a shared folder, uncoerced.
+
+    It overrides the int-coerced ``row_counts``, so a string there reached
+    Settings' fork panel as markup. A figure that is not a count is reported
+    as not recorded, never passed through.
+    """
+    laptop, _ = two_sides
+    manifest = dataclasses.replace(laptop[0], stats={
+        **laptop[0].stats, "entries": value, "sessions": value,
+        "exam_contexts": value, "subjects": value})
+    summary = summarise_side(manifest)
+    assert (summary.entries, summary.sessions,
+            summary.exam_contexts, summary.subjects) == (None, None, None, None)
 
 
 @pytest.mark.unit
