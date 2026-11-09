@@ -309,6 +309,29 @@ class RichEditor {
                 // Add formula icon if not present
                 editor.ui.registry.addIcon('formula', '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M7 2v2h1v14H7v2h6v-2h-1V4h1V2H7zm10 0v2h-1v14h1v2h-6v-2h1V4h-1V2h6z"/></svg>');
 
+                // An image copied from a web page pastes as the image (#941).
+                // "Copy image" puts the bitmap AND an HTML flavour holding
+                // <img src="https://..."> on the clipboard, and TinyMCE takes
+                // the HTML. WIMI's file:// pages may not load remote URLs
+                // (LocalContentCanAccessRemoteUrls is off, a security control),
+                // so that image was always broken. Owner, 2026-11-09: store the
+                // image itself, as a pasted screenshot is, and drop the link.
+                // Only when the HTML is nothing but images: a copied passage
+                // with text in it is left to TinyMCE untouched.
+                editor.on('paste', (e) => {
+                    const data = e.clipboardData;
+                    const file = data && RichEditor.pastedImageFile(data);
+                    if (!file) return;
+                    if (!RichEditor.htmlIsOnlyImages(data.getData('text/html'))) return;
+                    e.preventDefault();
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        editor.insertContent(editor.dom.createHTML('img', { src: reader.result }));
+                        if (self.onChange) self.onChange();
+                    };
+                    reader.readAsDataURL(file);
+                });
+
                 // Handle content change
                 editor.on('change', () => {
                     if (self.onChange) {
@@ -668,6 +691,33 @@ class RichEditor {
      * Get the editor content
      * @returns {Object} Content object with delta (null for TinyMCE) and html properties
      */
+    /**
+     * The first image file on a paste's clipboard, or null (#941).
+     */
+    static pastedImageFile(clipboardData) {
+        const items = clipboardData.items ? Array.from(clipboardData.items) : [];
+        for (const item of items) {
+            if (item.kind === 'file' && /^image\//.test(item.type)) {
+                const file = item.getAsFile();
+                if (file) return file;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * True when pasted HTML holds at least one image and no text (#941).
+     * Empty HTML (a screenshot) is false: TinyMCE already embeds that.
+     */
+    static htmlIsOnlyImages(html) {
+        if (!html) return false;
+        // DOMParser gives an inert document: no image loads, no script runs.
+        const body = new DOMParser().parseFromString(html, 'text/html').body;
+        if (!body) return false;
+        body.querySelectorAll('style, script').forEach((n) => n.remove());
+        return body.querySelector('img') !== null && body.textContent.trim() === '';
+    }
+
     getContent() {
         if (!this.editor || !this.isInitialized) {
             // TinyMCE has not mounted yet, so it holds nothing to read

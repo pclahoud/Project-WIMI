@@ -422,14 +422,29 @@
    Import Help Modal
    ========================================================================= */
 
+/* The box is a column and the body takes whatever height the header and
+   footer leave. The body used to be capped at calc(90vh - 8.75rem), a guessed
+   140 px allowance for the header, footer and the box's padding; they measure
+   about 224 px, so the footer overflowed the box and sat below the window.
+   Let the layout compute the allowance instead of guessing it. */
 .modal-xl {
     max-width: 50rem;
     width: 95%;
     max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.modal-xl .modal-header,
+.modal-xl .modal-footer {
+    flex: 0 0 auto;
 }
 
 .modal-xl .modal-body {
-    max-height: calc(90vh - 8.75rem);
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
 }
 
@@ -634,10 +649,6 @@
         max-width: 100%;
         margin: var(--space-sm);
         max-height: calc(100vh - 1.25rem);
-    }
-    
-    .modal-xl .modal-body {
-        max-height: calc(100vh - 10rem);
     }
     
     .modal-body {

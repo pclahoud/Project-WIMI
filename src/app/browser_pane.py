@@ -55,7 +55,7 @@ from typing import Callable, Optional, Union
 from urllib.parse import urlparse
 
 from PyQt6.QtCore import QObject, Qt, QUrl
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEnginePermission, QWebEngineProfile
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import (
     QMenu,
@@ -236,6 +236,52 @@ def _build_emit_script(payload: dict, event: str = PANE_STATE_EVENT) -> str:
     )
 
 
+def pane_permission_decision(permission_type) -> Optional[str]:
+    """``'grant'`` for the clipboard, ``None`` (leave unanswered) otherwise.
+
+    Pure, so the policy is testable without a ``QApplication``. See
+    ``_PanePage._on_permission_requested`` for why.
+    """
+    if permission_type == QWebEnginePermission.PermissionType.ClipboardReadWrite:
+        return 'grant'
+    return None
+
+
+class _PaneView(QWebEngineView):
+    """The pane's view: Qt's own context menu, plus Copy whenever text is selected.
+
+    Qt's stock menu is chosen by what is under the pointer. Right-click a link
+    inside a selection and it offers Back, Reload, Open link, Copy link address
+    and Inspect, with no Copy for the selection. Measured on the MacBook
+    (#941, 2026-11-09), and on link-dense pages (Wikipedia, a qbank's
+    explanation) that is most right-clicks. Owner, 2026-11-09: offer Copy
+    first whenever there is a selection, as Chrome does.
+    """
+
+    def build_context_menu(self) -> QMenu:
+        menu = self.createStandardContextMenu()
+        copy = self.pageAction(QWebEnginePage.WebAction.Copy)
+        if self.hasSelection() and copy not in menu.actions():
+            actions = menu.actions()
+            if actions:
+                menu.insertSeparator(actions[0])
+                menu.insertAction(menu.actions()[0], copy)
+            else:
+                menu.addAction(copy)
+        return menu
+
+    def contextMenuEvent(self, event):  # noqa: N802 (Qt casing)
+        menu = self.build_context_menu()
+        # The view must own the menu. createStandardContextMenu() hands back
+        # a parentless QMenu, popup() does not block, and with nothing
+        # holding it PyQt frees the menu the moment this method returns, so
+        # no menu appears at all (Windows machine B, 2026-11-09). Parenting
+        # it keeps it alive while open; WA_DeleteOnClose frees it after.
+        menu.setParent(self, menu.windowFlags())
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        menu.popup(event.globalPos())
+
+
 class _PanePage(QWebEnginePage):
     """The pane's page, with popups redirected into the pane itself.
 
@@ -258,6 +304,30 @@ class _PanePage(QWebEnginePage):
     def __init__(self, profile, parent, controller=None):
         super().__init__(profile, parent)
         self._controller = controller
+        self.permissionRequested.connect(self._on_permission_requested)
+
+    def _on_permission_requested(self, permission) -> None:
+        """Answer a site's clipboard request; leave every other one alone.
+
+        A site's own Copy button almost always writes through
+        ``navigator.clipboard``, and Qt (6.8 and later) turns that into a
+        ``ClipboardReadWrite`` permission request. Nothing answered it, so
+        the promise stayed pending forever and the button silently did
+        nothing: measured on Linux, with a real click, as ``pending`` after
+        1.5 s and the clipboard unchanged. Copying an image from a site goes
+        the same way.
+
+        **Granted for every site, by the owner's decision (2026-11-09).** Qt
+        has one permission for reading and writing, so this also lets a site
+        in the pane read the clipboard without asking. The owner chose that
+        over a per-site prompt and over refusing. Do not narrow it to a
+        prompt without asking: that is the option that was not chosen.
+
+        Other permission types (camera, microphone, location, notifications
+        and so on) are untouched, so they stay unanswered as before.
+        """
+        if pane_permission_decision(permission.permissionType()) == 'grant':
+            permission.grant()
 
     def createWindow(self, _type):  # noqa: N802 (Qt casing)
         """Open a site's popup as a real tab in this pane.
@@ -586,7 +656,7 @@ class BrowserPaneController(QObject):
         does NOT honour 'where I left off' — that would duplicate the
         tab they are already on.
         """
-        view = QWebEngineView(self._tabs)
+        view = _PaneView(self._tabs)
         page = _PanePage(self._profile, view, controller=self)
         view.setPage(page)
         view.urlChanged.connect(

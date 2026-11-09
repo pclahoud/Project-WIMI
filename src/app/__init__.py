@@ -9,7 +9,10 @@ PyQt6-based desktop application for exam preparation through metacognitive mista
 # Distinct from database.__version__, which tracks the database
 # package/schema phase.
 #
-# 0.4.1-beta, owner's decision 2026-11-08, for the macOS dictation fix (#897,
+# 0.4.2-beta, owner's decision 2026-11-09, for copying out of the browser
+# pane and pasting a copied image (#941, PRs #943, #944) and the import
+# guide's footer (#942).
+# Before that 0.4.1-beta, owner's decision 2026-11-08, for the macOS dictation fix (#897,
 # PR #907): 0.4.0-beta's Mac build recorded no audio, and a rebuilt binary
 # needs its own tag so the published source matches it (GPL-3.0 s6(d)).
 # Before that 0.4.0-beta, owner's go-ahead 2026-11-07 ("go for release") for the release
@@ -37,7 +40,7 @@ PyQt6-based desktop application for exam preparation through metacognitive mista
 # Compatibility is decided by `format_version` against
 # ARCHIVE_FORMAT_VERSION, and by MAX(version) FROM schema_migrations -- not
 # by this string. See profile_archive._app_version and _local_max_version.
-APP_VERSION = '0.4.1-beta'
+APP_VERSION = '0.4.2-beta'
 
 # Use lazy imports to avoid circular import issues
 # Components are imported when accessed
